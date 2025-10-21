@@ -1,0 +1,94 @@
+# Define upstream servers for backend and frontend services
+# These names match the service names in your docker-compose.yml
+upstream backend_server {
+    # Django app (Gunicorn) running in the 'backend' container on its internal port 8000
+    server backend:8000;
+}
+
+upstream frontend_server {
+    # React app (served by Nginx) running in the 'frontend' container on its internal port 80
+    # This Nginx is the one built into your frontend Docker image.
+    server frontend:80;
+}
+
+server {
+    listen 80;
+    # listen [::]:80; # For IPv6 if enabled - uncomment if your VPS has IPv6
+    server_name betblitz.co.zw www.betblitz.co.zw; # IMPORTANT: Replace YOUR_SERVER_IP with your actual VPS IP addres
+    # Optional: Set a higher client_max_body_size if you expect large file uploads
+    # client_max_body_size 20M;
+
+    # Optional: Gzip compression for faster loading of text-based assets
+    # gzip on;
+    # gzip_vary on;
+    # gzip_proxied any;
+    # gzip_comp_level 6;
+    # gzip_types text/plain text/css application/json application/javascript application/x-javascript text/xml application/xml application/xml+rss;
+
+    # Serve Django static files
+    # The '/static/' URL path matches Django's STATIC_URL
+    # The 'alias /srv/www/static/;' path matches where 'staticfiles_volume' is mounted inside this nginx_proxy container
+    location /static/ {
+        alias /srv/www/static/;
+        expires 7d; # Add caching headers
+        add_header Pragma public;
+        add_header Cache-Control "public, must-revalidate, proxy-revalidate";
+    }
+
+    # Serve Django media files (user-uploaded content)
+    # The '/media/' URL path matches Django's MEDIA_URL
+    # The 'alias /srv/www/media/;' path matches where 'media_volume' is mounted inside this nginx_proxy container
+    location /media/ {
+        alias /srv/www/media/;
+        expires 7d;
+        add_header Pragma public;
+        add_header Cache-Control "public, must-revalidate, proxy-revalidate";
+    }
+
+    # Proxy API requests to the Django backend
+    # Adjust '/api/v1/' if your Django API URLs have a different common prefix.
+    # This prefix is based on your backend's urls.py
+    location /crm-api/ {
+        proxy_pass http://backend_server; # Passes to the 'backend' service defined in 'upstream'
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $http_host; # Preserves the original host header
+        proxy_redirect off; # Tells Nginx not to rewrite redirects from the backend
+    }
+
+    # Proxy requests to the Django admin interface to the backend
+    # (The admin interface also uses /static/ for its assets, handled above)
+    location /admin/ {
+        proxy_pass http://backend_server;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $http_host;
+        proxy_redirect off;
+    }
+
+    # Proxy all other requests to the React frontend
+    location / {
+        proxy_pass http://frontend_server; # Passes to the 'frontend' service defined in 'upstream'
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Host $http_host;
+        proxy_redirect off;
+        # For React Router client-side routing:
+        # If a file isn't found, serve index.html to let React handle the route.
+        # This is needed if the Nginx inside your frontend container doesn't already do this.
+       # try_files $uri $uri/ /index.html;
+    }
+
+    # Optional: You might want to add an error page and access/error logs
+     error_log /var/log/nginx/error.log;
+     access_log /var/log/nginx/access.log;
+}
+
+# --- HTTPS Configuration (Optional - for when you add SSL) ---
+# You would uncomment and configure this section after obtaining SSL certificates.
+#
+ server {
+     listen 443 ssl http2;
+      listen [::]:443 ssl http2;
+     server_name betblitz.co.zw www.betlitz.co.zw; # Or your domain name
+#     # Paths to you

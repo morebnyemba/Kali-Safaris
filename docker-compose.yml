@@ -1,0 +1,120 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: whatsappcrm_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: whatsappcrm_redis
+    command: redis-server /usr/local/etc/redis/redis.conf
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  backend:
+    build: ./whatsappcrm_backend
+    container_name: whatsappcrm_backend_app
+    volumes:
+      - ./whatsappcrm_backend:/app
+      - staticfiles_volume:/app/staticfiles # Mount the static files volume (used by collectstatic)
+    env_file:
+      - ./whatsappcrm_backend/.env.prod
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  frontend:
+    build: ./whatsapp-crm-frontend
+    container_name: whatsappcrm_frontend_app
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  celery_io_worker:
+    build: ./whatsappcrm_backend
+    container_name: whatsappcrm_celery_io_worker
+    command: celery -A whatsappcrm_backend worker -Q celery -l INFO --concurrency=20
+    volumes:
+      - ./whatsappcrm_backend:/app
+    env_file:
+      - ./whatsappcrm_backend/.env.prod
+    depends_on:
+      - redis
+      - db
+    restart: unless-stopped
+
+  celery_cpu_worker:
+    build: ./whatsappcrm_backend
+    container_name: whatsappcrm_celery_cpu_worker
+    command: celery -A whatsappcrm_backend worker -Q cpu_heavy -l INFO --concurrency=1
+    volumes:
+      - ./whatsappcrm_backend:/app
+      - staticfiles_volume:/app/staticfiles # Mount the static files volume (used by collectstatic)
+    env_file:
+      - ./whatsappcrm_backend/.env.prod
+    depends_on:
+      - redis
+      - db
+    restart: unless-stopped
+
+  celery_beat:
+    build: ./whatsappcrm_backend
+    container_name: whatsappcrm_celery_beat
+    command: celery -A whatsappcrm_backend beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    volumes:
+      - ./whatsappcrm_backend:/app
+    env_file:
+      - ./whatsappcrm_backend/.env.prod
+    depends_on:
+      - redis
+      - db
+    restart: unless-stopped
+
+  email_idle_fetcher:
+    build: ./whatsappcrm_backend
+    container_name: whatsappcrm_email_idle_fetcher
+    command: python manage.py idle_email_fetcher
+    volumes:
+      - ./whatsappcrm_backend:/app
+    env_file:
+      - ./whatsappcrm_backend/.env.prod
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  npm:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: whatsappcrm_npm
+    ports:
+      - '80:80'   # Public HTTP Port
+      - '443:443' # Public HTTPS Port
+      - '81:81'   # Admin UI Port
+    volumes:
+      - npm_data:/data
+      - npm_letsencrypt:/etc/letsencrypt
+    depends_on:
+      - backend
+      - frontend
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  staticfiles_volume:
+  npm_data:
+  npm_letsencrypt:

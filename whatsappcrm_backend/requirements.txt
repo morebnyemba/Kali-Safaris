@@ -1,0 +1,44 @@
+# --- Core Django & Server ---
+django
+gunicorn
+psycopg2-binary
+python-dotenv
+whitenoise
+
+# --- Django REST Framework & Auth ---
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+drf-nested-routers
+paynow
+# --- Celery for Background Tasks ---
+celery
+redis
+django-celery-beat
+django-celery-results
+
+# --- Channels for WebSockets ---
+channels
+channels-redis
+daphne
+
+# --- AI, Document & Image Processing ---
+google-genai
+google-api-core
+pdf2image
+pdfminer.six
+Pillow
+pytesseract
+
+# --- Admin & Utilities ---
+django-jazzmin
+django-extensions
+
+# --- API, Monitoring & Other ---
+drf-spectacular
+django-prometheus
+django-csp
+imapclient
+jinja2
+pydantic
+requests
