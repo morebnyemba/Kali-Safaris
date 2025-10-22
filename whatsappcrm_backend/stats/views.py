@@ -219,8 +219,10 @@ class FinancialStatsAPIView(BaseAnalyticsView):
         base_queryset = Payment.objects.filter(status='successful', created_at__range=(start_datetime, end_datetime))
 
         total_giving = base_queryset.aggregate(total=Sum('amount'))['total'] or 0
+        total_payments = base_queryset.aggregate(total=Sum('amount'))['total'] or 0
         total_transactions = base_queryset.count()
         average_transaction = total_giving / total_transactions if total_transactions > 0 else 0
+        average_transaction = total_payments / total_transactions if total_transactions > 0 else 0
 
         if group_by in ['day', 'week', 'month']:
             trunc_func = {'day': TruncDay, 'week': TruncWeek, 'month': TruncMonth}[group_by]
@@ -234,6 +236,7 @@ class FinancialStatsAPIView(BaseAnalyticsView):
         return Response({
             'summary': {
                 'total_giving': total_giving, 'total_transactions': total_transactions,
+                'total_payments': total_payments, 'total_transactions': total_transactions,
                 'average_transaction_value': average_transaction,
                 'date_range': {'start': start_datetime.isoformat(), 'end': end_datetime.isoformat()}
             },
