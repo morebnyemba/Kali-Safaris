@@ -6,31 +6,14 @@ from flows.models import Flow, FlowStep, FlowTransition
 
 # Import all your flow definitions here
 from flows.definitions.main_menu_flow import MAIN_MENU_FLOW
-from flows.definitions.lead_gen_flow import LEAD_GENERATION_FLOW
-from flows.definitions.solar_installation_flow import SOLAR_INSTALLATION_FLOW
-from flows.definitions.starlink_installation_flow import STARLINK_INSTALLATION_FLOW
-from flows.definitions.site_inspection_flow import SITE_INSPECTION_FLOW
-from flows.definitions.solar_cleaning_flow import SOLAR_CLEANING_FLOW
-from flows.definitions.simple_add_order_flow import SIMPLE_ADD_ORDER_FLOW
-from flows.definitions.admin_main_menu_flow import ADMIN_MAIN_MENU_FLOW
-from flows.definitions.admin_update_order_status_flow import ADMIN_UPDATE_ORDER_STATUS_FLOW
-from flows.definitions.admin_update_assessment_status_flow import ADMIN_UPDATE_ASSESSMENT_STATUS_FLOW
-from flows.definitions.admin_add_order_flow import ADMIN_ADD_ORDER_FLOW
-from flows.definitions.loan_application_flow import LOAN_APPLICATION_FLOW
+from flows.definitions.tour_inquiry_flow import TOUR_INQUIRY_FLOW
+from flows.definitions.view_available_tours_flow import VIEW_AVAILABLE_TOURS_FLOW
 
 ALL_FLOWS = [
-    MAIN_MENU_FLOW,
-    LEAD_GENERATION_FLOW,
-    SOLAR_INSTALLATION_FLOW,
-    STARLINK_INSTALLATION_FLOW,
-    SITE_INSPECTION_FLOW,
-    SOLAR_CLEANING_FLOW,
-    SIMPLE_ADD_ORDER_FLOW,
-    ADMIN_MAIN_MENU_FLOW,
-    ADMIN_UPDATE_ORDER_STATUS_FLOW,
-    ADMIN_UPDATE_ASSESSMENT_STATUS_FLOW,
-    ADMIN_ADD_ORDER_FLOW,
-    LOAN_APPLICATION_FLOW,
+    # Only load the new, relevant flows for Kali Safaris
+    MAIN_MENU_FLOW, # This is now the kali_safaris_main_menu
+    TOUR_INQUIRY_FLOW,
+    VIEW_AVAILABLE_TOURS_FLOW,
 ]
 
 class Command(BaseCommand):
