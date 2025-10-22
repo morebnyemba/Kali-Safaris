@@ -80,4 +80,7 @@ def create_booking_from_inquiry(context: dict, params: dict) -> dict:
 # makes it discoverable.
 @register_flow_action('send_group_notification')
 def send_group_notification(context: dict, params: dict) -> dict:
-    # The actual logic is in flows.services.py. This regist c
+    # The actual logic is in flows.services.py. This registration makes it discoverable.
+    # We can, however, add a log here to confirm it's being triggered from a flow.
+    logger.info(f"Flow action 'send_group_notification' triggered for contact {context.get('contact')} with params: {params}")
+    return context
