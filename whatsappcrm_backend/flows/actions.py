@@ -28,13 +28,14 @@ def register_flow_action(name):
 @register_flow_action('create_booking_from_inquiry')
 def create_booking_from_inquiry(context: dict, params: dict) -> dict:
     """
+    Creates a Booking from a completed TourInquiry.
+    
     params_template:
       inquiry_context_var: "name_of_variable_holding_the_inquiry_object"
       save_booking_to: "variable_name_to_save_the_created_booking"
     """
     contact = get_contact_from_context(context)
-    if not contact or not hasattr(contact, 'customer_profile'):
-        logger.error("create_booking_from_inquiry: Could not find contact or customer profile in context.")
+    if not contact or not hasattr(contact, 'customer_profile') l("creang_fromcustomer profile in context.")
         return context
 
     inquiry_var = params.get('inquiry_context_var')
@@ -78,7 +79,4 @@ def create_booking_from_inquiry(context: dict, params: dict) -> dict:
 # makes it discoverable.
 @register_flow_action('send_group_notification')
 def send_group_notification(context: dict, params: dict) -> dict:
-    # This action is handled by the core flow service, which calls queue_notifications_to_users.
-    # No implementation is needed here, but it must be registered to be recognized in flow definitions.
-    logger.debug(f"Flow action 'send_group_notification' triggered with params: {params}")
-    return context
+    # The actual logic is in flows.services.py. This regist c
