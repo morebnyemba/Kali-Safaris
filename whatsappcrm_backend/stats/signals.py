@@ -123,7 +123,7 @@ def on_booking_change(sender, instance, created, **kwargs):
                 related_contact=instance.customer.contact,
                 template_context=template_context
             )
-            logger.info(f"Queued 'new_order_created' notification for Booking ID {instance.pk}.")
+            logger.info(f"Queued 'new_booking_created' notification for Booking ID {instance.pk}.")
 
             # The activity log is a simple Celery task and less likely to fail.
             activity_payload = {
