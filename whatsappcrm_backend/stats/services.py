@@ -6,7 +6,7 @@ from django.db.models import Sum
 from django.db.models.functions import TruncDate
 
 from conversations.models import Contact, Message
-from customer_data.models import Order, InstallationRequest, SiteAssessmentRequest
+from customer_data.models import Booking, TourInquiry
 
 def get_stats_card_data():
     """Calculates and returns data for the main stats cards."""
@@ -15,13 +15,13 @@ def get_stats_card_data():
     four_hours_ago = now - timedelta(hours=4)
     today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # Calculate value of open orders
-    open_orders_value = Order.objects.filter(
-        stage__in=['prospecting', 'qualification', 'proposal', 'negotiation']
-    ).aggregate(total_value=Sum('amount'))['total_value'] or 0
+    # Calculate value of pending bookings
+    pending_bookings_value = Booking.objects.filter(
+        payment_status__in=['pending', 'deposit_paid']
+    ).aggregate(total_value=Sum('total_amount'))['total_value'] or 0
 
-    total_revenue = Order.objects.filter(stage='closed_won').aggregate(total=Sum('amount'))['total'] or 0
-    revenue_today = Order.objects.filter(stage='closed_won', updated_at__gte=today_start).aggregate(total=Sum('amount'))['total'] or 0
+    total_revenue = Booking.objects.filter(payment_status='paid').aggregate(total=Sum('total_amount'))['total'] or 0
+    revenue_today = Booking.objects.filter(payment_status='paid', updated_at__gte=today_start).aggregate(total=Sum('total_amount'))['total'] or 0
 
     return {
         'messages_sent_24h': Message.objects.filter(direction='out', timestamp__gte=twenty_four_hours_ago).count(),
@@ -31,17 +31,13 @@ def get_stats_card_data():
         'total_contacts': Contact.objects.count(),
         'pending_human_handovers': Contact.objects.filter(needs_human_intervention=True).count(),
         
-        # Order & Revenue Stats
-        'open_orders_value': f"{open_orders_value:,.2f}",
-        'new_orders_today': Order.objects.filter(created_at__gte=today_start).count(),
-        'total_open_orders': Order.objects.filter(stage__in=['prospecting', 'qualification', 'proposal', 'negotiation']).count(),
+        # Booking & Revenue Stats
+        'pending_bookings_value': f"{pending_bookings_value:,.2f}",
+        'new_bookings_today': Booking.objects.filter(created_at__gte=today_start).count(),
+        'total_pending_bookings': Booking.objects.filter(payment_status__in=['pending', 'deposit_paid']).count(),
         'total_revenue': f"{total_revenue:,.2f}",
         'revenue_today': f"{revenue_today:,.2f}",
-
-        # Installation & Assessment Stats
-        'pending_installations': InstallationRequest.objects.filter(status='pending').count(),
-        'completed_installations': InstallationRequest.objects.filter(status='completed').count(),
-        'pending_assessments': SiteAssessmentRequest.objects.filter(status='pending').count(),
+        'pending_inquiries': TourInquiry.objects.filter(status='new').count(),
     }
 
 def get_conversation_trends_chart_data():

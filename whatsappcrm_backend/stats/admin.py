@@ -5,7 +5,7 @@ from .models import DailyStat
 class DailyStatAdmin(admin.ModelAdmin):
     list_display = (
         'date', 'new_contacts', 'messages_received', 'messages_sent', 
-        'new_orders_count', 'won_orders_count', 'revenue', 'last_updated'
+        'new_bookings_count', 'paid_bookings_count', 'revenue', 'last_updated'
     )
     list_filter = ('date',)
     ordering = ('-date',)

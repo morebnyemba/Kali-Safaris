@@ -17,8 +17,8 @@ class DailyStat(models.Model):
     new_contacts = models.PositiveIntegerField(_("New Contacts"), default=0)
     
     # Order Stats
-    new_orders_count = models.PositiveIntegerField(_("New Orders Count"), default=0)
-    won_orders_count = models.PositiveIntegerField(_("Won Orders Count"), default=0)
+    new_bookings_count = models.PositiveIntegerField(_("New Bookings Count"), default=0)
+    paid_bookings_count = models.PositiveIntegerField(_("Paid Bookings Count"), default=0)
     revenue = models.DecimalField(_("Revenue from Won Orders"), max_digits=14, decimal_places=2, default=0.00)
     
     # Timestamps
