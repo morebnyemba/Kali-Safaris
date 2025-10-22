@@ -9,7 +9,7 @@ from notifications.models import NotificationTemplate
 # This makes them easy to manage and deploy.
 NOTIFICATION_TEMPLATES = [
     {
-        "name": "new_order_created",
+        "name": "new_booking_created",
         "description": "Sent to admins when a new booking is created via a signal.",
         "template_type": "whatsapp",
         "body": """New Booking Confirmed! 🦒

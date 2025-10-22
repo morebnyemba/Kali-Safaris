@@ -109,24 +109,24 @@ def send_receipt_confirmation_email(self, attachment_id):
     retry_backoff=True,
     retry_kwargs={'max_retries': 3}
 )
-def send_duplicate_invoice_email(self, attachment_id, order_number):
+def send_duplicate_invoice_email(self, attachment_id, booking_reference):
     """
-    Sends an email to the original sender informing them that the invoice
-    they sent is a duplicate of an existing order.
+    Sends an email to the original sender informing them that the document
+    they sent is a duplicate of an existing booking.
     """
     log_prefix = f"[Duplicate Email Task ID: {self.request.id}]"
-    logger.info(f"{log_prefix} Preparing to send duplicate invoice notification for attachment ID: {attachment_id}")
+    logger.info(f"{log_prefix} Preparing to send duplicate booking notification for attachment ID: {attachment_id}")
     try:
         attachment = EmailAttachment.objects.get(pk=attachment_id)
         if not attachment.sender:
             logger.warning(f"{log_prefix} Attachment {attachment_id} has no sender email. Cannot send notification.")
             return "Skipped: No sender email."
 
-        subject = f"Duplicate Invoice Detected: '{attachment.filename}'"
+        subject = f"Duplicate Booking Document Detected: '{attachment.filename}'"
         message = (
             f"Dear Sender,\n\n"
-            f"This is an automated message to inform you that the invoice '{attachment.filename}' you sent appears to be a duplicate.\n\n"
-            f"An order with the same invoice number ({order_number}) already exists in our system.\n\n"
+            f"This is an automated message to inform you that the document '{attachment.filename}' you sent appears to be a duplicate.\n\n"
+            f"A booking with the same reference number ({booking_reference}) already exists in our system.\n\n"
             f"No further action is needed. If you believe this is an error, please contact our support team.\n\n"
             f"Thank you,\n"
             f"Kali Safaris"
@@ -134,7 +134,7 @@ def send_duplicate_invoice_email(self, attachment_id, order_number):
         from_email = settings.DEFAULT_FROM_EMAIL
         recipient_list = [attachment.sender]
         send_mail(subject, message, from_email, recipient_list)
-        logger.info(f"{log_prefix} Successfully sent duplicate invoice email to {attachment.sender}.")
+        logger.info(f"{log_prefix} Successfully sent duplicate booking email to {attachment.sender}.")
         return f"Duplicate notification sent to {attachment.sender}."
     except EmailAttachment.DoesNotExist:
         logger.error(f"{log_prefix} Could not find EmailAttachment with ID {attachment_id} to send duplicate notification.")

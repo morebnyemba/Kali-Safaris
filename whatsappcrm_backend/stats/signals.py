@@ -118,7 +118,7 @@ def on_booking_change(sender, instance, created, **kwargs):
             }
             from notifications.services import queue_notifications_to_users
             queue_notifications_to_users(
-                template_name='new_order_created',
+                template_name='new_booking_created',
                 group_names=["System Admins", "Sales Team"],
                 related_contact=instance.customer.contact,
                 template_context=template_context
