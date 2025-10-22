@@ -91,8 +91,8 @@ def send_payment_failure_notification_task(payment_id: str):
             f"We encountered an issue while processing your payment of *{payment.currency} {payment.amount:.2f}* for booking *{payment.booking.booking_reference}*.\n\n"
             "Please don't worry, no funds have been deducted for this attempt. If you'd like to try again or need help, our team is here to assist.\n\n"
             f"{contact_info}\n\n"
-            "Blessings,\n"
-            "The Kali Safaris Team"
+            "Regards,\n"
+            "The Kalai Safaris Team"
         )
         message_data = create_text_message_data(text_body=failure_message)
         send_whatsapp_message(to_phone_number=contact_to_notify.whatsapp_id, message_type='text', data=message_data)
@@ -126,7 +126,7 @@ def send_giving_confirmation_whatsapp(payment_id: str):
             f"Thank you! We confirm with thanks the receipt of your payment of *{payment.currency} {payment.amount:.2f}* for booking *{payment.booking.booking_reference}*.\n\n"
             "Your adventure awaits! We look forward to hosting you.\n\n"
             "Warm regards,\n"
-            "The Kali Safaris Team"
+            "The Kalai Safaris Team"
         )
         message_data = create_text_message_data(text_body=confirmation_message)
         send_whatsapp_message(to_phone_number=contact_to_notify.whatsapp_id, message_type='text', data=message_data)

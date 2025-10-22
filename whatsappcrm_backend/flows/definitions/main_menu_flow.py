@@ -1,8 +1,8 @@
 # whatsappcrm_backend/flows/definitions/main_menu_flow.py
 
 MAIN_MENU_FLOW = {
-    "name": "kali_safaris_main_menu",
-    "friendly_name": "Kali Safaris - Main Menu",
+    "name": "kalai_safaris_main_menu",
+    "friendly_name": "Kalai Safaris - Main Menu",
     "description": "The main entry point for users, presenting the primary options.",
     "trigger_keywords": ['menu', 'start', 'hello', 'hi', 'main menu'],
     "is_active": True,
@@ -18,7 +18,7 @@ MAIN_MENU_FLOW = {
                         "type": "button",
                         "header": {
                             "type": "text",
-                            "text": "Welcome to Kali Safaris! 🦒"
+                            "text": "Welcome to Kalai Safaris! 🦒"
                         },
                         "body": {
                             "text": "Your adventure starts here! How can I help you today?"

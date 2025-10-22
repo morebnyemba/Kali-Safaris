@@ -162,14 +162,14 @@ MEDIA_ROOT = BASE_DIR / 'mediafiles' # Path where user-uploaded files will be st
 # For sending emails (e.g., confirmations, notifications).
 # These should be configured in your .env file for production.
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
-EMAIL_HOST = os.getenv('EMAIL_HOST', 'mail.kalisafaris.com')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'mail.kalaisafaris.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'bookings@kalisafaris.com')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'bookings@kalaisafaris.com')
 # SECURITY WARNING: Do not hardcode passwords. This should be in your .env file.
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'your-email-password')
 
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Kali Safaris <bookings@kalisafaris.com>')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Kalai Safaris <bookings@kalaisafaris.com>')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -320,14 +320,14 @@ LOGGING = {
 WHATSAPP_APP_SECRET = os.getenv('WHATSAPP_APP_SECRET', None)
 # --- Jazzmin Admin Theme Settings ---
 JAZZMIN_SETTINGS = {
-    "site_title": "Kali Safaris",
-    "site_header": os.getenv('SITE_HEADER', 'Kali Safaris CRM'),
+    "site_title": "Kalai Safaris",
+    "site_header": os.getenv('SITE_HEADER', 'Kalai Safaris CRM'),
     "site_brand": "KS",
     "site_logo_classes": "img-circle",
     # Path to logo, relative to static files.
     # It should not include /static/ in the path.
-    "site_logo": "admin/img/kali_safaris_logo.png", # You will need to add this logo
-    "welcome_sign": "Welcome to the Kali Safaris Admin",
+    "site_logo": "admin/img/kalai_safaris_logo.png", # You will need to add this logo
+    "welcome_sign": "Welcome to the Kalai Safaris Admin",
     "copyright": "Slyker Tech Web Services and Partners.",
     "search_model": [
         "auth.User", 
@@ -395,8 +395,8 @@ JAZZMIN_UI_TWEAKS = {
 
 # The domain of your backend API that the frontend needs to connect to.
 # It's best to set this in your .env file.
-BACKEND_DOMAIN_FOR_CSP = os.getenv('BACKEND_DOMAIN_FOR_CSP', 'backend.kalisafaris.com')
-FRONTEND_DOMAIN_FOR_CSP = os.getenv('FRONTEND_DOMAIN_FOR_CSP', 'dashboard.kalisafaris.com')
+BACKEND_DOMAIN_FOR_CSP = os.getenv('BACKEND_DOMAIN_FOR_CSP', 'backend.kalaisafaris.com')
+FRONTEND_DOMAIN_FOR_CSP = os.getenv('FRONTEND_DOMAIN_FOR_CSP', 'dashboard.kalaisafaris.com')
 
 # Base directives for production
 connect_src_list = [
