@@ -18,17 +18,14 @@ class Command(BaseCommand):
 
         # --- 1. Discover flow definitions dynamically ---
         flow_definitions = []
-        definitions_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'definitions')
-        
-        # Define the specific flows to load for Kali Safaris
-        kali_safaris_flows = [
-            'main_menu_flow.py',
-            'tour_inquiry_flow.py',
-            'view_available_tours_flow.py'
-        ]
+        definitions_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'definitions')        
 
-        for filename in kali_safaris_flows:
-            if os.path.exists(os.path.join(definitions_path, filename)):
+        if not os.path.isdir(definitions_path):
+            self.stderr.write(self.style.ERROR(f"Definitions directory not found at: {definitions_path}"))
+            return
+
+        for filename in os.listdir(definitions_path):
+            if filename.endswith('_flow.py') and not filename.startswith('__'):
                 module_name = f"flows.definitions.{filename[:-3]}"
                 try:
                     module = importlib.import_module(module_name)
