@@ -82,19 +82,17 @@ def send_payment_failure_notification_task(payment_id: str):
             return
 
         # Personalize the greeting
-        full_name = payment.member.get_full_name() if payment.member and payment.member.get_full_name() else payment.contact.name
-        recipient_name = full_name or 'church member'
+        recipient_name = payment.booking.customer.get_full_name() if payment.booking and payment.booking.customer else payment.contact.name or 'customer'
         admin_contact_number = settings.ADMIN_WHATSAPP_NUMBER
-        contact_info = f"You can reach us on WhatsApp at: wa.me/{admin_contact_number.replace('+', '')}" if admin_contact_number else "Please visit the church office for assistance."
+        contact_info = f"You can reach us on WhatsApp at: wa.me/{admin_contact_number.replace('+', '')}" if admin_contact_number else "Please contact our support team for assistance."
 
         failure_message = (
             f"Greetings {recipient_name},\n\n"
-            f"We encountered an issue while processing your contribution of *{payment.currency} {payment.amount:.2f}*.\n\n"
+            f"We encountered an issue while processing your payment of *{payment.currency} {payment.amount:.2f}* for booking *{payment.booking.booking_reference}*.\n\n"
             "Please don't worry, no funds have been deducted for this attempt. If you'd like to try again or need help, our team is here to assist.\n\n"
             f"{contact_info}\n\n"
-            "\"The Lord is my strength and my shield; in him my heart trusts, and I am helped.\" - Psalm 28:7\n\n"
             "Blessings,\n"
-            "The Church Accounts Team"
+            "The Kali Safaris Team"
         )
         message_data = create_text_message_data(text_body=failure_message)
         send_whatsapp_message(to_phone_number=contact_to_notify.whatsapp_id, message_type='text', data=message_data)
@@ -121,16 +119,14 @@ def send_giving_confirmation_whatsapp(payment_id: str):
             return
 
         # Personalize the greeting
-        full_name = payment.member.get_full_name() if payment.member and payment.member.get_full_name() else payment.contact.name
-        recipient_name = full_name or 'church member'
+        recipient_name = payment.booking.customer.get_full_name() if payment.booking and payment.booking.customer else payment.contact.name or 'customer'
 
         confirmation_message = (
             f"Dear {recipient_name},\n\n"
-            f"Praise God! We confirm with thanks the receipt of your contribution of *{payment.currency} {payment.amount:.2f}*.\n\n"
-            "Your faithfulness and generosity are a blessing to the ministry. We pray for God's abundant blessings upon you and your family.\n\n"
-            "\"Each of you should give what you have decided in your heart to give, not reluctantly or under compulsion, for God loves a cheerful giver.\" - 2 Corinthians 9:7\n\n"
-            "In His Grace,\n"
-            "The Church Accounts Team"
+            f"Thank you! We confirm with thanks the receipt of your payment of *{payment.currency} {payment.amount:.2f}* for booking *{payment.booking.booking_reference}*.\n\n"
+            "Your adventure awaits! We look forward to hosting you.\n\n"
+            "Warm regards,\n"
+            "The Kali Safaris Team"
         )
         message_data = create_text_message_data(text_body=confirmation_message)
         send_whatsapp_message(to_phone_number=contact_to_notify.whatsapp_id, message_type='text', data=message_data)

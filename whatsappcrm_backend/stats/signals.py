@@ -7,7 +7,7 @@ import logging
 
 from conversations.models import Contact, Message
 from flows.models import Flow
-from customer_data.models import Order
+from customer_data.models import Booking
 from .tasks import (
     update_dashboard_stats,
     broadcast_activity_log,
@@ -94,37 +94,26 @@ def on_flow_change(sender, instance, created, **kwargs):
         broadcast_activity_log.delay(activity_payload)
 
 
-@receiver(post_save, sender=Order)
-def on_order_change(sender, instance, created, **kwargs):
+@receiver(post_save, sender=Booking)
+def on_booking_change(sender, instance, created, **kwargs):
     """
-    When an order is created or its stage changes, update dashboard stats
+    When a booking is created or its stage changes, update dashboard stats
     and, if created, schedule a notification to be sent AFTER the transaction commits.
     """
-    logger.debug(f"Order changed {instance.pk}, created={created}: Scheduling updates.")
+    logger.debug(f"Booking changed {instance.pk}, created={created}: Scheduling updates.")
     update_dashboard_stats.apply_async(countdown=DEBOUNCE_DELAY)
 
     if created:
         # --- MODIFIED: Only send generic notification if the source is NOT an email import ---
         # The email import task now sends its own, more descriptive notification.
-        if instance.source != Order.Source.EMAIL_IMPORT and \
+        if instance.source != Booking.BookingSource.EMAIL_IMPORT and \
            instance.customer and \
            hasattr(instance.customer, 'contact') and \
            instance.customer.contact:
             # Prepare data for the notification template.
-            order_data = {
-                'id': str(instance.pk),
-                'name': instance.name,
-                'order_number': instance.order_number,
-                'amount': float(instance.amount) if instance.amount else 0.0,
-            }
-            customer_data = {
-                'id': str(instance.customer.pk),
-                'full_name': instance.customer.get_full_name(),
-                'contact_name': getattr(instance.customer.contact, 'name', 'N/A'),
-            }
             # --- FIX: Flatten the context to match the template's expectations ---
             template_context = {
-                'order': instance,
+                'booking': instance,
                 'customer': instance.customer,
             }
             from notifications.services import queue_notifications_to_users
@@ -134,26 +123,26 @@ def on_order_change(sender, instance, created, **kwargs):
                 related_contact=instance.customer.contact,
                 template_context=template_context
             )
-            logger.info(f"Queued 'new_order_created' notification for Order ID {instance.pk}.")
+            logger.info(f"Queued 'new_order_created' notification for Booking ID {instance.pk}.")
 
             # The activity log is a simple Celery task and less likely to fail.
             activity_payload = {
-                "id": f"order_new_{instance.pk}",
-                "text": f"New Order: '{instance.name}' for {instance.customer}",
+                "id": f"booking_new_{instance.pk}",
+                "text": f"New Booking: '{instance.tour_name}' for {instance.customer}",
                 "timestamp": instance.created_at.isoformat(),
-                "iconName": "FiShoppingCart",
-                "iconColor": "text-blue-500"
+                "iconName": "FiCalendar",
+                "iconColor": "text-green-500"
             }
             broadcast_activity_log.delay(activity_payload)
 
         else:
-            # Handle placeholder orders
+            # Handle bookings created without a customer (e.g., via email import where customer couldn't be identified)
             activity_payload = {
-                "id": f"order_new_{instance.pk}",
-                "text": f"New Placeholder Order: '{instance.name or instance.order_number}' created.",
+                "id": f"booking_new_{instance.pk}",
+                "text": f"New Booking: '{instance.tour_name or instance.booking_reference}' created.",
                 "timestamp": instance.created_at.isoformat(),
-                "iconName": "FiShoppingCart",
+                "iconName": "FiCalendar",
                 "iconColor": "text-gray-500"
             }
             broadcast_activity_log.delay(activity_payload)
-            logger.info(f"Logged creation of placeholder order ID {instance.pk} (no customer attached).")
+            logger.info(f"Logged creation of booking ID {instance.pk} (no customer attached).")

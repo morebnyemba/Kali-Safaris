@@ -421,24 +421,16 @@ if DEBUG:
 # New format for django-csp >= 4.0
 CONTENT_SECURITY_POLICY = {
     'DIRECTIVES': {
-        'default-src': ("'self'",),
         'default-src': ("'self'",), # Default to only allow from the same origin
         'connect-src': tuple(connect_src_list),
-        'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'"), # 'unsafe-eval' is needed by some libraries, but be cautious.
-        'style-src': ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com"), # Allow Google Fonts stylesheets
         # Allow scripts from self, and 'unsafe-inline'/'unsafe-eval' for admin/some libraries.
         # Be cautious and try to remove 'unsafe-inline' and 'unsafe-eval' if possible.
         'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'"),
         # Allow styles from self, inline styles, and Google Fonts.
         'style-src': ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com"),
         # Allow images from self, data URIs, blob URIs, and your media storage.
-        # If you use a cloud storage like S3, add its domain here.
-        'img-src': ("'self'", "data:", "blob:"),
-        'font-src': ("'self'", "https://fonts.gstatic.com"), # Allow font files from Google Fonts
-        'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'", "*"), # WARNING: Allows scripts from any source.
-        'style-src': ("'self'", "'unsafe-inline'", "*"), # WARNING: Allows stylesheets from any source.
-        'img-src': ("'self'", "data:", "blob:", "*"), # WARNING: Allows images from any source.
-        'font-src': ("'self'", "*"), # WARNING: Allows fonts from any source.
+        # The media URL needs to be added for images to load correctly.
+        'img-src': ("'self'", "data:", "blob:", f"https://{BACKEND_DOMAIN_FOR_CSP}"),
         # Allow fonts from self and Google Fonts.
         'font-src': ("'self'", "https://fonts.gstatic.com"),
         # object-src 'none' is a good security practice.
@@ -447,10 +439,6 @@ CONTENT_SECURITY_POLICY = {
         'frame-ancestors': ("'none'",),
     }
 }
-
-# Obsolete setting, replaced by user roles and the ORDER_RECEIVER_PHONE_ID logic.
-# SUPER_ADMIN_WHATSAPP_ID = os.getenv('SUPER_ADMIN_WHATSAPP_ID', None)
-ORDER_RECEIVER_PHONE_ID = os.getenv('ORDER_RECEIVER_PHONE_ID', '837416982780000')
 
 # --- Custom Application Settings ---
 INVOICE_PROCESSED_NOTIFICATION_GROUPS = os.getenv('INVOICE_PROCESSED_NOTIFICATION_GROUPS', 'System Admins,Sales Team').split(',')
