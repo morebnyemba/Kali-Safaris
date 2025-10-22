@@ -67,7 +67,7 @@ Type *menu* to return to the main menu."""
             "name": "display_no_bookings_found",
             "type": "send_message",
             "config": {
-                "message_config": {"message_type": "text", "text": {"body": "I couldn't find any bookings associated with that phone number. Please make sure you entered it correctly.\n\nType *menu* to try again or return to the main menu."}}
+                "message_type": "text", "text": {"body": "I couldn't find any bookings associated with that phone number. Please make sure you entered it correctly.\n\nType *menu* to try again or return to the main menu."}
             },
             "transitions": [
                 {"to_step": "end_my_bookings", "condition_config": {"type": "always_true"}}
