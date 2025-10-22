@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CustomerProfile, Interaction, Booking
+from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry
 
 class InteractionInline(admin.TabularInline):
     """

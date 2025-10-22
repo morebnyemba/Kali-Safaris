@@ -7,6 +7,7 @@ from flows.models import Flow, FlowStep, FlowTransition
 from flows.definitions.main_menu_flow import MAIN_MENU_FLOW
 # Import your new tour-related flow definitions here
 from flows.definitions.tour_inquiry_flow import TOUR_INQUIRY_FLOW
+from flows.definitions.view_available_tours_flow import VIEW_AVAILABLE_TOURS_FLOW
 # from flows.definitions.booking_status_flow import BOOKING_STATUS_FLOW
 
 

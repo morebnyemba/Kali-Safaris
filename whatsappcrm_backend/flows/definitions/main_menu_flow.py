@@ -13,8 +13,8 @@ MAIN_MENU_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [{
-                    "action_type": "create_model_instance",
-                    "app_label": "customer_data", "model_name": "CustomerProfile", "fields_template": {"contact": "current"}, "on_conflict": "do_nothing"
+                    "action_type": "update_customer_profile",
+                    "fields_to_update": {}
                 }]
             },
             "transitions": [
@@ -38,15 +38,17 @@ MAIN_MENU_FLOW = {
                                 {
                                     "title": "Explore & Plan",
                                     "rows": [
-                                        {"id": "view_tours", "title": "🏞️ View Available Tours", "description": "See our list of curated tour packages."},
-                                        {"id": "plan_custom_tour", "title": "🦁 Plan a Custom Tour", "description": "Let us build a personalized trip for you."},
-                                        {"id": "special_events", "title": "🎉 Special Events", "description": "Check for upcoming special offers and events."}
+                                        {"id": "view_tours", "title": "🏞️ View Tours", "description": "See our list of curated tour packages."},
+                                        {"id": "plan_custom_tour", "title": "🦁 Plan a Custom Tour", "description": "Let's build a personalized trip for you."},
+                                        {"id": "special_events", "title": "🎉 Special Offers", "description": "Check for current deals and events."}
                                     ]
                                 },
                                 {
                                     "title": "My Account & Support",
                                     "rows": [
-                                        {"id": "my_tours", "title": "📄 My Bookings", "description": "Check the status of your existing bookings."},
+                                        {"id": "my_bookings", "title": "📄 My Bookings", "description": "Check the status of your existing bookings."},
+                                        {"id": "faq", "title": "❓ FAQ", "description": "Find answers to common questions."},
+                                        {"id": "about_us", "title": "🏢 About Us", "description": "Learn more about Kali Safaris."},
                                         {"id": "speak_to_agent", "title": "🗣️ Speak to an Agent", "description": "Get help from one of our travel experts."}
                                     ]
                                 }
@@ -60,8 +62,10 @@ MAIN_MENU_FLOW = {
                 {"to_step": "switch_to_view_tours_flow", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "view_tours"}},
                 {"to_step": "switch_to_inquiry_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "plan_custom_tour"}},
                 {"to_step": "show_coming_soon", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_events"}},
-                {"to_step": "show_coming_soon", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_tours"}},
-                {"to_step": "trigger_human_handover", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "speak_to_agent"}}
+                {"to_step": "show_coming_soon", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_bookings"}},
+                {"to_step": "show_faq", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
+                {"to_step": "show_about_us", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_us"}},
+                {"to_step": "trigger_human_handover", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "speak_to_agent"}}
             ]
         },
         {
@@ -119,6 +123,24 @@ MAIN_MENU_FLOW = {
             "config": {
                 "message_type": "text",
                 "text": {"body": "This feature is coming soon! Please check back later. Type 'menu' to return to the main menu."}
+            },
+            "transitions": []
+        },
+        {
+            "name": "show_faq",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "Here are some frequently asked questions:\n\n*Q: What are your payment options?*\nA: We accept bank transfers, EcoCash, and major credit cards.\n\n*Q: What is your cancellation policy?*\nA: You can find our full cancellation policy on our website at kalisafaris.com/policy.\n\nType 'menu' to return."}
+            },
+            "transitions": []
+        },
+        {
+            "name": "show_about_us",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "Kali Safaris is a premier tour operator specializing in bespoke African adventures. We are passionate about creating unforgettable experiences that connect you with the wild heart of Africa.\n\nType 'menu' to return."}
             },
             "transitions": []
         }
