@@ -4,44 +4,6 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.shortcuts import get_object_or_404
 from django.http import Http404
-
-class IsStaffOrReadOnly(permissions.BasePermission):
-    """
-    Custom permission to only allow read access to any authenticated user,
-    but full write access (create, update, delete) only to admin/staff users.
-    """
-    def has_permission(self, request, view):
-        # Allow read-only access for any request.
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        # Allow write access only for staff users.
-        return request.user and request.user.is_staff
-
-from .models import Order, InstallationRequest, SiteAssessmentRequest
-from .serializers import OrderSerializer, InstallationRequestSerializer, SiteAssessmentRequestSerializer
-# --- Order ViewSet ---
-class OrderViewSet(viewsets.ModelViewSet):
-    queryset = Order.objects.select_related('customer', 'assigned_agent').all()
-    serializer_class = OrderSerializer
-    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
-    filterset_fields = ['stage', 'payment_status', 'customer']
-    search_fields = ['order_number', 'name', 'notes']
-
-# --- InstallationRequest ViewSet ---
-class InstallationRequestViewSet(viewsets.ModelViewSet):
-    queryset = InstallationRequest.objects.select_related('customer', 'associated_order').all()
-    serializer_class = InstallationRequestSerializer
-    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
-    filterset_fields = ['status', 'installation_type', 'customer']
-    search_fields = ['order_number', 'full_name', 'address', 'contact_phone']
-
-# --- SiteAssessmentRequest ViewSet ---
-class SiteAssessmentRequestViewSet(viewsets.ModelViewSet):
-    queryset = SiteAssessmentRequest.objects.select_related('customer').all()
-    serializer_class = SiteAssessmentRequestSerializer
-    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
-    filterset_fields = ['status', 'customer']
-    search_fields = ['assessment_id', 'full_name', 'address', 'contact_info']
 # whatsappcrm_backend/customer_data/views.py
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
@@ -51,8 +13,15 @@ from django.http import Http404
 
 
 # New models and serializers
-from .models import CustomerProfile, Interaction
-from .serializers import CustomerProfileSerializer, InteractionSerializer, MyTokenObtainPairSerializer
+from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry
+from .serializers import (
+    CustomerProfileSerializer, 
+    InteractionSerializer, 
+    MyTokenObtainPairSerializer,
+    BookingSerializer,
+    PaymentSerializer,
+    TourInquirySerializer
+)
 
 # Still need Contact for get_or_create logic
 from conversations.models import Contact
@@ -164,3 +133,29 @@ class InteractionViewSet(viewsets.ModelViewSet):
 
     # No custom perform_create needed, the serializer handles agent assignment from request context.
     # The IsInteractionOwnerOrAdmin permission class allows any authenticated user to create.
+
+class BookingViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing Tour Bookings.
+    """
+    queryset = Booking.objects.select_related('customer', 'tour', 'assigned_agent').prefetch_related('payments').all()
+    serializer_class = BookingSerializer
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    filterset_fields = ['payment_status', 'source', 'customer', 'tour', 'assigned_agent']
+    search_fields = ['booking_reference', 'tour_name', 'customer__first_name', 'customer__last_name']
+
+class PaymentViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing Payments against Bookings.
+    """
+    queryset = Payment.objects.select_related('booking').all()
+    serializer_class = PaymentSerializer
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    filterset_fields = ['status', 'payment_method', 'booking']
+
+class TourInquiryViewSet(viewsets.ModelViewSet):
+    queryset = TourInquiry.objects.select_related('customer', 'assigned_agent').all()
+    serializer_class = TourInquirySerializer
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    filterset_fields = ['status', 'customer', 'assigned_agent']
+    search_fields = ['destination', 'tour_type', 'notes']

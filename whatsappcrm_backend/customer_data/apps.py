@@ -8,4 +8,4 @@ class CustomerDataConfig(AppConfig):
     verbose_name = _("Customer & Order Data")
 
     def ready(self):
-        import customer_data.signals  # noqa
+        import customer_data.signals  # noqa: F401

@@ -29,7 +29,7 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True' # Default to True for dev if
 # AllowedHostsOriginValidator, you must also include your frontend domain.
 ALLOWED_HOSTS_STRING = os.getenv(
     'DJANGO_ALLOWED_HOSTS',
-    'localhost,127.0.0.1,backend.hanna.co.zw,dashboard.hanna.co.zw'
+    'localhost,127.0.0.1,backend.kalisafaris.com,dashboard.kalisafaris.com'
 )
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if host.strip()]
 
@@ -38,7 +38,7 @@ ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if hos
 # This is crucial for your React frontend to be able to log in and submit data.
 CSRF_TRUSTED_ORIGINS_STRING = os.getenv(
     'CSRF_TRUSTED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.hanna.co.zw,http://dashboard.hanna.co.zw,https://backend.hanna.co.zw,http://backend.hanna.co.zw'
+    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalisafaris.com,http://dashboard.kalisafaris.com,https://backend.kalisafaris.com,http://backend.kalisafaris.com'
 )
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_STRING.split(',') if origin.strip()]
 
@@ -161,14 +161,15 @@ MEDIA_ROOT = BASE_DIR / 'mediafiles' # Path where user-uploaded files will be st
 # --- Email Settings ---
 # For sending emails (e.g., confirmations, notifications).
 # These should be configured in your .env file for production.
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = os.getenv('EMAIL_HOST','mail.hanna.co.zw')
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.smtp.EmailBackend')
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'mail.kalisafaris.com')
 EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True') == 'True'
-EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER','installations@hanna.co.zw')
-EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD','PfungwaHanna2024')
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', 'bookings@kalisafaris.com')
+# SECURITY WARNING: Do not hardcode passwords. This should be in your .env file.
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', 'your-email-password')
 
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'installations@hanna.co.zw')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Kali Safaris <bookings@kalisafaris.com>')
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -212,7 +213,7 @@ SIMPLE_JWT = {
 # This tells the browser that it's safe to accept cross-origin requests from your frontend.
 CORS_ALLOWED_ORIGINS_STRING = os.getenv(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.hanna.co.zw,http://dashboard.hanna.co.zw'
+    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalisafaris.com,http://dashboard.kalisafaris.com'
 )
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_STRING.split(',') if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
@@ -319,16 +320,21 @@ LOGGING = {
 WHATSAPP_APP_SECRET = os.getenv('WHATSAPP_APP_SECRET', None)
 # --- Jazzmin Admin Theme Settings ---
 JAZZMIN_SETTINGS = {
-    "site_title": "Hanna",
-    "site_header": os.getenv('SITE_HEADER', 'AutoWhats CRM'),
-    "site_brand": "A-W",
+    "site_title": "Kali Safaris",
+    "site_header": os.getenv('SITE_HEADER', 'Kali Safaris CRM'),
+    "site_brand": "KS",
     "site_logo_classes": "img-circle",
     # Path to logo, relative to static files.
     # It should not include /static/ in the path.
-    "site_logo": "admin/img/hanna_logo.png",
-    "welcome_sign": "Welcome to the Hanna AutoWhats Admin",
-    "copyright": "Slyker Tech Web Services and Patners.",
-    "search_model": ["auth.User", "meta_integration.MetaAppConfig", "conversations.Contact", "flows.Flow"],
+    "site_logo": "admin/img/kali_safaris_logo.png", # You will need to add this logo
+    "welcome_sign": "Welcome to the Kali Safaris Admin",
+    "copyright": "Slyker Tech Web Services and Partners.",
+    "search_model": [
+        "auth.User", 
+        "customer_data.CustomerProfile", 
+        "products_and_services.Tour", 
+        "customer_data.Booking"
+    ],
     "user_avatar": None,
     "topmenu_links": [
         {"name": "Home", "url": "admin:index", "permissions": ["auth.view_user"]},
@@ -347,12 +353,12 @@ JAZZMIN_SETTINGS = {
         "flows": "fas fa-project-diagram",
         "flows.Flow": "fas fa-bezier-curve", "flows.FlowStep": "fas fa-shoe-prints",
         "flows.FlowTransition": "fas fa-route", "flows.ContactFlowState": "fas fa-map-signs",
-        "customer_data": "fas fa-users-cog",
+        "customer_data": "fas fa-id-card",
         "customer_data.CustomerProfile": "fas fa-user-tie",
         "customer_data.Interaction": "fas fa-handshake",
-        "customer_data.Order": "fas fa-shopping-cart", "customer_data.OrderItem": "fas fa-box-open",
-        "customer_data.InstallationRequest": "fas fa-tools", "customer_data.SiteAssessmentRequest": "fas fa-clipboard-list",
-        "customer_data.Payment": "fas fa-credit-card",
+        "customer_data.Booking": "fas fa-calendar-check",
+        "products_and_services": "fas fa-map-marked-alt",
+        "products_and_services.Tour": "fas fa-route",
     },
     "default_icon_parents": "fas fa-chevron-circle-right",
     "default_icon_children": "fas fa-circle",
@@ -389,8 +395,8 @@ JAZZMIN_UI_TWEAKS = {
 
 # The domain of your backend API that the frontend needs to connect to.
 # It's best to set this in your .env file.
-BACKEND_DOMAIN_FOR_CSP = os.getenv('BACKEND_DOMAIN_FOR_CSP', 'backend.hanna.co.zw')
-FRONTEND_DOMAIN_FOR_CSP = os.getenv('FRONTEND_DOMAIN_FOR_CSP', 'dashboard.hanna.co.zw')
+BACKEND_DOMAIN_FOR_CSP = os.getenv('BACKEND_DOMAIN_FOR_CSP', 'backend.kalisafaris.com')
+FRONTEND_DOMAIN_FOR_CSP = os.getenv('FRONTEND_DOMAIN_FOR_CSP', 'dashboard.kalisafaris.com')
 
 # Base directives for production
 connect_src_list = [
@@ -416,16 +422,28 @@ if DEBUG:
 CONTENT_SECURITY_POLICY = {
     'DIRECTIVES': {
         'default-src': ("'self'",),
+        'default-src': ("'self'",), # Default to only allow from the same origin
         'connect-src': tuple(connect_src_list),
         'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'"), # 'unsafe-eval' is needed by some libraries, but be cautious.
         'style-src': ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com"), # Allow Google Fonts stylesheets
+        # Allow scripts from self, and 'unsafe-inline'/'unsafe-eval' for admin/some libraries.
+        # Be cautious and try to remove 'unsafe-inline' and 'unsafe-eval' if possible.
+        'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'"),
+        # Allow styles from self, inline styles, and Google Fonts.
+        'style-src': ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com"),
+        # Allow images from self, data URIs, blob URIs, and your media storage.
+        # If you use a cloud storage like S3, add its domain here.
         'img-src': ("'self'", "data:", "blob:"),
         'font-src': ("'self'", "https://fonts.gstatic.com"), # Allow font files from Google Fonts
         'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'", "*"), # WARNING: Allows scripts from any source.
         'style-src': ("'self'", "'unsafe-inline'", "*"), # WARNING: Allows stylesheets from any source.
         'img-src': ("'self'", "data:", "blob:", "*"), # WARNING: Allows images from any source.
         'font-src': ("'self'", "*"), # WARNING: Allows fonts from any source.
+        # Allow fonts from self and Google Fonts.
+        'font-src': ("'self'", "https://fonts.gstatic.com"),
+        # object-src 'none' is a good security practice.
         'object-src': ("'none'",),
+        # frame-ancestors 'none' prevents clickjacking.
         'frame-ancestors': ("'none'",),
     }
 }

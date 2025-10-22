@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CustomerProfile, Interaction, Order, OrderItem, InstallationRequest, SiteAssessmentRequest, SolarCleaningRequest, JobCard, LoanApplication
+from .models import CustomerProfile, Interaction, Booking
 
 class InteractionInline(admin.TabularInline):
     """
@@ -83,81 +83,46 @@ class InteractionAdmin(admin.ModelAdmin):
         }),
     )
 
-class OrderItemInline(admin.TabularInline):
-    model = OrderItem
-    fk_name = "order"
-    extra = 1  # Show 1 empty slot for a new OrderItem
-    autocomplete_fields = ['product']
-
-@admin.register(Order)
-class OrderAdmin(admin.ModelAdmin):
-    list_display = ('order_number', 'name', 'customer', 'stage', 'payment_status', 'amount', 'currency', 'assigned_agent', 'created_at')
-    list_filter = ('stage', 'payment_status', 'assigned_agent', 'currency', 'created_at')
-    search_fields = ('order_number', 'name', 'customer__first_name', 'customer__last_name', 'customer__company')
-    autocomplete_fields = ['customer', 'assigned_agent']
-    list_editable = ('stage', 'payment_status',)
-    readonly_fields = ()
+@admin.register(Booking)
+class BookingAdmin(admin.ModelAdmin):
+    """
+    Admin interface for the Booking model.
+    """
+    list_display = ('booking_reference', 'customer', 'tour_name', 'start_date', 'payment_status', 'total_amount', 'assigned_agent')
+    list_filter = ('payment_status', 'source', 'start_date', 'assigned_agent')
+    search_fields = ('booking_reference', 'tour_name', 'customer__first_name', 'customer__last_name', 'customer__contact__whatsapp_id')
+    autocomplete_fields = ['customer', 'tour', 'assigned_agent']
+    list_editable = ('payment_status',)
     date_hierarchy = 'created_at'
-    inlines = [OrderItemInline]
     fieldsets = (
-        (None, {'fields': ('order_number', 'name', 'customer', 'assigned_agent')}),
-        ('Deal Details', {'fields': ('stage', 'payment_status', ('amount', 'currency'), 'expected_close_date')}),
-        ('Notes', {'fields': ('notes',)}),
-    )
-    list_select_related = ('customer', 'assigned_agent')
-
-@admin.register(InstallationRequest)
-class InstallationRequestAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'installation_type', 'status', 'associated_order', 'preferred_datetime', 'created_at')
-    list_filter = ('status', 'installation_type', 'created_at')
-    search_fields = ('full_name', 'order_number', 'assessment_number', 'address', 'contact_phone', 'associated_order__name', 'associated_order__order_number')
-    readonly_fields = ('created_at', 'updated_at')
-    autocomplete_fields = ['customer', 'associated_order']
-
-@admin.register(SiteAssessmentRequest)
-class SiteAssessmentRequestAdmin(admin.ModelAdmin):
-    list_display = ('assessment_id', 'full_name', 'company_name', 'status', 'preferred_day', 'created_at')
-    list_filter = ('status', 'created_at')
-    search_fields = ('assessment_id', 'full_name', 'company_name', 'address', 'contact_info')
-    readonly_fields = ('created_at', 'updated_at')
-    autocomplete_fields = ['customer']
-    list_editable = ('status',)
-
-@admin.register(LoanApplication)
-class LoanApplicationAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'loan_type', 'status', 'requested_amount', 'product_of_interest', 'created_at')
-    search_fields = ('full_name', 'national_id', 'customer__contact__name', 'customer__contact__whatsapp_id')
-    list_filter = ('status', 'loan_type', 'employment_status', 'created_at')
-    readonly_fields = ('created_at', 'updated_at')
-    autocomplete_fields = ['customer']
-
-@admin.register(SolarCleaningRequest)
-class SolarCleaningRequestAdmin(admin.ModelAdmin):
-    list_display = ('full_name', 'status', 'preferred_date', 'roof_type', 'panel_count', 'created_at')
-    list_filter = ('status', 'roof_type', 'panel_type', 'availability', 'created_at')
-    search_fields = ('full_name', 'contact_phone', 'address')
-    readonly_fields = ('created_at', 'updated_at')
-    autocomplete_fields = ['customer']
-    list_editable = ('status',)
-    fieldsets = (
-        ('Request Details', {
-            'fields': ('customer', 'status', 'full_name', 'contact_phone')
+        ('Booking Core Info', {
+            'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')
         }),
-        ('Job Specifications', {
-            'fields': ('roof_type', 'panel_type', 'panel_count')
+        ('Dates & Guests', {
+            'fields': (('start_date', 'end_date'), ('number_of_adults', 'number_of_children'))
         }),
-        ('Scheduling & Location', {
-            'fields': ('preferred_date', 'availability', 'address', ('latitude', 'longitude'))
+        ('Financials & Source', {
+            'fields': (('total_amount', 'amount_paid'), 'payment_status', 'source')
+        }),
+        ('Additional Details', {
+            'fields': ('notes', 'booking_details_payload'),
+            'classes': ('collapse',)
         }),
     )
-    list_editable = ('status',)
+    list_select_related = ('customer', 'tour', 'assigned_agent')
 
-@admin.register(JobCard)
-class JobCardAdmin(admin.ModelAdmin):
-    list_display = ('job_card_number', 'customer', 'product_description', 'status', 'is_under_warranty', 'creation_date')
-    list_filter = ('status', 'is_under_warranty', 'creation_date')
-    search_fields = ('job_card_number', 'customer__first_name', 'customer__last_name', 'product_description', 'product_serial_number', 'reported_fault')
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'booking', 'amount', 'status', 'payment_method', 'created_at')
+    list_filter = ('status', 'payment_method', 'created_at')
+    search_fields = ('id', 'booking__booking_reference', 'transaction_reference')
     readonly_fields = ('created_at', 'updated_at')
-    autocomplete_fields = ['customer']
-    list_editable = ('status',)
-    date_hierarchy = 'creation_date'
+    autocomplete_fields = ['booking']
+
+@admin.register(TourInquiry)
+class TourInquiryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'customer', 'destination', 'status', 'assigned_agent', 'created_at')
+    list_filter = ('status', 'assigned_agent', 'created_at')
+    search_fields = ('destination', 'notes', 'customer__first_name', 'customer__last_name')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    autocomplete_fields = ['customer', 'assigned_agent']

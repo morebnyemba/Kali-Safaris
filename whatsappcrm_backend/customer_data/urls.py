@@ -7,9 +7,9 @@ from . import views
 router = DefaultRouter()
 router.register(r'profiles', views.CustomerProfileViewSet, basename='customerprofile')
 router.register(r'interactions', views.InteractionViewSet, basename='interaction')
-router.register(r'orders', views.OrderViewSet, basename='order')
-router.register(r'installation-requests', views.InstallationRequestViewSet, basename='installationrequest')
-router.register(r'site-assessments', views.SiteAssessmentRequestViewSet, basename='siteassessmentrequest')
+router.register(r'bookings', views.BookingViewSet, basename='booking')
+router.register(r'payments', views.PaymentViewSet, basename='payment')
+router.register(r'inquiries', views.TourInquiryViewSet, basename='tourinquiry')
 
 app_name = 'customer_data_api'
 

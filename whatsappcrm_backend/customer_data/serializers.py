@@ -1,11 +1,10 @@
 # whatsappcrm_backend/customer_data/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Order, InstallationRequest, SiteAssessmentRequest, CustomerProfile, Interaction
+from .models import Booking, TourInquiry, Payment, CustomerProfile, Interaction
+from products_and_services.models import Tour
 
 User = get_user_model()
-
-# whatsappcrm_backend/customer_data/serializers.py
 # --- SimpleUserSerializer ---
 class SimpleUserSerializer(serializers.ModelSerializer):
     """A lightweight serializer for basic User (agent) information."""
@@ -14,6 +13,13 @@ class SimpleUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ['id', 'username', 'full_name', 'first_name', 'last_name']
+
+class SimpleTourSerializer(serializers.ModelSerializer):
+    """A lightweight serializer for basic Tour information."""
+    class Meta:
+        model = Tour
+        fields = ['id', 'name', 'category', 'location']
+
 
 # --- SimpleCustomerProfileSerializer ---
 class SimpleCustomerProfileSerializer(serializers.ModelSerializer):
@@ -25,43 +31,6 @@ class SimpleCustomerProfileSerializer(serializers.ModelSerializer):
         model = CustomerProfile
         fields = ['contact_id', 'full_name', 'company']
 
-# --- Order Serializer ---
-class OrderSerializer(serializers.ModelSerializer):
-    customer = SimpleCustomerProfileSerializer(read_only=True)
-    assigned_agent = SimpleUserSerializer(read_only=True)
-    assigned_agent_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.filter(is_staff=True),
-        source='assigned_agent', write_only=True, allow_null=True, required=False
-    )
-    stage_display = serializers.CharField(source='get_stage_display', read_only=True)
-    payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
-
-    class Meta:
-        model = Order
-        fields = [
-            'id', 'order_number', 'name', 'customer', 'stage', 'stage_display', 'payment_status', 'payment_status_display',
-            'amount', 'currency', 'expected_close_date', 'assigned_agent', 'assigned_agent_id', 'notes', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ('id', 'created_at', 'updated_at')
-
-# --- InstallationRequest Serializer ---
-class InstallationRequestSerializer(serializers.ModelSerializer):
-    customer = SimpleCustomerProfileSerializer(read_only=True)
-    associated_order = OrderSerializer(read_only=True)
-
-    class Meta:
-        model = InstallationRequest
-        fields = '__all__'
-        read_only_fields = ('id', 'created_at', 'updated_at')
-
-# --- SiteAssessmentRequest Serializer ---
-class SiteAssessmentRequestSerializer(serializers.ModelSerializer):
-    customer = SimpleCustomerProfileSerializer(read_only=True)
-
-    class Meta:
-        model = SiteAssessmentRequest
-        fields = '__all__'
-        read_only_fields = ('id', 'created_at', 'updated_at')
 # whatsappcrm_backend/customer_data/serializers.py
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
@@ -197,3 +166,68 @@ class InteractionSerializer(serializers.ModelSerializer):
                 validated_data['agent'] = request.user
 
         return super().create(validated_data)
+
+# --- Booking & Payment Serializers ---
+
+class PaymentSerializer(serializers.ModelSerializer):
+    payment_status_display = serializers.CharField(source='get_status_display', read_only=True)
+    payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'booking', 'amount', 'currency', 'status', 'payment_status_display',
+            'payment_method', 'payment_method_display', 'transaction_reference', 'notes', 'created_at'
+        ]
+        read_only_fields = ('id', 'created_at')
+
+class BookingSerializer(serializers.ModelSerializer):
+    customer = SimpleCustomerProfileSerializer(read_only=True)
+    tour = SimpleTourSerializer(read_only=True)
+    assigned_agent = SimpleUserSerializer(read_only=True)
+    payments = PaymentSerializer(many=True, read_only=True) # Nested payments
+
+    # Writable fields for foreign keys
+    customer_id = serializers.PrimaryKeyRelatedField(
+        queryset=CustomerProfile.objects.all(), source='customer', write_only=True
+    )
+    tour_id = serializers.PrimaryKeyRelatedField(
+        queryset=Tour.objects.all(), source='tour', write_only=True, required=False, allow_null=True
+    )
+    assigned_agent_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_staff=True),
+        source='assigned_agent', write_only=True, required=False, allow_null=True
+    )
+
+    payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
+    source_display = serializers.CharField(source='get_source_display', read_only=True)
+
+    class Meta:
+        model = Booking
+        fields = [
+            'booking_reference', 'customer', 'customer_id', 'tour', 'tour_id', 'tour_name',
+            'start_date', 'end_date', 'number_of_adults', 'number_of_children',
+            'total_amount', 'amount_paid', 'payment_status', 'payment_status_display',
+            'source', 'source_display', 'notes', 'assigned_agent', 'assigned_agent_id',
+            'created_at', 'updated_at', 'payments'
+        ]
+        read_only_fields = ('amount_paid', 'created_at', 'updated_at', 'payments')
+
+
+class TourInquirySerializer(serializers.ModelSerializer):
+    customer = SimpleCustomerProfileSerializer(read_only=True)
+    assigned_agent = SimpleUserSerializer(read_only=True)
+    status_display = serializers.CharField(source='get_status_display', read_only=True)
+
+    customer_id = serializers.PrimaryKeyRelatedField(
+        queryset=CustomerProfile.objects.all(), source='customer', write_only=True
+    )
+    assigned_agent_id = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.filter(is_staff=True),
+        source='assigned_agent', write_only=True, required=False, allow_null=True
+    )
+
+    class Meta:
+        model = TourInquiry
+        fields = '__all__'
+        read_only_fields = ('id', 'created_at', 'updated_at')

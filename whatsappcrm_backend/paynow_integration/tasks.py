@@ -10,7 +10,7 @@ from django.conf import settings
 
 from .services import PaynowService
 from meta_integration.utils import send_whatsapp_message, create_text_message_data
-from customer_data.models import Payment, Order
+from customer_data.models import Payment, Booking
 
 logger = logging.getLogger(__name__)
 
@@ -180,10 +180,10 @@ def poll_paynow_transaction_status(self, payment_id: str):
                     pending_payment.save(update_fields=['status', 'notes', 'updated_at'])
                     
                     # --- NEW: Update associated order status ---
-                    if pending_payment.order:
-                        pending_payment.order.payment_status = Order.PaymentStatus.PAID
-                        pending_payment.order.save(update_fields=['payment_status', 'updated_at'])
-                        logger.info(f"{log_prefix} Updated order {pending_payment.order.id} payment_status to PAID.")
+                    if pending_payment.booking:
+                        pending_payment.booking.payment_status = Booking.PaymentStatus.PAID
+                        pending_payment.booking.save(update_fields=['payment_status', 'updated_at'])
+                        logger.info(f"{log_prefix} Updated booking {pending_payment.booking.id} payment_status to PAID.")
                     
                     logger.info(f"{log_prefix} Successfully processed payment {pending_payment.id}. Amount: {pending_payment.amount}.")
                     
@@ -265,10 +265,10 @@ def process_paynow_ipn_task(ipn_data: dict):
                 payment_to_update.save(update_fields=['status', 'transaction_reference', 'notes', 'updated_at'])
 
                 # --- NEW: Update associated order status ---
-                if payment_to_update.order:
-                    payment_to_update.order.payment_status = Order.PaymentStatus.PAID
-                    payment_to_update.order.save(update_fields=['payment_status', 'updated_at'])
-                    logger.info(f"{log_prefix} Updated order {payment_to_update.order.id} payment_status to PAID.")
+                if payment_to_update.booking:
+                    payment_to_update.booking.payment_status = Booking.PaymentStatus.PAID
+                    payment_to_update.booking.save(update_fields=['payment_status', 'updated_at'])
+                    logger.info(f"{log_prefix} Updated booking {payment_to_update.booking.id} payment_status to PAID.")
                 
                 logger.info(f"{log_prefix} Successfully processed payment. Amount: {payment_to_update.amount}.")
                 send_giving_confirmation_whatsapp.delay(payment_id=str(payment_to_update.id))

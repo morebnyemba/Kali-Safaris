@@ -1,39 +1,20 @@
 from django.contrib import admin
-from .models import Product, ProductCategory
-from django.utils.html import format_html
+from .models import Tour
 
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+@admin.register(Tour)
+class TourAdmin(admin.ModelAdmin):
     """
-    Admin interface for the generic Product model.
+    Admin interface for the Tour model.
     """
-    list_display = ('name', 'sku', 'product_type', 'category', 'price', 'is_active')
-    list_filter = ('product_type', 'is_active', 'category', 'license_type')
-    search_fields = ('name', 'sku', 'description')
-    list_editable = ('price', 'is_active')
-    autocomplete_fields = ('category', 'parent_product')
-    filter_horizontal = ('compatible_products',)
+    list_display = ('name', 'category', 'location', 'duration_days', 'base_price', 'is_active')
+    list_filter = ('category', 'is_active', 'location')
+    search_fields = ('name', 'description', 'location')
+    list_editable = ('base_price', 'is_active')
     fieldsets = (
         ('Core Information', {
-            'fields': ('name', 'sku', 'product_type', 'category', 'description')
+            'fields': ('name', 'category', 'description', 'image')
         }),
-        ('Pricing & Availability', {
-            'fields': (('price', 'currency'), 'is_active')
-        }),
-        ('Software & Relationships', {
-            'fields': ('license_type', 'dedicated_flow_name', 'parent_product', 'compatible_products'),
-            'classes': ('collapse',)
-        }),
-        ('Media', {
-            'fields': ('image',)
+        ('Details & Pricing', {
+            'fields': ('location', 'duration_days', 'base_price', 'is_active')
         }),
     )
-
-@admin.register(ProductCategory)
-class ProductCategoryAdmin(admin.ModelAdmin):
-    """
-    Admin interface for Product Categories.
-    """
-    list_display = ('name', 'parent', 'description')
-    search_fields = ('name',)
-    autocomplete_fields = ('parent',)
