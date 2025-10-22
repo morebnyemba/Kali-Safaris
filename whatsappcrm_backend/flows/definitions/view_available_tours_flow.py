@@ -4,7 +4,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
     "name": "view_available_tours_flow",
     "friendly_name": "View Available Tours",
     "description": "Displays a list of available tours to the user.",
-    "trigger_keywords": ["tours", "view tours", "available tours"],
+    "trigger_keywords": ["view tours", "show tours", "safaris"],
     "is_active": True,
     "steps": [
         {
@@ -18,66 +18,47 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                     "model_name": "Tour",
                     "variable_name": "available_tours",
                     "filters_template": {"is_active": True},
-                    "fields_to_return": ["id", "name", "description", "duration_days", "location", "image"],
+                    "fields_to_return": ["id", "name", "price", "duration_days"],
                     "order_by": ["name"]
                 }]
             },
             "transitions": [
-                {"to_step": "display_tours", "priority": 0, "condition_config": {"type": "variable_exists", "variable_name": "available_tours.0"}},
-                {"to_step": "no_tours_found", "priority": 1, "condition_config": {"type": "always_true"}}
+                {"to_step": "display_tours", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "available_tours.0"}},
+                {"to_step": "no_tours_available", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
         {
             "name": "display_tours",
             "type": "send_message",
             "config": {
-                "message_type": "interactive",
-                "interactive": {
-                    "type": "carousel",
-                    "action": {
-                        "name": "tour_carousel",
-                        "parameters": {
-                            "cards": [
-                                {
-                                    "card_index": "{{ loop.index0 }}",
-                                    "components": [
-                                        {
-                                            "type": "header",
-                                            "parameters": [{"type": "image", "image": {"link": "{{ item.image }}"}}]
-                                        },
-                                        {
-                                            "type": "body",
-                                            "parameters": [
-                                                {"type": "text", "text": "{{ item.name | truncatewords(10) }}"},
-                                                {"type": "text", "text": "{{ item.description | truncatewords(15) }}"}
-                                            ]
-                                        }
-                                    ]
-                                } for item in available_tours
-                            ]
-                        }
-                    }
+                "message_type": "text",
+                "text": {
+                    "body": """Here are our available safari packages:
+
+{% for tour in available_tours %}
+*{{ tour.name }}*
+Duration: {{ tour.duration_days }} days
+Price: ${{ "%.2f"|format(tour.price) }}
+---
+{% endfor %}
+
+To book or ask for a custom trip, please type *menu* and choose 'Plan a Custom Tour'."""
                 }
             },
-            "transitions": [
-                {"to_step": "end_flow", "condition_config": {"type": "always_true"}}
-            ]
+            "transitions": [{"to_step": "end_view_tours", "condition_config": {"type": "always_true"}}]
         },
         {
-            "name": "no_tours_found",
+            "name": "no_tours_available",
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {"body": "We don't have any tours listed at the moment, but our travel experts are always creating new experiences! Please check back soon or contact an agent for a custom tour.\n\nType 'menu' to return."}
+                "text": {"body": "We are currently updating our tour packages. Please check back soon or type 'menu' to contact an agent for a custom tour."}
             },
-            "transitions": [
-                {"to_step": "end_flow", "condition_config": {"type": "always_true"}}
-            ]
+            "transitions": [{"to_step": "end_view_tours", "condition_config": {"type": "always_true"}}]
         },
         {
-            "name": "end_flow",
-            "type": "end_flow",
-            "config": {}
+            "name": "end_view_tours",
+            "type": "end_flow"
         }
     ]
 }

@@ -68,7 +68,7 @@ MAIN_MENU_FLOW = {
             "transitions": [
                 {"to_step": "switch_to_view_tours_flow", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "view_tours"}},
                 {"to_step": "switch_to_inquiry_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "plan_custom_tour"}},
-                {"to_step": "show_coming_soon", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_events"}},
+                {"to_step": "switch_to_special_offers_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_events"}},
                 {"to_step": "switch_to_my_bookings_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_bookings"}},
                 {"to_step": "switch_to_faq_flow", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
                 {"to_step": "show_about_us", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_us"}},
@@ -92,6 +92,11 @@ MAIN_MENU_FLOW = {
             "name": "switch_to_view_tours_flow",
             "type": "switch_flow",
             "config": {"target_flow_name": "view_available_tours_flow"}
+        },
+        {
+            "name": "switch_to_special_offers_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "special_offers_flow"}
         },
         {
             "name": "switch_to_my_bookings_flow",
