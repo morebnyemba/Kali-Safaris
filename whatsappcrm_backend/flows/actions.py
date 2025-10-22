@@ -35,7 +35,8 @@ def create_booking_from_inquiry(context: dict, params: dict) -> dict:
       save_booking_to: "variable_name_to_save_the_created_booking"
     """
     contact = get_contact_from_context(context)
-    if not contact or not hasattr(contact, 'customer_profile') l("creang_fromcustomer profile in context.")
+    if not contact or not hasattr(contact, 'customer_profile') or not contact.customer_profile:
+        logger.error("create_booking_from_inquiry: Could not find contact or customer profile in context.")
         return context
 
     inquiry_var = params.get('inquiry_context_var')
