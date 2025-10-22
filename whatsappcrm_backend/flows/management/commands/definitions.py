@@ -1,11 +1,5 @@
-# whatsappcrm_backend/notifications/definitions.py
-
-"""
-Central repository for all notification template definitions.
-These definitions are used by:
-1. `load_notification_templates` management command to populate the NotificationTemplate model.
-2. `sync_meta_templates` management command to sync with the WhatsApp Business API.
-"""
+# whatsappcrm_backend/flows/management/commands/definitions.py
+# This file was previously misnamed. It should contain notification template definitions.
 
 NOTIFICATION_TEMPLATES = [
     {
@@ -23,9 +17,8 @@ Please see the admin panel for full details."""
     },
     {
         "name": "new_online_order_placed",
-        "description": "Sent to admins when a customer places a new order through the 'Purchase Product' flow.",
-        "body": """New Online Order Placed! 🛍️
-New Tour Booking via WhatsApp! 🐘
+        "description": "Sent to admins when a customer places a new booking through a WhatsApp flow.",
+        "body": """New Tour Booking via WhatsApp! 🐘
 
 A new booking has been made via WhatsApp by *{{ contact.name or contact.whatsapp_id }}*.
 
@@ -37,10 +30,6 @@ A new booking has been made via WhatsApp by *{{ contact.name or contact.whatsapp
 *Lead Guest:*
 - Name: {{ lead_guest_name }}
 - Phone: {{ lead_guest_phone }}
-
-*Items Ordered:*
-{% for item in cart_items %}- {{ item.quantity }} x {{ item.name }}
-{% endfor %}
 
 Please follow up with the customer to arrange payment."""
     },
@@ -55,77 +44,15 @@ Thank you for choosing us!"""
     },
     {
         "name": "assessment_status_updated",
-        "description": "Sent to a customer when an admin updates their site assessment status.",
+        "description": "Sent to a customer when an admin updates their itinerary request status.",
         "body": """Hello! 👋
 The status for your Itinerary Request (#{{ request_id }}) has been updated to: *{{ new_status }}*.
 
 Our team will be in touch with the next steps. Thank you!"""
     },
     {
-        "name": "new_installation_request",
-        "description": "Sent to admins when a customer submits a new solar installation request.",
-        "body": """New Installation Request 🛠️
-New Tour Inquiry! 🦁
-
-A new tour inquiry has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
-
-*Inquiry Details:*
-- Tour Type: {{ tour_type }}
-- Destination: {{ destination }}
-- Number of Travelers: {{ number_of_travelers }}
-
-*Contact Info:*
-- Name: {{ full_name }}
-- Phone: {{ phone }}
-- Preferred Travel Dates: {{ travel_dates }}
-
-Please follow up to create a custom itinerary."""
-    },
-    {
-        "name": "new_starlink_installation_request",
-        "description": "Sent to admins when a customer submits a new Starlink installation request.",
-        "body": """New Starlink Installation Request 🛰️
-
-A new Starlink installation request has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
-
-*Client & Location:*
-- Name: {{ install_full_name }}
-- Phone: {{ install_phone }}
-- Address: {{ install_address }}
-{% if install_location_pin and install_location_pin.latitude %}- Location Pin: https://www.google.com/maps/search/?api=1&query={{ install_location_pin.latitude }},{{ install_location_pin.longitude }}{% endif %}
-
-*Scheduling:*
-- Preferred Date: {{ install_datetime }} ({{ install_availability|title }})
-
-*Job Details:*
-- Kit Type: {{ install_kit_type|title }}
-- Desired Mount: {{ install_mount_location }}
-
-Please follow up to confirm the schedule."""
-    },
-    {
-        "name": "new_solar_cleaning_request",
-        "description": "Sent to admins when a customer submits a new solar panel cleaning request.",
-        "body": """New Solar Cleaning Request 💧
-
-A new cleaning request has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
-
-*Client Details:*
-- Name: {{ cleaning_full_name }}
-- Phone: {{ cleaning_phone }}
-
-*Job Details:*
-- Roof Type: {{ cleaning_roof_type|title }}
-- Panels: {{ cleaning_panel_count }} x {{ cleaning_panel_type|title }}
-- Preferred Date: {{ cleaning_date }} ({{ cleaning_availability|title }})
-- Address: {{ cleaning_address }}{% if cleaning_location_pin and cleaning_location_pin.latitude %}
-- Location Pin: https://www.google.com/maps/search/?api=1&query={{ cleaning_location_pin.latitude }},{{ cleaning_location_pin.longitude }}{% endif %}
-
-Please follow up to provide a quote and schedule the service."""
-    },
-    {
         "name": "admin_order_and_install_created",
-        "description": "Sent to admins when another admin creates a new order and installation request via the admin flow.",
+        "description": "Sent to admins when another admin creates a new booking via an admin flow.",
         "body": """Admin Action: New Booking Created 📝
 
 Admin *{{ contact.name or contact.username }}* has created a new booking.
@@ -136,23 +63,7 @@ Admin *{{ contact.name or contact.username }}* has created a new booking.
 Please see the admin panel for full details."""
     },
     {
-        "name": "new_site_assessment_request",
-        "description": "Sent to admins when a customer books a new site assessment.",
-        "body": """New Site Assessment Request 📋
-
-A new site assessment has been requested by *{{ contact.name or contact.whatsapp_id }}*.
-
-*Request Details:*
-- Name: {{ assessment_full_name }}
-- Company: {{ assessment_company_name }}
-- Address: {{ assessment_address }}
-- Contact: {{ assessment_contact_info }}
-- Preferred Day: {{ assessment_preferred_day }}
-
-Please follow up to schedule the assessment."""
-    },
-    {
-        "name": "job_card_created_successfully",
+        "name": "booking_created_from_email",
         "description": "Sent to admins when a booking is successfully created from an email attachment.",
         "body": """New Booking Created from Email 🦁
 
@@ -176,17 +87,6 @@ Contact *{{ related_contact.name or related_contact.whatsapp_id }}* requires ass
 {{ template_context.last_bot_message or 'User requested help or an error occurred.' }}
 
 Please respond to them in the main inbox."""
-    },
-    {
-        "name": "new_placeholder_order_created",
-        "description": "Sent to admins when a placeholder order is created via the order receiver number.",
-        "body": """New Placeholder Order Created 📦
-
-A new placeholder order has been created by *{{ contact.name or contact.whatsapp_id }}*.
-
-*Order #:* {{ normalized_order_number }}
-
-Please update the order details in the admin panel as soon as possible."""
     },
     {
         "name": "message_send_failure",
@@ -220,6 +120,24 @@ A booking confirmation from *{{ attachment.sender }}* (Filename: *{{ attachment.
 - Total Amount: *${{ "%.2f"|format(booking.amount) if booking.amount is not none else '0.00' }}*
 - Customer: *{{ customer.full_name or customer.contact_name }}*
 
-The new order has been created in the system."""
+The new booking has been created in the system."""
+    },
+    # This template was missing from the previous version of the file.
+    {
+        "name": "new_tour_inquiry_alert",
+        "description": "Sent to admins when a new tour inquiry is submitted via the WhatsApp flow.",
+        "template_type": "whatsapp",
+        "body": """New Tour Inquiry! 🦁
+
+A new tour inquiry has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
+
+*Inquiry Details:*
+- Name: *{{ flow_context.inquiry_full_name }}*
+- Destination: *{{ flow_context.inquiry_destination }}*
+- Travelers: *{{ flow_context.inquiry_travelers }}*
+- Dates: *{{ flow_context.inquiry_dates }}*
+- Notes: {{ flow_context.inquiry_notes }}
+
+Please follow up to create a custom itinerary. The inquiry has been saved to the CRM."""
     },
 ]

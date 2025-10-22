@@ -389,7 +389,7 @@ def _create_booking_from_data(attachment: EmailAttachment, data: dict, log_prefi
         customer_dict = {'full_name': customer_profile.get_full_name(), 'contact_name': getattr(customer_profile.contact, 'name', None)}
 
         queue_notifications_to_users(
-            template_name='job_card_created_successfully', # This template name should be updated
+            template_name='booking_created_from_email',
             group_names=settings.INVOICE_PROCESSED_NOTIFICATION_GROUPS,
             related_contact=customer_profile.contact,
             template_context={
