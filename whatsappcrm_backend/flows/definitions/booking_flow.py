@@ -260,7 +260,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Apologies, we couldn't generate a payment link right now. Your booking (Ref: #{{ created_booking.booking_reference }}) has been saved. A consultant will contact you shortly to assist with payment."}
+                    "text": {"body": "Apologies, we couldn't generate a payment link right now. Your booking (Ref: #{{ created_booking.booking_reference }}) has been saved.\n\nA consultant will contact you via WhatsApp and email (*{{ inquiry_email }}*) shortly to assist with payment."}
                 }
             }
         },
@@ -291,18 +291,51 @@ BOOKING_FLOW = {
                     }
                 ]
             },
-            "transitions": [{"to_step": "end_quote_request", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "generate_quote_pdf", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "generate_quote_pdf",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "generate_and_save_quote_pdf",
+                    "params_template": {
+                        "save_to_variable": "quote_pdf_url"
+                    }
+                }]
+            },
+            "transitions": [
+                {"to_step": "send_quote_pdf", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "quote_pdf_url"}},
+                {"to_step": "end_quote_request_no_pdf", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "send_quote_pdf",
+            "type": "send_message",
+            "config": {
+                "message_type": "document",
+                "document": {
+                    "link": "{{ quote_pdf_url }}",
+                    "filename": "Kalai_Safaris_Quote_{{ created_inquiry.id }}.pdf",
+                    "caption": "Thank you, {{ contact.name }}! Here is the preliminary quote for your *{{ tour_name }}* tour (Ref: #{{ created_inquiry.id }}).\n\nA travel specialist will also email a detailed itinerary to *{{ inquiry_email }}* shortly."
+                }
+            },
+            "transitions": [{"to_step": "end_booking_flow_final", "condition_config": {"type": "always_true"}}]
         },
         # Step 10: Final confirmation message
         {
-            "name": "end_quote_request",
+            "name": "end_quote_request_no_pdf",
             "type": "end_flow",
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Thank you, {{ contact.name }}! Your inquiry for the *{{ tour_name }}* tour has been received (Ref: #{{ created_inquiry.id }}).\n\nA travel specialist will email a detailed quote and itinerary to *{{ inquiry_email }}* shortly.\n\nType *menu* to return to the main menu."}
+                    "text": {"body": "Thank you, {{ contact.name }}! Your inquiry for the *{{ tour_name }}* tour has been received (Ref: #{{ created_inquiry.id }}).\n\nWe had an issue generating the PDF, but a travel specialist will email a detailed quote to *{{ inquiry_email }}* shortly.\n\nType *menu* to return to the main menu."}
                 }
             }
+        },
+        {
+            "name": "end_booking_flow_final",
+            "type": "end_flow"
         }
     ]
 }

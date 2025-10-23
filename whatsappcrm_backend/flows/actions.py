@@ -10,6 +10,7 @@ from customer_data.models import CustomerProfile, Booking, TourInquiry
 from products_and_services.models import Tour
 from notifications.services import queue_notifications_to_users
 from paynow_integration.services import PaynowService
+from pdfs.services import generate_quote_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -134,4 +135,22 @@ def initiate_tour_payment(context: dict, params: dict) -> dict:
         logger.error(f"Error initiating Paynow payment: {e}", exc_info=True)
         context[params.get('save_to_variable', 'payment_result')] = {'error': str(e)}
 
+    return context
+
+@register_flow_action('generate_and_save_quote_pdf')
+def generate_and_save_quote_pdf(context: dict, params: dict) -> dict:
+    """
+    Generates a PDF quote based on the current flow context and saves its URL.
+
+    params_template:
+      save_to_variable: "variable_name_to_save_the_pdf_url"
+    """
+    save_to_var = params.get('save_to_variable', 'generated_pdf_url')
+    
+    # The entire flow context is passed to the PDF generation service
+    pdf_url = generate_quote_pdf(context)
+    
+    if pdf_url:
+        context[save_to_var] = pdf_url
+    
     return context
