@@ -18,7 +18,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                     "model_name": "Tour",
                     "variable_name": "available_tours",
                     "filters_template": {"is_active": True},
-                    "fields_to_return": ["id", "name", "price", "duration_days"],
+                    "fields_to_return": ["id", "name", "base_price", "duration_days"],
                     "order_by": ["name"]
                 }]
             },
@@ -38,7 +38,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
 {% for tour in available_tours %}
 *{{ tour.name }}*
 Duration: {{ tour.duration_days }} days
-Price: ${{ "%.2f"|format(tour.price) }}
+Price: ${{ "%.2f"|format(tour.base_price) }}
 ---
 {% endfor %}
 
