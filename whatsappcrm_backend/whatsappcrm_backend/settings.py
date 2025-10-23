@@ -29,7 +29,7 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True' # Default to True for dev if
 # AllowedHostsOriginValidator, you must also include your frontend domain.
 ALLOWED_HOSTS_STRING = os.getenv(
     'DJANGO_ALLOWED_HOSTS',
-    'localhost,127.0.0.1,backend.kalisafaris.com,dashboard.kalisafaris.com,testbackend.worldbet2.com,www.testbackend.worldbet2.com'
+    'localhost,127.0.0.1,backend.kalaisafaris.com,dashboard.kalaisafaris.com,testbackend.worldbet2.com,www.testbackend.worldbet2.com'
 )
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if host.strip()]
 
@@ -38,7 +38,7 @@ ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if hos
 # This is crucial for your React frontend to be able to log in and submit data.
 CSRF_TRUSTED_ORIGINS_STRING = os.getenv(
     'CSRF_TRUSTED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalisafaris.com,http://dashboard.kalisafaris.com,https://backend.kalisafaris.com,http://backend.kalisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com'
+    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalaisafaris.com,http://dashboard.kalaisafaris.com,https://backend.kalaisafaris.com,http://backend.kalaisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com'
 )
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_STRING.split(',') if origin.strip()]
 
@@ -213,7 +213,7 @@ SIMPLE_JWT = {
 # This tells the browser that it's safe to accept cross-origin requests from your frontend.
 CORS_ALLOWED_ORIGINS_STRING = os.getenv(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalisafaris.com,http://dashboard.kalisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com'
+    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalaisafaris.com,http://dashboard.kalaisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com'
 )
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_STRING.split(',') if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
@@ -358,6 +358,8 @@ JAZZMIN_SETTINGS = {
         "customer_data.Interaction": "fas fa-handshake",
         "customer_data.Booking": "fas fa-calendar-check",
         "products_and_services": "fas fa-map-marked-alt",
+        "customer_data.TourInquiry": "fas fa-question-circle", # Added icon for TourInquiry
+        "products_and_services.SpecialOffer": "fas fa-tags", # Added icon for SpecialOffer
         "products_and_services.Tour": "fas fa-route",
     },
     "default_icon_parents": "fas fa-chevron-circle-right",
@@ -395,8 +397,8 @@ JAZZMIN_UI_TWEAKS = {
 
 # The domain of your backend API that the frontend needs to connect to.
 # It's best to set this in your .env file.
-BACKEND_DOMAIN_FOR_CSP = os.getenv('BACKEND_DOMAIN_FOR_CSP', 'backend.kalaisafaris.com')
-FRONTEND_DOMAIN_FOR_CSP = os.getenv('FRONTEND_DOMAIN_FOR_CSP', 'dashboard.kalaisafaris.com')
+BACKEND_DOMAIN_FOR_CSP = os.getenv('BACKEND_DOMAIN_FOR_CSP', 'backend.kalaisafaris.com') # Default to Kalai Safaris
+FRONTEND_DOMAIN_FOR_CSP = os.getenv('FRONTEND_DOMAIN_FOR_CSP', 'dashboard.kalaisafaris.com') # Default to Kalai Safaris
 
 # Base directives for production
 connect_src_list = [

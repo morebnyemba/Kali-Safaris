@@ -68,7 +68,7 @@ FAQ_FLOW = {
         {
             "name": "end_faq",
             "type": "send_message",
-            "config": {"message_type": "text", "text": {"body": "Is there anything else I can help you with? Type *menu* to see the main options again."}},
+            "config": {"message_type": "text", "text": {"body": "Is there anything else I can help you with regarding FAQs? Type *menu* to see the main options again."}},
             "transitions": [{"to_step": "final_exit", "condition_config": {"type": "always_true"}}]
         },
         {

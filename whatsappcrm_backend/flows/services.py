@@ -236,7 +236,7 @@ def _get_value_from_context_or_contact(variable_path: str, flow_context: dict, c
                     current_value = current_value[index]
                 else:
                     return None # Index out of bounds
-            elif hasattr(current_value, part): # Check for model field or property
+            elif hasattr(current_value, part): # Check for model field or property, but not methods
                 attr = getattr(current_value, part)
                 if callable(attr) and not isinstance(getattr(type(current_value), part, None), property):
                     # This is a method, not a property. Do not call it for security/predictability.
@@ -248,7 +248,7 @@ def _get_value_from_context_or_contact(variable_path: str, flow_context: dict, c
                 current_value = attr # Access property or attribute
             else: # Part not found
                 return None
-        except Exception as e:
+        except (AttributeError, TypeError, IndexError) as e: # Catch specific errors for attribute/index access
             logger.warning(
                 f"Contact {contact.id}: Error accessing path '{'.'.join(path_to_traverse[:i+1])}' "
                 f"for variable '{variable_path}': {e}"
@@ -273,7 +273,7 @@ def _resolve_value(template_value: Any, flow_context: dict, contact: Contact) ->
             }
             return template.render(render_context)
         except Exception as e:
-            logger.error(f"Jinja2 template rendering failed for contact {contact.id}: {e}. Template: '{template_value}'", exc_info=False)
+            logger.error(f"Jinja2 template rendering failed for contact {contact.id}: {e}. Template: '{template_value}'", exc_info=True)
             return template_value # Return original on error
     elif isinstance(template_value, dict):
         # Recursively resolve values in a dictionary
@@ -535,7 +535,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                         resolved_filters = _resolve_value(filters_template, current_step_context, contact)
                         
                         if not isinstance(resolved_filters, dict):
-                            logger.warning(f"Contact {contact.id}: 'filters_template' for query_model did not resolve to a dictionary. Using empty filters. Resolved value: {resolved_filters}")
+                            logger.warning(f"Contact {contact.id}: 'filters_template' for query_model in step {step.id} did not resolve to a dictionary. Using empty filters. Resolved value: {resolved_filters}")
                             filters = {}
                         
                         # --- NEW LOGIC TO SUPPORT __not_in ---
@@ -550,17 +550,17 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                                     if not isinstance(parsed_value, list):
                                         raise TypeError("Value for __not_in did not evaluate to a list.")
                                     exclude_filters[new_key] = parsed_value
-                                except (ValueError, SyntaxError, TypeError) as e:
+                                except (ValueError, SyntaxError, TypeError, AttributeError) as e: # Added AttributeError for safety
                                     logger.warning(f"Could not parse value for '{key}' in query_model: {value}. Error: {e}. Skipping this filter.")
                             else:
                                 final_filters[key] = value
                         
                         queryset = Model.objects.filter(**final_filters)
                         if exclude_filters:
-                            queryset = queryset.exclude(**exclude_filters)
+                            queryset = queryset = queryset.exclude(**exclude_filters)
                             
                         order_by_fields = action_item_conf.order_by
-                        if order_by_fields and isinstance(order_by_fields, list):
+                        if order_by_fields and isinstance(order_by_fields, list) and all(isinstance(f, str) for f in order_by_fields):
                             queryset = queryset.order_by(*order_by_fields)
                             
                         if action_item_conf.limit is not None and isinstance(action_item_conf.limit, int):
@@ -569,7 +569,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                         # --- OPTIMIZATION: Use .values() for performance ---
                         fields_to_return = getattr(action_item_conf, 'fields_to_return', None)
                         if fields_to_return and isinstance(fields_to_return, list):
-                            # OPTIMIZED PATH: Use .values() for much faster serialization. This is the recommended approach.
+                            # OPTIMIZED PATH: Use .values() for much faster serialization.
                             results_list = list(queryset.values(*fields_to_return))
                             # .values() handles Decimal and basic types. Dates need manual conversion for JSON.
                             for item in results_list:
@@ -577,7 +577,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                                     if isinstance(value, (date, datetime)):
                                         item[key] = value.isoformat()
                                     elif isinstance(value, Decimal):
-                                        item[key] = str(value) # Convert Decimal to string for JSON
+                                        item[key] = float(value) # Convert Decimal to float for JSON, or str if precision is critical
                                     elif isinstance(value, uuid.UUID):
                                         item[key] = str(value)
                         else:
@@ -590,7 +590,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                                 # Post-process to ensure all values are JSON serializable
                                 for key, value in dict_obj.items():
                                     if isinstance(value, (date, datetime)): dict_obj[key] = value.isoformat()
-                                    elif isinstance(value, Decimal): dict_obj[key] = str(value)
+                                    elif isinstance(value, Decimal): dict_obj[key] = float(value)
                                     elif isinstance(value, (ImageFieldFile, FileField)):
                                         try: dict_obj[key] = value.url if value else None
                                         except ValueError: dict_obj[key] = None
@@ -599,7 +599,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                         current_step_context[variable_name] = results_list
                         logger.info(f"Contact {contact.id}: Action in step {step.id} queried {model_name} and stored {len(results_list)} items in '{variable_name}'.")
                     except LookupError:
-                        logger.error(f"Contact {contact.id}: 'query_model' action in step {step.id} failed. Model '{app_label}.{model_name}' not found.")
+                        logger.error(f"Contact {contact.id}: 'query_model' action in step {step.id} failed. Model '{app_label}.{model_name}' not found.", exc_info=True)
                     except Exception as e:
                         logger.error(f"Contact {contact.id}: 'query_model' action in step {step.id} failed with error: {e}", exc_info=True)
                 elif action_type == 'create_model_instance':
@@ -642,7 +642,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                             # Post-process to ensure all values are JSON serializable before saving to context.
                             for key, value in instance_dict.items():
                                 if isinstance(value, Decimal):
-                                    instance_dict[key] = str(value)
+                                    instance_dict[key] = float(value)
                                 elif isinstance(value, (datetime, date)):
                                     instance_dict[key] = value.isoformat()
                                 elif isinstance(value, (ImageFieldFile, FileField)):
@@ -660,7 +660,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                             current_step_context[save_to_variable] = instance_dict
                             logger.info(f"Contact {contact.id}: Saved created instance to context variable '{save_to_variable}'.")
                     except LookupError:
-                        logger.error(f"Contact {contact.id}: 'create_model_instance' action failed. Model '{app_label}.{model_name}' not found.")
+                        logger.error(f"Contact {contact.id}: 'create_model_instance' action failed. Model '{app_label}.{model_name}' not found.", exc_info=True)
                     except Exception as e:
                         logger.error(f"Contact {contact.id}: 'create_model_instance' action failed with error: {e}", exc_info=True)
                 else:
@@ -729,7 +729,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
             contact.save(update_fields=['needs_human_intervention', 'intervention_requested_at'])
             logger.info(f"Contact {contact.id} ({contact.whatsapp_id}) flagged for human intervention.")
             notification_info = _resolve_value(handover_config.notification_details or f"Contact {contact.name or contact.whatsapp_id} requires help.", current_step_context, contact)
-            logger.info(f"HUMAN INTERVENTION NOTIFICATION: {notification_info}. Context: {current_step_context}")
+            logger.info(f"HUMAN INTERVENTION NOTIFICATION: {notification_info}. Context: {json.dumps(current_step_context)}") # Log context as JSON
             actions_to_perform.append({'type': '_internal_command_clear_flow_state'})
         except ValidationError as e:
             logger.error(f"Contact {contact.id}: Pydantic validation for 'human_handover' step '{step.name}' (ID: {step.id}) failed: {e.errors()}", exc_info=False)
@@ -1185,7 +1185,7 @@ def _update_customer_profile_data(contact: Contact, fields_to_update_config: Dic
         resolved_value = _resolve_value(value_template, flow_context, contact)
         
         if isinstance(resolved_value, str) and resolved_value.lower() == 'skip':
-            resolved_value = None
+            resolved_value = None # Explicitly set to None if 'skip' is intended
         
         parts = field_path.split('.')
         if len(parts) == 1: # Direct attribute on CustomerProfile model
@@ -1194,7 +1194,7 @@ def _update_customer_profile_data(contact: Contact, fields_to_update_config: Dic
                 try:
                     field_object = profile._meta.get_field(field_name)
                     if isinstance(field_object, models.DateField) and resolved_value == '':
-                        resolved_value = None
+                        resolved_value = None # Allow empty string to clear a DateField
 
                     if isinstance(field_object, models.DecimalField) and resolved_value is not None:
                         try:
@@ -1207,7 +1207,7 @@ def _update_customer_profile_data(contact: Contact, fields_to_update_config: Dic
                     if field_name not in changed_fields: 
                         changed_fields.append(field_name)
                 except (DjangoValidationError, TypeError, ValueError) as e:
-                    logger.error(f"Validation/Type error updating CustomerProfile field '{field_name}' for contact {contact.id} with value '{resolved_value}'. Error: {e}", exc_info=False)
+                    logger.error(f"Validation/Type error updating CustomerProfile field '{field_name}' for contact {contact.id} with value '{resolved_value}'. Error: {e}", exc_info=True)
                     continue
             else:
                 logger.warning(f"CustomerProfile field '{field_name}' not found or is protected.")
@@ -1266,7 +1266,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             contact.conversation_context = {}
             contact.save(update_fields=['conversation_mode', 'conversation_context'])
             
-            # Clear any residual flow state
+            # Clear any residual flow state, as the user is explicitly exiting AI mode
             _clear_contact_flow_state(contact)
             
             # Send a confirmation message and re-trigger the main menu
@@ -1278,13 +1278,13 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             }]
             
             # Simulate a 'menu' message to re-trigger the main flow
-            menu_message_data = {'type': 'text', 'text': {'body': 'menu'}}
+            menu_message_data = {'type': 'text', 'text': {'body': 'menu'}} # Simulate user typing 'menu'
             flow_was_triggered = _trigger_new_flow(contact, menu_message_data, incoming_message_obj)
             if flow_was_triggered:
                 contact_flow_state = ContactFlowState.objects.select_related('current_flow', 'current_step').get(contact=contact)
                 entry_step = contact_flow_state.current_step
                 entry_actions, updated_context = _execute_step_actions(entry_step, contact, contact_flow_state.flow_context_data.copy())
-                actions_to_perform.extend(entry_actions)
+                actions_to_perform.extend(entry_actions) # Add actions from the main menu entry point
                 contact_flow_state.flow_context_data = updated_context
                 contact_flow_state.save()
 
@@ -1307,7 +1307,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
     order_receiver_phone_id = getattr(settings, 'ORDER_RECEIVER_PHONE_ID', None)
     message_app_config = incoming_message_obj.app_config
 
-    if order_receiver_phone_id and message_app_config and message_app_config.phone_number_id == order_receiver_phone_id:
+    if order_receiver_phone_id and message_app_config and str(message_app_config.phone_number_id) == str(order_receiver_phone_id): # Ensure string comparison
         logger.info(f"Message received on Order Receiver Number from {contact.whatsapp_id}. Triggering 'simple_add_order' flow.")
         
         # Force this contact into the simple_add_order flow, overwriting any existing state.
@@ -1315,7 +1315,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
         
         try:
             simple_add_order_flow = Flow.objects.get(name='simple_add_order', is_active=True)
-            entry_point_step = simple_add_order_flow.steps.filter(is_entry_point=True).first()
+            entry_point_step = simple_add_order_flow.steps.filter(is_entry_point=True).first() # Use .first() for single entry point
             if not entry_point_step:
                 raise Flow.DoesNotExist("Flow has no entry point.")
 
@@ -1334,7 +1334,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             # to ensure the context is populated before the main loop evaluates transitions.
             entry_actions, updated_context = _execute_step_actions(entry_point_step, contact, contact_flow_state.flow_context_data.copy())
             actions_to_perform.extend(entry_actions)
-            contact_flow_state.flow_context_data = updated_context
+            contact_flow_state.flow_context_data = updated_context # Update context after execution
             contact_flow_state.save(update_fields=['flow_context_data'])
         except Flow.DoesNotExist:
             logger.error("The 'simple_add_order' flow is required for the Order Receiver Number but is not found or is inactive.")
@@ -1377,7 +1377,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                 if not contact_flow_state:
                     logger.warning(f"Flow was triggered for contact {contact.id} but no state was found immediately after (likely ended on first step). Exiting.")
                     return []
-
+                
                 entry_step = contact_flow_state.current_step
                 initial_context = contact_flow_state.flow_context_data or {}
                 
@@ -1386,7 +1386,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                 
                 contact_flow_state.flow_context_data = updated_context
                 contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
-                
+
                 # If the entry step was a question or ends the flow, we are done with this message.
                 if entry_step.step_type in ['question', 'end_flow', 'human_handover']:
                     # A question step should not fall through. It should wait for the next message.
@@ -1398,7 +1398,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                             _clear_contact_flow_state(contact)
                             logger.debug(f"Contact {contact.id}: Processed internal command to clear flow state from entry step.")
                         elif action.get('type') == 'send_whatsapp_message':
-                            final_actions_for_meta_view.append(action)
+                            final_actions_for_meta_view.append(action) # Only return actual messages
                     
                     return final_actions_for_meta_view
                 else:
@@ -1415,7 +1415,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
         while True:
             # Re-fetch state in each loop iteration for robustness
             is_internal_message = message_data.get('type', '').startswith('internal_') # type: ignore
-            contact_flow_state = ContactFlowState.objects.select_related('current_flow', 'current_step').filter(contact=contact).first()
+            contact_flow_state = ContactFlowState.objects.select_related('current_flow', 'current_step').prefetch_related(prefetch_query).filter(contact=contact).first() # Re-fetch with prefetch
 
             if not contact_flow_state:
                 logger.info(f"Flow state was cleared, exiting processing loop for contact {contact.id}.")
@@ -1423,7 +1423,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             
             current_step = contact_flow_state.current_step
             flow_context = contact_flow_state.flow_context_data if contact_flow_state.flow_context_data is not None else {}
-            
+
             logger.debug(f"Handling active flow. Contact: {contact.whatsapp_id}, Current Step: '{current_step.name}' (Type: {current_step.step_type}). Context: {flow_context}")
 
             # --- Step 1: Process incoming message if the current step is a question ---
@@ -1432,7 +1432,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                 # we must stop and wait for the user's actual reply. We should not process the
                 # internal message as if it were a user's answer.
                 if is_internal_message:
-                    logger.debug(f"Reached question step '{current_step.name}' via internal transition. Breaking loop to await user reply.")
+                    logger.debug(f"Reached question step '{current_step.name}' via internal transition. Breaking loop to await user reply. Actions: {actions_to_perform}")
                     break
                 # A question is NOT a pass-through step; it must wait for a reply.
                 question_expectation = flow_context['_question_awaiting_reply_for']
@@ -1456,8 +1456,6 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                                 nfm_response_data = json.loads(response_json_str)
                             except json.JSONDecodeError: 
                                 logger.warning(f"Could not parse nfm_reply response_json for question step {current_step.name}")
-                
-                
                 
                 image_payload = message_data.get('image') if message_data.get('type') == 'image' else None
                 location_payload = message_data.get('location') if message_data.get('type') == 'location' else None
@@ -1513,7 +1511,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                     flow_context.pop('_question_awaiting_reply_for', None)
                     flow_context.pop('_fallback_count', None)
                 else:
-                    logger.info(f"Reply for question step '{current_step.name}' was not valid. Expected: {expected_reply_type}. User text: {user_text}. Interactive ID: {interactive_reply_id}")
+                    logger.info(f"Reply for question step '{current_step.name}' was not valid. Expected: {expected_reply_type}. User text: '{user_text}'. Interactive ID: '{interactive_reply_id}'.")
             
             # If this was a user message that was just processed (valid or not),
             # we should not continue falling through steps in the same cycle.
@@ -1524,7 +1522,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             # --- Step 2: Evaluate transitions from the current step ---
             # --- OPTIMIZATION: Use the prefetched transitions instead of a new query. ---
             # The original query was: FlowTransition.objects.filter(current_step=current_step)...
-            # Now, we access the prefetched data from the step object.
+            # Now, we access the prefetched data from the step object. This is more efficient.
             transitions = current_step.outgoing_transitions.all()
 
             next_step_to_transition_to = None
@@ -1536,7 +1534,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             
             if next_step_to_transition_to:
                 actions, flow_context = _transition_to_step(contact_flow_state, next_step_to_transition_to, flow_context, contact, message_data)
-                # Check for a switch_flow command specifically to handle it within the loop.
+                # Check for a switch_flow command specifically to handle it within the loop, as it changes the current flow state.
                 switch_action = next((a for a in actions if a.get('type') == '_internal_command_switch_flow'), None)
                 if switch_action:
                     logger.info(f"Contact {contact.id}: Processing internal command to switch flow within the main loop.")
@@ -1546,7 +1544,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                         new_flow_name = switch_action.get('target_flow_name')
                         initial_context_for_new_flow = switch_action.get('initial_context', {})
 
-                        target_flow = Flow.objects.get(name=new_flow_name, is_active=True)
+                        target_flow = Flow.objects.get(name=new_flow_name, is_active=True) # Ensure target flow is active
                         entry_point_step = FlowStep.objects.filter(flow=target_flow, is_entry_point=True).first()
 
                         if not entry_point_step:
@@ -1579,7 +1577,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                         # If so, break the main loop to allow the clear_state command to be processed.
                         if any(action.get('type') == '_internal_command_clear_flow_state' for action in entry_actions):
                             break
-                        
+
                         # The message is "consumed" by the first step that uses it.
                         # For subsequent automatic steps in the new flow, we need to prevent reprocessing the original message.
                         message_data = {'type': 'internal_switch_flow'}
@@ -1597,7 +1595,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                         break # Exit loop on failure
                 else:
                     # No switch command, so process actions normally and check for other control commands
-                    actions_to_perform.extend(actions) # Add actions from the transitioned step
+                    actions_to_perform.extend(actions) # Add actions from the newly executed step
                     if any(action.get('type') == '_internal_command_clear_flow_state' for action in actions):
                         break # Exit the while loop for end_flow or human_handover
 
@@ -1610,7 +1608,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             # --- Step 3: Loop Control ---
             # If the new step is a question, or if the flow state was cleared (e.g., end_flow), break the loop.
             new_state = ContactFlowState.objects.filter(contact=contact).first()
-            if not new_state or new_state.current_step.step_type in ['question', 'end_flow', 'human_handover']:
+            if not new_state or new_state.current_step.step_type in ['question', 'end_flow', 'human_handover', 'switch_flow']: # Also break for switch_flow
                 break
             
             # The message_data is "consumed" by the first step that uses it (the question step).

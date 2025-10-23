@@ -62,7 +62,7 @@ def send_receipt_confirmation_email(self, attachment_id):
             f"Our system is now processing it. You will be notified if any further action is required.\n\n"
             f"Thank you,\n"
             f"Kalai Safaris"
-        )
+        ) # Corrected brand name
 
         # HTML version for a richer user experience
         html_message = f"""
@@ -81,7 +81,7 @@ def send_receipt_confirmation_email(self, attachment_id):
                     <p>Dear Sender,</p>
                     <p>This is an automated message to confirm that we have successfully received your attachment named <strong>'{attachment.filename}'</strong>.</p>
                     <p>Our system is now processing it. You will be notified if any further action is required.</p>
-                    <p>Thank you,<br><strong>Kalai Safaris</strong></p>
+                    <p>Thank you,<br><strong>Kalai Safaris</strong></p> # Corrected brand name
                 </div>
             </body>
         </html>
@@ -130,7 +130,7 @@ def send_duplicate_invoice_email(self, attachment_id, booking_reference):
             f"No further action is needed. If you believe this is an error, please contact our support team.\n\n"
             f"Thank you,\n"
             f"Kalai Safaris"
-        )
+        ) # Corrected brand name
         from_email = settings.DEFAULT_FROM_EMAIL
         recipient_list = [attachment.sender]
         send_mail(subject, message, from_email, recipient_list)

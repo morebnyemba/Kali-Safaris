@@ -31,7 +31,8 @@ TOUR_INQUIRY_FLOW = {
             "type": "question",
             "config": {
                 "message_config": {"message_type": "text", "text": {"body": "How many people will be traveling (adults and children)?"}},
-                "reply_config": {"expected_type": "text", "save_to_variable": "inquiry_travelers"}
+                "reply_config": {"expected_type": "number", "save_to_variable": "inquiry_travelers", "validation_regex": "^[1-9][0-9]*$"}, # Ensure it's a positive number
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid number for travelers (e.g., 2, 5)."}
             },
             "transitions": [{"to_step": "ask_dates", "condition_config": {"type": "always_true"}}]
         },
@@ -89,8 +90,8 @@ TOUR_INQUIRY_FLOW = {
             "type": "end_flow",
             "config": {
                 "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Thank you! We've received your inquiry (Ref: #{{ created_inquiry.id }}). One of our travel specialists will review your request and get back to you shortly with a personalized itinerary."}
+                    "message_type": "text", # Added a confirmation of the lead traveler's name for better UX
+                    "text": {"body": "Thank you, {{ inquiry_full_name }}! We've received your inquiry (Ref: #{{ created_inquiry.id }}). One of our travel specialists will review your request and get back to you shortly with a personalized itinerary.\n\nType *menu* to return to the main menu."}
                 }
             }
         }

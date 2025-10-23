@@ -1,4 +1,4 @@
-# views.py
+# stats/views.py
 # whatsappcrm_backend/stats/views.py
 
 from rest_framework.views import APIView

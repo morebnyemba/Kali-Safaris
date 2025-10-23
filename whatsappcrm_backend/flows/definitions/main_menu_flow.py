@@ -37,7 +37,7 @@ MAIN_MENU_FLOW = {
                             "text": "Welcome to Kalai Safaris, {{ contact.name | default('adventurer') }}! 🦒\n\nI'm your virtual assistant. How can I help you plan your next unforgettable experience?"
                         },
                         "footer": {
-                            "text": "Please select an option"
+                            "text": "Session resets after 5 mins of inactivity"
                         },
                         "action": {
                             "button": "Choose an Option",
@@ -107,14 +107,6 @@ MAIN_MENU_FLOW = {
             "name": "switch_to_faq_flow",
             "type": "switch_flow",
             "config": {"target_flow_name": "faq_flow"}
-        },
-        {
-            "name": "show_coming_soon",
-            "type": "send_message",
-            "config": {
-                "message_type": "text",
-                "text": {"body": "This feature is coming soon! Please check back later.\n\nType 'menu' to return to the main menu."}
-            }
         },
         {
             "name": "show_about_us",

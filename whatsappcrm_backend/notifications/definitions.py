@@ -78,7 +78,7 @@ Please see the admin panel for full details."""
         "template_type": "whatsapp",
         "body": """New Booking Created from Email 🦁
 
-A new booking has been automatically created from an email attachment.
+A new booking has been automatically created from an email attachment for Kalai Safaris.
 
 *Booking Ref*: {{ booking.reference }}
 *Customer*: {{ customer.first_name }} {{ customer.last_name }}
@@ -133,7 +133,8 @@ A booking confirmation from *{{ attachment.sender }}* (Filename: *{{ attachment.
 *Booking Details:*
 - Booking Ref: *{{ booking.reference }}*
 - Total Amount: *${{ "%.2f"|format(booking.amount) if booking.amount is not none else '0.00' }}*
-- Customer: *{{ customer.full_name or customer.contact_name }}*
+- Tour Name: *{{ booking.tour_name }}*
+- Customer: *{{ customer.full_name or customer.contact_name }}* 
 
 The new booking has been created in the system."""
     },
