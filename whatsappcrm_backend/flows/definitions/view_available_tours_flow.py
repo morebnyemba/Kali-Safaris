@@ -44,7 +44,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                         "type": "button",
                         "header": {
                             "type": "text",
-                            "text": "Tour {{ tour_index + 1 }} of {{ available_tours | length }}"
+                            "text": "Tour {{ tour_index|int + 1 }} of {{ available_tours | length }}"
                         },
                         "body": {
                             "text": """*{{ available_tours[tour_index].name }}*
@@ -52,7 +52,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
 _{{ available_tours[tour_index].description | truncatewords(25) }}_
                             
 Duration: {{ available_tours[tour_index].duration_days }} days
-Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price) }}*"""
+Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price|float) }}*"""
                         },
                         "footer": {
                             "text": "Select an option below"
@@ -60,7 +60,7 @@ Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price) }}*"""
                         "action": {
                             "buttons": [
                                 {"type": "reply", "reply": {"id": "book_this_tour", "title": "Book This Tour"}},
-                                {"type": "reply", "reply": {"id": "view_next_tour", "title": "Next Tour ➡️"}},
+                                {"type": "reply", "reply": {"id": "view_next_tour", "title": "{% if tour_index|int + 1 < available_tours|length %}Next Tour ➡️{% else %}Next Tour (End of list) 🔄{% endif %}"}},
                                 {"type": "reply", "reply": {"id": "back_to_menu", "title": "Main Menu"}}
                             ]
                         }
@@ -81,7 +81,7 @@ Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price) }}*"""
                 "actions_to_run": [{
                     "action_type": "set_context_variable",
                     "variable_name": "tour_index",
-                    "value_template": "{{ (tour_index + 1) % (available_tours | length) }}"
+                    "value_template": "{{ (tour_index|int + 1) % (available_tours | length) }}"
                 }]
             },
             "transitions": [
@@ -104,7 +104,7 @@ Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price) }}*"""
             "name": "switch_to_main_menu",
             "type": "switch_flow",
             "config": {
-                "target_flow_name": "main_menu_flow"
+                "target_flow_name": "kalai_safaris_main_menu"
             }
         },
         {

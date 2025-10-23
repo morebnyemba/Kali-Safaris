@@ -77,7 +77,7 @@ def send_group_notification_action(contact: Contact, flow_context: dict, params:
     related_flow = Flow.objects.filter(pk=current_flow_id).first() if current_flow_id else None
 
     # Create a JSON-serializable version of the context before passing it to the notification service.
-    serializable_context = _make_context_json_serializable(flow_context)
+    serializable_context = _make_context_json_serializable(flow_context) # type: ignore
 
     queue_notifications_to_users(
         template_name=template_name,

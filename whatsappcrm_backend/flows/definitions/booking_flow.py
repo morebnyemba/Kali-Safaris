@@ -170,7 +170,7 @@ BOOKING_FLOW = {
                     "interactive": {
                         "type": "button",
                         "header": {"type": "text", "text": "Confirm & Pay"},
-                        "body": {"text": "Your tour total is *${{ '%.2f'|format(total_cost) }}*.\n\nHow would you like to proceed?"},
+                        "body": {"text": "Your tour total is *${{ '%.2f'|format(total_cost|float) }}*.\n\nHow would you like to proceed?"},
                         "footer": {"text": "Select an option"},
                         "action": {
                             "buttons": [
@@ -198,7 +198,7 @@ BOOKING_FLOW = {
         {
             "name": "set_payment_amount_deposit",
             "type": "action",
-            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost * 0.5 }}"}]},
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost|float * 0.5 }}"}]},
             "transitions": [{"to_step": "create_booking_record", "condition_config": {"type": "always_true"}}]
         },
         {
@@ -250,7 +250,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Thank you! Your booking (Ref: #{{ created_booking.booking_reference }}) is confirmed.\n\nPlease use the secure link below to complete your payment of *${{ '%.2f'|format(amount_to_pay) }}*.\n\n{{ payment_result.poll_url }}\n\nThe link is valid for a short time. We will notify you once payment is received."}
+                    "text": {"body": "Thank you! Your booking (Ref: #{{ created_booking.booking_reference }}) is confirmed.\n\nPlease use the secure link below to complete your payment of *${{ '%.2f'|format(amount_to_pay|float) }}*.\n\n{{ payment_result.poll_url }}\n\nThe link is valid for a short time. We will notify you once payment is received."}
                 }
             }
         },
