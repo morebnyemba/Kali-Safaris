@@ -9,6 +9,7 @@ from .utils import get_contact_from_context, render_string_with_context
 from customer_data.models import CustomerProfile, Booking, TourInquiry
 from products_and_services.models import Tour
 from notifications.services import queue_notifications_to_users
+from paynow_integration.services import PaynowService
 
 logger = logging.getLogger(__name__)
 
@@ -83,4 +84,54 @@ def send_group_notification(context: dict, params: dict) -> dict:
     # The actual logic is in flows.services.py. This registration makes it discoverable.
     # We can, however, add a log here to confirm it's being triggered from a flow.
     logger.info(f"Flow action 'send_group_notification' triggered for contact {context.get('contact')} with params: {params}")
+    return context
+
+@register_flow_action('initiate_tour_payment')
+def initiate_tour_payment(context: dict, params: dict) -> dict:
+    """
+    Initiates a Paynow payment for a tour booking.
+
+    params_template:
+      booking_context_var: "name_of_variable_holding_the_booking_object"
+      amount_to_pay_var: "name_of_variable_holding_the_amount"
+      save_to_variable: "variable_name_to_save_the_payment_result"
+    """
+    contact = get_contact_from_context(context)
+    if not contact:
+        logger.error("initiate_tour_payment: Could not find contact in context.")
+        return context
+
+    booking_var = params.get('booking_context_var')
+    booking_data = context.get(booking_var)
+    if not booking_data or not isinstance(booking_data, dict) or 'id' not in booking_data:
+        logger.error(f"initiate_tour_payment: Booking data not found in context variable '{booking_var}'.")
+        return context
+
+    amount_var = params.get('amount_to_pay_var')
+    amount_to_pay = context.get(amount_var)
+    if not isinstance(amount_to_pay, (int, float)):
+        logger.error(f"initiate_tour_payment: Amount to pay not found or invalid in context variable '{amount_var}'.")
+        return context
+
+    try:
+        booking = Booking.objects.get(pk=booking_data['id'])
+        paynow_service = PaynowService()
+        
+        # The service returns a dictionary with the poll_url and other details
+        payment_result = paynow_service.initiate_payment(
+            booking=booking,
+            amount=Decimal(amount_to_pay),
+            customer_email=contact.customer_profile.email if hasattr(contact, 'customer_profile') else '',
+            return_url="https://kalaisafaris.com/payment-success", # Example URL
+            result_url="https://backend.kalaisafaris.com/api/v1/paynow/webhook/" # Your webhook URL
+        )
+        
+        context[params.get('save_to_variable', 'payment_result')] = payment_result
+        logger.info(f"Successfully initiated Paynow payment for Booking {booking.booking_reference}. Result: {payment_result}")
+    except Booking.DoesNotExist:
+        logger.error(f"initiate_tour_payment: Booking with ID {booking_data['id']} not found.")
+    except Exception as e:
+        logger.error(f"Error initiating Paynow payment: {e}", exc_info=True)
+        context[params.get('save_to_variable', 'payment_result')] = {'error': str(e)}
+
     return context

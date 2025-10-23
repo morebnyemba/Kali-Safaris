@@ -1020,6 +1020,40 @@ def _evaluate_transition_condition(transition: FlowTransition, contact: Contact,
         )
         return result
 
+    elif condition_type == 'variable_less_than_or_equal':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        
+        try:
+            actual_value = float(_get_value_from_context_or_contact(variable_name, flow_context, contact))
+            expected_value = float(_resolve_value(value_template, flow_context, contact))
+            result = actual_value <= expected_value
+            logger.debug(
+                f"Contact {contact.id}: Condition 'variable_less_than_or_equal' check for '{variable_name}'. "
+                f"Actual: {actual_value}, Expected: <= {expected_value}. Result: {result}"
+            )
+            return result
+        except (ValueError, TypeError):
+            return False
+
+    elif condition_type == 'variable_greater_than':
+        variable_name = config.get('variable_name')
+        value_for_condition = config.get('value')
+        if variable_name is None or value_for_condition is None: return False
+
+        try:
+            actual_value = float(_get_value_from_context_or_contact(variable_name, flow_context, contact))
+            expected_value = float(value_for_condition)
+            result = actual_value > expected_value
+            logger.debug(
+                f"Contact {contact.id}: Condition 'variable_greater_than' check for '{variable_name}'. "
+                f"Actual: {actual_value}, Expected: > {expected_value}. Result: {result}"
+            )
+            return result
+        except (ValueError, TypeError):
+            return False
+
     elif condition_type == 'nfm_response_field_equals' and nfm_response_data:
         field_path = config.get('field_path')
         if not field_path: return False

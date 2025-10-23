@@ -8,7 +8,7 @@ from flows.definitions.main_menu_flow import MAIN_MENU_FLOW
 # Import your new tour-related flow definitions here
 from flows.definitions.tour_inquiry_flow import TOUR_INQUIRY_FLOW
 from flows.definitions.view_available_tours_flow import VIEW_AVAILABLE_TOURS_FLOW
-# from flows.definitions.booking_status_flow import BOOKING_STATUS_FLOW
+from flows.definitions.booking_flow import BOOKING_FLOW
 
 
 class Command(BaseCommand):
@@ -23,6 +23,7 @@ class Command(BaseCommand):
             MAIN_MENU_FLOW,
             TOUR_INQUIRY_FLOW,
             VIEW_AVAILABLE_TOURS_FLOW,
+            BOOKING_FLOW,
         ]
 
         for flow_def in flow_definitions:
