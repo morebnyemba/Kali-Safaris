@@ -42,3 +42,4 @@ imapclient
 jinja2
 pydantic
 requests
+reportlab
