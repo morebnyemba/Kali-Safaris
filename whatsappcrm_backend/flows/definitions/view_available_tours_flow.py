@@ -60,7 +60,7 @@ Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price|float) }}*
                         "action": {
                             "buttons": [
                                 {"type": "reply", "reply": {"id": "book_this_tour", "title": "Book This Tour"}},
-                                {"type": "reply", "reply": {"id": "view_next_tour", "title": "{% if tour_index|int + 1 < available_tours|length %}Next Tour ➡️{% else %}Next Tour (End of list) 🔄{% endif %}"}},
+                                {"type": "reply", "reply": {"id": "view_next_tour", "title": "{% if tour_index|int + 1 < available_tours|length %}Next Tour ➡️{% else %}Back to Start 🔄{% endif %}"}},
                                 {"type": "reply", "reply": {"id": "back_to_menu", "title": "Main Menu"}}
                             ]
                         }
