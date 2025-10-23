@@ -54,6 +54,7 @@ MAIN_MENU_FLOW = {
                                     "title": "My Account & Support",
                                     "rows": [
                                         {"id": "my_bookings", "title": "📄 My Bookings", "description": "Check the status of your existing bookings."},
+                                        {"id": "record_payment", "title": "💵 Record a Payment", "description": "Record a manual payment you have made."},
                                         {"id": "faq", "title": "❓ FAQ", "description": "Find answers to common questions."},
                                         {"id": "about_us", "title": "🏢 About Us", "description": "Learn more about Kalai Safaris."},
                                         {"id": "speak_to_agent", "title": "🗣️ Speak to an Agent", "description": "Get help from one of our travel experts."}
@@ -70,9 +71,10 @@ MAIN_MENU_FLOW = {
                 {"to_step": "switch_to_inquiry_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "plan_custom_tour"}},
                 {"to_step": "switch_to_special_offers_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_events"}},
                 {"to_step": "switch_to_my_bookings_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_bookings"}},
-                {"to_step": "switch_to_faq_flow", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
-                {"to_step": "show_about_us", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_us"}},
-                {"to_step": "trigger_human_handover", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "speak_to_agent"}}
+                {"to_step": "switch_to_manual_payment_flow", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "record_payment"}},
+                {"to_step": "switch_to_faq_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
+                {"to_step": "show_about_us", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_us"}},
+                {"to_step": "trigger_human_handover", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "speak_to_agent"}}
             ]
         },
         {
@@ -102,6 +104,11 @@ MAIN_MENU_FLOW = {
             "name": "switch_to_my_bookings_flow",
             "type": "switch_flow",
             "config": {"target_flow_name": "my_bookings_flow"}
+        },
+        {
+            "name": "switch_to_manual_payment_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "manual_payment_flow"}
         },
         {
             "name": "switch_to_faq_flow",

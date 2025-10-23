@@ -153,6 +153,25 @@ A new loan application has been submitted by *{{ contact.name or contact.whatsap
 
 Please review the application in the admin panel and follow up with the customer."""
     },
+    {
+        "name": "manual_payment_recorded_alert",
+        "description": "Sent to admins when a customer records a manual payment via WhatsApp.",
+        "template_type": "whatsapp",
+        "body": """Manual Payment Recorded 🧾
+
+A customer has recorded a manual payment that requires verification.
+
+*Customer:* {{ contact.name or contact.whatsapp_id }}
+*Booking Ref:* #{{ found_booking.0.booking_reference }}
+*Amount:* ${{ '%.2f'|format(payment_amount|float) }}
+*Method:* {{ payment_method_name }}
+*Proof of Payment:* An image was uploaded by the customer. Please check the conversation history.
+
+Please log in to the admin panel to verify this payment and update the booking status.
+
+Payment ID: {{ created_payment.id }}
+Booking ID: {{ found_booking.0.id }}"""
+    },
 ]
 
 

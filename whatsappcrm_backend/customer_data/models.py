@@ -216,6 +216,7 @@ class Booking(models.Model):
     """
     class PaymentStatus(models.TextChoices):
         PENDING = 'pending', _('Pending')
+        PENDING_MANUAL = 'pending_manual', _('Pending Manual Verification')
         DEPOSIT_PAID = 'deposit_paid', _('Deposit Paid')
         PAID = 'paid', _('Paid in Full')
         REFUNDED = 'refunded', _('Refunded')

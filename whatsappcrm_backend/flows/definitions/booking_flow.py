@@ -168,15 +168,28 @@ BOOKING_FLOW = {
                 "message_config": {
                     "message_type": "interactive",
                     "interactive": {
-                        "type": "button",
+                        "type": "list",
                         "header": {"type": "text", "text": "Confirm & Pay"},
                         "body": {"text": "Your tour total is *${{ '%.2f'|format(total_cost|float) }}*.\n\nHow would you like to proceed?"},
                         "footer": {"text": "Select an option"},
                         "action": {
-                            "buttons": [
-                                {"type": "reply", "reply": {"id": "pay_full", "title": "Pay Full Amount"}},
-                                {"type": "reply", "reply": {"id": "pay_deposit", "title": "Pay 50% Deposit"}},
-                                {"type": "reply", "reply": {"id": "get_quote", "title": "Just Get a Quote"}}
+                            "button": "Payment Options",
+                            "sections": [
+                                {
+                                    "title": "Online Payment",
+                                    "rows": [
+                                        {"id": "pay_full", "title": "Pay Full Amount Now"},
+                                        {"id": "pay_deposit", "title": "Pay 50% Deposit Now"},
+                                        {"id": "manual_omari", "title": "Pay with Omari"}
+                                    ]
+                                },
+                                {
+                                    "title": "Manual Payment",
+                                    "rows": [
+                                        {"id": "manual_bank", "title": "Manual/Bank Transfer"}
+                                    ]
+                                },
+                                {"title": "Other", "rows": [{"id": "get_quote", "title": "Just Get a Quote"}]}
                             ]
                         }
                     }
@@ -186,7 +199,9 @@ BOOKING_FLOW = {
             "transitions": [
                 {"to_step": "set_payment_amount_full", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "pay_full"}},
                 {"to_step": "set_payment_amount_deposit", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "pay_deposit"}},
-                {"to_step": "create_inquiry_record_only", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
+                {"to_step": "set_payment_amount_full", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
+                {"to_step": "create_booking_for_manual_payment", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
+                {"to_step": "create_inquiry_record_only", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
             ]
         },
         {
@@ -225,6 +240,43 @@ BOOKING_FLOW = {
                 }]
             },
             "transitions": [{"to_step": "initiate_payment", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "create_booking_for_manual_payment",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "create_model_instance",
+                    "app_label": "customer_data",
+                    "model_name": "Booking",
+                    "fields_template": {
+                        "customer": "current",
+                        "tour_name": "{{ tour_name }}",
+                        "tour_id": "{{ tour_id }}",
+                        "start_date": "1900-01-01",
+                        "end_date": "1900-01-01",
+                        "number_of_adults": "{{ num_travelers }}",
+                        "total_amount": "{{ total_cost }}",
+                        "payment_status": "pending_manual",
+                        "source": "whatsapp",
+                        "notes": "Booking via WhatsApp. Manual payment selected. Dates: {{ inquiry_dates }}. Travelers: {% for p in travelers_details %}{{ p.name }} ({{ p.age }}){% if not loop.last %}, {% endif %}{% endfor %}"
+                    },
+                    "save_to_variable": "created_booking"
+                }]
+            },
+            "transitions": [
+                {"to_step": "send_manual_payment_instructions", "priority": 1, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "send_manual_payment_instructions",
+            "type": "end_flow",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Thank you! Your booking (Ref: #{{ created_booking.booking_reference }}) is confirmed pending payment.\n\nPlease make a bank transfer for *${{ '%.2f'|format(total_cost|float) }}* to:\n\nBank: *Example Bank*\nAccount Name: *Kalai Safaris*\nAccount Number: *1234567890*\nBranch Code: *001122*\n\nUse your booking reference as the payment reference. Please send proof of payment to this number."}
+                }
+            }
         },
         {
             "name": "initiate_payment",
