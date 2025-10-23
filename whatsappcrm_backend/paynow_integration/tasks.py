@@ -9,7 +9,6 @@ from django.utils import timezone
 from django.conf import settings
 
 from .services import PaynowService
-from meta_integration.utils import send_whatsapp_message, create_text_message_data
 from meta_integration.utils import send_whatsapp_message, create_text_message_data, get_active_meta_config_for_sending
 from customer_data.models import Payment, Booking
 
@@ -103,15 +102,11 @@ def send_payment_failure_notification_task(payment_id: str):
     except Exception as e:
         logger.error(f"{log_prefix} Error sending failure notification: {e}", exc_info=True)
 
-@shared_task(name="paynow_integration.send_giving_confirmation_whatsapp")
-def send_giving_confirmation_whatsapp(payment_id: str):
 @shared_task(name="paynow_integration.send_payment_confirmation_task")
 def send_payment_confirmation_task(payment_id: str):
     """
-    Sends a WhatsApp message to the user confirming their successful contribution.
     Sends a WhatsApp message and a PDF receipt to the user confirming their successful payment.
     """
-    log_prefix = f"[Giving Confirm Task - Ref: {payment_id}]"
     log_prefix = f"[Payment Confirm Task - Ref: {payment_id}]"
     logger.info(f"{log_prefix} Preparing to send giving confirmation.")
     try:
@@ -135,7 +130,6 @@ def send_payment_confirmation_task(payment_id: str):
         ) 
         message_data = create_text_message_data(text_body=confirmation_message)
         send_whatsapp_message(to_phone_number=contact_to_notify.whatsapp_id, message_type='text', data=message_data)
-        logger.info(f"{log_prefix} Successfully sent giving confirmation to user {contact_to_notify.whatsapp_id}.")
         logger.info(f"{log_prefix} Successfully sent confirmation text to user {contact_to_notify.whatsapp_id}.")
 
         # --- NEW: Generate and send PDF receipt ---
@@ -155,7 +149,6 @@ def send_payment_confirmation_task(payment_id: str):
         else:
             logger.error(f"{log_prefix} Failed to generate PDF receipt for payment {payment_id}.")
     except Payment.DoesNotExist:
-        logger.error(f"{log_prefix} Could not find completed payment to send confirmation.")
         logger.error(f"{log_prefix} Could not find completed payment with ID {payment_id} to send confirmation.")
     except Exception as e:
         logger.error(f"{log_prefix} Error sending giving confirmation: {e}", exc_info=True)
@@ -208,7 +201,6 @@ def poll_paynow_transaction_status(self, payment_id: str):
                     logger.info(f"{log_prefix} Successfully processed payment {pending_payment.id}. Amount: {pending_payment.amount}.")
                     
                     # Send confirmation to user
-                    send_giving_confirmation_whatsapp.delay(payment_id=str(pending_payment.id))
                     send_payment_confirmation_task.delay(payment_id=str(pending_payment.id))
                     return # Task is complete
 
@@ -292,7 +284,6 @@ def process_paynow_ipn_task(ipn_data: dict):
                     logger.info(f"{log_prefix} Updated booking {payment_to_update.booking.id} payment_status to PAID.")
                 
                 logger.info(f"{log_prefix} Successfully processed payment. Amount: {payment_to_update.amount}.")
-                send_giving_confirmation_whatsapp.delay(payment_id=str(payment_to_update.id))
                 send_payment_confirmation_task.delay(payment_id=str(payment_to_update.id))
             
             elif paynow_status in ['cancelled', 'failed', 'disputed']:

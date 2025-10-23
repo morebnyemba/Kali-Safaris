@@ -1,12 +1,14 @@
 # whatsappcrm_backend/pdfs/services.py
 
 import os
+from decimal import Decimal
 from io import BytesIO
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
+from reportlab.lib import colors
 from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image
@@ -14,6 +16,7 @@ from datetime import datetime
 
 import logging
 logger = logging.getLogger(__name__)
+from customer_data.models import Payment, Booking
 
 def generate_quote_pdf(quote_context: dict) -> str | None:
     """
@@ -73,4 +76,71 @@ def generate_quote_pdf(quote_context: dict) -> str | None:
 
     except Exception as e:
         logger.error(f"Failed to generate PDF quote: {e}", exc_info=True)
+        return None
+
+def generate_receipt_pdf(payment: Payment) -> str | None:
+    """
+    Generates a PDF receipt for a given Payment object and saves it to media storage.
+    Returns the public URL of the generated PDF.
+    """
+    try:
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        
+        styles = getSampleStyleSheet()
+        story = []
+
+        # Logo
+        logo_path = os.path.join(settings.STATIC_ROOT, 'admin/img/kalai_safaris_logo.png')
+        if os.path.exists(logo_path):
+            logo = Image(logo_path, width=2*inch, height=1*inch)
+            logo.hAlign = 'LEFT'
+            story.append(logo)
+            story.append(Spacer(1, 0.25*inch))
+
+        # Title and Date
+        story.append(Paragraph("Payment Receipt", styles['h1']))
+        story.append(Paragraph(f"Date: {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
+        story.append(Spacer(1, 0.25*inch))
+
+        # Receipt Details
+        booking: Booking = payment.booking
+        customer_name = booking.customer.get_full_name() if booking and booking.customer else "Valued Customer"
+        
+        story.append(Paragraph(f"<b>Receipt For:</b> {customer_name}", styles['Normal']))
+        story.append(Paragraph(f"<b>Booking Ref:</b> {booking.booking_reference if booking else 'N/A'}", styles['Normal']))
+        story.append(Paragraph(f"<b>Payment Ref:</b> {payment.transaction_reference or payment.id}", styles['Normal']))
+        story.append(Spacer(1, 0.2*inch))
+
+        story.append(Paragraph(f"<b>Tour:</b> {booking.tour_name if booking else 'N/A'}", styles['Normal']))
+        story.append(Spacer(1, 0.2*inch))
+
+        # Payment Summary
+        amount_paid = payment.amount or Decimal('0.00')
+        total_amount = booking.total_amount or Decimal('0.00')
+        balance_due = max(total_amount - (booking.get_total_paid() or Decimal('0.00')), Decimal('0.00'))
+
+        story.append(Paragraph(f"<b>Amount Paid:</b> ${amount_paid:,.2f}", styles['h3']))
+        story.append(Spacer(1, 0.1*inch))
+        story.append(Paragraph(f"<b>Total Booking Cost:</b> ${total_amount:,.2f}", styles['Normal']))
+        story.append(Paragraph(f"<b>Balance Due:</b> ${balance_due:,.2f}", styles['Normal']))
+        story.append(Spacer(1, 0.5*inch))
+
+        # Footer Note
+        story.append(Paragraph("<i>Thank you for your payment! We look forward to hosting you on your adventure. If you have any questions, please contact us.</i>", styles['Italic']))
+
+        doc.build(story)
+        
+        buffer.seek(0)
+        # Save the file to the default storage (media folder)
+        file_name = f"receipts/Receipt_{booking.booking_reference if booking else payment.id}.pdf"
+        file_path = default_storage.save(file_name, ContentFile(buffer.read()))
+        
+        # Get the public URL for the saved file
+        file_url = default_storage.url(file_path)
+        logger.info(f"Generated PDF receipt and saved to: {file_url}")
+        return file_url
+
+    except Exception as e:
+        logger.error(f"Failed to generate PDF receipt for payment {payment.id}: {e}", exc_info=True)
         return None
