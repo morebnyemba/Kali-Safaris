@@ -43,7 +43,7 @@ def queue_notifications_to_users(
 
     if template_name:
         try:
-            from customer_data.models import CustomerProfile, Order # Local import to avoid circular dependency
+            from customer_data.models import CustomerProfile # Local import to avoid circular dependency
             template = NotificationTemplate.objects.get(name=template_name)
             # Build the context for rendering. Start with a copy of the provided context.
             render_context = (template_context or {}).copy()

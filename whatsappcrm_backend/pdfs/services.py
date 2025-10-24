@@ -18,6 +18,39 @@ import logging
 logger = logging.getLogger(__name__)
 from customer_data.models import Payment, Booking
 
+def _draw_pdf_footer(canvas, doc):
+    """Draws a standard footer on each PDF page with company details."""
+    canvas.saveState()
+    
+    # Get details from settings, with fallbacks
+    details = getattr(settings, 'COMPANY_DETAILS', {})
+    name = details.get('NAME', 'Kalai Safaris')
+    address_line_1 = details.get('ADDRESS_LINE_1', '')
+    address_line_2 = details.get('ADDRESS_LINE_2', '')
+    phone = details.get('CONTACT_PHONE', '')
+    email = details.get('CONTACT_EMAIL', '')
+    website = details.get('WEBSITE', '')
+
+    # Combine address parts that exist
+    address_parts = [part for part in [address_line_1, address_line_2] if part]
+    full_address = ", ".join(address_parts)
+
+    # Combine contact parts that exist
+    contact_parts = []
+    if phone: contact_parts.append(f"Phone: {phone}")
+    if email: contact_parts.append(f"Email: {email}")
+    if website: contact_parts.append(f"Website: {website}")
+    contact_line = " | ".join(contact_parts)
+
+    canvas.setFont('Helvetica', 8)
+    
+    line1_text = f"{name} - {full_address}" if full_address else name
+    y_position = doc.bottomMargin - 12
+    canvas.drawCentredString(doc.width / 2 + doc.leftMargin, y_position, line1_text)
+    canvas.drawCentredString(doc.width / 2 + doc.leftMargin, y_position - 12, contact_line)
+
+    canvas.restoreState()
+
 def generate_quote_pdf(quote_context: dict) -> str | None:
     """
     Generates a PDF quote from the given context and saves it to media storage.
@@ -25,7 +58,7 @@ def generate_quote_pdf(quote_context: dict) -> str | None:
     """
     try:
         buffer = BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=18)
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=72, leftMargin=72, topMargin=72, bottomMargin=36)
         
         styles = getSampleStyleSheet()
         story = []
@@ -126,10 +159,10 @@ def generate_receipt_pdf(payment: Payment) -> str | None:
         story.append(Paragraph(f"<b>Balance Due:</b> ${balance_due:,.2f}", styles['Normal']))
         story.append(Spacer(1, 0.5*inch))
 
-        # Footer Note
+        # Thank you Note
         story.append(Paragraph("<i>Thank you for your payment! We look forward to hosting you on your adventure. If you have any questions, please contact us.</i>", styles['Italic']))
 
-        doc.build(story)
+        doc.build(story, onFirstPage=_draw_pdf_footer, onLaterPages=_draw_pdf_footer)
         
         buffer.seek(0)
         # Save the file to the default storage (media folder)

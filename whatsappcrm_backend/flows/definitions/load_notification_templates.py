@@ -165,7 +165,6 @@ A customer has recorded a manual payment that requires verification.
 *Booking Ref:* #{{ found_booking.0.booking_reference }}
 *Amount:* ${{ '%.2f'|format(payment_amount|float) }}
 *Method:* {{ payment_method_name }}
-*Proof of Payment:* An image was uploaded by the customer. Please check the conversation history.
 
 Please log in to the admin panel to verify this payment and update the booking status.
 

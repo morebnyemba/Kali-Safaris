@@ -445,6 +445,16 @@ CONTENT_SECURITY_POLICY = {
 # --- Custom Application Settings ---
 INVOICE_PROCESSED_NOTIFICATION_GROUPS = os.getenv('INVOICE_PROCESSED_NOTIFICATION_GROUPS', 'System Admins,Sales Team').split(',')
 
+# --- NEW: Company Details for PDFs and Emails ---
+COMPANY_DETAILS = {
+    'NAME': 'Kalai Safaris',
+    'ADDRESS_LINE_1': '123 Adventure Lane',
+    'ADDRESS_LINE_2': 'Victoria Falls, Zimbabwe',
+    'CONTACT_PHONE': '+263 123 456 789',
+    'CONTACT_EMAIL': 'bookings@kalaisafaris.com',
+    'WEBSITE': 'www.kalaisafaris.com',
+}
+
 
 # --- Google Cloud Document AI Settings ---
 GCP_PROJECT_ID = os.getenv('GCP_PROJECT_ID')

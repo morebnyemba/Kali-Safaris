@@ -79,7 +79,7 @@ def send_group_notification_action(contact: Contact, flow_context: dict, params:
     # Create a JSON-serializable version of the context before passing it to the notification service.
     serializable_context = _make_context_json_serializable(flow_context) # type: ignore
 
-    queue_notifications_to_users( # type: ignore
+    queue_notifications_to_users(
         template_name=template_name,
         template_context=serializable_context,
         group_names=group_names,
