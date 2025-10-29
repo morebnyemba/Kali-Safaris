@@ -10,17 +10,6 @@ MY_BOOKINGS_FLOW = {
         {
             "name": "start_my_bookings",
             "is_entry_point": True,
-            "type": "question",
-            "config": {
-                "message_config": {"message_type": "text", "text": {"body": "To find your bookings, please enter the phone number you used to book, starting with +263..."}},
-                "reply_config": {"expected_type": "text", "save_to_variable": "booking_lookup_phone"}
-            },
-            "transitions": [
-                {"to_step": "find_and_show_bookings", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "booking_lookup_phone"}}
-            ]
-        },
-        {
-            "name": "find_and_show_bookings",
             "type": "action",
             "config": {
                 "actions_to_run": [{
@@ -29,7 +18,7 @@ MY_BOOKINGS_FLOW = {
                     "model_name": "Booking",
                     "variable_name": "found_bookings",
                     "filters_template": {
-                        "customer__contact__whatsapp_id": "{{ booking_lookup_phone | regex_replace('[^0-9]', '') }}"
+                        "customer_id": "{{ customer_profile.id }}"
                     },
                     "fields_to_return": ["booking_reference", "tour_name", "start_date", "payment_status"],
                     "order_by": ["-start_date"]
@@ -37,7 +26,7 @@ MY_BOOKINGS_FLOW = {
             },
             "transitions": [
                 {"to_step": "display_no_bookings_found", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "found_bookings", "value": "[]"}},
-                {"to_step": "display_bookings", "priority": 2, "condition_config": {"type": "always_true"}}
+                {"to_step": "display_bookings", "priority": 2, "condition_config": {"type": "variable_exists", "variable_name": "found_bookings.0"}}
             ]
         },
         {
@@ -67,7 +56,7 @@ Type *menu* to return to the main menu."""
             "name": "display_no_bookings_found",
             "type": "send_message",
             "config": {
-                "message_type": "text", "text": {"body": "I couldn't find any bookings associated with that phone number. Please make sure you entered it correctly.\n\nType *menu* to try again or return to the main menu."}
+                "message_type": "text", "text": {"body": "I couldn't find any bookings associated with your account.\n\nIf you booked using a different number, please contact an agent. Type *menu* to return to the main menu."}
             },
             "transitions": [
                 {"to_step": "end_my_bookings", "condition_config": {"type": "always_true"}}

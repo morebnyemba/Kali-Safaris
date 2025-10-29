@@ -1,6 +1,5 @@
 # whatsappcrm_backend/flows/definitions/booking_flow.py
 
-
 BOOKING_FLOW = {
     "name": "booking_flow",
     "friendly_name": "Tour Booking",
@@ -27,25 +26,97 @@ BOOKING_FLOW = {
             "transitions": [{"to_step": "ask_number_of_travelers", "condition_config": {"type": "always_true"}}]
         },
         # Step 2: Ask how many people are traveling
-        {
+        { # Combined asking for adults and children
             "name": "ask_number_of_travelers",
             "type": "question",
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Great choice! You're booking the *{{ tour_name }}* tour.\n\nHow many people will be traveling in total (including yourself)?"}
+                    "text": {"body": "Great choice! You're booking the *{{ tour_name }}* tour.\n\nHow many adults (18+) will be traveling?"}
                 },
-                "reply_config": {
-                    "expected_type": "number",
-                    "save_to_variable": "num_travelers",
-                    "validation_regex": "^[1-9][0-9]*$"
-                },
-                "fallback_config": {
-                    "action": "re_prompt", "max_retries": 2,
-                    "re_prompt_message_text": "Please enter a valid number (e.g., 2)."
-                }
+                "reply_config": {"expected_type": "number", "save_to_variable": "num_adults", "validation_regex": "^[1-9][0-9]*$"},
+                "fallback_config": {"re_prompt_message_text": "Please enter a valid number for adults (e.g., 2)."}
             },
-            "transitions": [{"to_step": "calculate_total_cost", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "ask_number_of_children", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "ask_number_of_children",
+            "type": "question",
+            "config": {
+                "message_config": {"message_type": "text", "text": {"body": "And how many children (under 18) will be traveling?"}},
+                "reply_config": {"expected_type": "number", "save_to_variable": "num_children", "validation_regex": "^[0-9]+$"},
+                "fallback_config": {"re_prompt_message_text": "Please enter a valid number for children (e.g., 0, 1)."}
+            },
+            "transitions": [{"to_step": "ask_travel_dates", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 7: Ask for preferred travel dates using Native Flow
+        {
+            "name": "ask_travel_dates",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "flow",
+                        "header": {"type": "text", "text": "Select Your Dates"},
+                        "body": {"text": "Please select your desired start and end dates for the tour."},
+                        "footer": {"text": "Click the button to open the date picker."},
+                        "action": {
+                            "name": "flow",
+                            "parameters": {
+                                "flow_message_version": "3",
+                                "flow_token": "a_unique_token_for_this_interaction",
+                                "flow_id": "{{ settings.META_DATE_PICKER_FLOW_ID }}",
+                                "flow_cta": "Select Dates",
+                                "flow_action": "navigate",
+                                "flow_action_payload": {
+                                    "screen": "Date_Picker_Screen",
+                                    "data": {
+                                        "date_picker_config": {
+                                            "type": "range",
+                                            "title": "Select Tour Dates",
+                                            "description": "Choose the start and end dates for your adventure.",
+                                            "range": {
+                                                "min": "{{ now() | strftime('%Y-%m-%d') }}",
+                                                "max": "{{ (now() + timedelta(days=730)) | strftime('%Y-%m-%d') }}"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "nfm_reply", "save_to_variable": "date_selection_response"}
+            },
+            "transitions": [{"to_step": "process_date_selection", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "process_date_selection",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ date_selection_response.start_date }}"},
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ date_selection_response.end_date }}"},
+                    {
+                        "action_type": "query_model",
+                        "app_label": "products_and_services",
+                        "model_name": "SeasonalTourPrice",
+                        "variable_name": "seasonal_price",
+                        "filters_template": {
+                            "tour_id": "{{ tour_id }}",
+                            "start_date__lte": "{{ date_selection_response.start_date }}",
+                            "end_date__gte": "{{ date_selection_response.start_date }}"
+                        },
+                        "fields_to_return": ["price_per_adult", "price_per_child"],
+                        "limit": 1
+                    }
+                ]
+            },
+            "transitions": [
+                {"to_step": "calculate_total_cost", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "seasonal_price.0"}},
+                {"to_step": "handle_no_price_for_date", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
         },
         # Step 3: Initialize the loop counter for collecting traveler details
         {
@@ -56,20 +127,22 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "traveler_index", "value_template": 1}
                 ]
             },
-            "transitions": [
-                {"to_step": "ask_traveler_name", "priority": 1, "condition_config": {"type": "variable_greater_than", "variable_name": "num_travelers", "value": "1"}},
-                {"to_step": "ask_travel_dates", "priority": 2, "condition_config": {"type": "always_true"}}
-            ]
+            "transitions": [{"to_step": "ask_email", "condition_config": {"type": "always_true"}}]
+            # Traveler details loop removed for simplicity, can be re-added if needed.
         },
         {
             "name": "calculate_total_cost",
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "total_cost", "value_template": "{{ tour_base_price * num_travelers }}"}
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "total_cost",
+                        "value_template": "{{ (seasonal_price.0.price_per_adult * num_adults) + ((seasonal_price.0.price_per_child or seasonal_price.0.price_per_adult) * num_children) }}"
+                    }
                 ]
             },
-            "transitions": [{"to_step": "initialize_traveler_loop", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "ask_email", "condition_config": {"type": "always_true"}}]
         },
         # Step 4: Ask for the current traveler's full name
         {
@@ -120,19 +193,6 @@ BOOKING_FLOW = {
                 {"to_step": "ask_travel_dates", "priority": 2, "condition_config": {"type": "always_true"}} # Corrected transition
             ]
         },
-        # Step 7: Ask for preferred travel dates
-        {
-            "name": "ask_travel_dates",
-            "type": "question",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "{% if num_travelers|int > 1 %}All traveler details collected! ✅{% endif %}\n\nWhat are your preferred travel dates? (e.g., 'mid-June 2025', 'any time in September')"}
-                },
-                "reply_config": {"expected_type": "text", "save_to_variable": "inquiry_dates"}
-            },
-            "transitions": [{"to_step": "ask_email", "condition_config": {"type": "always_true"}}]
-        },
         # Step 8: Ask for contact email
         {
             "name": "ask_email",
@@ -170,7 +230,14 @@ BOOKING_FLOW = {
                     "interactive": {
                         "type": "list",
                         "header": {"type": "text", "text": "Confirm & Pay"},
-                        "body": {"text": "Your tour total is *${{ '%.2f'|format(total_cost|float) }}*.\n\nHow would you like to proceed?"},
+                        "body": {
+                            "text": """Please confirm your booking details:
+
+*Tour:* {{ tour_name }}
+*Dates:* {{ start_date }} to {{ end_date }}
+*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)
+*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*"""
+                        },
                         "footer": {"text": "Select an option"},
                         "action": {
                             "button": "Payment Options",
@@ -227,14 +294,15 @@ BOOKING_FLOW = {
                     "fields_template": {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
-                        "tour_id": "{{ tour_id }}",
-                        "start_date": "1900-01-01", # Placeholder
-                        "end_date": "1900-01-01", # Placeholder
-                        "number_of_adults": "{{ num_travelers }}",
+                        "tour_id": "{{ tour_id }}", # Ensure tour_id is passed from view_tours_flow
+                        "start_date": "{{ start_date }}",
+                        "end_date": "{{ end_date }}",
+                        "number_of_adults": "{{ num_adults }}",
+                        "number_of_children": "{{ num_children }}",
                         "total_amount": "{{ total_cost }}",
                         "payment_status": "pending",
                         "source": "whatsapp",
-                        "notes": "Booking via WhatsApp. Dates: {{ inquiry_dates }}. Travelers: {% for p in travelers_details %}{{ p.name }} ({{ p.age }}){% if not loop.last %}, {% endif %}{% endfor %}"
+                        "notes": "Booking via WhatsApp. Travelers: {{ num_adults }} adults, {{ num_children }} children."
                     },
                     "save_to_variable": "created_booking"
                 }]
@@ -252,14 +320,15 @@ BOOKING_FLOW = {
                     "fields_template": {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
-                        "tour_id": "{{ tour_id }}",
-                        "start_date": "1900-01-01",
-                        "end_date": "1900-01-01",
-                        "number_of_adults": "{{ num_travelers }}",
+                        "tour_id": "{{ tour_id }}", # Ensure tour_id is passed from view_tours_flow
+                        "start_date": "{{ start_date }}",
+                        "end_date": "{{ end_date }}",
+                        "number_of_adults": "{{ num_adults }}",
+                        "number_of_children": "{{ num_children }}",
                         "total_amount": "{{ total_cost }}",
                         "payment_status": "pending_manual",
                         "source": "whatsapp",
-                        "notes": "Booking via WhatsApp. Manual payment selected. Dates: {{ inquiry_dates }}. Travelers: {% for p in travelers_details %}{{ p.name }} ({{ p.age }}){% if not loop.last %}, {% endif %}{% endfor %}"
+                        "notes": "Booking via WhatsApp. Manual payment selected. Travelers: {{ num_adults }} adults, {{ num_children }} children."
                     },
                     "save_to_variable": "created_booking"
                 }]
@@ -328,9 +397,9 @@ BOOKING_FLOW = {
                         "fields_template": {
                             "customer": "current",
                             "destination": "{{ tour_name }}",
-                            "number_of_travelers": "{{ num_travelers }}",
-                            "preferred_travel_dates": "{{ inquiry_dates }}",
-                            "notes": "Quote requested via WhatsApp. Travelers: {% for p in travelers_details %}{{ p.name }} ({{ p.age }}){% if not loop.last %}, {% endif %}{% endfor %}. Contact Email: {{ inquiry_email }}.",
+                            "number_of_travelers": "{{ num_adults|int + num_children|int }}",
+                            "preferred_dates": "{{ start_date }} to {{ end_date }}",
+                            "notes": "Quote requested via WhatsApp for a pre-defined tour. Contact Email: {{ inquiry_email }}.",
                             "status": "new"
                         },
                         "save_to_variable": "created_inquiry"
@@ -383,6 +452,14 @@ BOOKING_FLOW = {
                     "message_type": "text",
                     "text": {"body": "Thank you, {{ contact.name }}! Your inquiry for the *{{ tour_name }}* tour has been received (Ref: #{{ created_inquiry.id }}).\n\nWe had an issue generating the PDF, but a travel specialist will email a detailed quote to *{{ inquiry_email }}* shortly.\n\nType *menu* to return to the main menu."}
                 }
+            }
+        },
+        {
+            "name": "handle_no_price_for_date",
+            "type": "end_flow",
+            "config": {
+                "message_config": {"message_type": "text", "text": {"body": "We're sorry, but pricing is not available for the selected dates. A travel expert has been notified and will contact you shortly to assist with a custom quote.\n\nType 'menu' to return to the main menu."}}
+                # Optionally, add a 'send_group_notification' action here to alert the sales team.
             }
         },
         {

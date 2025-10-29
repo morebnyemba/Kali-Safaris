@@ -1,4 +1,4 @@
-# whatsappcrm_backend/flows/management/commands/load_notification_templates.py
+# whatsappcrm_backend/notifications/management/commands/load_notification_templates.py
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -10,13 +10,13 @@ from notifications.models import NotificationTemplate
 NOTIFICATION_TEMPLATES = [
     {
         "name": "new_booking_created",
-        "description": "Sent to admins when a new booking is created via a signal.",
+        "description": "Sent to admins when a new booking is created (e.g., via a signal).",
         "template_type": "whatsapp",
         "body": """New Booking Confirmed! 🦒
 
 A new booking has been created for customer *{{ booking.customer.get_full_name or booking.customer.contact.name }}*.
 
-- Tour: *{{ booking.name }}*
+- Tour: *{{ booking.tour_name }}*
 - Booking Ref: *{{ booking.booking_reference }}*
 - Amount: *${{ booking.total_amount or '0.00' }}*
 
@@ -24,20 +24,19 @@ Please see the admin panel for full details."""
     },
     {
         "name": "new_online_order_placed",
-        "description": "Sent to admins when a customer places a new order through the 'Purchase Product' flow.",
+        "description": "Sent to admins when a customer places a new booking through a WhatsApp flow.",
         "template_type": "whatsapp",
         "body": """New Tour Booking via WhatsApp! 🐘
 
 A new booking has been made via WhatsApp by *{{ contact.name or contact.whatsapp_id }}*.
 
 *Booking Details:*
-- Booking Ref: *{{ created_booking_details.reference }}*
-- Total Amount: *${{ created_booking_details.amount }}*
+- Booking Ref: *{{ created_booking.booking_reference }}*
+- Total Amount: *${{ '%.2f'|format(created_booking.total_amount|float) }}*
 - Payment Status: Pending
 
 *Lead Guest:*
-- Name: {{ lead_guest_name }}
-- Phone: {{ lead_guest_phone }}
+- Name: {{ contact.name }}
 
 Please follow up with the customer to arrange payment."""
     },
@@ -47,7 +46,7 @@ Please follow up with the customer to arrange payment."""
         "template_type": "whatsapp",
         "body": """Hello! 👋
 
-The payment status for your booking '{{ booking_name }}' (Ref: {{ booking_reference }}) has been updated to: *{{ new_status }}*.
+The payment status for your booking '{{ booking.tour_name }}' (Ref: {{ booking.booking_reference }}) has been updated to: *{{ new_status }}*.
 
 Thank you for choosing us!"""
     },
@@ -63,7 +62,7 @@ Our team will be in touch with the next steps. Thank you!"""
     },
     {
         "name": "admin_order_and_install_created",
-        "description": "Sent to admins when another admin creates a new booking via an admin flow.",
+        "description": "Sent to admins when another admin creates a new booking via an admin-facing flow.",
         "template_type": "whatsapp",
         "body": """Admin Action: New Order & Install Created 📝
 
@@ -75,12 +74,12 @@ Admin *{{ contact.name or contact.username }}* has created a new booking.
 Please see the admin panel for full details."""
     },
     {
-        "name": "job_card_created_successfully",
+        "name": "booking_created_from_email",
         "description": "Sent to admins when a booking is successfully created from an email attachment.",
         "template_type": "whatsapp",
         "body": """New Booking Created from Email 🦁
 
-A new booking has been automatically created from an email attachment.
+A new booking has been automatically created from an email attachment for Kalai Safaris.
 
 *Booking Ref*: {{ booking.reference }}
 *Customer*: {{ customer.first_name }} {{ customer.last_name }}
@@ -133,7 +132,7 @@ Please reply with "status" or any other command to keep the window open."""
 A booking confirmation from *{{ attachment.sender }}* (Filename: *{{ attachment.filename }}*) has been processed.
 
 *Order Details:*
-- Booking Ref: *{{ booking.reference }}*
+- Booking Ref: *{{ booking.booking_reference }}*
 - Total Amount: *${{ "%.2f"|format(booking.amount) if booking.amount is not none else '0.00' }}*
 - Customer: *{{ customer.full_name or customer.contact_name }}*
 
@@ -155,6 +154,24 @@ A new tour inquiry has been submitted by *{{ contact.name or contact.whatsapp_id
 - Notes: {{ flow_context.inquiry_notes }}
 
 Please follow up to create a custom itinerary. The inquiry has been saved to the CRM."""
+    },
+    {
+        "name": "manual_payment_recorded_alert",
+        "description": "Sent to admins when a customer records a manual payment via WhatsApp.",
+        "template_type": "whatsapp",
+        "body": """Manual Payment Recorded 🧾
+
+A customer has recorded a manual payment that requires verification.
+
+*Customer:* {{ contact.name or contact.whatsapp_id }}
+*Booking Ref:* #{{ found_booking.0.booking_reference }}
+*Amount:* ${{ '%.2f'|format(payment_amount|float) }}
+*Method:* {{ payment_method_name }}
+
+Please log in to the admin panel to verify this payment and update the booking status.
+
+Payment ID: {{ created_payment.id }}
+Booking ID: {{ found_booking.0.id }}"""
     },
 ]
 

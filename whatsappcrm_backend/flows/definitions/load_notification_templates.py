@@ -154,6 +154,21 @@ A new loan application has been submitted by *{{ contact.name or contact.whatsap
 Please review the application in the admin panel and follow up with the customer."""
     },
     {
+        "name": "new_tour_inquiry_alert",
+        "description": "Sent to admins when a new tour inquiry is submitted via the WhatsApp flow.",
+        "template_type": "whatsapp",
+        "body": """New Tour Inquiry! 🦁
+
+A new tour inquiry has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
+
+*Inquiry Details:*
+- Name: *{{ inquiry_full_name }}*
+- Destination: *{{ inquiry_destination }}*
+- Travelers: *{{ inquiry_travelers }}*
+- Dates: *{{ inquiry_dates }}*
+- Notes: {{ inquiry_notes }}"""
+    },
+    {
         "name": "manual_payment_recorded_alert",
         "description": "Sent to admins when a customer records a manual payment via WhatsApp.",
         "template_type": "whatsapp",

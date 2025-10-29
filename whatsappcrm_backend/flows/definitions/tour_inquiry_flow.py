@@ -83,15 +83,20 @@ TOUR_INQUIRY_FLOW = {
                     }
                 ]
             },
-            "transitions": [{"to_step": "end_inquiry_message", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "switch_to_confirmation_flow", "condition_config": {"type": "always_true"}}]
         },
         {
-            "name": "end_inquiry_message",
-            "type": "end_flow",
+            "name": "switch_to_confirmation_flow",
+            "type": "switch_flow",
             "config": {
-                "message_config": {
-                    "message_type": "text", # Added a confirmation of the lead traveler's name for better UX
-                    "text": {"body": "Thank you, {{ inquiry_full_name }}! We've received your inquiry (Ref: #{{ created_inquiry.id }}). One of our travel specialists will review your request and get back to you shortly with a personalized itinerary.\n\nType *menu* to return to the main menu."}
+                "target_flow_name": "custom_tour_confirmation_flow",
+                "initial_context_template": {
+                    "inquiry_full_name": "{{ inquiry_full_name }}",
+                    "inquiry_destination": "{{ inquiry_destination }}",
+                    "inquiry_travelers": "{{ inquiry_travelers }}",
+                    "inquiry_dates": "{{ inquiry_dates }}",
+                    "inquiry_notes": "{{ inquiry_notes }}",
+                    "created_inquiry": "{{ created_inquiry }}"
                 }
             }
         }

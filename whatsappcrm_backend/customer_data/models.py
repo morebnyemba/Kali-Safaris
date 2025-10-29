@@ -234,7 +234,8 @@ class Booking(models.Model):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name='bookings'
+        related_name='bookings',
+        db_index=True
     )
     tour = models.ForeignKey(Tour, on_delete=models.SET_NULL, null=True, blank=True, related_name='bookings')
     
@@ -280,7 +281,7 @@ class Booking(models.Model):
         verbose_name_plural = _("Bookings")
         ordering = ['-start_date']
 
-    def update_amount_paid(self):
+    def update_amount_paid(self, commit=True):
         """
         Recalculates the amount_paid field by summing up all related successful payments.
         """
@@ -291,7 +292,8 @@ class Booking(models.Model):
         )['total'] or Decimal('0.00')
         
         self.amount_paid = total_paid
-        self.save(update_fields=['amount_paid'])
+        if commit:
+            self.save(update_fields=['amount_paid'])
 
 
 class Payment(models.Model):
@@ -307,12 +309,18 @@ class Payment(models.Model):
     class PaymentMethod(models.TextChoices):
         BANK_TRANSFER = 'bank_transfer', _('Bank Transfer')
         CREDIT_CARD = 'credit_card', _('Credit Card')
-        PAYPAL = 'paypal', _('PayPal')
-        CASH = 'cash', _('Cash')
+        OMARI = 'omari', _('Omari')
         OTHER = 'other', _('Other')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    booking = models.ForeignKey(Booking, on_delete=models.SET_NULL, null=True, blank=True, related_name='payments')
+    booking = models.ForeignKey(
+        Booking,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='payments',
+        db_index=True
+    )
     amount = models.DecimalField(_("Amount"), max_digits=10, decimal_places=2)
     currency = models.CharField(_("Currency"), max_length=3, default='USD')
     status = models.CharField(
@@ -336,6 +344,17 @@ class Payment(models.Model):
     class Meta:
         ordering = ['-created_at']
 
+    def save(self, *args, **kwargs):
+        """
+        Override save to trigger an update on the related booking's amount_paid
+        whenever a payment is successfully saved or its status changes.
+        """
+        super().save(*args, **kwargs)
+        # If this payment is linked to a booking, update the booking's total paid amount.
+        # This ensures data consistency automatically.
+        if self.booking:
+            self.booking.update_amount_paid(commit=True)
+
 
 class TourInquiry(models.Model):
     """
@@ -350,14 +369,19 @@ class TourInquiry(models.Model):
         CLOSED = 'closed', _('Closed')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    customer = models.ForeignKey(CustomerProfile, on_delete=models.CASCADE, related_name='tour_inquiries')
+    customer = models.ForeignKey(
+        CustomerProfile,
+        on_delete=models.CASCADE,
+        related_name='tour_inquiries',
+        db_index=True
+    )
     status = models.CharField(
         _("Inquiry Status"), max_length=20, choices=InquiryStatus.choices, default=InquiryStatus.NEW
     )
     
-    destination = models.CharField(_("Destination of Interest"), max_length=255, blank=True)
-    tour_type = models.CharField(_("Type of Tour"), max_length=100, blank=True, help_text=_("e.g., Safari, Cultural, Honeymoon"))
-    preferred_travel_dates = models.CharField(_("Preferred Travel Dates"), max_length=255, blank=True)
+    lead_traveler_name = models.CharField(_("Lead Traveler Name"), max_length=255, blank=True)
+    destinations = models.CharField(_("Destinations of Interest"), max_length=255, blank=True)
+    preferred_dates = models.CharField(_("Preferred Travel Dates"), max_length=255, blank=True)
     number_of_travelers = models.PositiveIntegerField(_("Number of Travelers"), null=True, blank=True)
     
     notes = models.TextField(_("Customer Notes / Requirements"), blank=True)
@@ -373,7 +397,7 @@ class TourInquiry(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"Inquiry from {self.customer} for {self.destination or 'a tour'}"
+        return f"Inquiry from {self.customer} for {self.destinations or 'a tour'}"
 
     class Meta:
         ordering = ['-created_at']
