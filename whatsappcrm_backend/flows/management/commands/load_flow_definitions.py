@@ -5,10 +5,16 @@ from django.core.exceptions import ValidationError
 from django.db import transaction
 from flows.models import Flow, FlowStep, FlowTransition
 from flows.definitions.main_menu_flow import MAIN_MENU_FLOW
+from flows.definitions.faq_flow import FAQ_FLOW
 # Import your new tour-related flow definitions here
 from flows.definitions.tour_inquiry_flow import TOUR_INQUIRY_FLOW
 from flows.definitions.view_available_tours_flow import VIEW_AVAILABLE_TOURS_FLOW
 from flows.definitions.booking_flow import BOOKING_FLOW
+from flows.definitions.special_offers_flow import SPECIAL_OFFERS_FLOW
+from flows.definitions.my_bookings_flow import MY_BOOKINGS_FLOW
+from flows.definitions.manual_payment_flow import MANUAL_PAYMENT_FLOW
+from flows.definitions.custom_tour_confirmation_flow import CUSTOM_TOUR_CONFIRMATION_FLOW
+from flows.definitions.simple_add_order_flow import SIMPLE_ADD_ORDER_FLOW
 
 
 class Command(BaseCommand):
@@ -21,9 +27,15 @@ class Command(BaseCommand):
         # List of flow definitions to load
         flow_definitions = [
             MAIN_MENU_FLOW,
+            FAQ_FLOW,
             TOUR_INQUIRY_FLOW,
             VIEW_AVAILABLE_TOURS_FLOW,
             BOOKING_FLOW,
+            SPECIAL_OFFERS_FLOW,
+            MY_BOOKINGS_FLOW,
+            MANUAL_PAYMENT_FLOW,
+            CUSTOM_TOUR_CONFIRMATION_FLOW,
+            SIMPLE_ADD_ORDER_FLOW,
         ]
 
         for flow_def in flow_definitions:

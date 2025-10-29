@@ -98,7 +98,7 @@ def initiate_tour_payment(context: dict, params: dict) -> dict:
         return context
 
     amount_var = params.get('amount_to_pay_var')
-    amount_to_pay = context.get(amount_to_pay)
+    amount_to_pay = context.get(amount_var)
     if not isinstance(amount_to_pay, (int, float, str)):
         logger.error(f"initiate_tour_payment: Amount to pay not found or invalid in context variable '{amount_var}'.")
         return context
@@ -127,4 +127,37 @@ def generate_and_save_quote_pdf_action(context: dict, params: dict) -> dict:
     pdf_url = generate_quote_pdf(context)
     if pdf_url:
         context[save_to_var] = pdf_url
+    return context
+
+@register_flow_action('create_placeholder_order')
+def create_placeholder_order(context: dict, params: dict) -> dict:
+    """
+    Creates a placeholder Booking record from a simple order number message.
+    This is used by the `simple_add_order_flow`.
+    """
+    contact = get_contact_from_context(context)
+    if not contact or not hasattr(contact, 'customer_profile') or not contact.customer_profile:
+        logger.error("create_placeholder_order: Could not find contact or customer profile in context.")
+        return context
+
+    order_number = params.get('order_number')
+    if not order_number:
+        logger.error("create_placeholder_order: 'order_number' not found in params.")
+        return context
+
+    try:
+        Booking.objects.create(
+            customer=contact.customer_profile,
+            booking_reference=order_number,
+            tour_name=f"Placeholder for Order: {order_number}",
+            start_date=timezone.now().date(),
+            end_date=timezone.now().date(),
+            payment_status=Booking.PaymentStatus.PENDING,
+            source=Booking.BookingSource.MANUAL_ENTRY,
+            notes=f"Placeholder booking created by {contact.name or contact.whatsapp_id} via simple order flow."
+        )
+        logger.info(f"Successfully created placeholder booking {order_number} for contact {contact.id}.")
+    except Exception as e:
+        logger.error(f"Error creating placeholder booking {order_number}: {e}", exc_info=True)
+
     return context

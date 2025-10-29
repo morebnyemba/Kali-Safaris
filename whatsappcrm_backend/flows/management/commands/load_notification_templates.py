@@ -147,11 +147,11 @@ The new order has been created in the system."""
 A new tour inquiry has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
 
 *Inquiry Details:*
-- Name: *{{ flow_context.inquiry_full_name }}*
-- Destination: *{{ flow_context.inquiry_destination }}*
-- Travelers: *{{ flow_context.inquiry_travelers }}*
-- Dates: *{{ flow_context.inquiry_dates }}*
-- Notes: {{ flow_context.inquiry_notes }}
+- Name: *{{ inquiry_full_name }}*
+- Destination: *{{ inquiry_destination }}*
+- Travelers: *{{ inquiry_travelers }}*
+- Dates: *{{ inquiry_dates }}*
+- Notes: {{ inquiry_notes }}
 
 Please follow up to create a custom itinerary. The inquiry has been saved to the CRM."""
     },

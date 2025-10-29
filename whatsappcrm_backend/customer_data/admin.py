@@ -121,8 +121,8 @@ class PaymentAdmin(admin.ModelAdmin):
 
 @admin.register(TourInquiry)
 class TourInquiryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'customer', 'destination', 'status', 'assigned_agent', 'created_at')
+    list_display = ('id', 'customer', 'destinations', 'status', 'assigned_agent', 'created_at')
     list_filter = ('status', 'assigned_agent', 'created_at')
-    search_fields = ('destination', 'notes', 'customer__first_name', 'customer__last_name')
+    search_fields = ('destinations', 'notes', 'customer__first_name', 'customer__last_name')
     readonly_fields = ('id', 'created_at', 'updated_at')
     autocomplete_fields = ['customer', 'assigned_agent']
