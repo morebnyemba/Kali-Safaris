@@ -173,6 +173,42 @@ Please log in to the admin panel to verify this payment and update the booking s
 Payment ID: {{ created_payment.id }}
 Booking ID: {{ found_booking.0.id }}"""
     },
+    {
+        "name": "customer_onboarding_welcome",
+        "description": "Sent to a new customer after successful onboarding.",
+        "template_type": "whatsapp",
+        "body": """Welcome to Kali Safaris! 🦒
+
+Thank you for choosing us for your unforgettable safari adventure. We're thrilled to have you!
+
+To get started, here are a few helpful resources:
+- Explore our tours: [Link to Tours]
+- Manage your bookings: [Link to Customer Portal]
+- Contact support: [Support Phone Number]
+
+We'll be in touch shortly to help you plan your dream safari.
+
+Best,
+The Kali Safaris Team"""
+    },
+    {
+        "name": "staff_onboarding_welcome",
+        "description": "Sent to new staff members after successful onboarding.",
+        "template_type": "whatsapp",
+        "body": """Welcome to the Kali Safaris Team! 🐘
+
+We're excited to have you join us. This is the start of an amazing journey!
+
+Here's what you need to know to get started:
+- Access your admin panel: [Link to Admin Panel]
+- Review our internal guides: [Link to Internal Docs]
+- Meet the team: [Link to Team Directory]
+
+Your account has been set up, and you can now log in.
+
+Best,
+The Kali Safaris Management"""
+    },
 ]
 
 

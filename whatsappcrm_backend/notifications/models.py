@@ -36,6 +36,11 @@ class NotificationTemplate(models.Model):
     """
     Stores templates for system notifications.
     """
+    TEMPLATE_TYPE_CHOICES = [
+        ('whatsapp', 'WhatsApp'),
+        ('email', 'Email'),
+        ('sms', 'SMS'),
+    ]
     name = models.CharField(
         _("Template Name"),
         max_length=100,
@@ -44,6 +49,13 @@ class NotificationTemplate(models.Model):
         help_text="Unique identifier for this template, e.g., 'human_handover_required'."
     )
     description = models.TextField(_("Description"), blank=True, null=True)
+    template_type = models.CharField(
+        _("Template Type"),
+        max_length=20,
+        choices=TEMPLATE_TYPE_CHOICES,
+        default='whatsapp',
+        help_text="The type of channel this template is designed for (e.g., WhatsApp, Email)."
+    )
     message_body = models.TextField(
         _("Message Body"),
         help_text="The template content. Can use Jinja2 variables like {{ contact.name }}."
