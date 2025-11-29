@@ -41,10 +41,16 @@ class VersionSuffixFlowTest(TestCase):
     def test_create_flow_with_default_version_suffix(self, mock_post):
         """Test that create_flow appends version suffix to flow name"""
         # Setup mock response for flow creation
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {'id': 'flow_123456'}
-        mock_post.return_value = mock_response
+        mock_create_response = Mock()
+        mock_create_response.status_code = 200
+        mock_create_response.json.return_value = {'id': 'flow_123456'}
+
+        # Setup mock response for updating flow JSON
+        mock_update_response = Mock()
+        mock_update_response.status_code = 200
+        mock_update_response.json.return_value = {'success': True}
+
+        mock_post.side_effect = [mock_create_response, mock_update_response]
         
         # Call create_flow
         result = self.service.create_flow(self.whatsapp_flow)
@@ -72,10 +78,16 @@ class VersionSuffixFlowTest(TestCase):
     def test_create_flow_with_custom_version_suffix(self, mock_post):
         """Test that create_flow uses custom version suffix from settings"""
         # Setup mock response for flow creation
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {'id': 'flow_123456'}
-        mock_post.return_value = mock_response
+        mock_create_response = Mock()
+        mock_create_response.status_code = 200
+        mock_create_response.json.return_value = {'id': 'flow_123456'}
+
+        # Setup mock response for updating flow JSON
+        mock_update_response = Mock()
+        mock_update_response.status_code = 200
+        mock_update_response.json.return_value = {'success': True}
+
+        mock_post.side_effect = [mock_create_response, mock_update_response]
         
         # Call create_flow
         result = self.service.create_flow(self.whatsapp_flow)
@@ -97,12 +109,18 @@ class VersionSuffixFlowTest(TestCase):
         # Remove friendly_name
         self.whatsapp_flow.friendly_name = None
         
-        # Setup mock response
-        mock_response = Mock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {'id': 'flow_123456'}
-        mock_post.return_value = mock_response
-        
+        # Setup mock response for flow creation
+        mock_create_response = Mock()
+        mock_create_response.status_code = 200
+        mock_create_response.json.return_value = {'id': 'flow_123456'}
+
+        # Setup mock response for updating flow JSON
+        mock_update_response = Mock()
+        mock_update_response.status_code = 200
+        mock_update_response.json.return_value = {'success': True}
+
+        mock_post.side_effect = [mock_create_response, mock_update_response]
+
         # Call create_flow
         result = self.service.create_flow(self.whatsapp_flow)
         

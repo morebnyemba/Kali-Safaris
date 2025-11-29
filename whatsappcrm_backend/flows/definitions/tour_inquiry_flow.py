@@ -2,60 +2,68 @@
 
 TOUR_INQUIRY_FLOW = {
     "name": "tour_inquiry_flow",
-    "friendly_name": "Tour Inquiry",
-    "description": "Guides a user through creating a custom tour inquiry.",
-    "trigger_keywords": ["custom tour", "inquiry", "plan a tour"],
+    "friendly_name": "Tour Inquiry Collection Flow",
+    "description": "A flow to guide a user through submitting a tour inquiry using an interactive WhatsApp flow.",
+    "trigger_keywords": ["inquire", "safari", "trip", "booking", "tour"],
     "is_active": True,
     "steps": [
         {
-            "name": "start_inquiry",
+            "name": "entry_point_inquiry",
             "is_entry_point": True,
-            "type": "question",
+            "type": "send_message",
             "config": {
-                "message_config": {"message_type": "text", "text": {"body": "I can help with that! To create a personalized tour for you, I'll need a few details.\n\nFirst, what is the full name of the lead traveler?"}},
-                "reply_config": {"expected_type": "text", "save_to_variable": "inquiry_full_name"}
+                "message_type": "interactive",
+                "interactive": {
+                    "type": "flow",
+                    "header": {"type": "text", "text": "Plan Your Dream Safari"},
+                    "body": {"text": "Let's get some details to help you plan the perfect trip!"},
+                    "footer": {"text": "Tap below to start"},
+                    "action": {
+                        "name": "flow",
+                        "parameters": {
+                            "flow_message_version": "3",
+                            "flow_token": "YOUR_UNIQUE_FLOW_TOKEN", # This can be dynamically generated
+                            "flow_id": "YOUR_WHATSAPP_FLOW_ID", # This will be the ID from the WhatsAppFlow model once synced
+                            "flow_cta": "Start Inquiry",
+                            "flow_action": "navigate",
+                            "flow_action_payload": {
+                                "screen": "welcome_screen"
+                            }
+                        }
+                    }
+                }
             },
-            "transitions": [{"to_step": "ask_destination", "condition_config": {"type": "always_true"}}]
+            "transitions": [
+                {
+                    "to_step": "wait_for_flow_response",
+                    "condition_config": {"type": "always_true"}
+                }
+            ]
         },
         {
-            "name": "ask_destination",
-            "type": "question",
+            "name": "wait_for_flow_response",
+            "type": "action",
             "config": {
-                "message_config": {"message_type": "text", "text": {"body": "Great, {{ inquiry_full_name }}. Which destinations are you interested in? (e.g., Victoria Falls, Hwange, Mana Pools)"}},
-                "reply_config": {"expected_type": "text", "save_to_variable": "inquiry_destination"}
+                "actions_to_run": [
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "awaiting_inquiry_response",
+                        "value_template": True
+                    }
+                ]
             },
-            "transitions": [{"to_step": "ask_travelers", "condition_config": {"type": "always_true"}}]
+            "transitions": [
+                {
+                    "to_step": "process_inquiry_data",
+                    "condition_config": {
+                        "type": "whatsapp_flow_response_received",
+                        "variable_name": "whatsapp_flow_response_received"
+                    }
+                }
+            ]
         },
         {
-            "name": "ask_travelers",
-            "type": "question",
-            "config": {
-                "message_config": {"message_type": "text", "text": {"body": "How many people will be traveling (adults and children)?"}},
-                "reply_config": {"expected_type": "number", "save_to_variable": "inquiry_travelers", "validation_regex": "^[1-9][0-9]*$"}, # Ensure it's a positive number
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid number for travelers (e.g., 2, 5)."}
-            },
-            "transitions": [{"to_step": "ask_dates", "condition_config": {"type": "always_true"}}]
-        },
-        {
-            "name": "ask_dates",
-            "type": "question",
-            "config": {
-                "message_config": {"message_type": "text", "text": {"body": "What are your preferred travel dates? (e.g., 'mid-June 2025', 'any time in September')"}},
-                "reply_config": {"expected_type": "text", "save_to_variable": "inquiry_dates"}
-            },
-            "transitions": [{"to_step": "ask_notes", "condition_config": {"type": "always_true"}}]
-        },
-        {
-            "name": "ask_notes",
-            "type": "question",
-            "config": {
-                "message_config": {"message_type": "text", "text": {"body": "Perfect. Is there anything else you'd like us to know? (e.g., interests like photography, specific lodges, budget)"}},
-                "reply_config": {"expected_type": "text", "save_to_variable": "inquiry_notes"}
-            },
-            "transitions": [{"to_step": "confirm_and_save_inquiry", "condition_config": {"type": "always_true"}}]
-        },
-        {
-            "name": "confirm_and_save_inquiry",
+            "name": "process_inquiry_data",
             "type": "action",
             "config": {
                 "actions_to_run": [
@@ -65,38 +73,45 @@ TOUR_INQUIRY_FLOW = {
                         "model_name": "TourInquiry",
                         "fields_template": {
                             "customer": "current",
-                            "lead_traveler_name": "{{ inquiry_full_name }}",
-                            "destinations": "{{ inquiry_destination }}",
-                            "number_of_travelers": "{{ inquiry_travelers }}",
-                            "preferred_dates": "{{ inquiry_dates }}",
-                            "notes": "{{ inquiry_notes }}",
-                            "status": "new"
+                            "lead_traveler_name": "{{ contact.name }}",
+                            "destinations": "{{ whatsapp_flow_data.destinations }}",
+                            "preferred_dates": "{{ whatsapp_flow_data.preferred_dates }}",
+                            "number_of_travelers": "{{ whatsapp_flow_data.number_of_travelers }}",
+                            "notes": "{{ whatsapp_flow_data.notes }}"
                         },
                         "save_to_variable": "created_inquiry"
                     },
                     {
                         "action_type": "send_group_notification",
                         "params_template": {
-                            "group_names": ["Sales Team", "System Admins"],
-                            "template_name": "new_tour_inquiry_alert"
+                            "group_names": ["Sales", "Admins"],
+                            "template_name": "hanna_new_tour_inquiry",
+                            "template_context": {
+                                "inquiry_id": "{{ created_inquiry.id }}",
+                                "customer_name": "{{ contact.name }}",
+                                "destinations": "{{ whatsapp_flow_data.destinations }}",
+                                "dates": "{{ whatsapp_flow_data.preferred_dates }}"
+                            }
                         }
                     }
                 ]
             },
-            "transitions": [{"to_step": "switch_to_confirmation_flow", "condition_config": {"type": "always_true"}}]
+            "transitions": [
+                {
+                    "to_step": "confirm_and_end",
+                    "condition_config": {"type": "always_true"}
+                }
+            ]
         },
         {
-            "name": "switch_to_confirmation_flow",
-            "type": "switch_flow",
+            "name": "confirm_and_end",
+            "type": "end_flow",
             "config": {
-                "target_flow_name": "custom_tour_confirmation_flow",
-                "initial_context_template": {
-                    "inquiry_full_name": "{{ inquiry_full_name }}",
-                    "inquiry_destination": "{{ inquiry_destination }}",
-                    "inquiry_travelers": "{{ inquiry_travelers }}",
-                    "inquiry_dates": "{{ inquiry_dates }}",
-                    "inquiry_notes": "{{ inquiry_notes }}",
-                    "created_inquiry": "{{ created_inquiry }}"
+                "message_config": {
+                    "message_type": "text",
+                    "text": {
+                        "body": "Thank you for your inquiry! Our team has received your details and will get back to you shortly with a personalized plan. Your inquiry reference is #{{ created_inquiry.id|stringformat:'s'|slice:'-8' }}."
+                    }
                 }
             }
         }

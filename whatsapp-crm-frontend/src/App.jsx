@@ -17,7 +17,6 @@ import Conversation from './pages/Conversation';
 import LoginPage from './pages/LoginPage';
 
 
-import InstallationRequestsPage from './pages/InstallationRequestsPage';
 import OrdersPage from './pages/OrdersPage';
 import SiteAssessmentsPage from './pages/SiteAssessmentsPage';
 import SermonsPage from './pages/SermonsPage';
@@ -66,7 +65,6 @@ const router = createBrowserRouter([
   { path: 'media-library', element: <MediaLibraryPage /> },
   { path: 'contacts', element: <ContactsPage /> },
   { path: 'analytics', element: <AnalyticsPage />},
-  { path: 'installation-requests', element: <InstallationRequestsPage /> },
   { path: 'orders', element: <OrdersPage /> },
   { path: 'site-assessments', element: <SiteAssessmentsPage /> },
 

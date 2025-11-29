@@ -1270,113 +1270,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
     Determines if the contact is in an active flow or if a new flow should be triggered.
     This function is wrapped in a transaction.atomic decorator.
     """
-    # --- Location Pin Handler for Site Assessments and Installations ---
-    # Check if this is a location message and the contact has a pending request awaiting location
-    if message_data.get('type') == 'location' and contact.conversation_context:
-        from customer_data.models import SiteAssessmentRequest, InstallationRequest
-        from meta_integration.utils import send_whatsapp_message
-        
-        location_data = message_data.get('location', {})
-        latitude = location_data.get('latitude')
-        longitude = location_data.get('longitude')
-        
-        if not (latitude and longitude):
-            logger.warning(f"Location message received but missing coordinates for contact {contact.id}")
-            return []
-        
-        # Check for pending site assessment
-        awaiting_assessment_id = contact.conversation_context.get('awaiting_location_for_assessment')
-        if awaiting_assessment_id:
-            try:
-                assessment = SiteAssessmentRequest.objects.get(id=awaiting_assessment_id)
-                
-                # Update assessment with location data
-                assessment.location_latitude = latitude
-                assessment.location_longitude = longitude
-                assessment.location_name = location_data.get('name', '')
-                assessment.location_address = location_data.get('address', '')
-                assessment.location_url = location_data.get('url', '')
-                assessment.save(update_fields=[
-                    'location_latitude', 'location_longitude', 'location_name',
-                    'location_address', 'location_url'
-                ])
-                
-                # Clear the awaiting flag
-                contact.conversation_context.pop('awaiting_location_for_assessment', None)
-                contact.save(update_fields=['conversation_context'])
-                
-                # Send confirmation
-                confirmation = (
-                    f"✅ *Location Received!*\n\n"
-                    f"Thank you! We've saved your location pin for assessment #{contact.conversation_context.get('assessment_id', assessment.assessment_id)}.\n\n"
-                    f"📍 Coordinates: {latitude}, {longitude}\n"
-                )
-                if assessment.location_name:
-                    confirmation += f"📌 Location: {assessment.location_name}\n"
-                confirmation += f"\nOur team will use this information to prepare for your site visit."
-                
-                send_whatsapp_message(
-                    to_phone_number=contact.whatsapp_id,
-                    message_type='text',
-                    data={'body': confirmation}
-                )
-                
-                logger.info(f"Location pin saved for site assessment {assessment.id} (Assessment ID: {assessment.assessment_id})")
-                return []  # Stop further processing
-                
-            except SiteAssessmentRequest.DoesNotExist:
-                logger.warning(f"Site assessment {awaiting_assessment_id} not found for location update")
-            except Exception as e:
-                logger.error(f"Error processing location for site assessment: {e}", exc_info=True)
-        
-        # Check for pending installation request
-        awaiting_installation_id = contact.conversation_context.get('awaiting_location_for_installation')
-        if awaiting_installation_id:
-            try:
-                installation = InstallationRequest.objects.get(id=awaiting_installation_id)
-                
-                # Update installation with location data
-                installation.location_latitude = latitude
-                installation.location_longitude = longitude
-                installation.location_name = location_data.get('name', '')
-                installation.location_address = location_data.get('address', '')
-                installation.location_url = location_data.get('url', '')
-                installation.save(update_fields=[
-                    'location_latitude', 'location_longitude', 'location_name',
-                    'location_address', 'location_url'
-                ])
-                
-                # Clear the awaiting flag
-                reference = contact.conversation_context.get('installation_reference', f"#{installation.id}")
-                contact.conversation_context.pop('awaiting_location_for_installation', None)
-                contact.conversation_context.pop('installation_reference', None)
-                contact.save(update_fields=['conversation_context'])
-                
-                # Send confirmation
-                installation_type_display = installation.get_installation_type_display()
-                confirmation = (
-                    f"✅ *Location Received!*\n\n"
-                    f"Thank you! We've saved your location pin for {installation_type_display} installation {reference}.\n\n"
-                    f"📍 Coordinates: {latitude}, {longitude}\n"
-                )
-                if installation.location_name:
-                    confirmation += f"📌 Location: {installation.location_name}\n"
-                confirmation += f"\nOur installation team will use this information to prepare for your visit."
-                
-                send_whatsapp_message(
-                    to_phone_number=contact.whatsapp_id,
-                    message_type='text',
-                    data={'body': confirmation}
-                )
-                
-                logger.info(f"Location pin saved for installation request {installation.id} ({installation_type_display})")
-                return []  # Stop further processing
-                
-            except InstallationRequest.DoesNotExist:
-                logger.warning(f"Installation request {awaiting_installation_id} not found for location update")
-            except Exception as e:
-                logger.error(f"Error processing location for installation: {e}", exc_info=True)
-    
+
     # --- AI Conversation Mode Handling ---
     # This is a fast path to delegate to the AI handler if the contact is not in a standard flow.
     # It's already efficient and correctly placed.
@@ -1779,7 +1673,7 @@ def process_whatsapp_flow_response(msg_data: dict, contact: Contact, app_config)
     
     This function handles interactive flow responses from Meta's WhatsApp Flows API.
     It identifies the flow, processes the response data, and creates appropriate
-    business entities (InstallationRequest, SolarCleaningRequest, etc.).
+    business entities (e.g., TourInquiry, Booking).
     
     Args:
         msg_data: The message data from Meta webhook containing the flow response
@@ -1821,18 +1715,14 @@ def process_whatsapp_flow_response(msg_data: dict, contact: Contact, app_config)
         whatsapp_flow = None
         if whatsapp_flows.exists():
             response_fields = set(response_data.keys()) if isinstance(response_data, dict) else set()
-            if 'kit_type' in response_fields: # Starlink Installation
-                whatsapp_flow = whatsapp_flows.filter(name='starlink_installation_whatsapp').first()
-            elif 'panel_count' in response_fields and 'roof_type' in response_fields: # Solar Cleaning
-                whatsapp_flow = whatsapp_flows.filter(name='solar_cleaning_whatsapp').first()
-            elif 'order_number' in response_fields and 'sales_person' in response_fields: # Solar Installation
-                whatsapp_flow = whatsapp_flows.filter(name='solar_installation_whatsapp').first()
-            elif 'assessment_full_name' in response_fields and 'assessment_address' in response_fields: # Site Inspection
-                whatsapp_flow = whatsapp_flows.filter(name='site_inspection_whatsapp').first()
-            elif 'loan_type' in response_fields and 'loan_applicant_name' in response_fields: # Loan Application
-                whatsapp_flow = whatsapp_flows.filter(name='loan_application_whatsapp').first()
+            # This logic can be adapted for tour inquiries
+            if 'destinations' in response_fields and 'preferred_dates' in response_fields: # Example for a Tour Inquiry Flow
+                whatsapp_flow = whatsapp_flows.filter(name='tour_inquiry_whatsapp').first()
+            
             if not whatsapp_flow:
-                whatsapp_flow = whatsapp_flows.first() # Fallback to the first active flow if no specific match
+                # Fallback to the first active flow if no specific match, or handle as an error
+                logger.warning(f"Could not determine specific WhatsApp flow for response. Falling back to first available.")
+                whatsapp_flow = whatsapp_flows.first()
 
         if not whatsapp_flow:
             logger.error("No active WhatsApp flow found to process response")

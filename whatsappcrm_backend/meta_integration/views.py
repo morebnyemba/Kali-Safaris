@@ -375,6 +375,7 @@ class MetaWebhookAPIView(View):
         # Local imports
         from conversations.models import Message
         from flows.tasks import process_flow_for_message_task
+        from flows.services import process_whatsapp_flow_response
         # Import Contact for type hinting and for the action loop
         from conversations.models import Contact
 
@@ -391,6 +392,16 @@ class MetaWebhookAPIView(View):
             try: message_timestamp = timezone.make_aware(datetime.fromtimestamp(int(message_timestamp_str)))
             except ValueError: logger.warning(f"Could not parse message timestamp: {message_timestamp_str}")
         if not message_timestamp: message_timestamp = timezone.now()
+
+        # Handle nfm_reply (WhatsApp Flow response)
+        if msg_data.get("type") == "interactive" and msg_data.get("interactive", {}).get("type") == "nfm_reply":
+            logger.info(f"nfm_reply (flow response) received for contact {contact.id}. Processing...")
+            success, notes = process_whatsapp_flow_response(msg_data, contact, active_config)
+            if success:
+                self._save_log(log_entry, 'processed', notes)
+            else:
+                self._save_log(log_entry, 'error', notes)
+            return # Stop further processing for this message type
 
         incoming_msg_obj, msg_created = Message.objects.update_or_create(
             wamid=whatsapp_message_id,
