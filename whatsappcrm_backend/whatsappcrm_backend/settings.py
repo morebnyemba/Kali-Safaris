@@ -29,7 +29,7 @@ DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True' # Default to True for dev if
 # AllowedHostsOriginValidator, you must also include your frontend domain.
 ALLOWED_HOSTS_STRING = os.getenv(
     'DJANGO_ALLOWED_HOSTS',
-    'localhost,127.0.0.1,backend.kalaisafaris.com,dashboard.kalaisafaris.com,testbackend.worldbet2.com,www.testbackend.worldbet2.com'
+    'localhost,127.0.0.1,backend.kalaisafaris.com,dashboard.kalaisafaris.com,testbackend.worldbet2.com,www.testbackend.worldbet2.com,kalaisafaris.com'
 )
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if host.strip()]
 
@@ -38,7 +38,7 @@ ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if hos
 # This is crucial for your React frontend to be able to log in and submit data.
 CSRF_TRUSTED_ORIGINS_STRING = os.getenv(
     'CSRF_TRUSTED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalaisafaris.com,http://dashboard.kalaisafaris.com,https://backend.kalaisafaris.com,http://backend.kalaisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com'
+    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalaisafaris.com,http://dashboard.kalaisafaris.com,https://backend.kalaisafaris.com,http://backend.kalaisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com,https://kalaisafaris.com,http://kalaisafaris.com'
 )
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_STRING.split(',') if origin.strip()]
 
@@ -202,7 +202,7 @@ SIMPLE_JWT = {
 # This tells the browser that it's safe to accept cross-origin requests from your frontend.
 CORS_ALLOWED_ORIGINS_STRING = os.getenv(
     'CORS_ALLOWED_ORIGINS',
-    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalaisafaris.com,http://dashboard.kalaisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com'
+    'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalaisafaris.com,http://dashboard.kalaisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com,https://kalaisafaris.com,http://kalaisafaris.com'
 )
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_STRING.split(',') if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
@@ -396,6 +396,8 @@ connect_src_list = [
     f"wss://{BACKEND_DOMAIN_FOR_CSP}",
     f"https://{FRONTEND_DOMAIN_FOR_CSP}",
     f"wss://{FRONTEND_DOMAIN_FOR_CSP}",
+    f"https://kalaisafaris.com",
+    f"wss://kalaisafaris.com",
 ]
 
 # Add local development sources if in DEBUG mode
