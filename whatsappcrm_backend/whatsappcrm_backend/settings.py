@@ -117,21 +117,10 @@ ASGI_APPLICATION = 'whatsappcrm_backend.asgi.application' # Crucial for Django C
 
 
 # Database
-DB_ENGINE_DEFAULT = 'django.db.backends.postgresql'
-DB_NAME_DEFAULT = 'whatsapp_crm_dev'  # The database name you created
-DB_USER_DEFAULT = 'crm_user'          # The user you created
-DB_PASSWORD_DEFAULT = ''                # It's best to set this in your .env file
-DB_HOST_DEFAULT = 'localhost'           # Or '127.0.0.1'
-DB_PORT_DEFAULT = '5432'                # Default PostgreSQL port
-
 DATABASES = {
     'default': {
-        'ENGINE': os.getenv('DB_ENGINE', DB_ENGINE_DEFAULT),
-        'NAME': os.getenv('DB_NAME', DB_NAME_DEFAULT),
-        'USER': os.getenv('DB_USER', DB_USER_DEFAULT),
-        'PASSWORD': os.getenv('DB_PASSWORD', DB_PASSWORD_DEFAULT), # Ensure this is in your .env!
-        'HOST': os.getenv('DB_HOST', DB_HOST_DEFAULT),
-        'PORT': os.getenv('DB_PORT', DB_PORT_DEFAULT),
+        'ENGINE': 'django.db.backends.sqlite3',
+        'NAME': BASE_DIR / 'db.sqlite3',
     }
 }
 

@@ -154,37 +154,52 @@ A new loan application has been submitted by *{{ contact.name or contact.whatsap
 Please review the application in the admin panel and follow up with the customer."""
     },
     {
-        "name": "new_tour_inquiry_alert",
-        "description": "Sent to admins when a new tour inquiry is submitted via the WhatsApp flow.",
+        "name": "new_warranty_claim_submitted",
+        "description": "Sent to admins when a customer submits a new warranty claim.",
         "template_type": "whatsapp",
-        "body": """New Tour Inquiry! 🦁
+        "body": """New Warranty Claim Submitted 🛡️
 
-A new tour inquiry has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
+A new warranty claim has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
 
-*Inquiry Details:*
-- Name: *{{ inquiry_full_name }}*
-- Destination: *{{ inquiry_destination }}*
-- Travelers: *{{ inquiry_travelers }}*
-- Dates: *{{ inquiry_dates }}*
-- Notes: {{ inquiry_notes }}"""
+*Claim Details:*
+- Claim ID: *{{ generated_claim_id }}*
+- Product: *{{ found_warranty.0.product__name }}*
+- Serial Number: `{{ found_warranty.0.product_serial_number }}`
+
+*Fault Description:*
+{{ fault_description }}
+
+Please review the claim in the admin panel and update its status."""
     },
     {
-        "name": "manual_payment_recorded_alert",
-        "description": "Sent to admins when a customer records a manual payment via WhatsApp.",
+        "name": "warranty_claim_status_updated",
+        "description": "Sent to a customer when an admin updates their warranty claim status.",
         "template_type": "whatsapp",
-        "body": """Manual Payment Recorded 🧾
+        "body": """Hello! 👋
 
-A customer has recorded a manual payment that requires verification.
+The status for your Warranty Claim (#{{ claim_id }}) for product `{{ serial_number }}` has been updated to: *{{ new_status|title }}*.
 
-*Customer:* {{ contact.name or contact.whatsapp_id }}
-*Booking Ref:* #{{ found_booking.0.booking_reference }}
-*Amount:* ${{ '%.2f'|format(payment_amount|float) }}
-*Method:* {{ payment_method_name }}
+{% if resolution_notes %}*Notes from our team:*
+{{ resolution_notes }}
+{% endif %}
+Thank you for your patience!"""
+    },
+    {
+        "name": "customer_invoice_confirmation",
+        "description": "Sent to a customer via WhatsApp after their emailed invoice has been successfully processed and an order created.",
+        "template_type": "whatsapp",
+        "body": """Hello {{ customer_name }}! 👋
 
-Please log in to the admin panel to verify this payment and update the booking status.
+This is a confirmation that your invoice has been successfully processed.
 
-Payment ID: {{ created_payment.id }}
-Booking ID: {{ found_booking.0.id }}"""
+*Order Details:*
+- Order #: *{{ order_number }}*
+- Invoice Date: {{ invoice_date }}
+- Total Amount: *${{ total_amount }}*
+
+An installation has been provisionally scheduled and our team will be in touch shortly to confirm the details.
+
+Thank you for choosing Hanna Installations!"""
     },
 ]
 

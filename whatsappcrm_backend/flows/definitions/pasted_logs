@@ -1,0 +1,237 @@
+
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] INFO services Transition condition met: From 'ensure_customer_profile_exists' to 'show_main_menu'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] INFO services Transitioning contact 263719233302 from 'ensure_customer_profile_exists' to 'show_main_menu' in flow 'main_menu'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] DEBUG services Contact 1: Executing actions for step 'show_main_menu' (ID: 2179, Type: question). Raw Config: {'reply_config': {'expected_type': 'interactive_id', 'save_to_variable': 'menu_choice'}, 'message_config': {'interactive': {'body': {'text': "Hello {{ contact.name | default('there') }}! I'm Hanna, your personal AI assistant for Pfungwa.\n\nHow can I help you today? Please select an option from the menu below."}, 'type': 'list', 'action': {'button': 'Select an Option', 'sections': [{'rows': [{'id': 'purchase_product', 'title': '🛒 Shop Products', 'description': 'Browse and buy solar products.'}, {'id': 'request_installation', 'title': '🛠️ Request Installation', 'description': 'Schedule a Solar or Starlink installation.'}, {'id': 'site_assessment', 'title': '📋 Book Site Assessment', 'description': 'Book a site visit with our experts.'}, {'id': 'solar_cleaning', 'title': '💧 Solar Panel Cleaning', 'description': 'Request a cleaning service.'}, {'id': 'apply_for_loan', 'title': '💰 Apply for Loan', 'description': 'Apply for a cash or product loan.'}], 'title': 'Our Services'}, {'rows': [{'id': 'request_warranty', 'title': '🛡️ Warranty Claim', 'description': 'File a warranty claim for a product.'}, {'id': 'ai_troubleshooter', 'title': '🤖 AI Troubleshooter', 'description': 'Get instant help from our AI assistant.'}, {'id': 'about_pfungwa', 'title': 'ℹ️ About Pfungwa', 'description': 'Learn more about our company.'}], 'title': 'Support & Information'}]}, 'footer': {'text': 'Session expires after 5 mins of inactivity'}, 'header': {'text': 'Pfungwa Main Menu', 'type': 'text'}}, 'message_type': 'interactive'}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] DEBUG services Contact 1: Executing actions for step 'show_main_menu_prompt' (ID: None, Type: send_message). Raw Config: {'message_type': 'interactive', 'interactive': {'type': 'list', 'action': {'button': 'Select an Option', 'sections': [{'title': 'Our Services', 'rows': [{'id': 'purchase_product', 'title': '🛒 Shop Products', 'description': 'Browse and buy solar products.'}, {'id': 'request_installation', 'title': '🛠️ Request Installation', 'description': 'Schedule a Solar or Starlink installation.'}, {'id': 'site_assessment', 'title': '📋 Book Site Assessment', 'description': 'Book a site visit with our experts.'}, {'id': 'solar_cleaning', 'title': '💧 Solar Panel Cleaning', 'description': 'Request a cleaning service.'}, {'id': 'apply_for_loan', 'title': '💰 Apply for Loan', 'description': 'Apply for a cash or product loan.'}]}, {'title': 'Support & Information', 'rows': [{'id': 'request_warranty', 'title': '🛡️ Warranty Claim', 'description': 'File a warranty claim for a product.'}, {'id': 'ai_troubleshooter', 'title': '🤖 AI Troubleshooter', 'description': 'Get instant help from our AI assistant.'}, {'id': 'about_pfungwa', 'title': 'ℹ️ About Pfungwa', 'description': 'Learn more about our company.'}]}]}, 'body': {'text': "Hello {{ contact.name | default('there') }}! I'm Hanna, your personal AI assistant for Pfungwa.\n\nHow can I help you today? Please select an option from the menu below."}, 'header': {'type': 'text', 'text': 'Pfungwa Main Menu'}, 'footer': {'text': 'Session expires after 5 mins of inactivity'}}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] DEBUG services Step 'show_main_menu' is a question, awaiting reply for: menu_choice
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] DEBUG services Saved updated context for contact 263719233302 after executing step 'show_main_menu'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55,075: INFO/MainProcess] Task stats.update_dashboard_stats[019d8e51-8208-4a26-a0f3-d7dce34a65c0] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] INFO signals Broadcasted message 214 to group conversation_1
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55,100: INFO/MainProcess] Task meta_integration.tasks.send_whatsapp_message_task[d7138e37-3db9-4958-8e38-3380eb64fcda] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55,105: INFO/ForkPoolWorker-1] Task flows.tasks.process_flow_for_message_task[726c1d8d-675a-41c3-839c-6ac368eeebf6] succeeded in 0.1425080499611795s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] INFO tasks Task send_whatsapp_message_task started for Message ID: 214, Contact: 263719233302
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] DEBUG utils Sending WhatsApp message via config 'hanna1'. URL: https://graph.facebook.com/v24.0/804344219427309/messages, Payload: {"messaging_product": "whatsapp", "to": "263719233302", "type": "interactive", "interactive": {"body": {"text": "Hello Master NETWORK! I'm Hanna, your personal AI assistant for Pfungwa.\n\nHow can I help you today? Please select an option from the menu below."}, "type": "list", "action": {"button": "Select an Option", "sections": [{"rows": [{"id": "purchase_product", "title": "\ud83d\uded2 Shop Products", "description": "Browse and buy solar products."}, {"id": "request_installation", "title": "\ud83d\udee0\ufe0f Request Installation", "description": "Schedule a Solar or Starlink installation."}, {"id": "site_assessment", "title": "\ud83d\udccb Book Site Assessment", "description": "Book a site visit with our experts."}, {"id": "solar_cleaning", "title": "\ud83d\udca7 Solar Panel Cleaning", "description": "Request a cleaning service."}, {"id": "apply_for_loan", "title": "\ud83d\udcb0 Apply for Loan", "description": "Apply for a cash or product loan."}], "title": "Our Services"}, {"rows": [{"id": "request_warranty", "title": "\ud83d\udee1\ufe0f Warranty Claim", "description": "File a warranty claim for a product."}, {"id": "ai_troubleshooter", "title": "\ud83e\udd16 AI Troubleshooter", "description": "Get instant help from our AI assistant."}, {"id": "about_pfungwa", "title": "\u2139\ufe0f About Pfungwa", "description": "Learn more about our company."}], "title": "Support & Information"}]}, "footer": {"text": "Session expires after 5 mins of inactivity"}, "header": {"text": "Pfungwa Main Menu", "type": "text"}}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] INFO utils Read receipt sent successfully for WAMID wamid.HBgMMjYzNzE5MjMzMzAyFQIAEhggQUMyNENCRUUyRkY4Q0QwREJCNkFGNzE3Njg3OTI1MzMA via config 'hanna1'. Response: {'success': True}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55,581: INFO/ForkPoolWorker-16] Task meta_integration.tasks.send_read_receipt_task[464e1ee0-59dc-4af7-b4aa-f8e416b3bc78] succeeded in 0.6228900289861485s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] INFO utils Message sent successfully to 263719233302 via config 'hanna1'. Response: {'messaging_product': 'whatsapp', 'contacts': [{'input': '263719233302', 'wa_id': '263719233302'}], 'messages': [{'id': 'wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSNEY5QzAzMjVBQTExRTY2OTdGAA=='}]}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] INFO tasks Message ID 214 sent successfully via Meta API. WAMID: wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSNEY5QzAzMjVBQTExRTY2OTdGAA==
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55] INFO signals Broadcasted message 214 to group conversation_1
+whatsappcrm_celery_io_worker      | [2025-11-26 12:49:55,717: INFO/ForkPoolWorker-17] Task meta_integration.tasks.send_whatsapp_message_task[d7138e37-3db9-4958-8e38-3380eb64fcda] succeeded in 0.6149432499660179s: None
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO views Webhook POST request received.
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] DEBUG views Request headers: {'X-Forwarded-For': '173.252.95.22', 'X-Forwarded-Proto': 'https', 'Host': 'backend.hanna.co.zw', 'Connection': 'close', 'Content-Length': '614', 'Accept': '*/*', 'Accept-Encoding': 'deflate, gzip', 'User-Agent': 'facebookexternalua', 'Content-Type': 'application/json', 'X-Hub-Signature': 'sha1=08c5df5c48f033644f54090b1a87663ffc2b4a9c', 'X-Hub-Signature-256': 'sha256=a41680289cd9b3cbfaf958aac33c56a3d75e4a1d5c14706f39ea1ade0bba47f8'}
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO views Processing webhook for config: 'hanna1' (Phone ID: 804344219427309)
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] DEBUG views Webhook signature verified successfully.
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO views Processing entry[0].change[0]: field='messages', phone_id='804344219427309'
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO views Status Update: WAMID=wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSNEY5QzAzMjVBQTExRTY2OTdGAA==, Status='sent'
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO signals Broadcasted message 214 to group conversation_1
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] DEBUG views WebhookEventLog ID 433 status from 'pending' to 'processed'.
+whatsappcrm_backend_app           | 172.20.0.12:50400 - - [26/Nov/2025:12:49:57] "POST /crm-api/meta/webhook/" 200 14
+whatsappcrm_nginx                 | 173.252.95.22 - - [26/Nov/2025:10:49:57 +0000] "POST /crm-api/meta/webhook/ HTTP/1.1" 200 14 "-" "facebookexternalua" "-"
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO views Webhook POST request received.
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] DEBUG views Request headers: {'X-Forwarded-For': '173.252.127.11', 'X-Forwarded-Proto': 'https', 'Host': 'backend.hanna.co.zw', 'Connection': 'close', 'Content-Length': '578', 'Accept': '*/*', 'Accept-Encoding': 'deflate, gzip', 'User-Agent': 'facebookexternalua', 'Content-Type': 'application/json', 'X-Hub-Signature': 'sha1=49156bc025cce81689d4c2413df76c72eda281e7', 'X-Hub-Signature-256': 'sha256=07aa201b60554458ec5a574f2a521d5298cd9a293f6656ce6a28fd82025185f4'}
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO views Processing webhook for config: 'hanna1' (Phone ID: 804344219427309)
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] DEBUG views Webhook signature verified successfully.
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO views Processing entry[0].change[0]: field='messages', phone_id='804344219427309'
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO views Status Update: WAMID=wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSNEY5QzAzMjVBQTExRTY2OTdGAA==, Status='read'
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] INFO signals Broadcasted message 214 to group conversation_1
+whatsappcrm_backend_app           | [2025-11-26 12:49:57] DEBUG views WebhookEventLog ID 434 status from 'pending' to 'processed'.
+whatsappcrm_backend_app           | 172.20.0.12:50404 - - [26/Nov/2025:12:49:57] "POST /crm-api/meta/webhook/" 200 14
+whatsappcrm_nginx                 | 173.252.127.11 - - [26/Nov/2025:10:49:57 +0000] "POST /crm-api/meta/webhook/ HTTP/1.1" 200 14 "-" "facebookexternalua" "-"
+whatsappcrm_celery_beat           | [2025-11-26 12:50:00,009: INFO/MainProcess] Scheduler: Sending due task cleanup-idle-conversations (flows.cleanup_idle_conversations_task)
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:00,025: INFO/MainProcess] Task flows.cleanup_idle_conversations_task[e3c0298f-3bfa-403b-abb9-b3806f3406e3] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:00] INFO tasks [Idle Conversation Cleanup] Running task for conversations idle since before 2025-11-26 10:45:00.043939+00:00.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:00] INFO tasks [Idle Conversation Cleanup] Cleanup complete. Timed out 0 contacts.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:00,059: INFO/ForkPoolWorker-16] Task flows.cleanup_idle_conversations_task[e3c0298f-3bfa-403b-abb9-b3806f3406e3] succeeded in 0.030918810050934553s: None
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] INFO views Webhook POST request received.
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] DEBUG views Request headers: {'X-Forwarded-For': '173.252.95.4', 'X-Forwarded-Proto': 'https', 'Host': 'backend.hanna.co.zw', 'Connection': 'close', 'Content-Length': '751', 'Accept': '*/*', 'Accept-Encoding': 'deflate, gzip', 'User-Agent': 'facebookexternalua', 'Content-Type': 'application/json', 'X-Hub-Signature': 'sha1=882262d068f4ec869eeb2a9ef4ca50b98da70b3e', 'X-Hub-Signature-256': 'sha256=d16dc0dfbcf54abacf806b8340e90fb6649cc7dff7a13ad864c4af6880f7aeb3'}
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] INFO views Processing webhook for config: 'hanna1' (Phone ID: 804344219427309)
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] DEBUG views Webhook signature verified successfully.
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] INFO views Processing entry[0].change[0]: field='messages', phone_id='804344219427309'
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] INFO views Handling message WAMID: wamid.HBgMMjYzNzE5MjMzMzAyFQIAEhggQUM1NzAxN0JFQjcwRDhDNDY3MDkwRjdERUJFMTRBRTYA for Contact ID: 1 (263719233302), Type: interactive.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:01,928: INFO/MainProcess] Task stats.update_dashboard_stats[881f9fea-2cb4-4a26-a931-f8ab1fcc1666] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:01,938: INFO/MainProcess] Task stats.update_dashboard_stats[70ca9c20-ed96-4ef4-9b00-e6efbebd1e6a] received
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] INFO signals Broadcasted message 215 to group conversation_1
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] INFO views Saved incoming message (WAMID: wamid.HBgMMjYzNzE5MjMzMzAyFQIAEhggQUM1NzAxN0JFQjcwRDhDNDY3MDkwRjdERUJFMTRBRTYA) as DB ID 215
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] INFO views Queued process_flow_for_message_task for message 215.
+whatsappcrm_backend_app           | [2025-11-26 12:50:01] INFO views Dispatched read receipt task for WAMID wamid.HBgMMjYzNzE5MjMzMzAyFQIAEhggQUM1NzAxN0JFQjcwRDhDNDY3MDkwRjdERUJFMTRBRTYA (Typing: True).
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:01,945: INFO/MainProcess] Task meta_integration.tasks.send_read_receipt_task[4a52dfd4-c620-48c5-9aed-e51a2e272a6e] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:01,952: INFO/MainProcess] Task flows.tasks.process_flow_for_message_task[f16a6d2a-cbe6-4359-bd54-f481125942be] received
+whatsappcrm_backend_app           | 172.20.0.12:42278 - - [26/Nov/2025:12:50:01] "POST /crm-api/meta/webhook/" 200 14
+whatsappcrm_nginx                 | 173.252.95.4 - - [26/Nov/2025:10:50:01 +0000] "POST /crm-api/meta/webhook/ HTTP/1.1" 200 14 "-" "facebookexternalua" "-"
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:01] INFO tasks Task send_read_receipt_task started for WAMID: wamid.HBgMMjYzNzE5MjMzMzAyFQIAEhggQUM1NzAxN0JFQjcwRDhDNDY3MDkwRjdERUJFMTRBRTYA (Typing: True)
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:01] DEBUG utils Sending read receipt via config 'hanna1'. URL: https://graph.facebook.com/v24.0/804344219427309/messages, Payload: {"messaging_product": "whatsapp", "status": "read", "message_id": "wamid.HBgMMjYzNzE5MjMzMzAyFQIAEhggQUM1NzAxN0JFQjcwRDhDNDY3MDkwRjdERUJFMTRBRTYA", "typing_indicator": {"type": "text"}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Handling active flow. Contact: 263719233302, Current Step: 'show_main_menu' (Type: question). Context: {'_question_awaiting_reply_for': {'expected_type': 'interactive_id', 'variable_name': 'menu_choice', 'validation_regex': None, 'original_question_step_id': 2179}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Saved valid reply for 'menu_choice' in question step 'show_main_menu': site_assessment
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1, Flow 7, Step 2179: Evaluating condition type 'interactive_reply_id_equals' for transition 2552. Context: {'menu_choice': 'site_assessment'}, Message Type: interactive
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1, Flow 7, Step 2179: Evaluating condition type 'interactive_reply_id_equals' for transition 2553. Context: {'menu_choice': 'site_assessment'}, Message Type: interactive
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1, Flow 7, Step 2179: Evaluating condition type 'interactive_reply_id_equals' for transition 2554. Context: {'menu_choice': 'site_assessment'}, Message Type: interactive
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Transition condition met: From 'show_main_menu' to 'switch_to_assessment_flow'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Transitioning contact 263719233302 from 'show_main_menu' to 'switch_to_assessment_flow' in flow 'main_menu'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Cleared question expectation and fallback count from previous step 'show_main_menu'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1: Executing actions for step 'switch_to_assessment_flow' (ID: 2189, Type: switch_flow). Raw Config: {'target_flow_name': 'site_inspection_request', 'initial_context_template': {'source_flow': 'main_menu'}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Contact 1: Step 'switch_to_assessment_flow' queued switch to flow 'site_inspection_request'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Contact 1: Processing internal command to switch flow within the main loop.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Contact 1: Cleared flow state (263719233302). Error flag: False. Call stack:
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/site-packages/billiard/pool.py", line 362, in workloop
+whatsappcrm_celery_io_worker      |     result = (True, prepare_result(fun(*args, **kwargs)))
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/site-packages/celery/app/trace.py", line 651, in fast_trace_task
+whatsappcrm_celery_io_worker      |     R, I, T, Rstr = tasks[task].__trace__(
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/site-packages/celery/app/trace.py", line 453, in trace_task
+whatsappcrm_celery_io_worker      |     R = retval = fun(*args, **kwargs)
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/site-packages/celery/app/trace.py", line 736, in __protected_call__
+whatsappcrm_celery_io_worker      |     return self.run(*args, **kwargs)
+whatsappcrm_celery_io_worker      |   File "/app/flows/tasks.py", line 37, in process_flow_for_message_task
+whatsappcrm_celery_io_worker      |     actions_to_perform = process_message_for_flow(contact, message_data, incoming_message)
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/contextlib.py", line 79, in inner
+whatsappcrm_celery_io_worker      |     return func(*args, **kwds)
+whatsappcrm_celery_io_worker      |   File "/app/flows/services.py", line 1668, in process_message_for_flow
+whatsappcrm_celery_io_worker      |     _clear_contact_flow_state(contact) # Clear old state
+whatsappcrm_celery_io_worker      |   File "/app/flows/services.py", line 325, in _clear_contact_flow_state
+whatsappcrm_celery_io_worker      |     stack = ''.join(traceback.format_stack(limit=8))
+whatsappcrm_celery_io_worker      | 
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Contact 1: Switching to flow 'site_inspection_request' at entry step 'check_whatsapp_flow'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1: Executing actions for step 'check_whatsapp_flow' (ID: 2204, Type: action). Raw Config: {'actions_to_run': [{'limit': 1, 'app_label': 'flows', 'model_name': 'WhatsAppFlow', 'action_type': 'query_model', 'variable_name': 'site_inspection_whatsapp_flow', 'fields_to_return': ['flow_id', 'friendly_name'], 'filters_template': {'name': 'site_inspection_whatsapp', 'sync_status': 'published'}}]}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Contact 1: Action in step 2204 queried WhatsAppFlow and stored 1 items in 'site_inspection_whatsapp_flow'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1: Executed entry step 'check_whatsapp_flow' and saved context.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Handling active flow. Contact: 263719233302, Current Step: 'check_whatsapp_flow' (Type: action). Context: {'source_flow': 'main_menu', 'site_inspection_whatsapp_flow': [{'flow_id': '4252585045010464', 'friendly_name': 'Site Assessment Request (Interactive)'}]}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1, Flow 9, Step 2204: Evaluating condition type 'variable_exists' for transition 2575. Context: {'source_flow': 'main_menu', 'site_inspection_whatsapp_flow': [{'flow_id': '4252585045010464', 'friendly_name': 'Site Assessment Request (Interactive)'}]}, Message Type: internal_switch_flow
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1, Flow 9, Step 2204: Condition 'variable_exists' check for 'site_inspection_whatsapp_flow.0'. Value: '{'flow_id': '4252585045010464', 'friendly_name': 'Site Assessment Request (Interactive)'}' (type: dict). Result: True
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Transition condition met: From 'check_whatsapp_flow' to 'send_whatsapp_flow'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Transitioning contact 263719233302 from 'check_whatsapp_flow' to 'send_whatsapp_flow' in flow 'site_inspection_request'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1: Executing actions for step 'send_whatsapp_flow' (ID: 2205, Type: send_message). Raw Config: {'interactive': {'body': {'text': 'Please complete our site assessment request form to get started.'}, 'type': 'flow', 'action': {'name': 'flow', 'parameters': {'flow_id': '{{ site_inspection_whatsapp_flow.0.flow_id }}', 'flow_cta': 'Start Request', 'flow_token': '{{ contact.id }}-site-inspection-{{ now().timestamp() }}', 'flow_action': 'navigate', 'flow_action_payload': {'screen': 'WELCOME'}, 'flow_message_version': '3'}}}, 'message_type': 'interactive'}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Handling active flow. Contact: 263719233302, Current Step: 'send_whatsapp_flow' (Type: send_message). Context: {'source_flow': 'main_menu', 'site_inspection_whatsapp_flow': [{'flow_id': '4252585045010464', 'friendly_name': 'Site Assessment Request (Interactive)'}]}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1, Flow 9, Step 2205: Evaluating condition type 'always_true' for transition 2577. Context: {'source_flow': 'main_menu', 'site_inspection_whatsapp_flow': [{'flow_id': '4252585045010464', 'friendly_name': 'Site Assessment Request (Interactive)'}]}, Message Type: internal_fallthrough
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Transition condition met: From 'send_whatsapp_flow' to 'wait_for_whatsapp_response'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Transitioning contact 263719233302 from 'send_whatsapp_flow' to 'wait_for_whatsapp_response' in flow 'site_inspection_request'.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1: Executing actions for step 'wait_for_whatsapp_response' (ID: 2206, Type: action). Raw Config: {'actions_to_run': [], 'message_config': {'text': {'body': 'Please complete the WhatsApp form. We will continue once your submission is received.'}, 'message_type': 'text'}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Handling active flow. Contact: 263719233302, Current Step: 'wait_for_whatsapp_response' (Type: action). Context: {'source_flow': 'main_menu', 'site_inspection_whatsapp_flow': [{'flow_id': '4252585045010464', 'friendly_name': 'Site Assessment Request (Interactive)'}]}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1, Flow 9, Step 2206: Evaluating condition type 'whatsapp_flow_response_received' for transition 2578. Context: {'source_flow': 'main_menu', 'site_inspection_whatsapp_flow': [{'flow_id': '4252585045010464', 'friendly_name': 'Site Assessment Request (Interactive)'}]}, Message Type: internal_fallthrough
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1, Flow 9, Step 2206: Condition 'whatsapp_flow_response_received' check for 'whatsapp_flow_response_received'. Value: 'None' (type: NoneType). Result: False
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services No transition met for step 'wait_for_whatsapp_response'. Engaging fallback logic for contact 1.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] ERROR services CRITICAL: Flow for contact 1 reached a dead end at step 'wait_for_whatsapp_response' (type: action). No valid transition was found. This indicates a flow design issue. Initiating human handover as a safe default.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,083: INFO/ForkPoolWorker-1] Human intervention needed for contact 1. Broadcasting notification.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,083: INFO/MainProcess] Task stats.update_dashboard_stats[e271bd99-0991-4ce3-bfad-b1efedf961ed] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,085: INFO/MainProcess] Task stats.broadcast_human_intervention_notification[abd7dcdd-4a7d-4c60-99a5-ed5d4267e131] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,092: ERROR/ForkPoolWorker-1] Notification template 'human_handover_flow' not found. Cannot queue notifications.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,092: INFO/ForkPoolWorker-1] Scheduling handover timeout check for contact 1 in 60 seconds.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,096: INFO/MainProcess] Task stats.check_handover_timeout[0211db1f-0997-4d75-a492-1e3b2443c2e8] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,108: INFO/ForkPoolWorker-1] No active internal users found for user_ids None or group_names ['Technical Admin'].
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO services Contact 1: Cleared flow state (263719233302). Error flag: False. Call stack:
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/site-packages/billiard/pool.py", line 362, in workloop
+whatsappcrm_celery_io_worker      |     result = (True, prepare_result(fun(*args, **kwargs)))
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/site-packages/celery/app/trace.py", line 651, in fast_trace_task
+whatsappcrm_celery_io_worker      |     R, I, T, Rstr = tasks[task].__trace__(
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/site-packages/celery/app/trace.py", line 453, in trace_task
+whatsappcrm_celery_io_worker      |     R = retval = fun(*args, **kwargs)
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/site-packages/celery/app/trace.py", line 736, in __protected_call__
+whatsappcrm_celery_io_worker      |     return self.run(*args, **kwargs)
+whatsappcrm_celery_io_worker      |   File "/app/flows/tasks.py", line 37, in process_flow_for_message_task
+whatsappcrm_celery_io_worker      |     actions_to_perform = process_message_for_flow(contact, message_data, incoming_message)
+whatsappcrm_celery_io_worker      |   File "/usr/local/lib/python3.10/contextlib.py", line 79, in inner
+whatsappcrm_celery_io_worker      |     return func(*args, **kwds)
+whatsappcrm_celery_io_worker      |   File "/app/flows/services.py", line 1762, in process_message_for_flow
+whatsappcrm_celery_io_worker      |     _clear_contact_flow_state(contact)
+whatsappcrm_celery_io_worker      |   File "/app/flows/services.py", line 325, in _clear_contact_flow_state
+whatsappcrm_celery_io_worker      |     stack = ''.join(traceback.format_stack(limit=8))
+whatsappcrm_celery_io_worker      | 
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG services Contact 1: Processed internal command to clear flow state.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,117: INFO/MainProcess] Task stats.update_dashboard_stats[462813a2-99f6-4612-8780-03308d01236a] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO signals Broadcasted message 216 to group conversation_1
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,127: INFO/ForkPoolWorker-17] Task stats.broadcast_human_intervention_notification[abd7dcdd-4a7d-4c60-99a5-ed5d4267e131] succeeded in 0.040611688047647476s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO signals Contact 1: Cleared human intervention flag after agent sent message 216.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,131: INFO/MainProcess] Task stats.update_dashboard_stats[9e56726e-e15a-4adc-9b73-f51883e60065] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,134: INFO/MainProcess] Task meta_integration.tasks.send_whatsapp_message_task[89a676de-f5db-466a-9e98-827f09fbaf47] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,138: INFO/MainProcess] Task stats.update_dashboard_stats[f47931f0-c12d-4923-9d63-ab0b8fee7c71] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO signals Broadcasted message 217 to group conversation_1
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,148: INFO/MainProcess] Task meta_integration.tasks.send_whatsapp_message_task[2ab8aa1e-b73c-4c52-897a-d5d2fb73bca8] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,156: INFO/ForkPoolWorker-1] Task flows.tasks.process_flow_for_message_task[f16a6d2a-cbe6-4359-bd54-f481125942be] succeeded in 0.20078178704716265s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO tasks Task send_whatsapp_message_task started for Message ID: 216, Contact: 263719233302
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] DEBUG utils Sending WhatsApp message via config 'hanna1'. URL: https://graph.facebook.com/v24.0/804344219427309/messages, Payload: {"messaging_product": "whatsapp", "to": "263719233302", "type": "interactive", "interactive": {"body": {"text": "Please complete our site assessment request form to get started."}, "type": "flow", "action": {"name": "flow", "parameters": {"flow_id": "4252585045010464", "flow_cta": "Start Request", "flow_token": "1-site-inspection-1764154202.05415", "flow_action": "navigate", "flow_action_payload": {"screen": "WELCOME"}, "flow_message_version": "3"}}}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO utils Read receipt sent successfully for WAMID wamid.HBgMMjYzNzE5MjMzMzAyFQIAEhggQUM1NzAxN0JFQjcwRDhDNDY3MDkwRjdERUJFMTRBRTYA via config 'hanna1'. Response: {'success': True}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,307: INFO/ForkPoolWorker-16] Task meta_integration.tasks.send_read_receipt_task[4a52dfd4-c620-48c5-9aed-e51a2e272a6e] succeeded in 0.3602356578921899s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO utils Message sent successfully to 263719233302 via config 'hanna1'. Response: {'messaging_product': 'whatsapp', 'contacts': [{'input': '263719233302', 'wa_id': '263719233302'}], 'messages': [{'id': 'wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSMkFFOUI4QkMzRjQ2QjM1ODU4AA=='}]}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO tasks Message ID 216 sent successfully via Meta API. WAMID: wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSMkFFOUI4QkMzRjQ2QjM1ODU4AA==
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02] INFO signals Broadcasted message 216 to group conversation_1
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:02,658: INFO/ForkPoolWorker-17] Task meta_integration.tasks.send_whatsapp_message_task[89a676de-f5db-466a-9e98-827f09fbaf47] succeeded in 0.5220307190902531s: None
+whatsappcrm_backend_app           | [2025-11-26 12:50:04] INFO views Webhook POST request received.
+whatsappcrm_backend_app           | [2025-11-26 12:50:04] DEBUG views Request headers: {'X-Forwarded-For': '173.252.107.3', 'X-Forwarded-Proto': 'https', 'Host': 'backend.hanna.co.zw', 'Connection': 'close', 'Content-Length': '614', 'Accept': '*/*', 'Accept-Encoding': 'deflate, gzip', 'User-Agent': 'facebookexternalua', 'Content-Type': 'application/json', 'X-Hub-Signature': 'sha1=e075356fbf64bac0057e3805a1fb98752d323aff', 'X-Hub-Signature-256': 'sha256=56721a15c38949537092cb4c1d39694371331a9b2e3118dd2444246f34573b80'}
+whatsappcrm_backend_app           | [2025-11-26 12:50:04] INFO views Processing webhook for config: 'hanna1' (Phone ID: 804344219427309)
+whatsappcrm_backend_app           | [2025-11-26 12:50:04] DEBUG views Webhook signature verified successfully.
+whatsappcrm_backend_app           | [2025-11-26 12:50:04] INFO views Processing entry[0].change[0]: field='messages', phone_id='804344219427309'
+whatsappcrm_backend_app           | [2025-11-26 12:50:04] INFO views Status Update: WAMID=wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSMkFFOUI4QkMzRjQ2QjM1ODU4AA==, Status='sent'
+whatsappcrm_backend_app           | [2025-11-26 12:50:04] INFO signals Broadcasted message 216 to group conversation_1
+whatsappcrm_backend_app           | [2025-11-26 12:50:04] DEBUG views WebhookEventLog ID 436 status from 'pending' to 'processed'.
+whatsappcrm_backend_app           | 172.20.0.12:42284 - - [26/Nov/2025:12:50:04] "POST /crm-api/meta/webhook/" 200 14
+whatsappcrm_nginx                 | 173.252.107.3 - - [26/Nov/2025:10:50:04 +0000] "POST /crm-api/meta/webhook/ HTTP/1.1" 200 14 "-" "facebookexternalua" "-"
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:04] WARNING tasks send_whatsapp_message_task: Halting message ID 217 for contact 263719233302. Waiting for preceding message ID 216 (Status: sent, Status Time: 2025-11-26 10:50:03+00:00, Created: 2025-11-26 10:50:02.112527+00:00). Retrying.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:04,182: INFO/MainProcess] Task meta_integration.tasks.send_whatsapp_message_task[2ab8aa1e-b73c-4c52-897a-d5d2fb73bca8] received
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:04,186: INFO/ForkPoolWorker-16] Task meta_integration.tasks.send_whatsapp_message_task[2ab8aa1e-b73c-4c52-897a-d5d2fb73bca8] retry: Retry in 3s
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:04,318: INFO/ForkPoolWorker-16] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:04,380: INFO/ForkPoolWorker-16] Task stats.update_dashboard_stats[b5ba1a99-ab9e-4ff6-ac76-fcbddb9fe923] succeeded in 0.07780282595194876s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:04,960: INFO/ForkPoolWorker-16] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:04,994: INFO/ForkPoolWorker-16] Task stats.update_dashboard_stats[19dba5b2-45e3-433d-8260-5f18e384178e] succeeded in 0.05134672299027443s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:05,086: INFO/ForkPoolWorker-16] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:05,122: INFO/ForkPoolWorker-16] Task stats.update_dashboard_stats[019d8e51-8208-4a26-a0f3-d7dce34a65c0] succeeded in 0.05192940204869956s: None
+whatsappcrm_backend_app           | [2025-11-26 12:50:05] INFO views Webhook POST request received.
+whatsappcrm_backend_app           | [2025-11-26 12:50:05] DEBUG views Request headers: {'X-Forwarded-For': '173.252.95.3', 'X-Forwarded-Proto': 'https', 'Host': 'backend.hanna.co.zw', 'Connection': 'close', 'Content-Length': '578', 'Accept': '*/*', 'Accept-Encoding': 'deflate, gzip', 'User-Agent': 'facebookexternalua', 'Content-Type': 'application/json', 'X-Hub-Signature': 'sha1=88eb4445c6dc795035e4fc8a82fb432fbc81e77f', 'X-Hub-Signature-256': 'sha256=26fe8ca2063cae96accdf039f5216bdcdd664de414be38cf5f0d9d15b913d2d5'}
+whatsappcrm_backend_app           | [2025-11-26 12:50:05] INFO views Processing webhook for config: 'hanna1' (Phone ID: 804344219427309)
+whatsappcrm_backend_app           | [2025-11-26 12:50:05] DEBUG views Webhook signature verified successfully.
+whatsappcrm_backend_app           | [2025-11-26 12:50:05] INFO views Processing entry[0].change[0]: field='messages', phone_id='804344219427309'
+whatsappcrm_backend_app           | [2025-11-26 12:50:05] INFO views Status Update: WAMID=wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSMkFFOUI4QkMzRjQ2QjM1ODU4AA==, Status='read'
+whatsappcrm_backend_app           | [2025-11-26 12:50:05] INFO signals Broadcasted message 216 to group conversation_1
+whatsappcrm_backend_app           | [2025-11-26 12:50:05] DEBUG views WebhookEventLog ID 437 status from 'pending' to 'processed'.
+whatsappcrm_backend_app           | 172.20.0.12:42292 - - [26/Nov/2025:12:50:05] "POST /crm-api/meta/webhook/" 200 14
+whatsappcrm_nginx                 | 173.252.95.3 - - [26/Nov/2025:10:50:05 +0000] "POST /crm-api/meta/webhook/ HTTP/1.1" 200 14 "-" "facebookexternalua" "-"
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:07] INFO tasks Task send_whatsapp_message_task started for Message ID: 217, Contact: 263719233302
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:07] DEBUG utils Sending WhatsApp message via config 'hanna1'. URL: https://graph.facebook.com/v24.0/804344219427309/messages, Payload: {"messaging_product": "whatsapp", "to": "263719233302", "type": "text", "text": {"body": "Apologies, I've encountered a technical issue and can't continue. I'm alerting a team member to assist you."}}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:07] INFO utils Message sent successfully to 263719233302 via config 'hanna1'. Response: {'messaging_product': 'whatsapp', 'contacts': [{'input': '263719233302', 'wa_id': '263719233302'}], 'messages': [{'id': 'wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSQkVBQUU4MkM5N0VDNkQ4OUNCAA=='}]}
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:07] INFO tasks Message ID 217 sent successfully via Meta API. WAMID: wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSQkVBQUU4MkM5N0VDNkQ4OUNCAA==
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:07] INFO signals Broadcasted message 217 to group conversation_1
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:07,608: INFO/ForkPoolWorker-16] Task meta_integration.tasks.send_whatsapp_message_task[2ab8aa1e-b73c-4c52-897a-d5d2fb73bca8] succeeded in 0.43102711299434304s: None
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO views Webhook POST request received.
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] DEBUG views Request headers: {'X-Forwarded-For': '173.252.79.114', 'X-Forwarded-Proto': 'https', 'Host': 'backend.hanna.co.zw', 'Connection': 'close', 'Content-Length': '614', 'Accept': '*/*', 'Accept-Encoding': 'deflate, gzip', 'User-Agent': 'facebookexternalua', 'Content-Type': 'application/json', 'X-Hub-Signature': 'sha1=a755eca754fa119b66edcb93046b91dc88edd221', 'X-Hub-Signature-256': 'sha256=be37036a982e9802f0ee12be1eb9fbf47811221d263ed7d853c241bd66932185'}
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO views Processing webhook for config: 'hanna1' (Phone ID: 804344219427309)
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] DEBUG views Webhook signature verified successfully.
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO views Processing entry[0].change[0]: field='messages', phone_id='804344219427309'
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO views Status Update: WAMID=wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSQkVBQUU4MkM5N0VDNkQ4OUNCAA==, Status='sent'
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO signals Broadcasted message 217 to group conversation_1
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] DEBUG views WebhookEventLog ID 438 status from 'pending' to 'processed'.
+whatsappcrm_backend_app           | 172.20.0.12:45654 - - [26/Nov/2025:12:50:09] "POST /crm-api/meta/webhook/" 200 14
+whatsappcrm_nginx                 | 173.252.79.114 - - [26/Nov/2025:10:50:09 +0000] "POST /crm-api/meta/webhook/ HTTP/1.1" 200 14 "-" "facebookexternalua" "-"
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO views Webhook POST request received.
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] DEBUG views Request headers: {'X-Forwarded-For': '173.252.95.112', 'X-Forwarded-Proto': 'https', 'Host': 'backend.hanna.co.zw', 'Connection': 'close', 'Content-Length': '583', 'Accept': '*/*', 'Accept-Encoding': 'deflate, gzip', 'User-Agent': 'facebookexternalua', 'Content-Type': 'application/json', 'X-Hub-Signature': 'sha1=fc7da475965cc2699703d1072490c794ff68e094', 'X-Hub-Signature-256': 'sha256=62890db2377afc9b9ed5beb64e4718ebec885e0b4e755467d294c1cd712c8b69'}
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO views Processing webhook for config: 'hanna1' (Phone ID: 804344219427309)
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] DEBUG views Webhook signature verified successfully.
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO views Processing entry[0].change[0]: field='messages', phone_id='804344219427309'
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO views Status Update: WAMID=wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSQkVBQUU4MkM5N0VDNkQ4OUNCAA==, Status='delivered'
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] INFO signals Broadcasted message 217 to group conversation_1
+whatsappcrm_backend_app           | [2025-11-26 12:50:09] DEBUG views WebhookEventLog ID 439 status from 'pending' to 'processed'.
+whatsappcrm_backend_app           | 172.20.0.12:45660 - - [26/Nov/2025:12:50:09] "POST /crm-api/meta/webhook/" 200 14
+whatsappcrm_nginx                 | 173.252.95.112 - - [26/Nov/2025:10:50:09 +0000] "POST /crm-api/meta/webhook/ HTTP/1.1" 200 14 "-" "facebookexternalua" "-"
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:11,944: INFO/ForkPoolWorker-16] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:11,958: INFO/ForkPoolWorker-1] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:11,987: INFO/ForkPoolWorker-16] Task stats.update_dashboard_stats[881f9fea-2cb4-4a26-a931-f8ab1fcc1666] succeeded in 0.06444651691708714s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,001: INFO/ForkPoolWorker-1] Task stats.update_dashboard_stats[70ca9c20-ed96-4ef4-9b00-e6efbebd1e6a] succeeded in 0.06385447294451296s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,099: INFO/ForkPoolWorker-16] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,140: INFO/ForkPoolWorker-1] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,150: INFO/ForkPoolWorker-16] Task stats.update_dashboard_stats[e271bd99-0991-4ce3-bfad-b1efedf961ed] succeeded in 0.06764182902406901s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,162: INFO/ForkPoolWorker-17] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,182: INFO/ForkPoolWorker-2] Running scheduled dashboard stats update task.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,184: INFO/ForkPoolWorker-1] Task stats.update_dashboard_stats[462813a2-99f6-4612-8780-03308d01236a] succeeded in 0.06839014706201851s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,215: INFO/ForkPoolWorker-17] Task stats.update_dashboard_stats[9e56726e-e15a-4adc-9b73-f51883e60065] succeeded in 0.0846415099222213s: None
+whatsappcrm_celery_io_worker      | [2025-11-26 12:50:12,234: INFO/ForkPoolWorker-2] Task stats.update_dashboard_stats[f47931f0-c12d-4923-9d63-ab0b8fee7c71] succeeded in 0.09614876704290509s: None
+whatsappcrm_backend_app           | [2025-11-26 12:50:16] INFO views Webhook POST request received.
+whatsappcrm_backend_app           | [2025-11-26 12:50:16] DEBUG views Request headers: {'X-Forwarded-For': '173.252.79.112', 'X-Forwarded-Proto': 'https', 'Host': 'backend.hanna.co.zw', 'Connection': 'close', 'Content-Length': '578', 'Accept': '*/*', 'Accept-Encoding': 'deflate, gzip', 'User-Agent': 'facebookexternalua', 'Content-Type': 'application/json', 'X-Hub-Signature': 'sha1=e0ec4db4de60993d419158f65eaa4331d8cf70ab', 'X-Hub-Signature-256': 'sha256=4a9d74e7cb65749a1f68912cabd312b31d3b312bbe9ae8fbeede6d0dd9b8be79'}
+whatsappcrm_backend_app           | [2025-11-26 12:50:16] INFO views Processing webhook for config: 'hanna1' (Phone ID: 804344219427309)
+whatsappcrm_backend_app           | [2025-11-26 12:50:16] DEBUG views Webhook signature verified successfully.
+whatsappcrm_backend_app           | [2025-11-26 12:50:16] INFO views Processing entry[0].change[0]: field='messages', phone_id='804344219427309'
+whatsappcrm_backend_app           | [2025-11-26 12:50:16] INFO views Status Update: WAMID=wamid.HBgMMjYzNzE5MjMzMzAyFQIAERgSQkVBQUU4MkM5N0VDNkQ4OUNCAA==, Status='read'
+whatsappcrm_backend_app           | [2025-11-26 12:50:16] INFO signals Broadcasted message 217 to group conversation_1
+whatsappcrm_backend_app           | [2025-11-26 12:50:16] DEBUG views WebhookEventLog ID 440 status from 'pending' to 'processed'.
+whatsappcrm_backend_app           | 172.20.0.12:45676 - - [26/Nov/2025:12:50:16] "POST /crm-api/meta/webhook/" 200 14
+whatsappcrm_nginx                 | 173.252.79.112 - - [26/Nov/2025:10:50:16 +0000] "POST /crm-api/meta/webhook/ HTTP/1.1" 200 14 "-" "facebookexternalua" "-"
+There was a problem registering +263 71 094 2541.
+Unsupported post request. Object with ID '937958702723857' does not exist, cannot be loaded due to missing permissions, or does not support this operation. Please read the Graph API documentation at https://developers.facebook.com/docs/graph-apiwhatsappcrm_email_idle_fetcher    | [2025-11-26 12:50:36] INFO idle_email_fetcher [Solutions at Pfungwa] New email activity detected. Fetching unseen messages...
+whatsappcrm_celery_io_worker      | [2025-11-26 12:51:02,119: INFO/ForkPoolWorker-16] Handover timeout check for contact 1: Intervention flag was already cleared before timeout.
+whatsappcrm_celery_io_worker      | [2025-11-26 12:51:02,122: INFO/ForkPoolWorker-16] Task stats.check_handover_timeout[0211db1f-0997-4d75-a492-1e3b2443c2e8] succeeded in 0.026506710099056363s: None
+whatsappcrm_email_idle_fetcher    | [2025-11-26 12:51:36] INFO idle_email_fetcher [Installations at Hanna] New email activity detected. Fetching unseen messages...

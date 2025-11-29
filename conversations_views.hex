@@ -1,0 +1,960 @@
+0000	23 20 77 68 61 74 73 61  70 70 63 72 6d 5f 62 61   # whatsappcrm_ba
+0010	63 6b 65 6e 64 2f 63 6f  6e 76 65 72 73 61 74 69   ckend/conversati
+0020	6f 6e 73 2f 76 69 65 77  73 2e 70 79 0d 0a 0d 0a   ons/views.py....
+0030	66 72 6f 6d 20 72 65 73  74 5f 66 72 61 6d 65 77   from rest_framew
+0040	6f 72 6b 20 69 6d 70 6f  72 74 20 76 69 65 77 73   ork import views
+0050	65 74 73 2c 20 70 65 72  6d 69 73 73 69 6f 6e 73   ets, permissions
+0060	2c 20 73 74 61 74 75 73  2c 20 6d 69 78 69 6e 73   , status, mixins
+0070	0d 0a 66 72 6f 6d 20 72  65 73 74 5f 66 72 61 6d   ..from rest_fram
+0080	65 77 6f 72 6b 2e 64 65  63 6f 72 61 74 6f 72 73   ework.decorators
+0090	20 69 6d 70 6f 72 74 20  61 63 74 69 6f 6e 0d 0a    import action..
+00a0	66 72 6f 6d 20 72 65 73  74 5f 66 72 61 6d 65 77   from rest_framew
+00b0	6f 72 6b 2e 72 65 73 70  6f 6e 73 65 20 69 6d 70   ork.response imp
+00c0	6f 72 74 20 52 65 73 70  6f 6e 73 65 0d 0a 66 72   ort Response..fr
+00d0	6f 6d 20 64 6a 61 6e 67  6f 2e 64 62 2e 6d 6f 64   om django.db.mod
+00e0	65 6c 73 20 69 6d 70 6f  72 74 20 51 2c 20 50 72   els import Q, Pr
+00f0	65 66 65 74 63 68 2c 20  53 75 62 71 75 65 72 79   efetch, Subquery
+0100	2c 20 4f 75 74 65 72 52  65 66 2c 20 43 6f 75 6e   , OuterRef, Coun
+0110	74 2c 20 46 0d 0a 66 72  6f 6d 20 66 75 6e 63 74   t, F..from funct
+0120	6f 6f 6c 73 20 69 6d 70  6f 72 74 20 72 65 64 75   ools import redu
+0130	63 65 0d 0a 66 72 6f 6d  20 6f 70 65 72 61 74 6f   ce..from operato
+0140	72 20 69 6d 70 6f 72 74  20 6f 72 5f 0d 0a 66 72   r import or_..fr
+0150	6f 6d 20 64 6a 61 6e 67  6f 2e 75 74 69 6c 73 20   om django.utils 
+0160	69 6d 70 6f 72 74 20 74  69 6d 65 7a 6f 6e 65 0d   import timezone.
+0170	0a 66 72 6f 6d 20 64 6a  61 6e 67 6f 2e 73 68 6f   .from django.sho
+0180	72 74 63 75 74 73 20 69  6d 70 6f 72 74 20 67 65   rtcuts import ge
+0190	74 5f 6f 62 6a 65 63 74  5f 6f 72 5f 34 30 34 0d   t_object_or_404.
+01a0	0a 66 72 6f 6d 20 63 68  61 6e 6e 65 6c 73 2e 6c   .from channels.l
+01b0	61 79 65 72 73 20 69 6d  70 6f 72 74 20 67 65 74   ayers import get
+01c0	5f 63 68 61 6e 6e 65 6c  5f 6c 61 79 65 72 0d 0a   _channel_layer..
+01d0	66 72 6f 6d 20 61 73 67  69 72 65 66 2e 73 79 6e   from asgiref.syn
+01e0	63 20 69 6d 70 6f 72 74  20 61 73 79 6e 63 5f 74   c import async_t
+01f0	6f 5f 73 79 6e 63 0d 0a  69 6d 70 6f 72 74 20 6c   o_sync..import l
+0200	6f 67 67 69 6e 67 20 23  20 4d 61 6b 65 20 73 75   ogging # Make su
+0210	72 65 20 6c 6f 67 67 69  6e 67 20 69 73 20 69 6d   re logging is im
+0220	70 6f 72 74 65 64 0d 0a  0d 0a 66 72 6f 6d 20 2e   ported....from .
+0230	6d 6f 64 65 6c 73 20 69  6d 70 6f 72 74 20 43 6f   models import Co
+0240	6e 74 61 63 74 2c 20 4d  65 73 73 61 67 65 0d 0a   ntact, Message..
+0250	66 72 6f 6d 20 2e 73 65  72 69 61 6c 69 7a 65 72   from .serializer
+0260	73 20 69 6d 70 6f 72 74  20 28 0d 0a 20 20 20 20   s import (..    
+0270	43 6f 6e 74 61 63 74 53  65 72 69 61 6c 69 7a 65   ContactSerialize
+0280	72 2c 0d 0a 20 20 20 20  4d 65 73 73 61 67 65 53   r,..    MessageS
+0290	65 72 69 61 6c 69 7a 65  72 2c 0d 0a 20 20 20 20   erializer,..    
+02a0	4d 65 73 73 61 67 65 4c  69 73 74 53 65 72 69 61   MessageListSeria
+02b0	6c 69 7a 65 72 2c 0d 0a  20 20 20 20 43 6f 6e 74   lizer,..    Cont
+02c0	61 63 74 4c 69 73 74 53  65 72 69 61 6c 69 7a 65   actListSerialize
+02d0	72 2c 0d 0a 20 20 20 20  43 6f 6e 74 61 63 74 44   r,..    ContactD
+02e0	65 74 61 69 6c 53 65 72  69 61 6c 69 7a 65 72 2c   etailSerializer,
+02f0	0d 0a 20 20 20 20 42 72  6f 61 64 63 61 73 74 43   ..    BroadcastC
+0300	72 65 61 74 65 53 65 72  69 61 6c 69 7a 65 72 2c   reateSerializer,
+0310	0d 0a 20 20 20 20 42 72  6f 61 64 63 61 73 74 53   ..    BroadcastS
+0320	65 72 69 61 6c 69 7a 65  72 2c 20 0d 0a 20 20 20   erializer, ..   
+0330	20 42 72 6f 61 64 63 61  73 74 47 72 6f 75 70 43    BroadcastGroupC
+0340	72 65 61 74 65 53 65 72  69 61 6c 69 7a 65 72 2c   reateSerializer,
+0350	0d 0a 29 0d 0a 66 72 6f  6d 20 2e 74 61 73 6b 73   ..)..from .tasks
+0360	20 69 6d 70 6f 72 74 20  64 69 73 70 61 74 63 68    import dispatch
+0370	5f 62 72 6f 61 64 63 61  73 74 5f 74 61 73 6b 0d   _broadcast_task.
+0380	0a 23 20 54 6f 20 67 65  74 20 61 63 74 69 76 65   .# To get active
+0390	20 4d 65 74 61 41 70 70  43 6f 6e 66 69 67 20 66    MetaAppConfig f
+03a0	6f 72 20 73 65 6e 64 69  6e 67 0d 0a 66 72 6f 6d   or sending..from
+03b0	20 6d 65 74 61 5f 69 6e  74 65 67 72 61 74 69 6f    meta_integratio
+03c0	6e 2e 6d 6f 64 65 6c 73  20 69 6d 70 6f 72 74 20   n.models import 
+03d0	4d 65 74 61 41 70 70 43  6f 6e 66 69 67 0d 0a 66   MetaAppConfig..f
+03e0	72 6f 6d 20 63 75 73 74  6f 6d 65 72 5f 64 61 74   rom customer_dat
+03f0	61 2e 6d 6f 64 65 6c 73  20 69 6d 70 6f 72 74 20   a.models import 
+0400	43 75 73 74 6f 6d 65 72  50 72 6f 66 69 6c 65 0d   CustomerProfile.
+0410	0a 23 20 54 6f 20 70 65  72 73 6f 6e 61 6c 69 7a   .# To personaliz
+0420	65 20 6d 65 73 73 61 67  65 73 20 75 73 69 6e 67   e messages using
+0430	20 66 6c 6f 77 20 74 65  6d 70 6c 61 74 65 20 6c    flow template l
+0440	6f 67 69 63 0d 0a 66 72  6f 6d 20 66 6c 6f 77 73   ogic..from flows
+0450	2e 73 65 72 76 69 63 65  73 20 69 6d 70 6f 72 74   .services import
+0460	20 5f 72 65 73 6f 6c 76  65 5f 76 61 6c 75 65 0d    _resolve_value.
+0470	0a 0d 0a 6c 6f 67 67 65  72 20 3d 20 6c 6f 67 67   ...logger = logg
+0480	69 6e 67 2e 67 65 74 4c  6f 67 67 65 72 28 5f 5f   ing.getLogger(__
+0490	6e 61 6d 65 5f 5f 29 20  23 20 53 74 61 6e 64 61   name__) # Standa
+04a0	72 64 20 77 61 79 20 74  6f 20 67 65 74 20 6c 6f   rd way to get lo
+04b0	67 67 65 72 20 66 6f 72  20 63 75 72 72 65 6e 74   gger for current
+04c0	20 6d 6f 64 75 6c 65 0d  0a 0d 0a 23 20 44 65 66    module....# Def
+04d0	69 6e 65 20 70 65 72 6d  69 73 73 69 6f 6e 73 20   ine permissions 
+04e0	69 66 20 6e 6f 74 20 61  6c 72 65 61 64 79 20 69   if not already i
+04f0	6e 20 61 20 63 65 6e 74  72 61 6c 20 70 6c 61 63   n a central plac
+0500	65 0d 0a 63 6c 61 73 73  20 49 73 41 64 6d 69 6e   e..class IsAdmin
+0510	4f 72 52 65 61 64 4f 6e  6c 79 28 70 65 72 6d 69   OrReadOnly(permi
+0520	73 73 69 6f 6e 73 2e 42  61 73 65 50 65 72 6d 69   ssions.BasePermi
+0530	73 73 69 6f 6e 29 3a 0d  0a 20 20 20 20 22 22 22   ssion):..    """
+0540	0d 0a 20 20 20 20 43 75  73 74 6f 6d 20 70 65 72   ..    Custom per
+0550	6d 69 73 73 69 6f 6e 20  74 6f 20 6f 6e 6c 79 20   mission to only 
+0560	61 6c 6c 6f 77 20 61 64  6d 69 6e 20 75 73 65 72   allow admin user
+0570	73 20 74 6f 20 65 64 69  74 20 6f 62 6a 65 63 74   s to edit object
+0580	73 2e 0d 0a 20 20 20 20  4f 74 68 65 72 73 20 63   s...    Others c
+0590	61 6e 20 6f 6e 6c 79 20  72 65 61 64 2e 20 41 73   an only read. As
+05a0	73 75 6d 65 73 20 49 73  41 75 74 68 65 6e 74 69   sumes IsAuthenti
+05b0	63 61 74 65 64 20 69 73  20 61 6c 73 6f 20 61 70   cated is also ap
+05c0	70 6c 69 65 64 2e 0d 0a  20 20 20 20 22 22 22 0d   plied...    """.
+05d0	0a 20 20 20 20 64 65 66  20 68 61 73 5f 70 65 72   .    def has_per
+05e0	6d 69 73 73 69 6f 6e 28  73 65 6c 66 2c 20 72 65   mission(self, re
+05f0	71 75 65 73 74 2c 20 76  69 65 77 29 3a 0d 0a 20   quest, view):.. 
+0600	20 20 20 20 20 20 20 69  66 20 72 65 71 75 65 73          if reques
+0610	74 2e 6d 65 74 68 6f 64  20 69 6e 20 70 65 72 6d   t.method in perm
+0620	69 73 73 69 6f 6e 73 2e  53 41 46 45 5f 4d 45 54   issions.SAFE_MET
+0630	48 4f 44 53 3a 20 23 20  47 45 54 2c 20 48 45 41   HODS: # GET, HEA
+0640	44 2c 20 4f 50 54 49 4f  4e 53 0d 0a 20 20 20 20   D, OPTIONS..    
+0650	20 20 20 20 20 20 20 20  72 65 74 75 72 6e 20 54           return T
+0660	72 75 65 0d 0a 20 20 20  20 20 20 20 20 72 65 74   rue..        ret
+0670	75 72 6e 20 72 65 71 75  65 73 74 2e 75 73 65 72   urn request.user
+0680	20 61 6e 64 20 72 65 71  75 65 73 74 2e 75 73 65    and request.use
+0690	72 2e 69 73 5f 73 74 61  66 66 0d 0a 0d 0a 63 6c   r.is_staff....cl
+06a0	61 73 73 20 43 61 6e 43  72 65 61 74 65 4d 65 73   ass CanCreateMes
+06b0	73 61 67 65 73 4f 72 41  64 6d 69 6e 4f 6e 6c 79   sagesOrAdminOnly
+06c0	28 70 65 72 6d 69 73 73  69 6f 6e 73 2e 42 61 73   (permissions.Bas
+06d0	65 50 65 72 6d 69 73 73  69 6f 6e 29 3a 0d 0a 20   ePermission):.. 
+06e0	20 20 20 22 22 22 0d 0a  20 20 20 20 41 6c 6c 6f      """..    Allo
+06f0	77 73 20 61 6e 79 20 61  75 74 68 65 6e 74 69 63   ws any authentic
+0700	61 74 65 64 20 75 73 65  72 20 74 6f 20 63 72 65   ated user to cre
+0710	61 74 65 20 28 50 4f 53  54 29 20 61 20 6d 65 73   ate (POST) a mes
+0720	73 61 67 65 2c 0d 0a 20  20 20 20 62 75 74 20 72   sage,..    but r
+0730	65 73 74 72 69 63 74 73  20 6c 69 73 74 2c 20 72   estricts list, r
+0740	65 74 72 69 65 76 65 2c  20 75 70 64 61 74 65 2c   etrieve, update,
+0750	20 61 6e 64 20 64 65 6c  65 74 65 20 74 6f 20 61    and delete to a
+0760	64 6d 69 6e 2f 73 74 61  66 66 20 75 73 65 72 73   dmin/staff users
+0770	2e 0d 0a 20 20 20 20 22  22 22 0d 0a 20 20 20 20   ...    """..    
+0780	64 65 66 20 68 61 73 5f  70 65 72 6d 69 73 73 69   def has_permissi
+0790	6f 6e 28 73 65 6c 66 2c  20 72 65 71 75 65 73 74   on(self, request
+07a0	2c 20 76 69 65 77 29 3a  0d 0a 20 20 20 20 20 20   , view):..      
+07b0	20 20 69 66 20 6e 6f 74  20 72 65 71 75 65 73 74     if not request
+07c0	2e 75 73 65 72 20 6f 72  20 6e 6f 74 20 72 65 71   .user or not req
+07d0	75 65 73 74 2e 75 73 65  72 2e 69 73 5f 61 75 74   uest.user.is_aut
+07e0	68 65 6e 74 69 63 61 74  65 64 3a 0d 0a 20 20 20   henticated:..   
+07f0	20 20 20 20 20 20 20 20  20 72 65 74 75 72 6e 20            return 
+0800	46 61 6c 73 65 0d 0a 20  20 20 20 20 20 20 20 69   False..        i
+0810	66 20 72 65 71 75 65 73  74 2e 6d 65 74 68 6f 64   f request.method
+0820	20 3d 3d 20 27 50 4f 53  54 27 3a 20 23 20 41 6c    == 'POST': # Al
+0830	6c 6f 77 20 61 6e 79 20  61 75 74 68 65 6e 74 69   low any authenti
+0840	63 61 74 65 64 20 75 73  65 72 20 74 6f 20 63 72   cated user to cr
+0850	65 61 74 65 0d 0a 20 20  20 20 20 20 20 20 20 20   eate..          
+0860	20 20 72 65 74 75 72 6e  20 54 72 75 65 0d 0a 20     return True.. 
+0870	20 20 20 20 20 20 20 23  20 46 6f 72 20 61 6c 6c          # For all
+0880	20 6f 74 68 65 72 20 6d  65 74 68 6f 64 73 20 28    other methods (
+0890	47 45 54 2c 20 50 55 54  2c 20 50 41 54 43 48 2c   GET, PUT, PATCH,
+08a0	20 44 45 4c 45 54 45 29  2c 20 72 65 71 75 69 72    DELETE), requir
+08b0	65 20 73 74 61 66 66 20  73 74 61 74 75 73 0d 0a   e staff status..
+08c0	20 20 20 20 20 20 20 20  72 65 74 75 72 6e 20 72           return r
+08d0	65 71 75 65 73 74 2e 75  73 65 72 20 61 6e 64 20   equest.user and 
+08e0	72 65 71 75 65 73 74 2e  75 73 65 72 2e 69 73 5f   request.user.is_
+08f0	73 74 61 66 66 0d 0a 0d  0a 0d 0a 63 6c 61 73 73   staff......class
+0900	20 43 6f 6e 74 61 63 74  56 69 65 77 53 65 74 28    ContactViewSet(
+0910	76 69 65 77 73 65 74 73  2e 4d 6f 64 65 6c 56 69   viewsets.ModelVi
+0920	65 77 53 65 74 29 3a 0d  0a 20 20 20 20 22 22 22   ewSet):..    """
+0930	0d 0a 20 20 20 20 41 50  49 20 65 6e 64 70 6f 69   ..    API endpoi
+0940	6e 74 20 66 6f 72 20 6d  61 6e 61 67 69 6e 67 20   nt for managing 
+0950	43 6f 6e 74 61 63 74 73  2e 0d 0a 20 20 20 20 2d   Contacts...    -
+0960	20 41 64 6d 69 6e 73 20  63 61 6e 20 43 52 55 44    Admins can CRUD
+0970	2e 0d 0a 20 20 20 20 2d  20 41 75 74 68 65 6e 74   ...    - Authent
+0980	69 63 61 74 65 64 20 75  73 65 72 73 20 63 61 6e   icated users can
+0990	20 6c 69 73 74 2f 72 65  74 72 69 65 76 65 20 28    list/retrieve (
+09a0	70 65 72 6d 69 73 73 69  6f 6e 73 20 63 61 6e 20   permissions can 
+09b0	62 65 20 72 65 66 69 6e  65 64 29 2e 0d 0a 20 20   be refined)...  
+09c0	20 20 22 22 22 0d 0a 20  20 20 20 71 75 65 72 79     """..    query
+09d0	73 65 74 20 3d 20 43 6f  6e 74 61 63 74 2e 6f 62   set = Contact.ob
+09e0	6a 65 63 74 73 2e 61 6c  6c 28 29 2e 6f 72 64 65   jects.all().orde
+09f0	72 5f 62 79 28 27 2d 6c  61 73 74 5f 73 65 65 6e   r_by('-last_seen
+0a00	27 29 0d 0a 20 20 20 20  70 65 72 6d 69 73 73 69   ')..    permissi
+0a10	6f 6e 5f 63 6c 61 73 73  65 73 20 3d 20 5b 70 65   on_classes = [pe
+0a20	72 6d 69 73 73 69 6f 6e  73 2e 49 73 41 75 74 68   rmissions.IsAuth
+0a30	65 6e 74 69 63 61 74 65  64 2c 20 49 73 41 64 6d   enticated, IsAdm
+0a40	69 6e 4f 72 52 65 61 64  4f 6e 6c 79 5d 0d 0a 0d   inOrReadOnly]...
+0a50	0a 20 20 20 20 64 65 66  20 67 65 74 5f 73 65 72   .    def get_ser
+0a60	69 61 6c 69 7a 65 72 5f  63 6c 61 73 73 28 73 65   ializer_class(se
+0a70	6c 66 29 3a 0d 0a 20 20  20 20 20 20 20 20 69 66   lf):..        if
+0a80	20 73 65 6c 66 2e 61 63  74 69 6f 6e 20 3d 3d 20    self.action == 
+0a90	27 6c 69 73 74 27 3a 0d  0a 20 20 20 20 20 20 20   'list':..       
+0aa0	20 20 20 20 20 72 65 74  75 72 6e 20 43 6f 6e 74        return Cont
+0ab0	61 63 74 4c 69 73 74 53  65 72 69 61 6c 69 7a 65   actListSerialize
+0ac0	72 0d 0a 20 20 20 20 20  20 20 20 69 66 20 73 65   r..        if se
+0ad0	6c 66 2e 61 63 74 69 6f  6e 20 3d 3d 20 27 72 65   lf.action == 're
+0ae0	74 72 69 65 76 65 27 3a  0d 0a 20 20 20 20 20 20   trieve':..      
+0af0	20 20 20 20 20 20 72 65  74 75 72 6e 20 43 6f 6e         return Con
+0b00	74 61 63 74 44 65 74 61  69 6c 53 65 72 69 61 6c   tactDetailSerial
+0b10	69 7a 65 72 0d 0a 20 20  20 20 20 20 20 20 72 65   izer..        re
+0b20	74 75 72 6e 20 43 6f 6e  74 61 63 74 53 65 72 69   turn ContactSeri
+0b30	61 6c 69 7a 65 72 0d 0a  0d 0a 20 20 20 20 64 65   alizer....    de
+0b40	66 20 67 65 74 5f 71 75  65 72 79 73 65 74 28 73   f get_queryset(s
+0b50	65 6c 66 29 3a 0d 0a 20  20 20 20 20 20 20 20 22   elf):..        "
+0b60	22 22 0d 0a 20 20 20 20  20 20 20 20 44 79 6e 61   ""..        Dyna
+0b70	6d 69 63 61 6c 6c 79 20  66 69 6c 74 65 72 20 61   mically filter a
+0b80	6e 64 20 61 6e 6e 6f 74  61 74 65 20 74 68 65 20   nd annotate the 
+0b90	71 75 65 72 79 73 65 74  20 62 61 73 65 64 20 6f   queryset based o
+0ba0	6e 20 74 68 65 20 61 63  74 69 6f 6e 2e 0d 0a 20   n the action... 
+0bb0	20 20 20 20 20 20 20 2d  20 46 6f 72 20 27 6c 69          - For 'li
+0bc0	73 74 27 2c 20 61 64 64  20 6d 65 73 73 61 67 65   st', add message
+0bd0	20 70 72 65 76 69 65 77  73 20 61 6e 64 20 75 6e    previews and un
+0be0	72 65 61 64 20 63 6f 75  6e 74 73 2c 20 61 6e 64   read counts, and
+0bf0	20 6f 72 64 65 72 20 62  79 20 6c 61 73 74 20 6d    order by last m
+0c00	65 73 73 61 67 65 20 74  69 6d 65 2e 0d 0a 20 20   essage time...  
+0c10	20 20 20 20 20 20 2d 20  46 6f 72 20 27 72 65 74         - For 'ret
+0c20	72 69 65 76 65 27 2c 20  70 72 65 66 65 74 63 68   rieve', prefetch
+0c30	20 72 65 6c 61 74 65 64  20 64 61 74 61 20 66 6f    related data fo
+0c40	72 20 61 20 64 65 74 61  69 6c 65 64 20 76 69 65   r a detailed vie
+0c50	77 2e 0d 0a 20 20 20 20  20 20 20 20 22 22 22 0d   w...        """.
+0c60	0a 20 20 20 20 20 20 20  20 71 75 65 72 79 73 65   .        queryse
+0c70	74 20 3d 20 43 6f 6e 74  61 63 74 2e 6f 62 6a 65   t = Contact.obje
+0c80	63 74 73 2e 61 6c 6c 28  29 0d 0a 0d 0a 20 20 20   cts.all()....   
+0c90	20 20 20 20 20 69 66 20  73 65 6c 66 2e 61 63 74        if self.act
+0ca0	69 6f 6e 20 3d 3d 20 27  6c 69 73 74 27 3a 0d 0a   ion == 'list':..
+0cb0	20 20 20 20 20 20 20 20  20 20 20 20 23 20 53 75               # Su
+0cc0	62 71 75 65 72 79 20 74  6f 20 67 65 74 20 74 68   bquery to get th
+0cd0	65 20 74 65 78 74 20 63  6f 6e 74 65 6e 74 20 6f   e text content o
+0ce0	66 20 74 68 65 20 6c 61  74 65 73 74 20 6d 65 73   f the latest mes
+0cf0	73 61 67 65 20 66 6f 72  20 65 61 63 68 20 63 6f   sage for each co
+0d00	6e 74 61 63 74 0d 0a 20  20 20 20 20 20 20 20 20   ntact..         
+0d10	20 20 20 6c 61 74 65 73  74 5f 6d 65 73 73 61 67      latest_messag
+0d20	65 5f 73 75 62 71 75 65  72 79 20 3d 20 4d 65 73   e_subquery = Mes
+0d30	73 61 67 65 2e 6f 62 6a  65 63 74 73 2e 66 69 6c   sage.objects.fil
+0d40	74 65 72 28 0d 0a 20 20  20 20 20 20 20 20 20 20   ter(..          
+0d50	20 20 20 20 20 20 63 6f  6e 74 61 63 74 3d 4f 75         contact=Ou
+0d60	74 65 72 52 65 66 28 27  70 6b 27 29 0d 0a 20 20   terRef('pk')..  
+0d70	20 20 20 20 20 20 20 20  20 20 29 2e 6f 72 64 65             ).orde
+0d80	72 5f 62 79 28 27 2d 74  69 6d 65 73 74 61 6d 70   r_by('-timestamp
+0d90	27 29 0d 0a 20 20 20 20  20 20 20 20 20 20 20 20   ')..            
+0da0	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 6c 61   ..            la
+0db0	74 65 73 74 5f 6d 65 73  73 61 67 65 5f 70 72 65   test_message_pre
+0dc0	76 69 65 77 20 3d 20 6c  61 74 65 73 74 5f 6d 65   view = latest_me
+0dd0	73 73 61 67 65 5f 73 75  62 71 75 65 72 79 2e 76   ssage_subquery.v
+0de0	61 6c 75 65 73 28 27 74  65 78 74 5f 63 6f 6e 74   alues('text_cont
+0df0	65 6e 74 27 29 5b 3a 31  5d 0d 0a 20 20 20 20 20   ent')[:1]..     
+0e00	20 20 20 20 20 20 20 6c  61 74 65 73 74 5f 6d 65          latest_me
+0e10	73 73 61 67 65 5f 74 69  6d 65 73 74 61 6d 70 20   ssage_timestamp 
+0e20	3d 20 6c 61 74 65 73 74  5f 6d 65 73 73 61 67 65   = latest_message
+0e30	5f 73 75 62 71 75 65 72  79 2e 76 61 6c 75 65 73   _subquery.values
+0e40	28 27 74 69 6d 65 73 74  61 6d 70 27 29 5b 3a 31   ('timestamp')[:1
+0e50	5d 0d 0a 0d 0a 20 20 20  20 20 20 20 20 20 20 20   ]....           
+0e60	20 71 75 65 72 79 73 65  74 20 3d 20 71 75 65 72    queryset = quer
+0e70	79 73 65 74 2e 61 6e 6e  6f 74 61 74 65 28 0d 0a   yset.annotate(..
+0e80	20 20 20 20 20 20 20 20  20 20 20 20 20 20 20 20                   
+0e90	6c 61 73 74 5f 6d 65 73  73 61 67 65 5f 70 72 65   last_message_pre
+0ea0	76 69 65 77 3d 53 75 62  71 75 65 72 79 28 6c 61   view=Subquery(la
+0eb0	74 65 73 74 5f 6d 65 73  73 61 67 65 5f 70 72 65   test_message_pre
+0ec0	76 69 65 77 29 2c 0d 0a  20 20 20 20 20 20 20 20   view),..        
+0ed0	20 20 20 20 20 20 20 20  23 20 41 20 73 69 6d 70           # A simp
+0ee0	6c 65 20 75 6e 72 65 61  64 20 63 6f 75 6e 74 3a   le unread count:
+0ef0	20 69 6e 63 6f 6d 69 6e  67 20 6d 65 73 73 61 67    incoming messag
+0f00	65 73 20 77 69 74 68 20  27 72 65 63 65 69 76 65   es with 'receive
+0f10	64 27 20 73 74 61 74 75  73 2e 0d 0a 20 20 20 20   d' status...    
+0f20	20 20 20 20 20 20 20 20  20 20 20 20 23 20 41 20               # A 
+0f30	6d 6f 72 65 20 63 6f 6d  70 6c 65 78 20 69 6d 70   more complex imp
+0f40	6c 65 6d 65 6e 74 61 74  69 6f 6e 20 6d 69 67 68   lementation migh
+0f50	74 20 74 72 61 63 6b 20  72 65 61 64 20 73 74 61   t track read sta
+0f60	74 75 73 20 70 65 72 20  61 67 65 6e 74 2e 0d 0a   tus per agent...
+0f70	20 20 20 20 20 20 20 20  20 20 20 20 20 20 20 20                   
+0f80	75 6e 72 65 61 64 5f 63  6f 75 6e 74 3d 43 6f 75   unread_count=Cou
+0f90	6e 74 28 27 6d 65 73 73  61 67 65 73 27 2c 20 66   nt('messages', f
+0fa0	69 6c 74 65 72 3d 51 28  6d 65 73 73 61 67 65 73   ilter=Q(messages
+0fb0	5f 5f 64 69 72 65 63 74  69 6f 6e 3d 27 69 6e 27   __direction='in'
+0fc0	2c 20 6d 65 73 73 61 67  65 73 5f 5f 73 74 61 74   , messages__stat
+0fd0	75 73 3d 27 72 65 63 65  69 76 65 64 27 29 29 2c   us='received')),
+0fe0	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 20 20   ..              
+0ff0	20 20 23 20 41 6e 6e 6f  74 61 74 65 20 74 68 65     # Annotate the
+1000	20 6c 61 74 65 73 74 20  6d 65 73 73 61 67 65 20    latest message 
+1010	74 69 6d 65 73 74 61 6d  70 20 74 6f 20 6f 72 64   timestamp to ord
+1020	65 72 20 62 79 20 69 74  0d 0a 20 20 20 20 20 20   er by it..      
+1030	20 20 20 20 20 20 20 20  20 20 6c 61 74 65 73 74             latest
+1040	5f 6d 65 73 73 61 67 65  5f 74 73 3d 53 75 62 71   _message_ts=Subq
+1050	75 65 72 79 28 6c 61 74  65 73 74 5f 6d 65 73 73   uery(latest_mess
+1060	61 67 65 5f 74 69 6d 65  73 74 61 6d 70 29 0d 0a   age_timestamp)..
+1070	20 20 20 20 20 20 20 20  20 20 20 20 29 2e 6f 72               ).or
+1080	64 65 72 5f 62 79 28 46  28 27 6c 61 74 65 73 74   der_by(F('latest
+1090	5f 6d 65 73 73 61 67 65  5f 74 73 27 29 2e 64 65   _message_ts').de
+10a0	73 63 28 6e 75 6c 6c 73  5f 6c 61 73 74 3d 54 72   sc(nulls_last=Tr
+10b0	75 65 29 2c 20 27 2d 6c  61 73 74 5f 73 65 65 6e   ue), '-last_seen
+10c0	27 29 0d 0a 0d 0a 20 20  20 20 20 20 20 20 20 20   ')....          
+10d0	20 20 73 65 61 72 63 68  5f 74 65 72 6d 20 3d 20     search_term = 
+10e0	73 65 6c 66 2e 72 65 71  75 65 73 74 2e 71 75 65   self.request.que
+10f0	72 79 5f 70 61 72 61 6d  73 2e 67 65 74 28 27 73   ry_params.get('s
+1100	65 61 72 63 68 27 2c 20  4e 6f 6e 65 29 0d 0a 20   earch', None).. 
+1110	20 20 20 20 20 20 20 20  20 20 20 69 66 20 73 65              if se
+1120	61 72 63 68 5f 74 65 72  6d 3a 0d 0a 20 20 20 20   arch_term:..    
+1130	20 20 20 20 20 20 20 20  20 20 20 20 71 75 65 72               quer
+1140	79 73 65 74 20 3d 20 71  75 65 72 79 73 65 74 2e   yset = queryset.
+1150	66 69 6c 74 65 72 28 0d  0a 20 20 20 20 20 20 20   filter(..       
+1160	20 20 20 20 20 20 20 20  20 20 20 20 20 51 28 6e                Q(n
+1170	61 6d 65 5f 5f 69 63 6f  6e 74 61 69 6e 73 3d 73   ame__icontains=s
+1180	65 61 72 63 68 5f 74 65  72 6d 29 20 7c 20 0d 0a   earch_term) | ..
+1190	20 20 20 20 20 20 20 20  20 20 20 20 20 20 20 20                   
+11a0	20 20 20 20 51 28 77 68  61 74 73 61 70 70 5f 69       Q(whatsapp_i
+11b0	64 5f 5f 69 63 6f 6e 74  61 69 6e 73 3d 73 65 61   d__icontains=sea
+11c0	72 63 68 5f 74 65 72 6d  29 0d 0a 20 20 20 20 20   rch_term)..     
+11d0	20 20 20 20 20 20 20 20  20 20 20 29 0d 0a 0d 0a              )....
+11e0	20 20 20 20 20 20 20 20  20 20 20 20 6e 65 65 64               need
+11f0	73 5f 69 6e 74 65 72 76  65 6e 74 69 6f 6e 5f 66   s_intervention_f
+1200	69 6c 74 65 72 20 3d 20  73 65 6c 66 2e 72 65 71   ilter = self.req
+1210	75 65 73 74 2e 71 75 65  72 79 5f 70 61 72 61 6d   uest.query_param
+1220	73 2e 67 65 74 28 27 6e  65 65 64 73 5f 68 75 6d   s.get('needs_hum
+1230	61 6e 5f 69 6e 74 65 72  76 65 6e 74 69 6f 6e 27   an_intervention'
+1240	2c 20 4e 6f 6e 65 29 0d  0a 20 20 20 20 20 20 20   , None)..       
+1250	20 20 20 20 20 69 66 20  6e 65 65 64 73 5f 69 6e        if needs_in
+1260	74 65 72 76 65 6e 74 69  6f 6e 5f 66 69 6c 74 65   tervention_filte
+1270	72 20 69 73 20 6e 6f 74  20 4e 6f 6e 65 3a 0d 0a   r is not None:..
+1280	20 20 20 20 20 20 20 20  20 20 20 20 20 20 20 20                   
+1290	69 66 20 6e 65 65 64 73  5f 69 6e 74 65 72 76 65   if needs_interve
+12a0	6e 74 69 6f 6e 5f 66 69  6c 74 65 72 2e 6c 6f 77   ntion_filter.low
+12b0	65 72 28 29 20 3d 3d 20  27 74 72 75 65 27 3a 0d   er() == 'true':.
+12c0	0a 20 20 20 20 20 20 20  20 20 20 20 20 20 20 20   .               
+12d0	20 20 20 20 20 71 75 65  72 79 73 65 74 20 3d 20        queryset = 
+12e0	71 75 65 72 79 73 65 74  2e 66 69 6c 74 65 72 28   queryset.filter(
+12f0	6e 65 65 64 73 5f 68 75  6d 61 6e 5f 69 6e 74 65   needs_human_inte
+1300	72 76 65 6e 74 69 6f 6e  3d 54 72 75 65 29 0d 0a   rvention=True)..
+1310	20 20 20 20 20 20 20 20  20 20 20 20 20 20 20 20                   
+1320	65 6c 69 66 20 6e 65 65  64 73 5f 69 6e 74 65 72   elif needs_inter
+1330	76 65 6e 74 69 6f 6e 5f  66 69 6c 74 65 72 2e 6c   vention_filter.l
+1340	6f 77 65 72 28 29 20 3d  3d 20 27 66 61 6c 73 65   ower() == 'false
+1350	27 3a 0d 0a 20 20 20 20  20 20 20 20 20 20 20 20   ':..            
+1360	20 20 20 20 20 20 20 20  71 75 65 72 79 73 65 74           queryset
+1370	20 3d 20 71 75 65 72 79  73 65 74 2e 66 69 6c 74    = queryset.filt
+1380	65 72 28 6e 65 65 64 73  5f 68 75 6d 61 6e 5f 69   er(needs_human_i
+1390	6e 74 65 72 76 65 6e 74  69 6f 6e 3d 46 61 6c 73   ntervention=Fals
+13a0	65 29 0d 0a 0d 0a 20 20  20 20 20 20 20 20 65 6c   e)....        el
+13b0	69 66 20 73 65 6c 66 2e  61 63 74 69 6f 6e 20 3d   if self.action =
+13c0	3d 20 27 72 65 74 72 69  65 76 65 27 3a 0d 0a 20   = 'retrieve':.. 
+13d0	20 20 20 20 20 20 20 20  20 20 20 23 20 46 6f 72              # For
+13e0	20 74 68 65 20 64 65 74  61 69 6c 20 76 69 65 77    the detail view
+13f0	2c 20 70 72 65 66 65 74  63 68 20 6d 65 73 73 61   , prefetch messa
+1400	67 65 73 20 69 6e 20 63  68 72 6f 6e 6f 6c 6f 67   ges in chronolog
+1410	69 63 61 6c 20 6f 72 64  65 72 0d 0a 20 20 20 20   ical order..    
+1420	20 20 20 20 20 20 20 20  71 75 65 72 79 73 65 74           queryset
+1430	20 3d 20 71 75 65 72 79  73 65 74 2e 70 72 65 66    = queryset.pref
+1440	65 74 63 68 5f 72 65 6c  61 74 65 64 28 0d 0a 20   etch_related(.. 
+1450	20 20 20 20 20 20 20 20  20 20 20 20 20 20 20 50                  P
+1460	72 65 66 65 74 63 68 28  27 6d 65 73 73 61 67 65   refetch('message
+1470	73 27 2c 20 71 75 65 72  79 73 65 74 3d 4d 65 73   s', queryset=Mes
+1480	73 61 67 65 2e 6f 62 6a  65 63 74 73 2e 6f 72 64   sage.objects.ord
+1490	65 72 5f 62 79 28 27 74  69 6d 65 73 74 61 6d 70   er_by('timestamp
+14a0	27 29 29 0d 0a 20 20 20  20 20 20 20 20 20 20 20   '))..           
+14b0	20 29 0d 0a 20 20 20 20  20 20 20 20 65 6c 73 65    )..        else
+14c0	3a 0d 0a 20 20 20 20 20  20 20 20 20 20 20 20 23   :..            #
+14d0	20 46 61 6c 6c 62 61 63  6b 20 66 6f 72 20 6f 74    Fallback for ot
+14e0	68 65 72 20 61 63 74 69  6f 6e 73 2c 20 75 73 65   her actions, use
+14f0	20 64 65 66 61 75 6c 74  20 6f 72 64 65 72 69 6e    default orderin
+1500	67 0d 0a 20 20 20 20 20  20 20 20 20 20 20 20 71   g..            q
+1510	75 65 72 79 73 65 74 20  3d 20 71 75 65 72 79 73   ueryset = querys
+1520	65 74 2e 6f 72 64 65 72  5f 62 79 28 27 2d 6c 61   et.order_by('-la
+1530	73 74 5f 73 65 65 6e 27  29 0d 0a 20 20 20 20 20   st_seen')..     
+1540	20 20 20 20 20 20 20 0d  0a 20 20 20 20 20 20 20          ..       
+1550	20 72 65 74 75 72 6e 20  71 75 65 72 79 73 65 74    return queryset
+1560	0d 0a 0d 0a 20 20 20 20  40 61 63 74 69 6f 6e 28   ....    @action(
+1570	64 65 74 61 69 6c 3d 54  72 75 65 2c 20 6d 65 74   detail=True, met
+1580	68 6f 64 73 3d 5b 27 67  65 74 27 5d 2c 20 75 72   hods=['get'], ur
+1590	6c 5f 70 61 74 68 3d 27  6d 65 73 73 61 67 65 73   l_path='messages
+15a0	27 2c 20 70 65 72 6d 69  73 73 69 6f 6e 5f 63 6c   ', permission_cl
+15b0	61 73 73 65 73 3d 5b 70  65 72 6d 69 73 73 69 6f   asses=[permissio
+15c0	6e 73 2e 49 73 41 75 74  68 65 6e 74 69 63 61 74   ns.IsAuthenticat
+15d0	65 64 5d 29 0d 0a 20 20  20 20 64 65 66 20 6c 69   ed])..    def li
+15e0	73 74 5f 6d 65 73 73 61  67 65 73 5f 66 6f 72 5f   st_messages_for_
+15f0	63 6f 6e 74 61 63 74 28  73 65 6c 66 2c 20 72 65   contact(self, re
+1600	71 75 65 73 74 2c 20 70  6b 3d 4e 6f 6e 65 29 3a   quest, pk=None):
+1610	0d 0a 20 20 20 20 20 20  20 20 63 6f 6e 74 61 63   ..        contac
+1620	74 20 3d 20 67 65 74 5f  6f 62 6a 65 63 74 5f 6f   t = get_object_o
+1630	72 5f 34 30 34 28 43 6f  6e 74 61 63 74 2c 20 70   r_404(Contact, p
+1640	6b 3d 70 6b 29 0d 0a 20  20 20 20 20 20 20 20 23   k=pk)..        #
+1650	20 52 65 74 75 72 6e 20  6d 65 73 73 61 67 65 73    Return messages
+1660	20 69 6e 20 52 45 56 45  52 53 45 20 63 68 72 6f    in REVERSE chro
+1670	6e 6f 6c 6f 67 69 63 61  6c 20 6f 72 64 65 72 20   nological order 
+1680	66 6f 72 20 70 61 67 69  6e 61 74 69 6f 6e 20 28   for pagination (
+1690	6d 6f 73 74 20 72 65 63  65 6e 74 20 66 69 72 73   most recent firs
+16a0	74 29 0d 0a 20 20 20 20  20 20 20 20 6d 65 73 73   t)..        mess
+16b0	61 67 65 73 5f 71 75 65  72 79 73 65 74 20 3d 20   ages_queryset = 
+16c0	4d 65 73 73 61 67 65 2e  6f 62 6a 65 63 74 73 2e   Message.objects.
+16d0	66 69 6c 74 65 72 28 63  6f 6e 74 61 63 74 3d 63   filter(contact=c
+16e0	6f 6e 74 61 63 74 29 2e  73 65 6c 65 63 74 5f 72   ontact).select_r
+16f0	65 6c 61 74 65 64 28 27  63 6f 6e 74 61 63 74 27   elated('contact'
+1700	29 2e 6f 72 64 65 72 5f  62 79 28 27 2d 74 69 6d   ).order_by('-tim
+1710	65 73 74 61 6d 70 27 29  0d 0a 20 20 20 20 20 20   estamp')..      
+1720	20 20 0d 0a 20 20 20 20  20 20 20 20 70 61 67 65     ..        page
+1730	20 3d 20 73 65 6c 66 2e  70 61 67 69 6e 61 74 65    = self.paginate
+1740	5f 71 75 65 72 79 73 65  74 28 6d 65 73 73 61 67   _queryset(messag
+1750	65 73 5f 71 75 65 72 79  73 65 74 29 0d 0a 20 20   es_queryset)..  
+1760	20 20 20 20 20 20 69 66  20 70 61 67 65 20 69 73         if page is
+1770	20 6e 6f 74 20 4e 6f 6e  65 3a 0d 0a 20 20 20 20    not None:..    
+1780	20 20 20 20 20 20 20 20  73 65 72 69 61 6c 69 7a           serializ
+1790	65 72 20 3d 20 4d 65 73  73 61 67 65 4c 69 73 74   er = MessageList
+17a0	53 65 72 69 61 6c 69 7a  65 72 28 70 61 67 65 2c   Serializer(page,
+17b0	20 6d 61 6e 79 3d 54 72  75 65 2c 20 63 6f 6e 74    many=True, cont
+17c0	65 78 74 3d 7b 27 72 65  71 75 65 73 74 27 3a 20   ext={'request': 
+17d0	72 65 71 75 65 73 74 7d  29 0d 0a 20 20 20 20 20   request})..     
+17e0	20 20 20 20 20 20 20 72  65 74 75 72 6e 20 73 65          return se
+17f0	6c 66 2e 67 65 74 5f 70  61 67 69 6e 61 74 65 64   lf.get_paginated
+1800	5f 72 65 73 70 6f 6e 73  65 28 73 65 72 69 61 6c   _response(serial
+1810	69 7a 65 72 2e 64 61 74  61 29 0d 0a 0d 0a 20 20   izer.data)....  
+1820	20 20 20 20 20 20 73 65  72 69 61 6c 69 7a 65 72         serializer
+1830	20 3d 20 4d 65 73 73 61  67 65 4c 69 73 74 53 65    = MessageListSe
+1840	72 69 61 6c 69 7a 65 72  28 6d 65 73 73 61 67 65   rializer(message
+1850	73 5f 71 75 65 72 79 73  65 74 2c 20 6d 61 6e 79   s_queryset, many
+1860	3d 54 72 75 65 2c 20 63  6f 6e 74 65 78 74 3d 7b   =True, context={
+1870	27 72 65 71 75 65 73 74  27 3a 20 72 65 71 75 65   'request': reque
+1880	73 74 7d 29 0d 0a 20 20  20 20 20 20 20 20 72 65   st})..        re
+1890	74 75 72 6e 20 52 65 73  70 6f 6e 73 65 28 73 65   turn Response(se
+18a0	72 69 61 6c 69 7a 65 72  2e 64 61 74 61 29 0d 0a   rializer.data)..
+18b0	0d 0a 20 20 20 20 40 61  63 74 69 6f 6e 28 64 65   ..    @action(de
+18c0	74 61 69 6c 3d 54 72 75  65 2c 20 6d 65 74 68 6f   tail=True, metho
+18d0	64 73 3d 5b 27 70 6f 73  74 27 5d 2c 20 75 72 6c   ds=['post'], url
+18e0	5f 70 61 74 68 3d 27 74  6f 67 67 6c 65 2d 62 6c   _path='toggle-bl
+18f0	6f 63 6b 27 2c 20 70 65  72 6d 69 73 73 69 6f 6e   ock', permission
+1900	5f 63 6c 61 73 73 65 73  3d 5b 70 65 72 6d 69 73   _classes=[permis
+1910	73 69 6f 6e 73 2e 49 73  41 75 74 68 65 6e 74 69   sions.IsAuthenti
+1920	63 61 74 65 64 2c 20 49  73 41 64 6d 69 6e 4f 72   cated, IsAdminOr
+1930	52 65 61 64 4f 6e 6c 79  5d 29 0d 0a 20 20 20 20   ReadOnly])..    
+1940	64 65 66 20 74 6f 67 67  6c 65 5f 62 6c 6f 63 6b   def toggle_block
+1950	5f 73 74 61 74 75 73 28  73 65 6c 66 2c 20 72 65   _status(self, re
+1960	71 75 65 73 74 2c 20 70  6b 3d 4e 6f 6e 65 29 3a   quest, pk=None):
+1970	0d 0a 20 20 20 20 20 20  20 20 63 6f 6e 74 61 63   ..        contac
+1980	74 20 3d 20 67 65 74 5f  6f 62 6a 65 63 74 5f 6f   t = get_object_o
+1990	72 5f 34 30 34 28 43 6f  6e 74 61 63 74 2c 20 70   r_404(Contact, p
+19a0	6b 3d 70 6b 29 0d 0a 20  20 20 20 20 20 20 20 63   k=pk)..        c
+19b0	6f 6e 74 61 63 74 2e 69  73 5f 62 6c 6f 63 6b 65   ontact.is_blocke
+19c0	64 20 3d 20 6e 6f 74 20  63 6f 6e 74 61 63 74 2e   d = not contact.
+19d0	69 73 5f 62 6c 6f 63 6b  65 64 0d 0a 20 20 20 20   is_blocked..    
+19e0	20 20 20 20 63 6f 6e 74  61 63 74 2e 73 61 76 65       contact.save
+19f0	28 75 70 64 61 74 65 5f  66 69 65 6c 64 73 3d 5b   (update_fields=[
+1a00	27 69 73 5f 62 6c 6f 63  6b 65 64 27 2c 20 27 6c   'is_blocked', 'l
+1a10	61 73 74 5f 73 65 65 6e  27 5d 29 20 23 20 6c 61   ast_seen']) # la
+1a20	73 74 5f 73 65 65 6e 20  69 73 20 61 75 74 6f 5f   st_seen is auto_
+1a30	6e 6f 77 0d 0a 20 20 20  20 20 20 20 20 73 65 72   now..        ser
+1a40	69 61 6c 69 7a 65 72 20  3d 20 73 65 6c 66 2e 67   ializer = self.g
+1a50	65 74 5f 73 65 72 69 61  6c 69 7a 65 72 28 63 6f   et_serializer(co
+1a60	6e 74 61 63 74 29 0d 0a  20 20 20 20 20 20 20 20   ntact)..        
+1a70	72 65 74 75 72 6e 20 52  65 73 70 6f 6e 73 65 28   return Response(
+1a80	73 65 72 69 61 6c 69 7a  65 72 2e 64 61 74 61 2c   serializer.data,
+1a90	20 73 74 61 74 75 73 3d  73 74 61 74 75 73 2e 48    status=status.H
+1aa0	54 54 50 5f 32 30 30 5f  4f 4b 29 0d 0a 0d 0a 20   TTP_200_OK).... 
+1ab0	20 20 20 40 61 63 74 69  6f 6e 28 64 65 74 61 69      @action(detai
+1ac0	6c 3d 54 72 75 65 2c 20  6d 65 74 68 6f 64 73 3d   l=True, methods=
+1ad0	5b 27 70 6f 73 74 27 5d  2c 20 75 72 6c 5f 70 61   ['post'], url_pa
+1ae0	74 68 3d 27 74 6f 67 67  6c 65 2d 69 6e 74 65 72   th='toggle-inter
+1af0	76 65 6e 74 69 6f 6e 27  2c 20 70 65 72 6d 69 73   vention', permis
+1b00	73 69 6f 6e 5f 63 6c 61  73 73 65 73 3d 5b 70 65   sion_classes=[pe
+1b10	72 6d 69 73 73 69 6f 6e  73 2e 49 73 41 75 74 68   rmissions.IsAuth
+1b20	65 6e 74 69 63 61 74 65  64 2c 20 49 73 41 64 6d   enticated, IsAdm
+1b30	69 6e 4f 72 52 65 61 64  4f 6e 6c 79 5d 29 0d 0a   inOrReadOnly])..
+1b40	20 20 20 20 64 65 66 20  74 6f 67 67 6c 65 5f 68       def toggle_h
+1b50	75 6d 61 6e 5f 69 6e 74  65 72 76 65 6e 74 69 6f   uman_interventio
+1b60	6e 28 73 65 6c 66 2c 20  72 65 71 75 65 73 74 2c   n(self, request,
+1b70	20 70 6b 3d 4e 6f 6e 65  29 3a 0d 0a 20 20 20 20    pk=None):..    
+1b80	20 20 20 20 22 22 22 0d  0a 20 20 20 20 20 20 20       """..       
+1b90	20 54 6f 67 67 6c 65 73  20 74 68 65 20 27 6e 65    Toggles the 'ne
+1ba0	65 64 73 5f 68 75 6d 61  6e 5f 69 6e 74 65 72 76   eds_human_interv
+1bb0	65 6e 74 69 6f 6e 27 20  66 6c 61 67 20 66 6f 72   ention' flag for
+1bc0	20 61 20 63 6f 6e 74 61  63 74 2e 0d 0a 20 20 20    a contact...   
+1bd0	20 20 20 20 20 22 22 22  0d 0a 20 20 20 20 20 20        """..      
+1be0	20 20 63 6f 6e 74 61 63  74 20 3d 20 73 65 6c 66     contact = self
+1bf0	2e 67 65 74 5f 6f 62 6a  65 63 74 28 29 0d 0a 20   .get_object().. 
+1c00	20 20 20 20 20 20 20 63  6f 6e 74 61 63 74 2e 6e          contact.n
+1c10	65 65 64 73 5f 68 75 6d  61 6e 5f 69 6e 74 65 72   eeds_human_inter
+1c20	76 65 6e 74 69 6f 6e 20  3d 20 6e 6f 74 20 63 6f   vention = not co
+1c30	6e 74 61 63 74 2e 6e 65  65 64 73 5f 68 75 6d 61   ntact.needs_huma
+1c40	6e 5f 69 6e 74 65 72 76  65 6e 74 69 6f 6e 0d 0a   n_intervention..
+1c50	20 20 20 20 20 20 20 20  69 66 20 6e 6f 74 20 63           if not c
+1c60	6f 6e 74 61 63 74 2e 6e  65 65 64 73 5f 68 75 6d   ontact.needs_hum
+1c70	61 6e 5f 69 6e 74 65 72  76 65 6e 74 69 6f 6e 3a   an_intervention:
+1c80	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 23 20   ..            # 
+1c90	41 6c 73 6f 20 63 6c 65  61 72 20 74 68 65 20 74   Also clear the t
+1ca0	69 6d 65 73 74 61 6d 70  20 77 68 65 6e 20 72 65   imestamp when re
+1cb0	73 6f 6c 76 69 6e 67 20  74 68 65 20 69 6e 74 65   solving the inte
+1cc0	72 76 65 6e 74 69 6f 6e  0d 0a 20 20 20 20 20 20   rvention..      
+1cd0	20 20 20 20 20 20 63 6f  6e 74 61 63 74 2e 69 6e         contact.in
+1ce0	74 65 72 76 65 6e 74 69  6f 6e 5f 72 65 71 75 65   tervention_reque
+1cf0	73 74 65 64 5f 61 74 20  3d 20 4e 6f 6e 65 0d 0a   sted_at = None..
+1d00	20 20 20 20 20 20 20 20  65 6c 73 65 3a 0d 0a 20           else:.. 
+1d10	20 20 20 20 20 20 20 20  20 20 20 63 6f 6e 74 61              conta
+1d20	63 74 2e 69 6e 74 65 72  76 65 6e 74 69 6f 6e 5f   ct.intervention_
+1d30	72 65 71 75 65 73 74 65  64 5f 61 74 20 3d 20 74   requested_at = t
+1d40	69 6d 65 7a 6f 6e 65 2e  6e 6f 77 28 29 0d 0a 20   imezone.now().. 
+1d50	20 20 20 20 20 20 20 63  6f 6e 74 61 63 74 2e 73          contact.s
+1d60	61 76 65 28 75 70 64 61  74 65 5f 66 69 65 6c 64   ave(update_field
+1d70	73 3d 5b 27 6e 65 65 64  73 5f 68 75 6d 61 6e 5f   s=['needs_human_
+1d80	69 6e 74 65 72 76 65 6e  74 69 6f 6e 27 2c 20 27   intervention', '
+1d90	69 6e 74 65 72 76 65 6e  74 69 6f 6e 5f 72 65 71   intervention_req
+1da0	75 65 73 74 65 64 5f 61  74 27 2c 20 27 6c 61 73   uested_at', 'las
+1db0	74 5f 73 65 65 6e 27 5d  29 0d 0a 20 20 20 20 20   t_seen'])..     
+1dc0	20 20 20 0d 0a 20 20 20  20 20 20 20 20 23 20 2d      ..        # -
+1dd0	2d 2d 20 42 72 6f 61 64  63 61 73 74 20 75 70 64   -- Broadcast upd
+1de0	61 74 65 20 76 69 61 20  57 65 62 53 6f 63 6b 65   ate via WebSocke
+1df0	74 20 2d 2d 2d 0d 0a 20  20 20 20 20 20 20 20 63   t ---..        c
+1e00	68 61 6e 6e 65 6c 5f 6c  61 79 65 72 20 3d 20 67   hannel_layer = g
+1e10	65 74 5f 63 68 61 6e 6e  65 6c 5f 6c 61 79 65 72   et_channel_layer
+1e20	28 29 0d 0a 20 20 20 20  20 20 20 20 67 72 6f 75   ()..        grou
+1e30	70 5f 6e 61 6d 65 20 3d  20 66 27 63 6f 6e 76 65   p_name = f'conve
+1e40	72 73 61 74 69 6f 6e 5f  7b 63 6f 6e 74 61 63 74   rsation_{contact
+1e50	2e 69 64 7d 27 0d 0a 20  20 20 20 20 20 20 20 0d   .id}'..        .
+1e60	0a 20 20 20 20 20 20 20  20 23 20 55 73 65 20 74   .        # Use t
+1e70	68 65 20 64 65 74 61 69  6c 20 73 65 72 69 61 6c   he detail serial
+1e80	69 7a 65 72 20 74 6f 20  67 65 74 20 74 68 65 20   izer to get the 
+1e90	66 75 6c 6c 2c 20 75 70  64 61 74 65 64 20 63 6f   full, updated co
+1ea0	6e 74 61 63 74 20 72 65  70 72 65 73 65 6e 74 61   ntact representa
+1eb0	74 69 6f 6e 0d 0a 20 20  20 20 20 20 20 20 73 65   tion..        se
+1ec0	72 69 61 6c 69 7a 65 72  20 3d 20 43 6f 6e 74 61   rializer = Conta
+1ed0	63 74 44 65 74 61 69 6c  53 65 72 69 61 6c 69 7a   ctDetailSerializ
+1ee0	65 72 28 63 6f 6e 74 61  63 74 29 0d 0a 20 20 20   er(contact)..   
+1ef0	20 20 20 20 20 0d 0a 20  20 20 20 20 20 20 20 61        ..        a
+1f00	73 79 6e 63 5f 74 6f 5f  73 79 6e 63 28 63 68 61   sync_to_sync(cha
+1f10	6e 6e 65 6c 5f 6c 61 79  65 72 2e 67 72 6f 75 70   nnel_layer.group
+1f20	5f 73 65 6e 64 29 28 0d  0a 20 20 20 20 20 20 20   _send)(..       
+1f30	20 20 20 20 20 67 72 6f  75 70 5f 6e 61 6d 65 2c        group_name,
+1f40	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 7b 27   ..            {'
+1f50	74 79 70 65 27 3a 20 27  63 6f 6e 74 61 63 74 5f   type': 'contact_
+1f60	75 70 64 61 74 65 64 27  2c 20 27 63 6f 6e 74 61   updated', 'conta
+1f70	63 74 27 3a 20 73 65 72  69 61 6c 69 7a 65 72 2e   ct': serializer.
+1f80	64 61 74 61 7d 0d 0a 20  20 20 20 20 20 20 20 29   data}..        )
+1f90	0d 0a 20 20 20 20 20 20  20 20 6c 6f 67 67 65 72   ..        logger
+1fa0	2e 69 6e 66 6f 28 66 22  42 72 6f 61 64 63 61 73   .info(f"Broadcas
+1fb0	74 65 64 20 63 6f 6e 74  61 63 74 20 75 70 64 61   ted contact upda
+1fc0	74 65 20 66 6f 72 20 63  6f 6e 74 61 63 74 20 7b   te for contact {
+1fd0	63 6f 6e 74 61 63 74 2e  69 64 7d 20 74 6f 20 67   contact.id} to g
+1fe0	72 6f 75 70 20 7b 67 72  6f 75 70 5f 6e 61 6d 65   roup {group_name
+1ff0	7d 2e 22 29 0d 0a 20 20  20 20 20 20 20 20 0d 0a   }.")..        ..
+2000	20 20 20 20 20 20 20 20  72 65 74 75 72 6e 20 52           return R
+2010	65 73 70 6f 6e 73 65 28  73 65 72 69 61 6c 69 7a   esponse(serializ
+2020	65 72 2e 64 61 74 61 2c  20 73 74 61 74 75 73 3d   er.data, status=
+2030	73 74 61 74 75 73 2e 48  54 54 50 5f 32 30 30 5f   status.HTTP_200_
+2040	4f 4b 29 0d 0a 0d 0a 63  6c 61 73 73 20 4d 65 73   OK)....class Mes
+2050	73 61 67 65 56 69 65 77  53 65 74 28 0d 0a 20 20   sageViewSet(..  
+2060	20 20 6d 69 78 69 6e 73  2e 4c 69 73 74 4d 6f 64     mixins.ListMod
+2070	65 6c 4d 69 78 69 6e 2c  0d 0a 20 20 20 20 6d 69   elMixin,..    mi
+2080	78 69 6e 73 2e 52 65 74  72 69 65 76 65 4d 6f 64   xins.RetrieveMod
+2090	65 6c 4d 69 78 69 6e 2c  0d 0a 20 20 20 20 6d 69   elMixin,..    mi
+20a0	78 69 6e 73 2e 43 72 65  61 74 65 4d 6f 64 65 6c   xins.CreateModel
+20b0	4d 69 78 69 6e 2c 0d 0a  20 20 20 20 76 69 65 77   Mixin,..    view
+20c0	73 65 74 73 2e 47 65 6e  65 72 69 63 56 69 65 77   sets.GenericView
+20d0	53 65 74 0d 0a 29 3a 0d  0a 20 20 20 20 71 75 65   Set..):..    que
+20e0	72 79 73 65 74 20 3d 20  4d 65 73 73 61 67 65 2e   ryset = Message.
+20f0	6f 62 6a 65 63 74 73 2e  61 6c 6c 28 29 2e 73 65   objects.all().se
+2100	6c 65 63 74 5f 72 65 6c  61 74 65 64 28 27 63 6f   lect_related('co
+2110	6e 74 61 63 74 27 29 2e  6f 72 64 65 72 5f 62 79   ntact').order_by
+2120	28 27 2d 74 69 6d 65 73  74 61 6d 70 27 29 0d 0a   ('-timestamp')..
+2130	20 20 20 20 70 65 72 6d  69 73 73 69 6f 6e 5f 63       permission_c
+2140	6c 61 73 73 65 73 20 3d  20 5b 70 65 72 6d 69 73   lasses = [permis
+2150	73 69 6f 6e 73 2e 49 73  41 75 74 68 65 6e 74 69   sions.IsAuthenti
+2160	63 61 74 65 64 2c 20 43  61 6e 43 72 65 61 74 65   cated, CanCreate
+2170	4d 65 73 73 61 67 65 73  4f 72 41 64 6d 69 6e 4f   MessagesOrAdminO
+2180	6e 6c 79 5d 0d 0a 0d 0a  20 20 20 20 64 65 66 20   nly]....    def 
+2190	67 65 74 5f 73 65 72 69  61 6c 69 7a 65 72 5f 63   get_serializer_c
+21a0	6c 61 73 73 28 73 65 6c  66 29 3a 0d 0a 20 20 20   lass(self):..   
+21b0	20 20 20 20 20 69 66 20  73 65 6c 66 2e 61 63 74        if self.act
+21c0	69 6f 6e 20 3d 3d 20 27  6c 69 73 74 27 3a 0d 0a   ion == 'list':..
+21d0	20 20 20 20 20 20 20 20  20 20 20 20 72 65 74 75               retu
+21e0	72 6e 20 4d 65 73 73 61  67 65 4c 69 73 74 53 65   rn MessageListSe
+21f0	72 69 61 6c 69 7a 65 72  0d 0a 20 20 20 20 20 20   rializer..      
+2200	20 20 72 65 74 75 72 6e  20 4d 65 73 73 61 67 65     return Message
+2210	53 65 72 69 61 6c 69 7a  65 72 0d 0a 0d 0a 20 20   Serializer....  
+2220	20 20 64 65 66 20 70 65  72 66 6f 72 6d 5f 63 72     def perform_cr
+2230	65 61 74 65 28 73 65 6c  66 2c 20 73 65 72 69 61   eate(self, seria
+2240	6c 69 7a 65 72 29 3a 0d  0a 20 20 20 20 20 20 20   lizer):..       
+2250	20 22 22 22 0d 0a 20 20  20 20 20 20 20 20 48 61    """..        Ha
+2260	6e 64 6c 65 73 20 74 68  65 20 63 72 65 61 74 69   ndles the creati
+2270	6f 6e 20 6f 66 20 61 6e  20 6f 75 74 67 6f 69 6e   on of an outgoin
+2280	67 20 6d 65 73 73 61 67  65 20 61 6e 64 20 64 69   g message and di
+2290	73 70 61 74 63 68 65 73  20 69 74 20 66 6f 72 20   spatches it for 
+22a0	73 65 6e 64 69 6e 67 20  76 69 61 20 43 65 6c 65   sending via Cele
+22b0	72 79 2e 0d 0a 20 20 20  20 20 20 20 20 22 22 22   ry...        """
+22c0	0d 0a 20 20 20 20 20 20  20 20 23 20 54 68 65 20   ..        # The 
+22d0	73 65 72 69 61 6c 69 7a  65 72 20 65 78 70 65 63   serializer expec
+22e0	74 73 20 27 63 6f 6e 74  61 63 74 27 20 28 50 4b   ts 'contact' (PK
+22f0	29 2c 20 27 6d 65 73 73  61 67 65 5f 74 79 70 65   ), 'message_type
+2300	27 2c 20 61 6e 64 20 27  63 6f 6e 74 65 6e 74 5f   ', and 'content_
+2310	70 61 79 6c 6f 61 64 27  2e 0d 0a 20 20 20 20 20   payload'...     
+2320	20 20 20 23 20 27 64 69  72 65 63 74 69 6f 6e 27      # 'direction'
+2330	20 61 6e 64 20 27 73 74  61 74 75 73 27 20 61 72    and 'status' ar
+2340	65 20 73 65 74 20 68 65  72 65 20 66 6f 72 20 6f   e set here for o
+2350	75 74 67 6f 69 6e 67 20  6d 65 73 73 61 67 65 73   utgoing messages
+2360	2e 0d 0a 20 20 20 20 20  20 20 20 23 20 54 68 65   ...        # The
+2370	20 72 65 71 75 65 73 74  2e 75 73 65 72 20 28 61    request.user (a
+2380	67 65 6e 74 20 73 65 6e  64 69 6e 67 20 74 68 65   gent sending the
+2390	20 6d 65 73 73 61 67 65  29 20 63 61 6e 20 61 6c    message) can al
+23a0	73 6f 20 62 65 20 6c 6f  67 67 65 64 20 69 66 20   so be logged if 
+23b0	6e 65 65 64 65 64 2e 0d  0a 20 20 20 20 20 20 20   needed...       
+23c0	20 23 20 6d 65 73 73 61  67 65 5f 62 79 5f 75 73    # message_by_us
+23d0	65 72 20 3d 20 73 65 6c  66 2e 72 65 71 75 65 73   er = self.reques
+23e0	74 2e 75 73 65 72 20 23  20 49 66 20 79 6f 75 20   t.user # If you 
+23f0	77 61 6e 74 20 74 6f 20  74 72 61 63 6b 20 77 68   want to track wh
+2400	69 63 68 20 43 52 4d 20  75 73 65 72 20 73 65 6e   ich CRM user sen
+2410	74 20 69 74 0d 0a 0d 0a  20 20 20 20 20 20 20 20   t it....        
+2420	6d 65 73 73 61 67 65 20  3d 20 73 65 72 69 61 6c   message = serial
+2430	69 7a 65 72 2e 73 61 76  65 28 0d 0a 20 20 20 20   izer.save(..    
+2440	20 20 20 20 20 20 20 20  64 69 72 65 63 74 69 6f           directio
+2450	6e 3d 27 6f 75 74 27 2c  0d 0a 20 20 20 20 20 20   n='out',..      
+2460	20 20 20 20 20 20 73 74  61 74 75 73 3d 27 70 65         status='pe
+2470	6e 64 69 6e 67 5f 64 69  73 70 61 74 63 68 27 2c   nding_dispatch',
+2480	20 23 20 49 6e 69 74 69  61 6c 20 73 74 61 74 75    # Initial statu
+2490	73 20 62 65 66 6f 72 65  20 74 61 73 6b 20 70 69   s before task pi
+24a0	63 6b 73 20 69 74 20 75  70 0d 0a 20 20 20 20 20   cks it up..     
+24b0	20 20 20 20 20 20 20 74  69 6d 65 73 74 61 6d 70          timestamp
+24c0	3d 74 69 6d 65 7a 6f 6e  65 2e 6e 6f 77 28 29 20   =timezone.now() 
+24d0	23 20 53 65 74 20 73 65  6e 64 20 74 69 6d 65 73   # Set send times
+24e0	74 61 6d 70 0d 0a 20 20  20 20 20 20 20 20 20 20   tamp..          
+24f0	20 20 23 20 63 72 65 61  74 65 64 5f 62 79 3d 6d     # created_by=m
+2500	65 73 73 61 67 65 5f 62  79 5f 75 73 65 72 20 23   essage_by_user #
+2510	20 45 78 61 6d 70 6c 65  20 69 66 20 79 6f 75 20    Example if you 
+2520	61 64 64 20 61 20 27 63  72 65 61 74 65 64 5f 62   add a 'created_b
+2530	79 27 20 46 4b 20 74 6f  20 55 73 65 72 0d 0a 20   y' FK to User.. 
+2540	20 20 20 20 20 20 20 29  0d 0a 20 20 20 20 20 20          )..      
+2550	20 20 0d 0a 20 20 20 20  20 20 20 20 6c 6f 67 67     ..        logg
+2560	65 72 2e 69 6e 66 6f 28  0d 0a 20 20 20 20 20 20   er.info(..      
+2570	20 20 20 20 20 20 66 22  4d 65 73 73 61 67 65 20         f"Message 
+2580	72 65 63 6f 72 64 20 7b  6d 65 73 73 61 67 65 2e   record {message.
+2590	69 64 7d 20 63 72 65 61  74 65 64 20 66 6f 72 20   id} created for 
+25a0	63 6f 6e 74 61 63 74 20  7b 6d 65 73 73 61 67 65   contact {message
+25b0	2e 63 6f 6e 74 61 63 74  2e 77 68 61 74 73 61 70   .contact.whatsap
+25c0	70 5f 69 64 7d 20 22 0d  0a 20 20 20 20 20 20 20   p_id} "..       
+25d0	20 20 20 20 20 66 22 62  79 20 75 73 65 72 20 7b        f"by user {
+25e0	73 65 6c 66 2e 72 65 71  75 65 73 74 2e 75 73 65   self.request.use
+25f0	72 7d 2e 20 54 79 70 65  3a 20 7b 6d 65 73 73 61   r}. Type: {messa
+2600	67 65 2e 6d 65 73 73 61  67 65 5f 74 79 70 65 7d   ge.message_type}
+2610	2e 20 53 74 61 74 75 73  3a 20 7b 6d 65 73 73 61   . Status: {messa
+2620	67 65 2e 73 74 61 74 75  73 7d 2e 22 0d 0a 20 20   ge.status}."..  
+2630	20 20 20 20 20 20 29 0d  0a 0d 0a 20 20 20 20 20         )....     
+2640	20 20 20 23 20 54 68 65  20 6c 6f 67 69 63 20 66      # The logic f
+2650	6f 72 20 64 69 73 70 61  74 63 68 69 6e 67 20 74   or dispatching t
+2660	68 65 20 6d 65 73 73 61  67 65 20 68 61 73 20 62   he message has b
+2670	65 65 6e 20 6d 6f 76 65  64 20 74 6f 20 74 68 65   een moved to the
+2680	20 4d 65 73 73 61 67 65  53 65 72 69 61 6c 69 7a    MessageSerializ
+2690	65 72 27 73 0d 0a 20 20  20 20 20 20 20 20 23 20   er's..        # 
+26a0	63 72 65 61 74 65 20 6d  65 74 68 6f 64 20 66 6f   create method fo
+26b0	72 20 62 65 74 74 65 72  20 65 6e 63 61 70 73 75   r better encapsu
+26c0	6c 61 74 69 6f 6e 2e 20  54 68 65 20 73 65 72 69   lation. The seri
+26d0	61 6c 69 7a 65 72 20 6e  6f 77 20 68 61 6e 64 6c   alizer now handl
+26e0	65 73 20 66 69 6e 64 69  6e 67 20 74 68 65 0d 0a   es finding the..
+26f0	20 20 20 20 20 20 20 20  23 20 61 63 74 69 76 65           # active
+2700	20 63 6f 6e 66 69 67 20  61 6e 64 20 71 75 65 75    config and queu
+2710	65 69 6e 67 20 74 68 65  20 43 65 6c 65 72 79 20   eing the Celery 
+2720	74 61 73 6b 20 74 72 61  6e 73 61 63 74 69 6f 6e   task transaction
+2730	61 6c 6c 79 2e 0d 0a 20  20 20 20 20 20 20 20 23   ally...        #
+2740	20 54 68 69 73 20 6b 65  65 70 73 20 74 68 65 20    This keeps the 
+2750	76 69 65 77 20 63 6c 65  61 6e 65 72 20 61 6e 64   view cleaner and
+2760	20 66 6f 63 75 73 65 64  20 6f 6e 20 68 61 6e 64    focused on hand
+2770	6c 69 6e 67 20 74 68 65  20 72 65 71 75 65 73 74   ling the request
+2780	2f 72 65 73 70 6f 6e 73  65 20 63 79 63 6c 65 2e   /response cycle.
+2790	0d 0a 20 20 20 20 20 20  20 20 23 20 4e 6f 20 66   ..        # No f
+27a0	75 72 74 68 65 72 20 61  63 74 69 6f 6e 20 69 73   urther action is
+27b0	20 6e 65 65 64 65 64 20  68 65 72 65 2e 0d 0a 20    needed here... 
+27c0	20 20 20 20 20 20 20 70  61 73 73 0d 0a 0d 0a 0d          pass.....
+27d0	0a 20 20 20 20 64 65 66  20 67 65 74 5f 71 75 65   .    def get_que
+27e0	72 79 73 65 74 28 73 65  6c 66 29 3a 0d 0a 20 20   ryset(self):..  
+27f0	20 20 20 20 20 20 71 75  65 72 79 73 65 74 20 3d         queryset =
+2800	20 73 75 70 65 72 28 29  2e 67 65 74 5f 71 75 65    super().get_que
+2810	72 79 73 65 74 28 29 0d  0a 20 20 20 20 20 20 20   ryset()..       
+2820	20 63 6f 6e 74 61 63 74  5f 69 64 20 3d 20 73 65    contact_id = se
+2830	6c 66 2e 72 65 71 75 65  73 74 2e 71 75 65 72 79   lf.request.query
+2840	5f 70 61 72 61 6d 73 2e  67 65 74 28 27 63 6f 6e   _params.get('con
+2850	74 61 63 74 5f 69 64 27  29 0d 0a 20 20 20 20 20   tact_id')..     
+2860	20 20 20 69 66 20 63 6f  6e 74 61 63 74 5f 69 64      if contact_id
+2870	3a 0d 0a 20 20 20 20 20  20 20 20 20 20 20 20 74   :..            t
+2880	72 79 3a 0d 0a 20 20 20  20 20 20 20 20 20 20 20   ry:..           
+2890	20 20 20 20 20 71 75 65  72 79 73 65 74 20 3d 20        queryset = 
+28a0	71 75 65 72 79 73 65 74  2e 66 69 6c 74 65 72 28   queryset.filter(
+28b0	63 6f 6e 74 61 63 74 5f  69 64 3d 69 6e 74 28 63   contact_id=int(c
+28c0	6f 6e 74 61 63 74 5f 69  64 29 29 0d 0a 20 20 20   ontact_id))..   
+28d0	20 20 20 20 20 20 20 20  20 65 78 63 65 70 74 20            except 
+28e0	56 61 6c 75 65 45 72 72  6f 72 3a 0d 0a 20 20 20   ValueError:..   
+28f0	20 20 20 20 20 20 20 20  20 20 20 20 20 6c 6f 67                log
+2900	67 65 72 2e 77 61 72 6e  69 6e 67 28 66 22 49 6e   ger.warning(f"In
+2910	76 61 6c 69 64 20 63 6f  6e 74 61 63 74 5f 69 64   valid contact_id
+2920	20 71 75 65 72 79 20 70  61 72 61 6d 65 74 65 72    query parameter
+2930	3a 20 7b 63 6f 6e 74 61  63 74 5f 69 64 7d 22 29   : {contact_id}")
+2940	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 20 20   ..              
+2950	20 20 72 65 74 75 72 6e  20 4d 65 73 73 61 67 65     return Message
+2960	2e 6f 62 6a 65 63 74 73  2e 6e 6f 6e 65 28 29 20   .objects.none() 
+2970	23 20 52 65 74 75 72 6e  20 65 6d 70 74 79 20 66   # Return empty f
+2980	6f 72 20 69 6e 76 61 6c  69 64 20 49 44 0d 0a 20   or invalid ID.. 
+2990	20 20 20 20 20 20 20 0d  0a 20 20 20 20 20 20 20          ..       
+29a0	20 73 65 61 72 63 68 5f  74 65 72 6d 20 3d 20 73    search_term = s
+29b0	65 6c 66 2e 72 65 71 75  65 73 74 2e 71 75 65 72   elf.request.quer
+29c0	79 5f 70 61 72 61 6d 73  2e 67 65 74 28 27 73 65   y_params.get('se
+29d0	61 72 63 68 27 29 0d 0a  20 20 20 20 20 20 20 20   arch')..        
+29e0	69 66 20 73 65 61 72 63  68 5f 74 65 72 6d 3a 0d   if search_term:.
+29f0	0a 20 20 20 20 20 20 20  20 20 20 20 20 71 75 65   .            que
+2a00	72 79 73 65 74 20 3d 20  71 75 65 72 79 73 65 74   ryset = queryset
+2a10	2e 66 69 6c 74 65 72 28  0d 0a 20 20 20 20 20 20   .filter(..      
+2a20	20 20 20 20 20 20 20 20  20 20 51 28 74 65 78 74             Q(text
+2a30	5f 63 6f 6e 74 65 6e 74  5f 5f 69 63 6f 6e 74 61   _content__iconta
+2a40	69 6e 73 3d 73 65 61 72  63 68 5f 74 65 72 6d 29   ins=search_term)
+2a50	20 7c 0d 0a 20 20 20 20  20 20 20 20 20 20 20 20    |..            
+2a60	20 20 20 20 51 28 63 6f  6e 74 61 63 74 5f 5f 6e       Q(contact__n
+2a70	61 6d 65 5f 5f 69 63 6f  6e 74 61 69 6e 73 3d 73   ame__icontains=s
+2a80	65 61 72 63 68 5f 74 65  72 6d 29 20 7c 0d 0a 20   earch_term) |.. 
+2a90	20 20 20 20 20 20 20 20  20 20 20 20 20 20 20 51                  Q
+2aa0	28 63 6f 6e 74 61 63 74  5f 5f 77 68 61 74 73 61   (contact__whatsa
+2ab0	70 70 5f 69 64 5f 5f 69  63 6f 6e 74 61 69 6e 73   pp_id__icontains
+2ac0	3d 73 65 61 72 63 68 5f  74 65 72 6d 29 0d 0a 20   =search_term).. 
+2ad0	20 20 20 20 20 20 20 20  20 20 20 29 0d 0a 20 20              )..  
+2ae0	20 20 20 20 20 20 72 65  74 75 72 6e 20 71 75 65         return que
+2af0	72 79 73 65 74 0d 0a 0d  0a 0d 0a 63 6c 61 73 73   ryset......class
+2b00	20 42 72 6f 61 64 63 61  73 74 56 69 65 77 53 65    BroadcastViewSe
+2b10	74 28 76 69 65 77 73 65  74 73 2e 56 69 65 77 53   t(viewsets.ViewS
+2b20	65 74 29 3a 0d 0a 20 20  20 20 22 22 22 0d 0a 20   et):..    """.. 
+2b30	20 20 20 41 50 49 20 65  6e 64 70 6f 69 6e 74 20      API endpoint 
+2b40	66 6f 72 20 73 65 6e 64  69 6e 67 20 62 75 73 69   for sending busi
+2b50	6e 65 73 73 2d 69 6e 69  74 69 61 74 65 64 20 74   ness-initiated t
+2b60	65 6d 70 6c 61 74 65 20  6d 65 73 73 61 67 65 73   emplate messages
+2b70	20 28 62 72 6f 61 64 63  61 73 74 73 29 2e 0d 0a    (broadcasts)...
+2b80	20 20 20 20 22 22 22 0d  0a 20 20 20 20 70 65 72       """..    per
+2b90	6d 69 73 73 69 6f 6e 5f  63 6c 61 73 73 65 73 20   mission_classes 
+2ba0	3d 20 5b 70 65 72 6d 69  73 73 69 6f 6e 73 2e 49   = [permissions.I
+2bb0	73 41 64 6d 69 6e 55 73  65 72 5d 20 23 20 4f 6e   sAdminUser] # On
+2bc0	6c 79 20 61 64 6d 69 6e  73 20 63 61 6e 20 62 72   ly admins can br
+2bd0	6f 61 64 63 61 73 74 0d  0a 0d 0a 20 20 20 20 40   oadcast....    @
+2be0	61 63 74 69 6f 6e 28 64  65 74 61 69 6c 3d 46 61   action(detail=Fa
+2bf0	6c 73 65 2c 20 6d 65 74  68 6f 64 73 3d 5b 27 70   lse, methods=['p
+2c00	6f 73 74 27 5d 2c 20 75  72 6c 5f 70 61 74 68 3d   ost'], url_path=
+2c10	27 73 65 6e 64 2d 74 65  6d 70 6c 61 74 65 27 29   'send-template')
+2c20	0d 0a 20 20 20 20 64 65  66 20 73 65 6e 64 5f 74   ..    def send_t
+2c30	65 6d 70 6c 61 74 65 5f  6d 65 73 73 61 67 65 28   emplate_message(
+2c40	73 65 6c 66 2c 20 72 65  71 75 65 73 74 29 3a 0d   self, request):.
+2c50	0a 20 20 20 20 20 20 20  20 22 22 22 0d 0a 20 20   .        """..  
+2c60	20 20 20 20 20 20 41 63  63 65 70 74 73 20 61 20         Accepts a 
+2c70	6c 69 73 74 20 6f 66 20  63 6f 6e 74 61 63 74 20   list of contact 
+2c80	49 44 73 20 61 6e 64 20  61 20 74 65 6d 70 6c 61   IDs and a templa
+2c90	74 65 20 74 6f 20 73 65  6e 64 2e 0d 0a 20 20 20   te to send...   
+2ca0	20 20 20 20 20 43 72 65  61 74 65 73 20 61 20 42        Creates a B
+2cb0	72 6f 61 64 63 61 73 74  20 6f 62 6a 65 63 74 20   roadcast object 
+2cc0	74 6f 20 74 72 61 63 6b  20 74 68 65 20 63 61 6d   to track the cam
+2cd0	70 61 69 67 6e 20 61 6e  64 20 64 69 73 70 61 74   paign and dispat
+2ce0	63 68 65 73 20 61 20 73  69 6e 67 6c 65 0d 0a 20   ches a single.. 
+2cf0	20 20 20 20 20 20 20 43  65 6c 65 72 79 20 74 61          Celery ta
+2d00	73 6b 20 74 6f 20 68 61  6e 64 6c 65 20 74 68 65   sk to handle the
+2d10	20 6d 65 73 73 61 67 65  20 63 72 65 61 74 69 6f    message creatio
+2d20	6e 20 61 6e 64 20 73 65  6e 64 69 6e 67 20 61 73   n and sending as
+2d30	79 6e 63 68 72 6f 6e 6f  75 73 6c 79 2e 0d 0a 20   ynchronously... 
+2d40	20 20 20 20 20 20 20 22  22 22 0d 0a 20 20 20 20          """..    
+2d50	20 20 20 20 73 65 72 69  61 6c 69 7a 65 72 20 3d       serializer =
+2d60	20 42 72 6f 61 64 63 61  73 74 43 72 65 61 74 65    BroadcastCreate
+2d70	53 65 72 69 61 6c 69 7a  65 72 28 64 61 74 61 3d   Serializer(data=
+2d80	72 65 71 75 65 73 74 2e  64 61 74 61 29 0d 0a 20   request.data).. 
+2d90	20 20 20 20 20 20 20 69  66 20 6e 6f 74 20 73 65          if not se
+2da0	72 69 61 6c 69 7a 65 72  2e 69 73 5f 76 61 6c 69   rializer.is_vali
+2db0	64 28 29 3a 0d 0a 20 20  20 20 20 20 20 20 20 20   d():..          
+2dc0	20 20 72 65 74 75 72 6e  20 52 65 73 70 6f 6e 73     return Respons
+2dd0	65 28 73 65 72 69 61 6c  69 7a 65 72 2e 65 72 72   e(serializer.err
+2de0	6f 72 73 2c 20 73 74 61  74 75 73 3d 73 74 61 74   ors, status=stat
+2df0	75 73 2e 48 54 54 50 5f  34 30 30 5f 42 41 44 5f   us.HTTP_400_BAD_
+2e00	52 45 51 55 45 53 54 29  0d 0a 0d 0a 20 20 20 20   REQUEST)....    
+2e10	20 20 20 20 76 61 6c 69  64 61 74 65 64 5f 64 61       validated_da
+2e20	74 61 20 3d 20 73 65 72  69 61 6c 69 7a 65 72 2e   ta = serializer.
+2e30	76 61 6c 69 64 61 74 65  64 5f 64 61 74 61 0d 0a   validated_data..
+2e40	0d 0a 20 20 20 20 20 20  20 20 23 20 43 72 65 61   ..        # Crea
+2e50	74 65 20 74 68 65 20 70  61 72 65 6e 74 20 42 72   te the parent Br
+2e60	6f 61 64 63 61 73 74 20  6f 62 6a 65 63 74 20 74   oadcast object t
+2e70	6f 20 74 72 61 63 6b 20  74 68 69 73 20 63 61 6d   o track this cam
+2e80	70 61 69 67 6e 0d 0a 20  20 20 20 20 20 20 20 62   paign..        b
+2e90	72 6f 61 64 63 61 73 74  20 3d 20 42 72 6f 61 64   roadcast = Broad
+2ea0	63 61 73 74 2e 6f 62 6a  65 63 74 73 2e 63 72 65   cast.objects.cre
+2eb0	61 74 65 28 0d 0a 20 20  20 20 20 20 20 20 20 20   ate(..          
+2ec0	20 20 6e 61 6d 65 3d 76  61 6c 69 64 61 74 65 64     name=validated
+2ed0	5f 64 61 74 61 2e 67 65  74 28 27 6e 61 6d 65 27   _data.get('name'
+2ee0	2c 20 66 22 42 72 6f 61  64 63 61 73 74 20 6f 6e   , f"Broadcast on
+2ef0	20 7b 74 69 6d 65 7a 6f  6e 65 2e 6e 6f 77 28 29    {timezone.now()
+2f00	2e 73 74 72 66 74 69 6d  65 28 27 25 59 2d 25 6d   .strftime('%Y-%m
+2f10	2d 25 64 20 25 48 3a 25  4d 27 29 7d 22 29 2c 0d   -%d %H:%M')}"),.
+2f20	0a 20 20 20 20 20 20 20  20 20 20 20 20 74 65 6d   .            tem
+2f30	70 6c 61 74 65 5f 6e 61  6d 65 3d 76 61 6c 69 64   plate_name=valid
+2f40	61 74 65 64 5f 64 61 74  61 5b 27 74 65 6d 70 6c   ated_data['templ
+2f50	61 74 65 5f 6e 61 6d 65  27 5d 2c 0d 0a 20 20 20   ate_name'],..   
+2f60	20 20 20 20 20 20 20 20  20 63 72 65 61 74 65 64            created
+2f70	5f 62 79 3d 72 65 71 75  65 73 74 2e 75 73 65 72   _by=request.user
+2f80	2c 0d 0a 20 20 20 20 20  20 20 20 20 20 20 20 73   ,..            s
+2f90	74 61 74 75 73 3d 27 70  65 6e 64 69 6e 67 27 2c   tatus='pending',
+2fa0	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 74 6f   ..            to
+2fb0	74 61 6c 5f 72 65 63 69  70 69 65 6e 74 73 3d 6c   tal_recipients=l
+2fc0	65 6e 28 76 61 6c 69 64  61 74 65 64 5f 64 61 74   en(validated_dat
+2fd0	61 5b 27 63 6f 6e 74 61  63 74 5f 69 64 73 27 5d   a['contact_ids']
+2fe0	29 0d 0a 20 20 20 20 20  20 20 20 29 0d 0a 20 20   )..        )..  
+2ff0	20 20 20 20 20 20 6c 6f  67 67 65 72 2e 69 6e 66         logger.inf
+3000	6f 28 66 22 43 72 65 61  74 65 64 20 42 72 6f 61   o(f"Created Broa
+3010	64 63 61 73 74 20 6f 62  6a 65 63 74 20 7b 62 72   dcast object {br
+3020	6f 61 64 63 61 73 74 2e  69 64 7d 20 66 6f 72 20   oadcast.id} for 
+3030	7b 62 72 6f 61 64 63 61  73 74 2e 74 6f 74 61 6c   {broadcast.total
+3040	5f 72 65 63 69 70 69 65  6e 74 73 7d 20 72 65 63   _recipients} rec
+3050	69 70 69 65 6e 74 73 2e  22 29 0d 0a 0d 0a 20 20   ipients.")....  
+3060	20 20 20 20 20 20 23 20  44 69 73 70 61 74 63 68         # Dispatch
+3070	20 61 20 73 69 6e 67 6c  65 20 43 65 6c 65 72 79    a single Celery
+3080	20 74 61 73 6b 20 74 6f  20 68 61 6e 64 6c 65 20    task to handle 
+3090	74 68 65 20 65 6e 74 69  72 65 20 62 72 6f 61 64   the entire broad
+30a0	63 61 73 74 20 6a 6f 62  0d 0a 20 20 20 20 20 20   cast job..      
+30b0	20 20 64 69 73 70 61 74  63 68 5f 62 72 6f 61 64     dispatch_broad
+30c0	63 61 73 74 5f 74 61 73  6b 2e 64 65 6c 61 79 28   cast_task.delay(
+30d0	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 62 72   ..            br
+30e0	6f 61 64 63 61 73 74 5f  69 64 3d 62 72 6f 61 64   oadcast_id=broad
+30f0	63 61 73 74 2e 69 64 2c  0d 0a 20 20 20 20 20 20   cast.id,..      
+3100	20 20 20 20 20 20 63 6f  6e 74 61 63 74 5f 69 64         contact_id
+3110	73 3d 76 61 6c 69 64 61  74 65 64 5f 64 61 74 61   s=validated_data
+3120	5b 27 63 6f 6e 74 61 63  74 5f 69 64 73 27 5d 2c   ['contact_ids'],
+3130	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 6c 61   ..            la
+3140	6e 67 75 61 67 65 5f 63  6f 64 65 3d 76 61 6c 69   nguage_code=vali
+3150	64 61 74 65 64 5f 64 61  74 61 5b 27 6c 61 6e 67   dated_data['lang
+3160	75 61 67 65 5f 63 6f 64  65 27 5d 2c 0d 0a 20 20   uage_code'],..  
+3170	20 20 20 20 20 20 20 20  20 20 63 6f 6d 70 6f 6e             compon
+3180	65 6e 74 73 5f 74 65 6d  70 6c 61 74 65 3d 76 61   ents_template=va
+3190	6c 69 64 61 74 65 64 5f  64 61 74 61 2e 67 65 74   lidated_data.get
+31a0	28 27 63 6f 6d 70 6f 6e  65 6e 74 73 27 29 0d 0a   ('components')..
+31b0	20 20 20 20 20 20 20 20  29 0d 0a 0d 0a 20 20 20           )....   
+31c0	20 20 20 20 20 23 20 49  6d 6d 65 64 69 61 74 65        # Immediate
+31d0	6c 79 20 72 65 74 75 72  6e 20 74 68 65 20 63 72   ly return the cr
+31e0	65 61 74 65 64 20 42 72  6f 61 64 63 61 73 74 20   eated Broadcast 
+31f0	6f 62 6a 65 63 74 20 74  6f 20 74 68 65 20 63 6c   object to the cl
+3200	69 65 6e 74 0d 0a 20 20  20 20 20 20 20 20 72 65   ient..        re
+3210	73 70 6f 6e 73 65 5f 73  65 72 69 61 6c 69 7a 65   sponse_serialize
+3220	72 20 3d 20 42 72 6f 61  64 63 61 73 74 53 65 72   r = BroadcastSer
+3230	69 61 6c 69 7a 65 72 28  62 72 6f 61 64 63 61 73   ializer(broadcas
+3240	74 29 0d 0a 20 20 20 20  20 20 20 20 72 65 74 75   t)..        retu
+3250	72 6e 20 52 65 73 70 6f  6e 73 65 28 72 65 73 70   rn Response(resp
+3260	6f 6e 73 65 5f 73 65 72  69 61 6c 69 7a 65 72 2e   onse_serializer.
+3270	64 61 74 61 2c 20 73 74  61 74 75 73 3d 73 74 61   data, status=sta
+3280	74 75 73 2e 48 54 54 50  5f 32 30 32 5f 41 43 43   tus.HTTP_202_ACC
+3290	45 50 54 45 44 29 0d 0a  0d 0a 20 20 20 20 40 61   EPTED)....    @a
+32a0	63 74 69 6f 6e 28 64 65  74 61 69 6c 3d 46 61 6c   ction(detail=Fal
+32b0	73 65 2c 20 6d 65 74 68  6f 64 73 3d 5b 27 70 6f   se, methods=['po
+32c0	73 74 27 5d 2c 20 75 72  6c 5f 70 61 74 68 3d 27   st'], url_path='
+32d0	73 65 6e 64 2d 74 6f 2d  67 72 6f 75 70 27 29 0d   send-to-group').
+32e0	0a 20 20 20 20 64 65 66  20 73 65 6e 64 5f 74 6f   .    def send_to
+32f0	5f 67 72 6f 75 70 28 73  65 6c 66 2c 20 72 65 71   _group(self, req
+3300	75 65 73 74 29 3a 0d 0a  20 20 20 20 20 20 20 20   uest):..        
+3310	22 22 22 0d 0a 20 20 20  20 20 20 20 20 53 65 6e   """..        Sen
+3320	64 73 20 61 20 74 65 6d  70 6c 61 74 65 20 6d 65   ds a template me
+3330	73 73 61 67 65 20 74 6f  20 61 20 64 79 6e 61 6d   ssage to a dynam
+3340	69 63 61 6c 6c 79 20 67  65 6e 65 72 61 74 65 64   ically generated
+3350	20 67 72 6f 75 70 20 6f  66 20 63 6f 6e 74 61 63    group of contac
+3360	74 73 0d 0a 20 20 20 20  20 20 20 20 62 61 73 65   ts..        base
+3370	64 20 6f 6e 20 43 75 73  74 6f 6d 65 72 50 72 6f   d on CustomerPro
+3380	66 69 6c 65 20 74 61 67  73 20 6f 72 20 61 73 73   file tags or ass
+3390	69 67 6e 65 64 20 61 67  65 6e 74 2e 0d 0a 20 20   igned agent...  
+33a0	20 20 20 20 20 20 22 22  22 0d 0a 20 20 20 20 20         """..     
+33b0	20 20 20 73 65 72 69 61  6c 69 7a 65 72 20 3d 20      serializer = 
+33c0	42 72 6f 61 64 63 61 73  74 47 72 6f 75 70 43 72   BroadcastGroupCr
+33d0	65 61 74 65 53 65 72 69  61 6c 69 7a 65 72 28 64   eateSerializer(d
+33e0	61 74 61 3d 72 65 71 75  65 73 74 2e 64 61 74 61   ata=request.data
+33f0	29 0d 0a 20 20 20 20 20  20 20 20 69 66 20 6e 6f   )..        if no
+3400	74 20 73 65 72 69 61 6c  69 7a 65 72 2e 69 73 5f   t serializer.is_
+3410	76 61 6c 69 64 28 29 3a  0d 0a 20 20 20 20 20 20   valid():..      
+3420	20 20 20 20 20 20 72 65  74 75 72 6e 20 52 65 73         return Res
+3430	70 6f 6e 73 65 28 73 65  72 69 61 6c 69 7a 65 72   ponse(serializer
+3440	2e 65 72 72 6f 72 73 2c  20 73 74 61 74 75 73 3d   .errors, status=
+3450	73 74 61 74 75 73 2e 48  54 54 50 5f 34 30 30 5f   status.HTTP_400_
+3460	42 41 44 5f 52 45 51 55  45 53 54 29 0d 0a 0d 0a   BAD_REQUEST)....
+3470	20 20 20 20 20 20 20 20  76 61 6c 69 64 61 74 65           validate
+3480	64 5f 64 61 74 61 20 3d  20 73 65 72 69 61 6c 69   d_data = seriali
+3490	7a 65 72 2e 76 61 6c 69  64 61 74 65 64 5f 64 61   zer.validated_da
+34a0	74 61 0d 0a 20 20 20 20  20 20 20 20 74 61 67 73   ta..        tags
+34b0	20 3d 20 76 61 6c 69 64  61 74 65 64 5f 64 61 74    = validated_dat
+34c0	61 2e 67 65 74 28 27 74  61 67 73 27 2c 20 5b 5d   a.get('tags', []
+34d0	29 0d 0a 20 20 20 20 20  20 20 20 61 67 65 6e 74   )..        agent
+34e0	5f 69 64 20 3d 20 76 61  6c 69 64 61 74 65 64 5f   _id = validated_
+34f0	64 61 74 61 2e 67 65 74  28 27 61 73 73 69 67 6e   data.get('assign
+3500	65 64 5f 61 67 65 6e 74  5f 69 64 27 29 0d 0a 0d   ed_agent_id')...
+3510	0a 20 20 20 20 20 20 20  20 23 20 42 75 69 6c 64   .        # Build
+3520	20 74 68 65 20 66 69 6c  74 65 72 20 66 6f 72 20    the filter for 
+3530	43 75 73 74 6f 6d 65 72  50 72 6f 66 69 6c 65 0d   CustomerProfile.
+3540	0a 20 20 20 20 20 20 20  20 70 72 6f 66 69 6c 65   .        profile
+3550	5f 66 69 6c 74 65 72 73  20 3d 20 51 28 29 0d 0a   _filters = Q()..
+3560	20 20 20 20 20 20 20 20  69 66 20 74 61 67 73 3a           if tags:
+3570	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 23 20   ..            # 
+3580	43 72 65 61 74 65 20 61  20 51 20 6f 62 6a 65 63   Create a Q objec
+3590	74 20 66 6f 72 20 65 61  63 68 20 74 61 67 20 61   t for each tag a
+35a0	6e 64 20 63 6f 6d 62 69  6e 65 20 77 69 74 68 20   nd combine with 
+35b0	4f 52 0d 0a 20 20 20 20  20 20 20 20 20 20 20 20   OR..            
+35c0	74 61 67 5f 71 75 65 72  69 65 73 20 3d 20 5b 51   tag_queries = [Q
+35d0	28 74 61 67 73 5f 5f 63  6f 6e 74 61 69 6e 73 3d   (tags__contains=
+35e0	74 61 67 29 20 66 6f 72  20 74 61 67 20 69 6e 20   tag) for tag in 
+35f0	74 61 67 73 5d 0d 0a 20  20 20 20 20 20 20 20 20   tags]..         
+3600	20 20 20 70 72 6f 66 69  6c 65 5f 66 69 6c 74 65      profile_filte
+3610	72 73 20 7c 3d 20 72 65  64 75 63 65 28 6f 72 5f   rs |= reduce(or_
+3620	2c 20 74 61 67 5f 71 75  65 72 69 65 73 29 0d 0a   , tag_queries)..
+3630	20 20 20 20 20 20 20 20  0d 0a 20 20 20 20 20 20           ..      
+3640	20 20 69 66 20 61 67 65  6e 74 5f 69 64 3a 0d 0a     if agent_id:..
+3650	20 20 20 20 20 20 20 20  20 20 20 20 23 20 54 68               # Th
+3660	69 73 20 77 69 6c 6c 20  4f 52 20 77 69 74 68 20   is will OR with 
+3670	74 68 65 20 74 61 67 20  71 75 65 72 79 20 69 66   the tag query if
+3680	20 69 74 20 65 78 69 73  74 73 0d 0a 20 20 20 20    it exists..    
+3690	20 20 20 20 20 20 20 20  70 72 6f 66 69 6c 65 5f           profile_
+36a0	66 69 6c 74 65 72 73 20  7c 3d 20 51 28 61 73 73   filters |= Q(ass
+36b0	69 67 6e 65 64 5f 61 67  65 6e 74 5f 69 64 3d 61   igned_agent_id=a
+36c0	67 65 6e 74 5f 69 64 29  0d 0a 0d 0a 20 20 20 20   gent_id)....    
+36d0	20 20 20 20 23 20 47 65  74 20 74 68 65 20 70 72       # Get the pr
+36e0	69 6d 61 72 79 20 6b 65  79 73 20 28 77 68 69 63   imary keys (whic
+36f0	68 20 61 72 65 20 63 6f  6e 74 61 63 74 5f 69 64   h are contact_id
+3700	73 29 20 6f 66 20 74 68  65 20 6d 61 74 63 68 69   s) of the matchi
+3710	6e 67 20 70 72 6f 66 69  6c 65 73 0d 0a 20 20 20   ng profiles..   
+3720	20 20 20 20 20 63 6f 6e  74 61 63 74 5f 69 64 73        contact_ids
+3730	20 3d 20 6c 69 73 74 28  43 75 73 74 6f 6d 65 72    = list(Customer
+3740	50 72 6f 66 69 6c 65 2e  6f 62 6a 65 63 74 73 2e   Profile.objects.
+3750	66 69 6c 74 65 72 28 70  72 6f 66 69 6c 65 5f 66   filter(profile_f
+3760	69 6c 74 65 72 73 29 2e  76 61 6c 75 65 73 5f 6c   ilters).values_l
+3770	69 73 74 28 27 63 6f 6e  74 61 63 74 5f 69 64 27   ist('contact_id'
+3780	2c 20 66 6c 61 74 3d 54  72 75 65 29 29 0d 0a 0d   , flat=True))...
+3790	0a 20 20 20 20 20 20 20  20 69 66 20 6e 6f 74 20   .        if not 
+37a0	63 6f 6e 74 61 63 74 5f  69 64 73 3a 0d 0a 20 20   contact_ids:..  
+37b0	20 20 20 20 20 20 20 20  20 20 72 65 74 75 72 6e             return
+37c0	20 52 65 73 70 6f 6e 73  65 28 7b 22 6d 65 73 73    Response({"mess
+37d0	61 67 65 22 3a 20 22 4e  6f 20 63 6f 6e 74 61 63   age": "No contac
+37e0	74 73 20 66 6f 75 6e 64  20 6d 61 74 63 68 69 6e   ts found matchin
+37f0	67 20 74 68 65 20 73 70  65 63 69 66 69 65 64 20   g the specified 
+3800	63 72 69 74 65 72 69 61  2e 22 7d 2c 20 73 74 61   criteria."}, sta
+3810	74 75 73 3d 73 74 61 74  75 73 2e 48 54 54 50 5f   tus=status.HTTP_
+3820	34 30 34 5f 4e 4f 54 5f  46 4f 55 4e 44 29 0d 0a   404_NOT_FOUND)..
+3830	0d 0a 20 20 20 20 20 20  20 20 23 20 43 72 65 61   ..        # Crea
+3840	74 65 20 74 68 65 20 70  61 72 65 6e 74 20 42 72   te the parent Br
+3850	6f 61 64 63 61 73 74 20  6f 62 6a 65 63 74 0d 0a   oadcast object..
+3860	20 20 20 20 20 20 20 20  62 72 6f 61 64 63 61 73           broadcas
+3870	74 20 3d 20 42 72 6f 61  64 63 61 73 74 2e 6f 62   t = Broadcast.ob
+3880	6a 65 63 74 73 2e 63 72  65 61 74 65 28 0d 0a 20   jects.create(.. 
+3890	20 20 20 20 20 20 20 20  20 20 20 6e 61 6d 65 3d              name=
+38a0	76 61 6c 69 64 61 74 65  64 5f 64 61 74 61 2e 67   validated_data.g
+38b0	65 74 28 27 6e 61 6d 65  27 2c 20 66 22 47 72 6f   et('name', f"Gro
+38c0	75 70 20 42 72 6f 61 64  63 61 73 74 20 6f 6e 20   up Broadcast on 
+38d0	7b 74 69 6d 65 7a 6f 6e  65 2e 6e 6f 77 28 29 2e   {timezone.now().
+38e0	73 74 72 66 74 69 6d 65  28 27 25 59 2d 25 6d 2d   strftime('%Y-%m-
+38f0	25 64 20 25 48 3a 25 4d  27 29 7d 22 29 2c 0d 0a   %d %H:%M')}"),..
+3900	20 20 20 20 20 20 20 20  20 20 20 20 74 65 6d 70               temp
+3910	6c 61 74 65 5f 6e 61 6d  65 3d 76 61 6c 69 64 61   late_name=valida
+3920	74 65 64 5f 64 61 74 61  5b 27 74 65 6d 70 6c 61   ted_data['templa
+3930	74 65 5f 6e 61 6d 65 27  5d 2c 0d 0a 20 20 20 20   te_name'],..    
+3940	20 20 20 20 20 20 20 20  63 72 65 61 74 65 64 5f           created_
+3950	62 79 3d 72 65 71 75 65  73 74 2e 75 73 65 72 2c   by=request.user,
+3960	0d 0a 20 20 20 20 20 20  20 20 20 20 20 20 73 74   ..            st
+3970	61 74 75 73 3d 27 70 65  6e 64 69 6e 67 27 2c 0d   atus='pending',.
+3980	0a 20 20 20 20 20 20 20  20 20 20 20 20 74 6f 74   .            tot
+3990	61 6c 5f 72 65 63 69 70  69 65 6e 74 73 3d 6c 65   al_recipients=le
+39a0	6e 28 63 6f 6e 74 61 63  74 5f 69 64 73 29 0d 0a   n(contact_ids)..
+39b0	20 20 20 20 20 20 20 20  29 0d 0a 20 20 20 20 20           )..     
+39c0	20 20 20 6c 6f 67 67 65  72 2e 69 6e 66 6f 28 66      logger.info(f
+39d0	22 43 72 65 61 74 65 64  20 42 72 6f 61 64 63 61   "Created Broadca
+39e0	73 74 20 6f 62 6a 65 63  74 20 7b 62 72 6f 61 64   st object {broad
+39f0	63 61 73 74 2e 69 64 7d  20 66 6f 72 20 7b 62 72   cast.id} for {br
+3a00	6f 61 64 63 61 73 74 2e  74 6f 74 61 6c 5f 72 65   oadcast.total_re
+3a10	63 69 70 69 65 6e 74 73  7d 20 72 65 63 69 70 69   cipients} recipi
+3a20	65 6e 74 73 20 62 61 73  65 64 20 6f 6e 20 67 72   ents based on gr
+3a30	6f 75 70 20 63 72 69 74  65 72 69 61 2e 22 29 0d   oup criteria.").
+3a40	0a 0d 0a 20 20 20 20 20  20 20 20 23 20 44 69 73   ...        # Dis
+3a50	70 61 74 63 68 20 74 68  65 20 43 65 6c 65 72 79   patch the Celery
+3a60	20 74 61 73 6b 0d 0a 20  20 20 20 20 20 20 20 64    task..        d
+3a70	69 73 70 61 74 63 68 5f  62 72 6f 61 64 63 61 73   ispatch_broadcas
+3a80	74 5f 74 61 73 6b 2e 64  65 6c 61 79 28 0d 0a 20   t_task.delay(.. 
+3a90	20 20 20 20 20 20 20 20  20 20 20 62 72 6f 61 64              broad
+3aa0	63 61 73 74 5f 69 64 3d  62 72 6f 61 64 63 61 73   cast_id=broadcas
+3ab0	74 2e 69 64 2c 0d 0a 20  20 20 20 20 20 20 20 20   t.id,..         
+3ac0	20 20 20 63 6f 6e 74 61  63 74 5f 69 64 73 3d 63      contact_ids=c
+3ad0	6f 6e 74 61 63 74 5f 69  64 73 2c 0d 0a 20 20 20   ontact_ids,..   
+3ae0	20 20 20 20 20 20 20 20  20 6c 61 6e 67 75 61 67            languag
+3af0	65 5f 63 6f 64 65 3d 76  61 6c 69 64 61 74 65 64   e_code=validated
+3b00	5f 64 61 74 61 5b 27 6c  61 6e 67 75 61 67 65 5f   _data['language_
+3b10	63 6f 64 65 27 5d 2c 0d  0a 20 20 20 20 20 20 20   code'],..       
+3b20	20 20 20 20 20 63 6f 6d  70 6f 6e 65 6e 74 73 5f        components_
+3b30	74 65 6d 70 6c 61 74 65  3d 76 61 6c 69 64 61 74   template=validat
+3b40	65 64 5f 64 61 74 61 2e  67 65 74 28 27 63 6f 6d   ed_data.get('com
+3b50	70 6f 6e 65 6e 74 73 27  29 0d 0a 20 20 20 20 20   ponents')..     
+3b60	20 20 20 29 0d 0a 0d 0a  20 20 20 20 20 20 20 20      )....        
+3b70	72 65 73 70 6f 6e 73 65  5f 73 65 72 69 61 6c 69   response_seriali
+3b80	7a 65 72 20 3d 20 42 72  6f 61 64 63 61 73 74 53   zer = BroadcastS
+3b90	65 72 69 61 6c 69 7a 65  72 28 62 72 6f 61 64 63   erializer(broadc
+3ba0	61 73 74 29 0d 0a 20 20  20 20 20 20 20 20 72 65   ast)..        re
+3bb0	74 75 72 6e 20 52 65 73  70 6f 6e 73 65 28 72 65   turn Response(re
+3bc0	73 70 6f 6e 73 65 5f 73  65 72 69 61 6c 69 7a 65   sponse_serialize
+3bd0	72 2e 64 61 74 61 2c 20  73 74 61 74 75 73 3d 73   r.data, status=s
+3be0	74 61 74 75 73 2e 48 54  54 50 5f 32 30 32 5f 41   tatus.HTTP_202_A
+3bf0	43 43 45 50 54 45 44 29                            CCEPTED)

@@ -1,4 +1,4 @@
-# whatsappcrm_backend/notifications/management/commands/load_notification_templates.py
+# whatsappcrm_backend/flows/management/commands/load_notification_templates.py
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
@@ -9,205 +9,290 @@ from notifications.models import NotificationTemplate
 # This makes them easy to manage and deploy.
 NOTIFICATION_TEMPLATES = [
     {
-        "name": "new_booking_created",
-        "description": "Sent to admins when a new booking is created (e.g., via a signal).",
+        "name": "hanna_new_order_created",
+        "description": "Sent to admins when a new order is created via a signal.",
         "template_type": "whatsapp",
-        "body": """New Booking Confirmed! 🦒
+        "body": """New Order Created! 📦
 
-A new booking has been created for customer *{{ booking.customer.get_full_name or booking.customer.contact.name }}*.
+A new order has been created for customer *{{ order.customer.get_full_name or order.customer.contact.name }}*.
 
-- Tour: *{{ booking.tour_name }}*
-- Booking Ref: *{{ booking.booking_reference }}*
-- Amount: *${{ booking.total_amount or '0.00' }}*
+- Order Name: *{{ order.name }}*
+- Order #: *{{ order.order_number }}*
+- Amount: *${{ order.amount or '0.00' }}*
 
-Please see the admin panel for full details."""
+Please see the admin panel for full details.""",
+        "buttons": [
+            {"type": "URL", "text": "View Order", "url": "https://backend.hanna.co.zw/admin/customer_data/order/{{ order.id }}/change/"}
+        ]
     },
     {
-        "name": "new_online_order_placed",
-        "description": "Sent to admins when a customer places a new booking through a WhatsApp flow.",
+        "name": "hanna_new_online_order_placed",
+        "description": "Sent to admins when a customer places a new order through the 'Purchase Product' flow.",
         "template_type": "whatsapp",
-        "body": """New Tour Booking via WhatsApp! 🐘
+        "body": """New Online Order Placed! 🛍️
 
-A new booking has been made via WhatsApp by *{{ contact.name or contact.whatsapp_id }}*.
+A new order has been placed via WhatsApp by *{{ contact.name or contact.whatsapp_id }}*.
 
-*Booking Details:*
-- Booking Ref: *{{ created_booking.booking_reference }}*
-- Total Amount: *${{ '%.2f'|format(created_booking.total_amount|float) }}*
+*Order Details:*
+- Order #: *{{ created_order_details.order_number }}*
+- Total Amount: *${{ created_order_details.amount }}*
 - Payment Status: Pending
 
-*Lead Guest:*
-- Name: {{ contact.name }}
+*Customer & Delivery:*
+- Name: {{ delivery_name }}
+- Phone: {{ delivery_phone }}
+- Address: {{ delivery_address }}
 
-Please follow up with the customer to arrange payment."""
+*Items Ordered:*
+{% for item in cart_items %}- {{ item.quantity }} x {{ item.name }}
+{% endfor %}
+
+Please follow up with the customer to arrange payment.""",
+        "buttons": [
+            {"type": "URL", "text": "View Order", "url": "https://backend.hanna.co.zw/admin/customer_data/order/{{ created_order_details.id }}/change/"}
+        ]
     },
     {
-        "name": "order_payment_status_updated",
+        "name": "hanna_order_payment_status_updated",
         "description": "Sent to a customer when an admin updates their order's payment status.",
         "template_type": "whatsapp",
         "body": """Hello! 👋
 
-The payment status for your booking '{{ booking.tour_name }}' (Ref: {{ booking.booking_reference }}) has been updated to: *{{ new_status }}*.
+The status for your order '{{ order_name }}' (#{{ order_number }}) has been updated to: *{{ new_status }}*.
 
 Thank you for choosing us!"""
     },
     {
-        "name": "assessment_status_updated",
-        "description": "Sent to a customer when an admin updates their itinerary request status.",
+        "name": "hanna_assessment_status_updated",
+        "description": "Sent to a customer when an admin updates their site assessment status.",
         "template_type": "whatsapp",
         "body": """Hello! 👋
 
-The status for your Itinerary Request (#{{ request_id }}) has been updated to: *{{ new_status }}*.
+The status for your Site Assessment Request (#{{ assessment_id }}) has been updated to: *{{ new_status }}*.
 
 Our team will be in touch with the next steps. Thank you!"""
     },
     {
-        "name": "admin_order_and_install_created",
-        "description": "Sent to admins when another admin creates a new booking via an admin-facing flow.",
+        "name": "hanna_new_installation_request",
+        "description": "Sent to admins when a customer submits a new solar installation request.",
+        "template_type": "whatsapp",
+        "body": """New Installation Request 🛠️
+
+A new installation request has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
+
+*Request Details:*
+- Type: {{ installation_type }}
+- Order #: {{ order_number or 'N/A' }}
+- Assessment #: {{ assessment_number or 'N/A' }}
+
+*Installation Info:*
+- Branch: {{ install_branch }}
+- Sales Person: {{ install_sales_person }}
+- Client Name: {{ install_full_name }}
+- Client Phone: {{ install_phone }}{% if install_alt_name and install_alt_name|lower != 'n/a' %}
+- Alt. Contact: {{ install_alt_name }} ({{ install_alt_phone }}){% endif %}
+- Address: {{ install_address }}{% if install_location_pin and install_location_pin.latitude %}
+- Location Pin: https://www.google.com/maps/search/?api=1&query={{ install_location_pin.latitude }},{{ install_location_pin.longitude }}{% endif %}
+- Preferred Date: {{ install_datetime }} ({{ install_availability|title }})
+
+Please review and schedule the installation.""",
+        "buttons": [
+            {"type": "URL", "text": "View Request", "url": "https://backend.hanna.co.zw/admin/customer_data/installationrequest/{{ created_installation_request.id }}/change/"}
+        ]
+    },
+    {
+        "name": "hanna_new_starlink_installation_request",
+        "description": "Sent to admins when a customer submits a new Starlink installation request.",
+        "template_type": "whatsapp",
+        "body": """New Starlink Installation Request 🛰️
+
+A new Starlink installation request has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
+
+*Client & Location:*
+- Name: {{ install_full_name }}
+- Phone: {{ install_phone }}
+- Address: {{ install_address }}
+{% if install_location_pin and install_location_pin.latitude %}- Location Pin: https://www.google.com/maps/search/?api=1&query={{ install_location_pin.latitude }},{{ install_location_pin.longitude }}{% endif %}
+
+*Scheduling:*
+- Preferred Date: {{ install_datetime }} ({{ install_availability|title }})
+
+*Job Details:*
+- Kit Type: {{ install_kit_type|title }}
+- Desired Mount: {{ install_mount_location }}
+
+Please follow up to confirm the schedule.""",
+        "buttons": [
+            {"type": "URL", "text": "View Request", "url": "https://backend.hanna.co.zw/admin/customer_data/installationrequest/{{ created_installation_request.id }}/change/"}
+        ]
+    },
+    {
+        "name": "hanna_new_solar_cleaning_request",
+        "description": "Sent to admins when a customer submits a new solar panel cleaning request.",
+        "template_type": "whatsapp",
+        "body": """New Solar Cleaning Request 💧
+
+A new cleaning request has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
+
+*Client Details:*
+- Name: {{ cleaning_full_name }}
+- Phone: {{ cleaning_phone }}
+
+*Job Details:*
+- Roof Type: {{ cleaning_roof_type|title }}
+- Panels: {{ cleaning_panel_count }} x {{ cleaning_panel_type|title }}
+- Preferred Date: {{ cleaning_date }} ({{ cleaning_availability|title }})
+- Address: {{ cleaning_address }}{% if cleaning_location_pin and cleaning_location_pin.latitude %}
+- Location Pin: https://www.google.com/maps/search/?api=1&query={{ cleaning_location_pin.latitude }},{{ cleaning_location_pin.longitude }}{% endif %}
+
+Please follow up to provide a quote and schedule the service.""",
+        "buttons": [
+            {"type": "URL", "text": "View Request", "url": "https://backend.hanna.co.zw/admin/customer_data/solarcleaningrequest/{{ created_cleaning_request.id }}/change/"}
+        ]
+    },
+    {
+        "name": "hanna_admin_order_and_install_created",
+        "description": "Sent to admins when another admin creates a new order and installation request via the admin flow.",
         "template_type": "whatsapp",
         "body": """Admin Action: New Order & Install Created 📝
 
-Admin *{{ contact.name or contact.username }}* has created a new booking.
+Admin *{{ contact.name or contact.username }}* has created a new order and installation request.
 *Customer:* {{ target_contact.0.name or customer_whatsapp_id }}
-*Booking Ref:* {{ booking_ref }}
-*Tour Name:* {{ tour_name }}
+*Order #:* {{ order_number_ref }}
+*Order Name:* {{ order_description }}
 
-Please see the admin panel for full details."""
+Please see the admin panel for full details.""",
+        "buttons": [
+            {"type": "URL", "text": "View Order", "url": "https://backend.hanna.co.zw/admin/customer_data/order/{{ created_order.id }}/change/"}
+        ]
     },
     {
-        "name": "booking_created_from_email",
-        "description": "Sent to admins when a booking is successfully created from an email attachment.",
+        "name": "hanna_new_site_assessment_request",
+        "description": "Sent to admins when a customer books a new site assessment.",
         "template_type": "whatsapp",
-        "body": """New Booking Created from Email 🦁
+        "body": """New Site Assessment Request 📋
 
-A new booking has been automatically created from an email attachment for Kalai Safaris.
+A new site assessment has been requested by *{{ contact.name or contact.whatsapp_id }}*.
 
-*Booking Ref*: {{ booking.reference }}
-*Customer*: {{ customer.first_name }} {{ customer.last_name }}
-*Tour*: {{ booking.tour_name }}
-*Start Date*: {{ booking.start_date }}
+*Request Details:*
+- Name: {{ assessment_full_name }}
+- Company: {{ assessment_company_name }}
+- Address: {{ assessment_address }}
+- Contact: {{ assessment_contact_info }}
+- Preferred Day: {{ assessment_preferred_day }}
 
-Please review the booking in the admin panel."""
+Please follow up to schedule the assessment.""",
+        "buttons": [
+            {"type": "URL", "text": "View Request", "url": "https://backend.hanna.co.zw/admin/customer_data/siteassessmentrequest/{{ created_assessment_request.id }}/change/"}
+        ]
     },
     {
-        "name": "human_handover_flow",
+        "name": "hanna_job_card_created_successfully",
+        "description": "Sent to admins when a job card is successfully created from an email attachment.",
+        "template_type": "whatsapp",
+        "body": """New Job Card Created ⚙️
+
+A new job card has been automatically created from an email attachment.
+
+*Job Card #*: {{ job_card.job_card_number }}
+*Customer*: {{ customer.first_name }} {{ customer.last_name }}
+*Product*: {{ job_card.product_description }}
+*Serial #*: {{ job_card.product_serial_number }}
+*Reported Fault*: {{ job_card.reported_fault }}
+
+Please review the job card in the admin panel and assign it to a technician.""",
+        "buttons": [
+            {"type": "URL", "text": "View Job Card", "url": "https://backend.hanna.co.zw/admin/customer_data/jobcard/{{ job_card.id }}/change/"}
+        ]
+    },
+    {
+        "name": "hanna_human_handover_flow",
         "description": "Sent to admins when a user is handed over to a human agent by the flow engine.",
         "template_type": "whatsapp",
         "body": """Human Intervention Required ⚠️
 
-Contact *{{ related_contact.name or related_contact.whatsapp_id }}* requires assistance.
+Contact *{{ related_contact_name }}* requires assistance.
 
 *Reason:*
-{{ template_context.last_bot_message or 'User requested help or an error occurred.' }}
+{{ last_bot_message }}
 
-Please respond to them in the main inbox."""
+Please respond to them in the main inbox.""",
+        "buttons": [
+            {"type": "QUICK_REPLY", "text": "Acknowledge"},
+            {"type": "URL", "text": "View Conversation", "url": "https://backend.hanna.co.zw/admin/conversations/contact/{{ related_contact.id }}/change/"}
+        ]
     },
     {
-        "name": "message_send_failure",
+        "name": "hanna_new_placeholder_order_created",
+        "description": "Sent to admins when a placeholder order is created via the order receiver number.",
+        "template_type": "whatsapp",
+        "body": """New Placeholder Order Created 📦
+
+A new placeholder order has been created by *{{ contact.name or contact.whatsapp_id }}*.
+
+*Order #:* {{ normalized_order_number }}
+
+Please update the order details in the admin panel as soon as possible.""",
+        "buttons": [
+            {"type": "URL", "text": "View Order", "url": "https://backend.hanna.co.zw/admin/customer_data/order/?q={{ normalized_order_number }}"}
+        ]
+    },
+    {
+        "name": "hanna_message_send_failure",
         "description": "Sent to admins when a WhatsApp message fails to send.",
         "template_type": "whatsapp",
         "body": """Message Send Failure ⚠️
 
-Failed to send a message to *{{ related_contact.name or related_contact.whatsapp_id }}*.
+Failed to send a message to *{{ related_contact_name }}*.
 
-*Reason:* {{ template_context.message.error_details or 'Unknown error' }}
+*Reason:* {{ error_details }}
 
 Please check the system logs for more details."""
     },
     {
-        "name": "admin_24h_window_reminder",
+        "name": "hanna_admin_24h_window_reminder",
         "description": "Sent to an admin user when their 24-hour interaction window is about to close.",
         "template_type": "whatsapp",
         "body": """Hi {{ recipient.first_name or recipient.username }},
 
 This is an automated reminder. Your 24-hour interaction window for receiving system notifications on WhatsApp is closing soon.
 
-Please reply with "status" or any other command to keep the window open."""
+Please reply with "status" or any other command to keep the window open.""",
+        "buttons": [
+            {"type": "QUICK_REPLY", "text": "Reply Now"}
+        ]
     },
     {
-        "name": "invoice_processed_successfully",
-        "description": "Sent to admins when a booking confirmation from an email has been successfully processed.",
+        "name": "hanna_invoice_processed_successfully",
+        "description": "Sent to admins when an invoice from an email has been successfully processed into an order.",
         "template_type": "whatsapp",
         "body": """Invoice Processed Successfully ✅
 
-A booking confirmation from *{{ attachment.sender }}* (Filename: *{{ attachment.filename }}*) has been processed.
+An invoice from *{{ sender }}* (Filename: *{{ filename }}*) has been processed.
 
 *Order Details:*
-- Booking Ref: *{{ booking.booking_reference }}*
-- Total Amount: *${{ "%.2f"|format(booking.amount) if booking.amount is not none else '0.00' }}*
-- Customer: *{{ customer.full_name or customer.contact_name }}*
+- Order #: *{{ order_number }}*
+- Total Amount: *${{ order_amount }}*
+- Customer: *{{ customer_name }}*
 
 The new order has been created in the system."""
     },
     {
-        "name": "new_tour_inquiry_alert",
-        "description": "Sent to admins when a new tour inquiry is submitted via the WhatsApp flow.",
+        "name": "hanna_customer_invoice_confirmation",
+        "description": "Sent to a customer via WhatsApp after their emailed invoice has been successfully processed and an order created.",
         "template_type": "whatsapp",
-        "body": """New Tour Inquiry! 🦁
+        "body": """Hello {{ customer_name }}! 👋
 
-A new tour inquiry has been submitted by *{{ contact.name or contact.whatsapp_id }}*.
+This is a confirmation that your invoice has been successfully processed.
 
-*Inquiry Details:*
-- Name: *{{ inquiry_full_name }}*
-- Destination: *{{ inquiry_destination }}*
-- Travelers: *{{ inquiry_travelers }}*
-- Dates: *{{ inquiry_dates }}*
-- Notes: {{ inquiry_notes }}
+*Order Details:*
+- Order #: *{{ order_number }}*
+- Invoice Date: {{ invoice_date }}
+- Total Amount: *${{ total_amount }}*
 
-Please follow up to create a custom itinerary. The inquiry has been saved to the CRM."""
-    },
-    {
-        "name": "manual_payment_recorded_alert",
-        "description": "Sent to admins when a customer records a manual payment via WhatsApp.",
-        "template_type": "whatsapp",
-        "body": """Manual Payment Recorded 🧾
+An installation has been provisionally scheduled and our team will be in touch shortly to confirm the details.
 
-A customer has recorded a manual payment that requires verification.
-
-*Customer:* {{ contact.name or contact.whatsapp_id }}
-*Booking Ref:* #{{ found_booking.0.booking_reference }}
-*Amount:* ${{ '%.2f'|format(payment_amount|float) }}
-*Method:* {{ payment_method_name }}
-
-Please log in to the admin panel to verify this payment and update the booking status.
-
-Payment ID: {{ created_payment.id }}
-Booking ID: {{ found_booking.0.id }}"""
-    },
-    {
-        "name": "customer_onboarding_welcome",
-        "description": "Sent to a new customer after successful onboarding.",
-        "template_type": "whatsapp",
-        "body": """Welcome to Kali Safaris! 🦒
-
-Thank you for choosing us for your unforgettable safari adventure. We're thrilled to have you!
-
-To get started, here are a few helpful resources:
-- Explore our tours: [Link to Tours]
-- Manage your bookings: [Link to Customer Portal]
-- Contact support: [Support Phone Number]
-
-We'll be in touch shortly to help you plan your dream safari.
-
-Best,
-The Kali Safaris Team"""
-    },
-    {
-        "name": "staff_onboarding_welcome",
-        "description": "Sent to new staff members after successful onboarding.",
-        "template_type": "whatsapp",
-        "body": """Welcome to the Kali Safaris Team! 🐘
-
-We're excited to have you join us. This is the start of an amazing journey!
-
-Here's what you need to know to get started:
-- Access your admin panel: [Link to Admin Panel]
-- Review our internal guides: [Link to Internal Docs]
-- Meet the team: [Link to Team Directory]
-
-Your account has been set up, and you can now log in.
-
-Best,
-The Kali Safaris Management"""
+Thank you for choosing Hanna Installations!"""
     },
 ]
 
@@ -227,6 +312,7 @@ class Command(BaseCommand):
                 defaults={
                     'description': template_def.get('description', ''),
                     'message_body': template_def.get('body', ''),
+                    'buttons': template_def.get('buttons', []),
                 }
             )
 
