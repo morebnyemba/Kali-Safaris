@@ -8,8 +8,7 @@ DATE_PICKER_WHATSAPP_FLOW_METADATA = {
     "is_active": True
 }
 
-WHATSAPP_FLOW_DATE_PICKER = {
-    "name": "date_picker_whatsapp_flow",
+DATE_PICKER_WHATSAPP_FLOW = {
     "version": "7.3",
     "screens": [
         {

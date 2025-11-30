@@ -1,15 +1,14 @@
 # whatsappcrm_backend/flows/definitions/tour_inquiry_whatsapp_flow.py
 
-WHATSAPP_FLOW_TOUR_INQUIRY = {
+TOUR_INQUIRY_WHATSAPP_FLOW_METADATA = {
     "name": "tour_inquiry_whatsapp_flow",
-    # ...existing fields...
-    TOUR_INQUIRY_WHATSAPP_FLOW_METADATA = {
-        "name": "tour_inquiry_whatsapp_flow",
-        "friendly_name": "Tour Inquiry WhatsApp Flow",
-        "description": "Interactive WhatsApp flow for tour inquiries.",
-        "trigger_keywords": ["tour inquiry", "safari inquiry"],
-        "is_active": True
-    }
+    "friendly_name": "Tour Inquiry WhatsApp Flow",
+    "description": "Interactive WhatsApp flow for tour inquiries.",
+    "trigger_keywords": ["tour inquiry", "safari inquiry"],
+    "is_active": True
+}
+
+TOUR_INQUIRY_WHATSAPP_FLOW = {
     "version": "7.3",
     "screens": [
         {
