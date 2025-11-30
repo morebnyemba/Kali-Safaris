@@ -15,7 +15,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "id": "WELCOME",
             "title": "Welcome to Kali Safaris! 🦒",
             "layout": {
-                "type": "SingleColumnLayout",
+                "type": "column",
                 "children": [
                     {"type": "text", "text": "Let's plan your dream safari adventure!"},
                     {"type": "text", "text": "We'll ask a few quick questions to help us tailor your experience."},
@@ -30,7 +30,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                 "destinations": {"type": "string", "__example__": "Maasai Mara, Serengeti"}
             },
             "layout": {
-                "type": "SingleColumnLayout",
+                "type": "column",
                 "children": [
                     {"type": "text", "text": "Which destinations would you like to visit? (e.g., Maasai Mara, Serengeti, Victoria Falls)"},
                     {"type": "input", "input_type": "text", "label": "Destinations", "name": "destinations", "required": True},
@@ -45,7 +45,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                 "preferred_dates": {"type": "string", "__example__": "Mid-August 2024"}
             },
             "layout": {
-                "type": "SingleColumnLayout",
+                "type": "column",
                 "children": [
                     {"type": "text", "text": "When would you like to travel? (e.g., Mid-August 2024)"},
                     {"type": "input", "input_type": "text", "label": "Travel Dates", "name": "preferred_dates", "required": True},
@@ -60,7 +60,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                 "number_of_travelers": {"type": "string", "__example__": "2"}
             },
             "layout": {
-                "type": "SingleColumnLayout",
+                "type": "column",
                 "children": [
                     {"type": "text", "text": "How many people are traveling?"},
                     {"type": "select", "label": "Travelers", "name": "number_of_travelers", "required": True, "data_source": [
@@ -82,7 +82,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                 "notes": {"type": "string", "__example__": "Interested in photography, specific lodges, etc."}
             },
             "layout": {
-                "type": "SingleColumnLayout",
+                "type": "column",
                 "children": [
                     {"type": "text", "text": "Any special requests or notes? (Optional)"},
                     {"type": "input", "input_type": "textarea", "label": "Notes", "name": "notes", "required": False},
@@ -94,7 +94,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "id": "REVIEW",
             "title": "Review Your Inquiry",
             "layout": {
-                "type": "SingleColumnLayout",
+                "type": "column",
                 "children": [
                     {"type": "text", "text": "Please review your details below. If everything looks good, submit your inquiry!"},
                     {"type": "text", "text": "Destinations: ${form.destinations}"},
@@ -115,7 +115,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "id": "THANK_YOU",
             "title": "Thank You!",
             "layout": {
-                "type": "SingleColumnLayout",
+                "type": "column",
                 "children": [
                     {"type": "text", "text": "Your inquiry has been submitted."},
                     {"type": "text", "text": "A Kali Safaris expert will contact you soon to help plan your adventure."}
