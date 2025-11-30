@@ -1,5 +1,13 @@
 # whatsappcrm_backend/flows/definitions/date_picker_whatsapp_flow.py
 
+DATE_PICKER_WHATSAPP_FLOW_METADATA = {
+    "name": "date_picker_whatsapp_flow",
+    "friendly_name": "Date Picker WhatsApp Flow",
+    "description": "Interactive WhatsApp flow for selecting dates.",
+    "trigger_keywords": ["date picker", "select date"],
+    "is_active": True
+}
+
 WHATSAPP_FLOW_DATE_PICKER = {
     "name": "date_picker_whatsapp_flow",
     "version": "7.3",
