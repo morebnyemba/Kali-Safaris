@@ -9,7 +9,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW_METADATA = {
 }
 
 TOUR_INQUIRY_WHATSAPP_FLOW = {
-    "version": "1.0",
+    "version": "7.3",
     "screens": [
         {
             "id": "WELCOME",
