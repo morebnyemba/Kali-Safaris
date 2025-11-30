@@ -6,8 +6,8 @@ from django.db import transaction
 from flows.models import WhatsAppFlow
 from flows.whatsapp_flow_service import WhatsAppFlowService
 from meta_integration.models import MetaAppConfig
-from flows.definitions.tour_inquiry_whatsapp_flow import WHATSAPP_FLOW_TOUR_INQUIRY
-from flows.definitions.date_picker_whatsapp_flow import WHATSAPP_FLOW_DATE_PICKER
+from flows.definitions.tour_inquiry_whatsapp_flow import WHATSAPP_FLOW_TOUR_INQUIRY, TOUR_INQUIRY_WHATSAPP_FLOW_METADATA
+from flows.definitions.date_picker_whatsapp_flow import WHATSAPP_FLOW_DATE_PICKER, DATE_PICKER_WHATSAPP_FLOW_METADATA
 
 class Command(BaseCommand):
     help = 'Sync WhatsApp interactive flows with the Meta platform'
@@ -48,21 +48,28 @@ class Command(BaseCommand):
         
         flows_to_sync = []
         if flow_choice in ['tour_inquiry', 'all']:
-            flows_to_sync.append(WHATSAPP_FLOW_TOUR_INQUIRY)
+            flows_to_sync.append({
+                'json': WHATSAPP_FLOW_TOUR_INQUIRY,
+                'metadata': TOUR_INQUIRY_WHATSAPP_FLOW_METADATA
+            })
         if flow_choice in ['date_picker', 'all']:
-            flows_to_sync.append(WHATSAPP_FLOW_DATE_PICKER)
+            flows_to_sync.append({
+                'json': WHATSAPP_FLOW_DATE_PICKER,
+                'metadata': DATE_PICKER_WHATSAPP_FLOW_METADATA
+            })
 
         if not flows_to_sync:
             raise CommandError(f"No flows selected for syncing with choice '{flow_choice}'.")
 
         for flow_def in flows_to_sync:
-            flow_name = flow_def['name']
-            flow_friendly_name = flow_def['friendly_name']
-            flow_description = flow_def['description']
-            flow_json = flow_def['flow_json']
+            flow_json = flow_def['json']
+            metadata = flow_def['metadata']
+            flow_name = metadata['name']
+            flow_friendly_name = metadata['friendly_name']
+            flow_description = metadata['description']
 
             self.stdout.write(f"\nProcessing flow: {flow_friendly_name}...")
-            
+
             try:
                 with transaction.atomic():
                     whatsapp_flow, created = WhatsAppFlow.objects.get_or_create(
@@ -71,29 +78,29 @@ class Command(BaseCommand):
                             'friendly_name': flow_friendly_name,
                             'description': flow_description,
                             'flow_json': flow_json,
-                            'is_active': True,
+                            'is_active': metadata.get('is_active', True),
                             'meta_app_config': meta_config,
                         }
                     )
-                    
+
                     if not created and not force:
                         if whatsapp_flow.sync_status == 'published':
                             self.stdout.write(self.style.WARNING('  Flow already synced and published. Use --force to re-sync.'))
                             continue
-                    
+
                     if not created:
                         whatsapp_flow.flow_json = flow_json
                         whatsapp_flow.friendly_name = flow_friendly_name
                         whatsapp_flow.description = flow_description
-                        whatsapp_flow.is_active = True
+                        whatsapp_flow.is_active = metadata.get('is_active', True)
                         whatsapp_flow.save()
                         self.stdout.write('  Flow record updated in database')
                     else:
                         self.stdout.write(self.style.SUCCESS('  Flow record created in database'))
-                    
+
                     self.stdout.write('  Syncing with Meta...')
                     success = service.sync_flow(whatsapp_flow, publish=publish)
-                    
+
                     if success:
                         status_message = 'synced and published' if publish else 'synced as draft'
                         self.stdout.write(self.style.SUCCESS(f'  ✓ Flow {status_message}! Flow ID: {whatsapp_flow.flow_id}'))
@@ -101,7 +108,7 @@ class Command(BaseCommand):
                             self.stdout.write(self.style.WARNING('  Note: Flow is in draft mode. Run with --publish to make it live.'))
                     else:
                         self.stdout.write(self.style.ERROR(f'  ✗ Sync failed: {whatsapp_flow.sync_error}'))
-                        
+
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f'  ✗ Error processing flow: {e}'))
                 import traceback
