@@ -1,7 +1,22 @@
 # whatsappcrm_backend/flows/admin.py
 
 from django.contrib import admin
-from .models import Flow, FlowStep, FlowTransition, ContactFlowState #, MessageTemplate
+from .models import Flow, FlowStep, FlowTransition, ContactFlowState, WhatsAppFlow, WhatsAppFlowResponse #, MessageTemplate
+# Register WhatsAppFlow in admin
+@admin.register(WhatsAppFlow)
+class WhatsAppFlowAdmin(admin.ModelAdmin):
+    list_display = ("name", "friendly_name", "sync_status", "is_active", "meta_app_config", "created_at", "updated_at")
+    search_fields = ("name", "friendly_name", "description", "flow_id")
+    list_filter = ("sync_status", "is_active", "meta_app_config", "created_at")
+    readonly_fields = ("created_at", "updated_at", "last_synced_at", "sync_error")
+
+# Register WhatsAppFlowResponse in admin
+@admin.register(WhatsAppFlowResponse)
+class WhatsAppFlowResponseAdmin(admin.ModelAdmin):
+    list_display = ("whatsapp_flow", "contact", "is_processed", "created_at", "processed_at")
+    search_fields = ("whatsapp_flow__name", "contact__name", "flow_token")
+    list_filter = ("is_processed", "whatsapp_flow", "created_at")
+    readonly_fields = ("created_at", "processed_at")
 
 # @admin.register(MessageTemplate)
 # class MessageTemplateAdmin(admin.ModelAdmin):
