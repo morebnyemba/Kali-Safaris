@@ -1,6 +1,7 @@
 # whatsappcrm_backend/flows/definitions/tour_inquiry_whatsapp_flow.py
 
 WHATSAPP_FLOW_TOUR_INQUIRY = {
+    "name": "tour_inquiry_whatsapp_flow",
     "version": "7.3",
     "screens": [
         {

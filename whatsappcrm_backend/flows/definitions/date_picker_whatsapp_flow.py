@@ -1,6 +1,7 @@
 # whatsappcrm_backend/flows/definitions/date_picker_whatsapp_flow.py
 
 WHATSAPP_FLOW_DATE_PICKER = {
+    "name": "date_picker_whatsapp_flow",
     "version": "7.3",
     "screens": [
         {

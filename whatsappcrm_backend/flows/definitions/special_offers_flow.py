@@ -34,9 +34,10 @@ SPECIAL_OFFERS_FLOW = {
             "name": "display_offers",
             "type": "send_message",
             "config": {
-                "message_type": "text",
-                "text": {
-                    "body": """We have the following special offers available:
+                "message_config": {
+                    "message_type": "text",
+                    "text": {
+                        "body": """We have the following special offers available:
 
 {% for offer in active_offers %}
 *{{ offer.title }}*
@@ -46,6 +47,7 @@ _Valid until: {{ offer.valid_until | strftime('%B %d, %Y') }}_
 {% endfor %}
 
 Type *menu* to return to the main menu."""
+                    }
                 }
             },
             "transitions": [{"to_step": "end_offers_flow", "condition_config": {"type": "always_true"}}]
@@ -53,7 +55,12 @@ Type *menu* to return to the main menu."""
         {
             "name": "no_offers_available",
             "type": "send_message",
-            "config": {"message_type": "text", "text": {"body": "There are no special offers available at the moment. Please check back later!\n\nType *menu* to return to the main menu."}},
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "There are no special offers available at the moment. Please check back later!\n\nType *menu* to return to the main menu."}
+                }
+            },
             "transitions": [{"to_step": "end_offers_flow", "condition_config": {"type": "always_true"}}]
         },
         {
