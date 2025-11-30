@@ -1,3 +1,13 @@
+ * branch            main       -> FETCH_HEAD
+   df7e159..26afc17  main       -> origin/main
+Updating df7e159..26afc17
+Fast-forward
+ whatsappcrm_backend/flows/definitions/date_picker_whatsapp_flow.py  |   1 +
+ whatsappcrm_backend/flows/definitions/faq_flow.py                   |  35 ++++++-
+ whatsappcrm_backend/flows/definitions/main_menu_flow.py             |  12 ++-
+ whatsappcrm_backend/flows/definitions/pasted_logs                   | 584 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++------------------------------------------
+ whatsappcrm_backend/flows/definitions/special_offers_flow.py        |  15 ++-
+ whatsappcrm_backend/flows/definitions/tour_inquiry_whatsapp_flow.py |   1 +
  6 files changed, 398 insertions(+), 250 deletions(-)
 root@vmi2917164:~/Kali-Safaris# docker compose exec backend python manage.py runscript create_flow
 WARN[0000] /root/Kali-Safaris/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
@@ -292,6 +302,356 @@ Found flow definition: 'view_available_tours_flow' in flows.definitions.view_ava
     Created step: end_offers_flow
         WARNING: Could not create transition from "query_offers". Target step "display_offers" not found.
         WARNING: Could not create transition from "query_offers". Target step "no_offers_available" not found.
+>>> special_offers_flow steps and transitions processed.
+>>> Starting creation/update for flow: tour_inquiry_flow...
+>>> Flow "tour_inquiry_flow" was updated. Clearing old steps and transitions.
+    Created step: entry_point_inquiry
+    Created step: wait_for_flow_response
+    ERROR creating step "inquiry_flow_support" for "tour_inquiry_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    Created step: process_inquiry_data
+    Created step: confirm_and_end
+        Created transition: entry_point_inquiry -> wait_for_flow_response
+        Created transition: wait_for_flow_response -> process_inquiry_data
+        WARNING: Could not create transition from "wait_for_flow_response". Target step "inquiry_flow_support" not found.
+        Created transition: process_inquiry_data -> confirm_and_end
+>>> tour_inquiry_flow steps and transitions processed.
+>>> Starting creation/update for flow: view_available_tours_flow...
+>>> Flow "view_available_tours_flow" was updated. Clearing old steps and transitions.
+    Created step: query_tours
+    Created step: display_single_tour
+    ERROR creating step "tour_fallback_support" for "view_available_tours_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    Created step: increment_tour_index
+    Created step: start_booking_inquiry
+    Created step: switch_to_main_menu
+    Created step: no_tours_available
+    Created step: end_view_tours
+        Created transition: query_tours -> display_single_tour
+        Created transition: query_tours -> no_tours_available
+        Created transition: display_single_tour -> start_booking_inquiry
+        Created transition: display_single_tour -> increment_tour_index
+        Created transition: display_single_tour -> switch_to_main_menu
+        WARNING: Could not create transition from "display_single_tour". Target step "tour_fallback_support" not found.
+        Created transition: increment_tour_index -> display_single_tour
+        Created transition: no_tours_available -> end_view_tours
+>>> view_available_tours_flow steps and transitions processed.
+>>> Flow creation script finished successfully!
+root@vmi2917164:~/Kali-Safaris# ^C
+root@vmi2917164:~/Kali-Safaris# git pull origin main
+remote: Enumerating objects: 17, done.
+remote: Counting objects: 100% (17/17), done.
+remote: Compressing objects: 100% (1/1), done.
+remote: Total 9 (delta 8), reused 9 (delta 8), pack-reused 0 (from 0)
+Unpacking objects: 100% (9/9), 1.22 KiB | 207.00 KiB/s, done.
+From https://github.com/morebnyemba/Kali-Safaris
+ * branch            main       -> FETCH_HEAD
+   26afc17..0b451e9  main       -> origin/main
+Updating 26afc17..0b451e9
+Fast-forward
+ whatsappcrm_backend/flows/definitions/faq_flow.py            | 30 ++++++++++--------------------
+ whatsappcrm_backend/flows/definitions/main_menu_flow.py      | 12 ++++--------
+ whatsappcrm_backend/flows/definitions/pasted_logs            | 65 +++++++++++++++++++++++------------------------------------------
+ whatsappcrm_backend/flows/definitions/special_offers_flow.py | 14 +++++---------
+ 4 files changed, 42 insertions(+), 79 deletions(-)
+root@vmi2917164:~/Kali-Safaris# docker compose exec backend python manage.py runscript create_flow
+WARN[0000] /root/Kali-Safaris/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
+[2025-11-30 13:33:08] INFO actions Registered flow action: 'create_booking_from_inquiry'
+[2025-11-30 13:33:08] INFO actions Registered flow action: 'initiate_tour_payment'
+[2025-11-30 13:33:08] INFO actions Registered flow action: 'generate_and_save_quote_pdf'
+[2025-11-30 13:33:08] INFO actions Registered flow action: 'create_placeholder_order'
+[2025-11-30 13:33:08] INFO services Registered flow action: 'send_group_notification'
+Preparing to create/update flows from declarative definitions...
+Found flow definition: 'admin_main_menu' in flows.definitions.admin_main_menu_flow
+Found flow definition: 'admin_update_order_status' in flows.definitions.admin_update_order_status_flow
+Found flow definition: 'booking_flow' in flows.definitions.booking_flow
+Found flow definition: 'custom_tour_confirmation_flow' in flows.definitions.custom_tour_confirmation_flow
+Found flow definition: 'faq_flow' in flows.definitions.faq_flow
+Found flow definition: 'lead_generation' in flows.definitions.lead_gen_flow
+Found flow definition: 'main_menu' in flows.definitions.main_menu_flow
+Found flow definition: 'manual_payment_flow' in flows.definitions.manual_payment_flow
+Found flow definition: 'my_bookings_flow' in flows.definitions.my_bookings_flow
+Found flow definition: 'simple_add_order' in flows.definitions.simple_add_order_flow
+Found flow definition: 'special_offers_flow' in flows.definitions.special_offers_flow
+Found flow definition: 'tour_inquiry_flow' in flows.definitions.tour_inquiry_flow
+Found flow definition: 'view_available_tours_flow' in flows.definitions.view_available_tours_flow
+>>> Starting creation/update for flow: admin_main_menu...
+>>> Flow "admin_main_menu" was updated. Clearing old steps and transitions.
+    Created step: start_admin_menu
+    Created step: display_admin_menu
+    Created step: switch_to_update_order
+    Created step: switch_to_update_assessment
+    Created step: switch_to_update_warranty_claim
+    Created step: handle_not_admin
+    Created step: end_admin_menu
+        Created transition: start_admin_menu -> display_admin_menu
+        Created transition: start_admin_menu -> handle_not_admin
+        Created transition: display_admin_menu -> switch_to_update_order
+        Created transition: display_admin_menu -> switch_to_update_assessment
+        Created transition: display_admin_menu -> switch_to_update_warranty_claim
+        Created transition: display_admin_menu -> end_admin_menu
+>>> admin_main_menu steps and transitions processed.
+>>> Starting creation/update for flow: admin_update_order_status...
+>>> Flow "admin_update_order_status" was updated. Clearing old steps and transitions.
+    Created step: start_update_order
+    Created step: normalize_the_order_number
+    Created step: find_order
+    Created step: check_if_order_exists
+    Created step: get_customer_contact
+    Created step: ask_for_new_status
+    Created step: update_order_status
+    Created step: handle_order_not_found
+    Created step: end_flow_cancelled
+    Created step: end_flow_success
+        Created transition: start_update_order -> normalize_the_order_number
+        Created transition: normalize_the_order_number -> find_order
+        Created transition: find_order -> check_if_order_exists
+        Created transition: check_if_order_exists -> get_customer_contact
+        Created transition: check_if_order_exists -> handle_order_not_found
+        Created transition: get_customer_contact -> ask_for_new_status
+        Created transition: ask_for_new_status -> end_flow_cancelled
+        Created transition: ask_for_new_status -> update_order_status
+        Created transition: update_order_status -> end_flow_success
+>>> admin_update_order_status steps and transitions processed.
+>>> Starting creation/update for flow: booking_flow...
+>>> Flow "booking_flow" was updated. Clearing old steps and transitions.
+    Created step: start_booking
+    Created step: ask_number_of_travelers
+    Created step: ask_number_of_children
+    Created step: ask_travel_dates
+    Created step: process_date_selection
+    Created step: initialize_traveler_loop
+    Created step: calculate_total_cost
+    Created step: ask_traveler_name
+    Created step: ask_traveler_age
+    Created step: ask_traveler_nationality
+    Created step: ask_traveler_medical
+    Created step: add_traveler_to_list
+    Created step: ask_email
+    ERROR creating step "ask_email_support" for "booking_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    Created step: update_profile_with_email
+    Created step: show_booking_summary
+    ERROR creating step "edit_booking_details" for "booking_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    Created step: ask_payment_option
+    Created step: set_payment_amount_full
+    Created step: set_payment_amount_deposit
+    Created step: create_booking_record
+    Created step: create_booking_for_manual_payment
+    Created step: send_manual_payment_instructions
+    Created step: initiate_payment
+    Created step: send_payment_link
+    Created step: handle_payment_failure
+    Created step: create_inquiry_record_only
+    Created step: generate_quote_pdf
+    Created step: send_quote_pdf
+    Created step: end_quote_request_no_pdf
+    Created step: handle_no_price_for_date
+    Created step: end_booking_flow_final
+        Created transition: start_booking -> ask_number_of_travelers
+        Created transition: ask_number_of_travelers -> ask_number_of_children
+        Created transition: ask_number_of_children -> ask_travel_dates
+        Created transition: ask_travel_dates -> process_date_selection
+        Created transition: process_date_selection -> calculate_total_cost
+        Created transition: process_date_selection -> handle_no_price_for_date
+        Created transition: initialize_traveler_loop -> ask_traveler_name
+        Created transition: calculate_total_cost -> ask_email
+        Created transition: ask_traveler_name -> ask_traveler_age
+        Created transition: ask_traveler_age -> ask_traveler_nationality
+        Created transition: ask_traveler_nationality -> ask_traveler_medical
+        Created transition: ask_traveler_medical -> add_traveler_to_list
+        Created transition: add_traveler_to_list -> ask_traveler_name
+        Created transition: add_traveler_to_list -> ask_travel_dates
+        Created transition: ask_email -> update_profile_with_email
+        WARNING: Could not create transition from "ask_email". Target step "ask_email_support" not found.
+        Created transition: update_profile_with_email -> ask_payment_option
+        Created transition: show_booking_summary -> ask_payment_option
+        WARNING: Could not create transition from "show_booking_summary". Target step "edit_booking_details" not found.
+        Created transition: show_booking_summary -> show_booking_summary
+        Created transition: ask_payment_option -> set_payment_amount_full
+        Created transition: ask_payment_option -> set_payment_amount_deposit
+        Created transition: ask_payment_option -> set_payment_amount_full
+        Created transition: ask_payment_option -> create_booking_for_manual_payment
+        Created transition: ask_payment_option -> create_inquiry_record_only
+        Created transition: set_payment_amount_full -> create_booking_record
+        Created transition: set_payment_amount_deposit -> create_booking_record
+        Created transition: create_booking_record -> initiate_payment
+        Created transition: create_booking_for_manual_payment -> send_manual_payment_instructions
+        Created transition: initiate_payment -> send_payment_link
+        Created transition: initiate_payment -> handle_payment_failure
+        Created transition: create_inquiry_record_only -> generate_quote_pdf
+        Created transition: generate_quote_pdf -> send_quote_pdf
+        Created transition: generate_quote_pdf -> end_quote_request_no_pdf
+        Created transition: send_quote_pdf -> end_booking_flow_final
+>>> booking_flow steps and transitions processed.
+>>> Starting creation/update for flow: custom_tour_confirmation_flow...
+>>> Flow "custom_tour_confirmation_flow" was updated. Clearing old steps and transitions.
+    Created step: start_confirmation
+    Created step: show_custom_tour_summary
+    ERROR creating step "custom_tour_support" for "custom_tour_confirmation_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    Created step: create_booking_from_inquiry_action
+    Created step: end_flow_confirmed
+    Created step: end_flow_cancelled
+        Created transition: start_confirmation -> create_booking_from_inquiry_action
+        Created transition: start_confirmation -> end_flow_cancelled
+        WARNING: Could not create transition from "show_custom_tour_summary". Target step "submit_custom_tour_inquiry" not found.
+        WARNING: Could not create transition from "show_custom_tour_summary". Target step "edit_custom_tour_details" not found.
+        WARNING: Could not create transition from "show_custom_tour_summary". Target step "custom_tour_support" not found.
+        Created transition: show_custom_tour_summary -> show_custom_tour_summary
+        Created transition: create_booking_from_inquiry_action -> end_flow_confirmed
+>>> custom_tour_confirmation_flow steps and transitions processed.
+>>> Starting creation/update for flow: faq_flow...
+>>> Flow "faq_flow" was updated. Clearing old steps and transitions.
+    Created step: start_faq
+    Created step: answer_payment
+    Created step: answer_cancellation
+    Created step: answer_what_to_pack
+    Created step: answer_visa
+    Created step: end_faq
+    Created step: final_exit
+        Created transition: start_faq -> answer_payment
+        Created transition: start_faq -> answer_cancellation
+        Created transition: start_faq -> answer_what_to_pack
+        Created transition: start_faq -> answer_visa
+        Created transition: answer_payment -> end_faq
+        Created transition: answer_cancellation -> end_faq
+        Created transition: answer_what_to_pack -> end_faq
+        Created transition: answer_visa -> end_faq
+        Created transition: end_faq -> final_exit
+>>> faq_flow steps and transitions processed.
+>>> Starting creation/update for flow: lead_generation...
+>>> Flow "lead_generation" was updated. Clearing old steps and transitions.
+    Created step: start_purchase_flow
+    Created step: query_products_for_display
+    Created step: check_if_products_exist
+    Created step: display_products_and_ask_sku
+    Created step: get_product_from_selection
+    Created step: ask_for_quantity
+    Created step: add_to_cart
+    Created step: display_cart_and_ask_next
+    Created step: handle_invalid_selection
+    Created step: check_if_cart_is_empty
+    Created step: ask_delivery_name
+    Created step: ask_delivery_phone
+    Created step: ask_delivery_address
+    Created step: confirm_order
+    Created step: generate_order_number
+    Created step: prefix_order_number
+    Created step: create_final_order
+    Created step: end_flow_success
+    Created step: end_flow_cancelled
+    Created step: handle_no_products_available
+        Created transition: start_purchase_flow -> query_products_for_display
+        Created transition: query_products_for_display -> check_if_products_exist
+        Created transition: check_if_products_exist -> display_products_and_ask_sku
+        Created transition: check_if_products_exist -> handle_no_products_available
+        Created transition: display_products_and_ask_sku -> check_if_cart_is_empty
+        Created transition: display_products_and_ask_sku -> get_product_from_selection
+        Created transition: get_product_from_selection -> ask_for_quantity
+        Created transition: get_product_from_selection -> handle_invalid_selection
+        Created transition: ask_for_quantity -> add_to_cart
+        Created transition: add_to_cart -> display_cart_and_ask_next
+        Created transition: display_cart_and_ask_next -> check_if_cart_is_empty
+        Created transition: display_cart_and_ask_next -> get_product_from_selection
+        Created transition: handle_invalid_selection -> check_if_cart_is_empty
+        Created transition: handle_invalid_selection -> get_product_from_selection
+        Created transition: check_if_cart_is_empty -> ask_delivery_name
+        Created transition: check_if_cart_is_empty -> end_flow_cancelled
+        Created transition: ask_delivery_name -> ask_delivery_phone
+        Created transition: ask_delivery_phone -> ask_delivery_address
+        Created transition: ask_delivery_address -> confirm_order
+        Created transition: confirm_order -> generate_order_number
+        Created transition: confirm_order -> end_flow_cancelled
+        Created transition: generate_order_number -> prefix_order_number
+        Created transition: prefix_order_number -> create_final_order
+        Created transition: create_final_order -> end_flow_success
+>>> lead_generation steps and transitions processed.
+>>> Starting creation/update for flow: main_menu...
+>>> Flow "main_menu" was updated. Clearing old steps and transitions.
+    Created step: show_main_menu
+    Created step: switch_to_booking_flow
+    Created step: switch_to_view_tours_flow
+    Created step: switch_to_special_offers_flow
+    Created step: switch_to_my_bookings_flow
+    Created step: switch_to_faq_flow
+    Created step: switch_to_manual_payment_flow
+    Created step: switch_to_contact_support_flow
+    Created step: show_about_kalai
+        Created transition: show_main_menu -> switch_to_booking_flow
+        Created transition: show_main_menu -> switch_to_view_tours_flow
+        Created transition: show_main_menu -> switch_to_special_offers_flow
+        Created transition: show_main_menu -> switch_to_my_bookings_flow
+        Created transition: show_main_menu -> switch_to_faq_flow
+        Created transition: show_main_menu -> switch_to_manual_payment_flow
+        Created transition: show_main_menu -> switch_to_contact_support_flow
+        Created transition: show_main_menu -> show_about_kalai
+>>> main_menu steps and transitions processed.
+>>> Starting creation/update for flow: manual_payment_flow...
+>>> Flow "manual_payment_flow" was updated. Clearing old steps and transitions.
+    Created step: start_manual_payment
+    Created step: find_booking
+    Created step: handle_booking_not_found
+    Created step: display_booking_and_ask_amount
+    Created step: ask_payment_method
+    Created step: set_method_manual
+    Created step: set_method_omari
+    Created step: ask_for_pop
+    Created step: create_payment_record
+    Created step: end_flow_success
+    Created step: end_manual_payment
+        Created transition: start_manual_payment -> find_booking
+        Created transition: find_booking -> display_booking_and_ask_amount
+        Created transition: find_booking -> handle_booking_not_found
+        Created transition: handle_booking_not_found -> end_manual_payment
+        Created transition: display_booking_and_ask_amount -> ask_payment_method
+        Created transition: ask_payment_method -> set_method_manual
+        Created transition: ask_payment_method -> set_method_omari
+        Created transition: set_method_manual -> ask_for_pop
+        Created transition: set_method_omari -> ask_for_pop
+        Created transition: ask_for_pop -> create_payment_record
+        Created transition: create_payment_record -> end_flow_success
+>>> manual_payment_flow steps and transitions processed.
+>>> Starting creation/update for flow: my_bookings_flow...
+>>> Flow "my_bookings_flow" was updated. Clearing old steps and transitions.
+    Created step: start_my_bookings
+    Created step: display_bookings
+    Created step: bookings_support
+    Created step: display_no_bookings_found
+    Created step: end_my_bookings
+        Created transition: start_my_bookings -> display_no_bookings_found
+        Created transition: start_my_bookings -> display_bookings
+        Created transition: display_bookings -> end_my_bookings
+        Created transition: display_bookings -> bookings_support
+        Created transition: bookings_support -> end_my_bookings
+        Created transition: display_no_bookings_found -> end_my_bookings
+>>> my_bookings_flow steps and transitions processed.
+>>> Starting creation/update for flow: simple_add_order...
+>>> Flow "simple_add_order" was updated. Clearing old steps and transitions.
+    Created step: start_simple_add_order
+    Created step: check_if_valid_number
+    Created step: query_for_existing_order
+    Created step: check_if_order_exists
+    Created step: handle_order_exists
+    Created step: create_the_order
+    Created step: notify_admins_of_new_order
+    Created step: end_success
+    Created step: handle_invalid_input
+        Created transition: start_simple_add_order -> check_if_valid_number
+        Created transition: check_if_valid_number -> query_for_existing_order
+        Created transition: check_if_valid_number -> handle_invalid_input
+        Created transition: query_for_existing_order -> check_if_order_exists
+        Created transition: check_if_order_exists -> handle_order_exists
+        Created transition: check_if_order_exists -> create_the_order
+        Created transition: create_the_order -> notify_admins_of_new_order
+        Created transition: notify_admins_of_new_order -> end_success
+>>> simple_add_order steps and transitions processed.
+>>> Starting creation/update for flow: special_offers_flow...
+>>> Flow "special_offers_flow" was updated. Clearing old steps and transitions.
+    Created step: query_offers
+    Created step: display_offers
+    Created step: no_offers_available
+    Created step: end_offers_flow
+        Created transition: query_offers -> display_offers
+        Created transition: query_offers -> no_offers_available
+        Created transition: display_offers -> end_offers_flow
+        Created transition: no_offers_available -> end_offers_flow
 >>> special_offers_flow steps and transitions processed.
 >>> Starting creation/update for flow: tour_inquiry_flow...
 >>> Flow "tour_inquiry_flow" was updated. Clearing old steps and transitions.

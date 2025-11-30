@@ -66,10 +66,8 @@ Shall I proceed and create a booking request for you? A travel expert will then 
                 "name": "custom_tour_support",
                 "type": "send_message",
                 "config": {
-                    "message_config": {
-                        "message_type": "text",
-                        "text": {"body": "If you need help or want to start over, type 'menu' or contact bookings@kalaisafaris.com."}
-                    }
+                    "message_type": "text",
+                    "text": {"body": "If you need help or want to start over, type 'menu' or contact bookings@kalaisafaris.com."}
                 },
                 "transitions": [
                     {"to_step": "end_custom_tour_confirmation", "condition_config": {"type": "always_true"}}

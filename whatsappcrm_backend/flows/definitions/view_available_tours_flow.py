@@ -80,10 +80,8 @@ Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price|float) }}*
             "name": "tour_fallback_support",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "If you need help or want to see the tours again, type 'menu' or contact bookings@kalaisafaris.com."}
-                }
+                "message_type": "text",
+                "text": {"body": "If you need help or want to see the tours again, type 'menu' or contact bookings@kalaisafaris.com."}
             },
             "transitions": [
                 {"to_step": "switch_to_main_menu", "condition_config": {"type": "always_true"}}

@@ -244,10 +244,8 @@ BOOKING_FLOW = {
             "name": "ask_email_support",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "If you have trouble providing an email, please contact our support team at bookings@kalaisafaris.com or type 'menu' to return to the main menu."}
-                }
+                "message_type": "text",
+                "text": {"body": "If you have trouble providing an email, please contact our support team at bookings@kalaisafaris.com or type 'menu' to return to the main menu."}
             },
             "transitions": [{"to_step": "end_booking_flow_final", "condition_config": {"type": "always_true"}}]
         },
@@ -285,10 +283,8 @@ BOOKING_FLOW = {
             "name": "edit_booking_details",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Let's start over so you can update your details. Type 'menu' at any time to return to the main menu."}
-                }
+                "message_type": "text",
+                "text": {"body": "Let's start over so you can update your details. Type 'menu' at any time to return to the main menu."}
             },
             "transitions": [{"to_step": "start_booking", "condition_config": {"type": "always_true"}}]
         },
