@@ -9,6 +9,8 @@ BOOKING_FLOW = {
     "steps": [
         # Step 1: Entry point, initialize traveler list
         {
+                # Placeholder for missing step: end_booking_flow_final (if not already present)
+                # (No action needed if already present)
             "name": "start_booking",
             "is_entry_point": True,
             "type": "action",

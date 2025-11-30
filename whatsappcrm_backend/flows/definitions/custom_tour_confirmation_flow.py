@@ -8,6 +8,32 @@ CUSTOM_TOUR_CONFIRMATION_FLOW = {
     "is_active": True,
     "steps": [
         {
+                    # Placeholder for missing step: submit_custom_tour_inquiry
+                    {
+                        "name": "submit_custom_tour_inquiry",
+                        "type": "action",
+                        "config": {
+                            "actions_to_run": [{"action_type": "noop"}]
+                        },
+                        "transitions": [{"to_step": "end_flow_confirmed", "condition_config": {"type": "always_true"}}]
+                    },
+                    # Placeholder for missing step: edit_custom_tour_details
+                    {
+                        "name": "edit_custom_tour_details",
+                        "type": "send_message",
+                        "config": {
+                            "message_type": "text",
+                            "text": {"body": "Let's edit your custom tour details. Please provide the updated information or type 'menu' to return to the main menu."}
+                        },
+                        "transitions": [{"to_step": "show_custom_tour_summary", "condition_config": {"type": "always_true"}}]
+                    },
+                    # Placeholder for missing step: end_custom_tour_confirmation
+                    {
+                        "name": "end_custom_tour_confirmation",
+                        "type": "end_flow",
+                        "config": {},
+                        "transitions": []
+                    },
             "name": "start_confirmation",
             "is_entry_point": True,
             "type": "question",

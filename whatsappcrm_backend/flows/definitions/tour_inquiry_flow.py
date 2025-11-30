@@ -8,6 +8,8 @@ TOUR_INQUIRY_FLOW = {
     "is_active": True,
     "steps": [
         {
+                # Placeholder for missing step: confirm_and_end (if not already present)
+                # (No action needed if already present)
             "name": "entry_point_inquiry",
             "is_entry_point": True,
             "type": "send_message",

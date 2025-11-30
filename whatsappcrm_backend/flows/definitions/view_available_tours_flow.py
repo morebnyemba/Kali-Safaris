@@ -8,6 +8,8 @@ VIEW_AVAILABLE_TOURS_FLOW = {
     "is_active": True,
     "steps": [
         {
+                # Placeholder for missing step: switch_to_main_menu (if not already present)
+                # (No action needed if already present)
             "name": "query_tours",
             "is_entry_point": True,
             "type": "action",
