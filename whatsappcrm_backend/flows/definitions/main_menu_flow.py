@@ -3,56 +3,41 @@
 MAIN_MENU_FLOW = {
     "name": "main_menu",
     "friendly_name": "Main Menu",
-    "description": "The primary navigation menu for customers, directing them to different services.",
-    "trigger_keywords": ['menu', 'help', 'hi', 'hello', 'start', 'main menu', 'start over'],
+    "description": "The main navigation menu for Kalai Safaris customers, directing them to tour booking and related services.",
+    "trigger_keywords": ["menu", "help", "hi", "hello", "start", "main menu", "book tour", "safari", "tour"],
     "is_active": True,
     "steps": [
         {
-            "name": "ensure_customer_profile_exists",
-            "is_entry_point": True,
-            "type": "action",
-            "config": {
-                "actions_to_run": [{
-                    "action_type": "update_customer_profile",
-                    "fields_to_update": {}
-                }]
-            },
-            "transitions": [
-                {"to_step": "show_main_menu", "condition_config": {"type": "always_true"}}
-            ]
-        },
-        {
             "name": "show_main_menu",
+            "is_entry_point": True,
             "type": "question",
             "config": {
                 "message_config": {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "list",
-                        "header": {"type": "text", "text": "Pfungwa Main Menu"},
-                        "body": {
-                            "text": "Hello {{ contact.name | default('there') }}! I'm Hanna, your personal AI assistant for Pfungwa.\n\nHow can I help you today? Please select an option from the menu below."
-                        },
+                        "header": {"type": "text", "text": "Kalai Safaris Main Menu"},
+                        "body": {"text": "Welcome to Kalai Safaris! How can we help you plan your next adventure? Please select an option below."},
                         "footer": {"text": "Session expires after 5 mins of inactivity"},
                         "action": {
                             "button": "Select an Option",
                             "sections": [
                                 {
-                                    "title": "Our Services",
+                                    "title": "Bookings & Tours",
                                     "rows": [
-                                        {"id": "purchase_product", "title": "🛒 Shop Products", "description": "Browse and buy solar products."},
-                                        {"id": "request_installation", "title": "🛠️ Request Installation", "description": "Schedule a Solar or Starlink installation."},
-                                        {"id": "site_assessment", "title": "📋 Book Site Assessment", "description": "Book a site visit with our experts."},
-                                        {"id": "solar_cleaning", "title": "💧 Solar Panel Cleaning", "description": "Request a cleaning service."},
-                                        {"id": "apply_for_loan", "title": "💰 Apply for Loan", "description": "Apply for a cash or product loan."}
+                                        {"id": "book_tour", "title": "🦁 Book a Tour", "description": "Start a new safari or custom tour booking."},
+                                        {"id": "view_tours", "title": "🌍 View Available Tours", "description": "See all our upcoming and featured tours."},
+                                        {"id": "special_offers", "title": "🎉 Special Offers", "description": "Check out our latest deals and discounts."},
+                                        {"id": "my_bookings", "title": "📖 My Bookings", "description": "View or manage your existing bookings."}
                                     ]
                                 },
                                 {
-                                    "title": "Support & Information",
+                                    "title": "Support & Info",
                                     "rows": [
-                                        {"id": "request_warranty", "title": "🛡️ Warranty Claim", "description": "File a warranty claim for a product."},
-                                        {"id": "ai_troubleshooter", "title": "🤖 AI Troubleshooter", "description": "Get instant help from our AI assistant."},
-                                        {"id": "about_pfungwa", "title": "ℹ️ About Pfungwa", "description": "Learn more about our company."}
+                                        {"id": "faq", "title": "❓ FAQs", "description": "Frequently asked questions about Kalai Safaris."},
+                                        {"id": "manual_payment", "title": "💳 Manual Payment", "description": "Pay for your booking via bank transfer or other methods."},
+                                        {"id": "contact_support", "title": "🆘 Contact Support", "description": "Get help from our team."},
+                                        {"id": "about_kalai", "title": "ℹ️ About Kalai Safaris", "description": "Learn more about us."}
                                     ]
                                 }
                             ]
@@ -62,200 +47,67 @@ MAIN_MENU_FLOW = {
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "menu_choice"}
             },
             "transitions": [
-                {"to_step": "switch_to_purchase_flow", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "purchase_product"}},
-                {"to_step": "show_installation_submenu", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "request_installation"}},
-                {"to_step": "switch_to_assessment_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "site_assessment"}},
-                {"to_step": "switch_to_cleaning_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "solar_cleaning"}},
-                {"to_step": "switch_to_loan_application_flow", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "apply_for_loan"}},
-                {"to_step": "switch_to_warranty_claim_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "request_warranty"}},
-                {"to_step": "start_ai_troubleshooting_session", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "ai_troubleshooter"}},
-                {"to_step": "show_about_pfungwa", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_pfungwa"}}
+                {"to_step": "switch_to_booking_flow", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "book_tour"}},
+                {"to_step": "switch_to_view_tours_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "view_tours"}},
+                {"to_step": "switch_to_special_offers_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_offers"}},
+                {"to_step": "switch_to_my_bookings_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_bookings"}},
+                {"to_step": "switch_to_faq_flow", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
+                {"to_step": "switch_to_manual_payment_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_payment"}},
+                {"to_step": "switch_to_contact_support_flow", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "contact_support"}},
+                {"to_step": "show_about_kalai", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_kalai"}}
             ]
         },
         {
-            "name": "show_installation_submenu",
-            "type": "question",
-            "config": {
-                "message_config": {
-                    "message_type": "interactive",
-                    "interactive": {
-                        "type": "list",
-                        "header": {"type": "text", "text": "Installation Services"},
-                        "body": {"text": "Great! Which type of installation service do you need?"},
-                        "footer": {"text": "Select an installation type"},
-                        "action": {
-                            "button": "Select Installation",
-                            "sections": [
-                                {
-                                    "title": "Installation Types",
-                                    "rows": [
-                                        {"id": "switch_to_solar_install", "title": "☀️ Solar Installation", "description": "Solar power system setup"},
-                                        {"id": "switch_to_starlink_install", "title": "🛰️ Starlink Installation", "description": "Starlink satellite internet setup"},
-                                        {"id": "switch_to_hybrid_install", "title": "⚡ Hybrid Installation", "description": "Combined Starlink + Solar setup"},
-                                        {"id": "switch_to_furniture_install", "title": "🪑 Custom Furniture", "description": "Furniture delivery/installation"}
-                                    ]
-                                },
-                                {
-                                    "title": "Navigation",
-                                    "rows": [
-                                        {"id": "go_back_to_main_menu", "title": "🔙 Back to Main Menu", "description": "Return to main menu"}
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-                },
-                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "install_choice"}
-            },
-            "transitions": [
-                {"to_step": "switch_to_solar_installation_flow", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "switch_to_solar_install"}},
-                {"to_step": "switch_to_starlink_installation_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "switch_to_starlink_install"}},
-                {"to_step": "switch_to_hybrid_installation_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "switch_to_hybrid_install"}},
-                {"to_step": "switch_to_custom_furniture_installation_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "switch_to_furniture_install"}},
-                {"to_step": "show_main_menu", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "go_back_to_main_menu"}}
-            ]
+            "name": "switch_to_booking_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "booking_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
         },
         {
-            "name": "start_ai_troubleshooting_session",
-            "type": "action",
-            "config": {
-                "actions_to_run": [
-                    {
-                        "action_type": "update_contact_field",
-                        "field_path": "conversation_mode",
-                        "value_template": "ai_troubleshooting"
-                    }
-                ]
-            },
-            "transitions": [
-                {"to_step": "send_ai_welcome_message", "condition_config": {"type": "always_true"}}
-            ]
+            "name": "switch_to_view_tours_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "view_available_tours_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
         },
         {
-            "name": "send_ai_welcome_message",
+            "name": "switch_to_special_offers_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "special_offers_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
+        },
+        {
+            "name": "switch_to_my_bookings_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "my_bookings_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
+        },
+        {
+            "name": "switch_to_faq_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "faq_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
+        },
+        {
+            "name": "switch_to_manual_payment_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "manual_payment_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
+        },
+        {
+            "name": "switch_to_contact_support_flow",
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {
-                    "body": "You are now connected to Hanna, our AI technical expert.\n\n"
-                            "To get started, please describe the issue, including:\n"
-                            "1. *Product Model*\n"
-                            "   (e.g., `Solar Flex`, `Hanchu`, or `Beesman`)\n"
-                            "2. *The Primary Symptom*\n"
-                            "   (e.g., `Red light is flashing three times`)\n\n"
-                            "You can also send a photo or video of the issue.\n\n"
-                            "Type 'menu' at any time to exit this session."
-                }
-            },
-            "transitions": [
-                {"to_step": "end_flow_after_ai_handoff", "condition_config": {"type": "always_true"}}
-            ]
-        },
-        {
-            "name": "end_flow_after_ai_handoff",
-            "type": "end_flow",
-            "config": {
-                # No final message is needed here, as the welcome message was already sent.
-                # The flow simply needs to terminate.
+                "text": {"body": "Our support team is here to help! Please describe your issue, or email bookings@kalaisafaris.com."}
             },
             "transitions": []
         },
         {
-            "name": "switch_to_purchase_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "lead_generation",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "switch_to_solar_installation_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "solar_installation_inquiry",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "switch_to_starlink_installation_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "starlink_installation_request",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "switch_to_hybrid_installation_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "hybrid_installation_request",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "switch_to_custom_furniture_installation_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "custom_furniture_installation_request",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "switch_to_assessment_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "site_inspection_request",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "switch_to_cleaning_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "solar_cleaning_request",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "switch_to_loan_application_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "loan_application_flow",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "switch_to_warranty_claim_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "warranty_claim_flow",
-                "initial_context_template": {"source_flow": "main_menu"}
-            },
-            "transitions": []
-        },
-        {
-            "name": "show_coming_soon",
+            "name": "show_about_kalai",
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {"body": "This feature is coming soon! Please check back later. Type 'menu' to return to the main menu."}
-            },
-            "transitions": []
-        },
-        {
-            "name": "show_about_pfungwa",
-            "type": "send_message",
-            "config": {
-                "message_type": "text",
-                "text": {"body": "Pfungwa is a leading provider of renewable energy solutions, committed to powering a brighter, sustainable future for everyone. Type 'menu' to return to the main menu."}
+                "text": {"body": "Kalai Safaris is dedicated to providing unforgettable safari experiences across Africa. Our expert guides, eco-friendly practices, and passion for wildlife ensure every journey is safe, educational, and inspiring. Type 'menu' to return to the main menu."}
             },
             "transitions": []
         }
