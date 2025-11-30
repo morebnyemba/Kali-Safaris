@@ -97,10 +97,8 @@ MAIN_MENU_FLOW = {
             "name": "switch_to_contact_support_flow",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Our support team is here to help! Please describe your issue, or email bookings@kalaisafaris.com."}
-                }
+                "message_type": "text",
+                "text": {"body": "Our support team is here to help! Please describe your issue, or email bookings@kalaisafaris.com."}
             },
             "transitions": []
         },
@@ -108,10 +106,8 @@ MAIN_MENU_FLOW = {
             "name": "show_about_kalai",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Kalai Safaris is dedicated to providing unforgettable safari experiences across Africa. Our expert guides, eco-friendly practices, and passion for wildlife ensure every journey is safe, educational, and inspiring. Type 'menu' to return to the main menu."}
-                }
+                "message_type": "text",
+                "text": {"body": "Kalai Safaris is dedicated to providing unforgettable safari experiences across Africa. Our expert guides, eco-friendly practices, and passion for wildlife ensure every journey is safe, educational, and inspiring. Type 'menu' to return to the main menu."}
             },
             "transitions": []
         }

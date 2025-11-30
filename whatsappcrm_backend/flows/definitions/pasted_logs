@@ -1,23 +1,11 @@
-From https://github.com/morebnyemba/Kali-Safaris
- * branch            main       -> FETCH_HEAD
-   6a8c950..df7e159  main       -> origin/main
-Updating 6a8c950..df7e159
-Fast-forward
- whatsappcrm_backend/flows/definitions/booking_flow.py                  |  95 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++-------------
- whatsappcrm_backend/flows/definitions/custom_tour_confirmation_flow.py |  33 +++++++++++++++++++++++++++++++
- whatsappcrm_backend/flows/definitions/date_picker_whatsapp_flow.py     |  79 +++++++++++++++++++++++++++++++------------------------------------------
- whatsappcrm_backend/flows/definitions/my_bookings_flow.py              |  15 +++++++++++++-
- whatsappcrm_backend/flows/definitions/tour_inquiry_flow.py             |  20 +++++++++++++++++++
- whatsappcrm_backend/flows/definitions/tour_inquiry_whatsapp_flow.py    | 108 ++++++++++++++++++++++++++++++++++------------------------------------------------------------------
- whatsappcrm_backend/flows/definitions/view_available_tours_flow.py     |  17 +++++++++++++++-
- 7 files changed, 233 insertions(+), 134 deletions(-)
+ 6 files changed, 398 insertions(+), 250 deletions(-)
 root@vmi2917164:~/Kali-Safaris# docker compose exec backend python manage.py runscript create_flow
 WARN[0000] /root/Kali-Safaris/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion 
-[2025-11-30 13:07:08] INFO actions Registered flow action: 'create_booking_from_inquiry'
-[2025-11-30 13:07:08] INFO actions Registered flow action: 'initiate_tour_payment'
-[2025-11-30 13:07:08] INFO actions Registered flow action: 'generate_and_save_quote_pdf'
-[2025-11-30 13:07:08] INFO actions Registered flow action: 'create_placeholder_order'
-[2025-11-30 13:07:08] INFO services Registered flow action: 'send_group_notification'
+[2025-11-30 13:27:48] INFO actions Registered flow action: 'create_booking_from_inquiry'
+[2025-11-30 13:27:48] INFO actions Registered flow action: 'initiate_tour_payment'
+[2025-11-30 13:27:48] INFO actions Registered flow action: 'generate_and_save_quote_pdf'
+[2025-11-30 13:27:48] INFO actions Registered flow action: 'create_placeholder_order'
+[2025-11-30 13:27:49] INFO services Registered flow action: 'send_group_notification'
 Preparing to create/update flows from declarative definitions...
 Found flow definition: 'admin_main_menu' in flows.definitions.admin_main_menu_flow
 Found flow definition: 'admin_update_order_status' in flows.definitions.admin_update_order_status_flow
@@ -159,21 +147,16 @@ Found flow definition: 'view_available_tours_flow' in flows.definitions.view_ava
 >>> Starting creation/update for flow: faq_flow...
 >>> Flow "faq_flow" was updated. Clearing old steps and transitions.
     Created step: start_faq
-    Created step: answer_payment
-    Created step: answer_cancellation
-    Created step: answer_what_to_pack
-    Created step: answer_visa
-    Created step: end_faq
+    ERROR creating step "answer_payment" for "faq_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    ERROR creating step "answer_cancellation" for "faq_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    ERROR creating step "answer_what_to_pack" for "faq_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    ERROR creating step "answer_visa" for "faq_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    ERROR creating step "end_faq" for "faq_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
     Created step: final_exit
-        Created transition: start_faq -> answer_payment
-        Created transition: start_faq -> answer_cancellation
-        Created transition: start_faq -> answer_what_to_pack
-        Created transition: start_faq -> answer_visa
-        Created transition: answer_payment -> end_faq
-        Created transition: answer_cancellation -> end_faq
-        Created transition: answer_what_to_pack -> end_faq
-        Created transition: answer_visa -> end_faq
-        Created transition: end_faq -> final_exit
+        WARNING: Could not create transition from "start_faq". Target step "answer_payment" not found.
+        WARNING: Could not create transition from "start_faq". Target step "answer_cancellation" not found.
+        WARNING: Could not create transition from "start_faq". Target step "answer_what_to_pack" not found.
+        WARNING: Could not create transition from "start_faq". Target step "answer_visa" not found.
 >>> faq_flow steps and transitions processed.
 >>> Starting creation/update for flow: lead_generation...
 >>> Flow "lead_generation" was updated. Clearing old steps and transitions.
@@ -231,16 +214,16 @@ Found flow definition: 'view_available_tours_flow' in flows.definitions.view_ava
     Created step: switch_to_my_bookings_flow
     Created step: switch_to_faq_flow
     Created step: switch_to_manual_payment_flow
-    Created step: switch_to_contact_support_flow
-    Created step: show_about_kalai
+    ERROR creating step "switch_to_contact_support_flow" for "main_menu": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    ERROR creating step "show_about_kalai" for "main_menu": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
         Created transition: show_main_menu -> switch_to_booking_flow
         Created transition: show_main_menu -> switch_to_view_tours_flow
         Created transition: show_main_menu -> switch_to_special_offers_flow
         Created transition: show_main_menu -> switch_to_my_bookings_flow
         Created transition: show_main_menu -> switch_to_faq_flow
         Created transition: show_main_menu -> switch_to_manual_payment_flow
-        Created transition: show_main_menu -> switch_to_contact_support_flow
-        Created transition: show_main_menu -> show_about_kalai
+        WARNING: Could not create transition from "show_main_menu". Target step "switch_to_contact_support_flow" not found.
+        WARNING: Could not create transition from "show_main_menu". Target step "show_about_kalai" not found.
 >>> main_menu steps and transitions processed.
 >>> Starting creation/update for flow: manual_payment_flow...
 >>> Flow "manual_payment_flow" was updated. Clearing old steps and transitions.
@@ -304,13 +287,11 @@ Found flow definition: 'view_available_tours_flow' in flows.definitions.view_ava
 >>> Starting creation/update for flow: special_offers_flow...
 >>> Flow "special_offers_flow" was updated. Clearing old steps and transitions.
     Created step: query_offers
-    Created step: display_offers
-    Created step: no_offers_available
+    ERROR creating step "display_offers" for "special_offers_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
+    ERROR creating step "no_offers_available" for "special_offers_flow": {'config': ["For 'send_message' steps, the config must include a 'message_type' key."]}
     Created step: end_offers_flow
-        Created transition: query_offers -> display_offers
-        Created transition: query_offers -> no_offers_available
-        Created transition: display_offers -> end_offers_flow
-        Created transition: no_offers_available -> end_offers_flow
+        WARNING: Could not create transition from "query_offers". Target step "display_offers" not found.
+        WARNING: Could not create transition from "query_offers". Target step "no_offers_available" not found.
 >>> special_offers_flow steps and transitions processed.
 >>> Starting creation/update for flow: tour_inquiry_flow...
 >>> Flow "tour_inquiry_flow" was updated. Clearing old steps and transitions.

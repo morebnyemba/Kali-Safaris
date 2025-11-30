@@ -45,10 +45,8 @@ FAQ_FLOW = {
             "name": "answer_payment",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "We accept payments via Bank Transfer, Visa, MasterCard, and mobile money (EcoCash/OneMoney). Payment details will be provided on your invoice."}
-                }
+                "message_type": "text",
+                "text": {"body": "We accept payments via Bank Transfer, Visa, MasterCard, and mobile money (EcoCash/OneMoney). Payment details will be provided on your invoice."}
             },
             "transitions": [{"to_step": "end_faq", "condition_config": {"type": "always_true"}}]
         },
@@ -56,10 +54,8 @@ FAQ_FLOW = {
             "name": "answer_cancellation",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Cancellations made more than 30 days before the tour start date are fully refundable. Cancellations made within 30 days are subject to a 50% fee. Please see our website for the full policy."}
-                }
+                "message_type": "text",
+                "text": {"body": "Cancellations made more than 30 days before the tour start date are fully refundable. Cancellations made within 30 days are subject to a 50% fee. Please see our website for the full policy."}
             },
             "transitions": [{"to_step": "end_faq", "condition_config": {"type": "always_true"}}]
         },
@@ -67,10 +63,8 @@ FAQ_FLOW = {
             "name": "answer_what_to_pack",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "We recommend packing light, comfortable clothing in neutral colors, a hat, sunscreen, insect repellent, a good pair of walking shoes, and a camera! A warm jacket is also essential for early morning and evening game drives."}
-                }
+                "message_type": "text",
+                "text": {"body": "We recommend packing light, comfortable clothing in neutral colors, a hat, sunscreen, insect repellent, a good pair of walking shoes, and a camera! A warm jacket is also essential for early morning and evening game drives."}
             },
             "transitions": [{"to_step": "end_faq", "condition_config": {"type": "always_true"}}]
         },
@@ -78,10 +72,8 @@ FAQ_FLOW = {
             "name": "answer_visa",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Visa requirements vary by nationality. We strongly advise checking with the Zimbabwean embassy or consulate in your country. Many nationalities can obtain a visa upon arrival."}
-                }
+                "message_type": "text",
+                "text": {"body": "Visa requirements vary by nationality. We strongly advise checking with the Zimbabwean embassy or consulate in your country. Many nationalities can obtain a visa upon arrival."}
             },
             "transitions": [{"to_step": "end_faq", "condition_config": {"type": "always_true"}}]
         },
@@ -89,10 +81,8 @@ FAQ_FLOW = {
             "name": "end_faq",
             "type": "send_message",
             "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Is there anything else I can help you with regarding FAQs? Type *menu* to see the main options again."}
-                }
+                "message_type": "text",
+                "text": {"body": "Is there anything else I can help you with regarding FAQs? Type *menu* to see the main options again."}
             },
             "transitions": [{"to_step": "final_exit", "condition_config": {"type": "always_true"}}]
         },
