@@ -6,8 +6,8 @@ from django.db import transaction
 from flows.models import WhatsAppFlow
 from flows.whatsapp_flow_service import WhatsAppFlowService
 from meta_integration.models import MetaAppConfig
-from flows.definitions.tour_inquiry_whatsapp_flow import WHATSAPP_FLOW_TOUR_INQUIRY, TOUR_INQUIRY_WHATSAPP_FLOW_METADATA
-from flows.definitions.date_picker_whatsapp_flow import WHATSAPP_FLOW_DATE_PICKER, DATE_PICKER_WHATSAPP_FLOW_METADATA
+from flows.definitions.tour_inquiry_whatsapp_flow import TOUR_INQUIRY_WHATSAPP_FLOW, TOUR_INQUIRY_WHATSAPP_FLOW_METADATA
+from flows.definitions.date_picker_whatsapp_flow import DATE_PICKER_WHATSAPP_FLOW, DATE_PICKER_WHATSAPP_FLOW_METADATA
 
 class Command(BaseCommand):
     help = 'Sync WhatsApp interactive flows with the Meta platform'
@@ -49,12 +49,12 @@ class Command(BaseCommand):
         flows_to_sync = []
         if flow_choice in ['tour_inquiry', 'all']:
             flows_to_sync.append({
-                'json': WHATSAPP_FLOW_TOUR_INQUIRY,
+                'json': TOUR_INQUIRY_WHATSAPP_FLOW,
                 'metadata': TOUR_INQUIRY_WHATSAPP_FLOW_METADATA
             })
         if flow_choice in ['date_picker', 'all']:
             flows_to_sync.append({
-                'json': WHATSAPP_FLOW_DATE_PICKER,
+                'json': DATE_PICKER_WHATSAPP_FLOW,
                 'metadata': DATE_PICKER_WHATSAPP_FLOW_METADATA
             })
 
