@@ -63,7 +63,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                 "type": "column",
                 "children": [
                     {"type": "text", "text": "How many people are traveling?"},
-                    {"type": "select", "label": "Travelers", "name": "number_of_travelers", "required": True, "data_source": [
+                    {"type": "input", "input_type": "select", "label": "Travelers", "name": "number_of_travelers", "required": True, "options": [
                         {"id": "1", "title": "1 traveler"},
                         {"id": "2", "title": "2 travelers"},
                         {"id": "3", "title": "3 travelers"},
@@ -71,7 +71,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                         {"id": "5", "title": "5 travelers"},
                         {"id": "6+", "title": "6 or more travelers"}
                     ]},
-                    {"type": "button", "label": "Next", "on-click-action": {"name": "navigate", "next": {"type": "screen", "name": "NOTES"}}}
+                    {"type": "button", "label": "Next", "onClickAction": {"name": "navigate", "next": {"type": "screen", "name": "NOTES"}}}
                 ]
             }
         },
@@ -86,7 +86,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                 "children": [
                     {"type": "text", "text": "Any special requests or notes? (Optional)"},
                     {"type": "input", "input_type": "textarea", "label": "Notes", "name": "notes", "required": False},
-                    {"type": "button", "label": "Review & Submit", "on-click-action": {"name": "navigate", "next": {"type": "screen", "name": "REVIEW"}}}
+                    {"type": "button", "label": "Review & Submit", "onClickAction": {"name": "navigate", "next": {"type": "screen", "name": "REVIEW"}}}
                 ]
             }
         },
@@ -101,13 +101,13 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                     {"type": "text", "text": "Travel Dates: ${form.preferred_dates}"},
                     {"type": "text", "text": "Travelers: ${form.number_of_travelers}"},
                     {"type": "text", "text": "Notes: ${form.notes}"},
-                    {"type": "button", "label": "Submit Inquiry", "on-click-action": {"name": "data_exchange", "payload": {
+                    {"type": "button", "label": "Submit Inquiry", "onClickAction": {"name": "data_exchange", "payload": {
                         "destinations": "${form.destinations}",
                         "preferred_dates": "${form.preferred_dates}",
                         "number_of_travelers": "${form.number_of_travelers}",
                         "notes": "${form.notes}"
                     }}},
-                    {"type": "button", "label": "Back", "on-click-action": {"name": "navigate", "next": {"type": "screen", "name": "NOTES"}}}
+                    {"type": "button", "label": "Back", "onClickAction": {"name": "navigate", "next": {"type": "screen", "name": "NOTES"}}}
                 ]
             }
         },
