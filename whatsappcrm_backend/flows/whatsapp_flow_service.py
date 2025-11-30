@@ -127,9 +127,9 @@ class WhatsAppFlowService:
         files = {
             'file': ('flow.json', flow_json_str, 'application/json')
         }
-        
+        # The asset name must be exactly 'flow.json' for Meta API compliance
         data = {
-            "name": whatsapp_flow.friendly_name or whatsapp_flow.name,
+            "name": "flow.json",
             "asset_type": "FLOW_JSON"
         }
         
