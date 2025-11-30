@@ -97,12 +97,10 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                 "type": "SingleColumnLayout",
                 "children": [
                     {"type": "text", "text": "Please review your details below. If everything looks good, submit your inquiry!"},
-                    {"type": "data_exchange", "items": [
-                        {"label": "Destinations", "value": "${form.destinations}"},
-                        {"label": "Travel Dates", "value": "${form.preferred_dates}"},
-                        {"label": "Travelers", "value": "${form.number_of_travelers}"},
-                        {"label": "Notes", "value": "${form.notes}"}
-                    ]},
+                    {"type": "text", "text": "Destinations: ${form.destinations}"},
+                    {"type": "text", "text": "Travel Dates: ${form.preferred_dates}"},
+                    {"type": "text", "text": "Travelers: ${form.number_of_travelers}"},
+                    {"type": "text", "text": "Notes: ${form.notes}"},
                     {"type": "button", "label": "Submit Inquiry", "on-click-action": {"name": "data_exchange", "payload": {
                         "destinations": "${form.destinations}",
                         "preferred_dates": "${form.preferred_dates}",
