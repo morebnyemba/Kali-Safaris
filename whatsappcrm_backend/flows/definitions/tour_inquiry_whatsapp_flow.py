@@ -17,9 +17,9 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
-                    {"type": "TextHeading", "text": "Let's plan your dream safari adventure!"},
-                    {"type": "TextBody", "text": "We'll ask a few quick questions to help us tailor your experience."},
-                    {"type": "Button", "label": "Start Inquiry", "on-click-action": {"name": "go_to_screen", "payload": {"screen_id": "DESTINATIONS"}}}
+                    {"type": "text", "text": "Let's plan your dream safari adventure!"},
+                    {"type": "text", "text": "We'll ask a few quick questions to help us tailor your experience."},
+                    {"type": "button", "label": "Start Inquiry", "on-click-action": {"name": "navigate", "payload": {"screen_id": "DESTINATIONS"}}}
                 ]
             }
         },
@@ -32,9 +32,9 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
-                    {"type": "TextBody", "text": "Which destinations would you like to visit? (e.g., Maasai Mara, Serengeti, Victoria Falls)"},
-                    {"type": "TextInput", "label": "Destinations", "name": "destinations", "required": True, "placeholder": "e.g., Maasai Mara, Serengeti"},
-                    {"type": "Button", "label": "Next", "on-click-action": {"name": "go_to_screen", "payload": {"screen_id": "DATES"}}}
+                    {"type": "text", "text": "Which destinations would you like to visit? (e.g., Maasai Mara, Serengeti, Victoria Falls)"},
+                    {"type": "input", "input_type": "text", "label": "Destinations", "name": "destinations", "required": True},
+                    {"type": "button", "label": "Next", "on-click-action": {"name": "navigate", "payload": {"screen_id": "DATES"}}}
                 ]
             }
         },
@@ -47,9 +47,9 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
-                    {"type": "TextBody", "text": "When would you like to travel? (e.g., Mid-August 2024)"},
-                    {"type": "TextInput", "label": "Travel Dates", "name": "preferred_dates", "required": True, "placeholder": "e.g., Mid-August 2024"},
-                    {"type": "Button", "label": "Next", "on-click-action": {"name": "go_to_screen", "payload": {"screen_id": "TRAVELERS"}}}
+                    {"type": "text", "text": "When would you like to travel? (e.g., Mid-August 2024)"},
+                    {"type": "input", "input_type": "text", "label": "Travel Dates", "name": "preferred_dates", "required": True},
+                    {"type": "button", "label": "Next", "on-click-action": {"name": "navigate", "payload": {"screen_id": "TRAVELERS"}}}
                 ]
             }
         },
@@ -62,8 +62,8 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
-                    {"type": "TextBody", "text": "How many people are traveling?"},
-                    {"type": "Dropdown", "label": "Travelers", "name": "number_of_travelers", "required": True, "data-source": [
+                    {"type": "text", "text": "How many people are traveling?"},
+                    {"type": "dropdown", "label": "Travelers", "name": "number_of_travelers", "required": True, "data_source": [
                         {"id": "1", "title": "1 traveler"},
                         {"id": "2", "title": "2 travelers"},
                         {"id": "3", "title": "3 travelers"},
@@ -71,7 +71,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                         {"id": "5", "title": "5 travelers"},
                         {"id": "6+", "title": "6 or more travelers"}
                     ]},
-                    {"type": "Button", "label": "Next", "on-click-action": {"name": "go_to_screen", "payload": {"screen_id": "NOTES"}}}
+                    {"type": "button", "label": "Next", "on-click-action": {"name": "navigate", "payload": {"screen_id": "NOTES"}}}
                 ]
             }
         },
@@ -84,9 +84,9 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
-                    {"type": "TextBody", "text": "Any special requests or notes? (Optional)"},
-                    {"type": "TextArea", "label": "Notes", "name": "notes", "required": False, "placeholder": "e.g., interested in photography, specific lodges, dietary needs..."},
-                    {"type": "Button", "label": "Review & Submit", "on-click-action": {"name": "go_to_screen", "payload": {"screen_id": "REVIEW"}}}
+                    {"type": "text", "text": "Any special requests or notes? (Optional)"},
+                    {"type": "input", "input_type": "textarea", "label": "Notes", "name": "notes", "required": False},
+                    {"type": "button", "label": "Review & Submit", "on-click-action": {"name": "navigate", "payload": {"screen_id": "REVIEW"}}}
                 ]
             }
         },
@@ -96,20 +96,20 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
-                    {"type": "TextBody", "text": "Please review your details below. If everything looks good, submit your inquiry!"},
-                    {"type": "SummaryList", "items": [
+                    {"type": "text", "text": "Please review your details below. If everything looks good, submit your inquiry!"},
+                    {"type": "data_exchange", "items": [
                         {"label": "Destinations", "value": "${form.destinations}"},
                         {"label": "Travel Dates", "value": "${form.preferred_dates}"},
                         {"label": "Travelers", "value": "${form.number_of_travelers}"},
                         {"label": "Notes", "value": "${form.notes}"}
                     ]},
-                    {"type": "Button", "label": "Submit Inquiry", "on-click-action": {"name": "complete", "payload": {
+                    {"type": "button", "label": "Submit Inquiry", "on-click-action": {"name": "data_exchange", "payload": {
                         "destinations": "${form.destinations}",
                         "preferred_dates": "${form.preferred_dates}",
                         "number_of_travelers": "${form.number_of_travelers}",
                         "notes": "${form.notes}"
                     }}},
-                    {"type": "Button", "label": "Back", "on-click-action": {"name": "go_to_screen", "payload": {"screen_id": "NOTES"}}}
+                    {"type": "button", "label": "Back", "on-click-action": {"name": "navigate", "payload": {"screen_id": "NOTES"}}}
                 ]
             }
         },
@@ -119,8 +119,8 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
-                    {"type": "TextHeading", "text": "Your inquiry has been submitted."},
-                    {"type": "TextBody", "text": "A Kali Safaris expert will contact you soon to help plan your adventure."}
+                    {"type": "text", "text": "Your inquiry has been submitted."},
+                    {"type": "text", "text": "A Kali Safaris expert will contact you soon to help plan your adventure."}
                 ]
             }
         }
