@@ -36,10 +36,16 @@ ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if hos
 # --- CSRF Trusted Origins ---
 # Add your frontend domains that will make state-changing requests (POST, PUT, etc.).
 # This is crucial for your React frontend to be able to log in and submit data.
+
+# Ensure backend.kalaisafaris.com is included for CSRF
 CSRF_TRUSTED_ORIGINS_STRING = os.getenv(
     'CSRF_TRUSTED_ORIGINS',
     'http://localhost:5173,http://127.0.0.1:5173,https://dashboard.kalaisafaris.com,http://dashboard.kalaisafaris.com,https://backend.kalaisafaris.com,http://backend.kalaisafaris.com,https://testbackend.worldbet2.com,https://www.testbackend.worldbet2.com,https://kalaisafaris.com,http://kalaisafaris.com'
 )
+if 'https://backend.kalaisafaris.com' not in CSRF_TRUSTED_ORIGINS_STRING:
+    CSRF_TRUSTED_ORIGINS_STRING += ',https://backend.kalaisafaris.com'
+if 'http://backend.kalaisafaris.com' not in CSRF_TRUSTED_ORIGINS_STRING:
+    CSRF_TRUSTED_ORIGINS_STRING += ',http://backend.kalaisafaris.com'
 CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_STRING.split(',') if origin.strip()]
 
 

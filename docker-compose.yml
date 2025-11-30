@@ -112,6 +112,15 @@ services:
       - frontend
     restart: unless-stopped
 
+  public-website:
+    build: ./public-website
+    container_name: public_website_app
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
 volumes:
   postgres_data:
   redis_data:
