@@ -7,6 +7,8 @@ DATE_PICKER_WHATSAPP_FLOW_METADATA = {
     "trigger_keywords": ["date picker", "select date"],
     "is_active": True
 }
+WHATSAPP_FLOW_DATE_PICKER = DATE_PICKER_WHATSAPP_FLOW
+WHATSAPP_FLOW_DATE_PICKER = DATE_PICKER_WHATSAPP_FLOW
 
 DATE_PICKER_WHATSAPP_FLOW = {
     "version": "7.3",
