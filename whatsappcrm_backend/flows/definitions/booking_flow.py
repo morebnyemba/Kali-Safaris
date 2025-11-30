@@ -124,11 +124,11 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "traveler_index", "value_template": 1}
+                    {"action_type": "set_context_variable", "variable_name": "traveler_index", "value_template": 1},
+                    {"action_type": "set_context_variable", "variable_name": "num_travelers", "value_template": "{{ num_adults|int + num_children|int }}"}
                 ]
             },
-            "transitions": [{"to_step": "ask_email", "condition_config": {"type": "always_true"}}]
-            # Traveler details loop removed for simplicity, can be re-added if needed.
+            "transitions": [{"to_step": "ask_traveler_name", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "calculate_total_cost",
@@ -153,7 +153,8 @@ BOOKING_FLOW = {
                     "message_type": "text",
                     "text": {"body": "Let's get the details for Traveler {{ traveler_index }} of {{ num_travelers }}.\n\nWhat is their full name?"}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_name"}
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_name"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid name."}
             },
             "transitions": [{"to_step": "ask_traveler_age", "condition_config": {"type": "always_true"}}]
         },
@@ -166,7 +167,35 @@ BOOKING_FLOW = {
                     "message_type": "text",
                     "text": {"body": "Thanks. And what is the age of *{{ current_traveler_name }}*?"}
                 },
-                "reply_config": {"expected_type": "number", "save_to_variable": "current_traveler_age"}
+                "reply_config": {"expected_type": "number", "save_to_variable": "current_traveler_age", "validation_regex": "^[0-9]{1,3}$"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid age (e.g., 34)."}
+            },
+            "transitions": [{"to_step": "ask_traveler_nationality", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 5b: Ask for nationality
+        {
+            "name": "ask_traveler_nationality",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "What is the nationality of *{{ current_traveler_name }}*?"}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_nationality"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid nationality."}
+            },
+            "transitions": [{"to_step": "ask_traveler_medical", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 5c: Ask for dietary/medical needs
+        {
+            "name": "ask_traveler_medical",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Does *{{ current_traveler_name }}* have any dietary restrictions or medical needs? (Type 'none' if not)"}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_medical"}
             },
             "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
         },
@@ -179,7 +208,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age}] }}"
+                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical}] }}"
                     },
                     {
                         "action_type": "set_context_variable",
@@ -190,7 +219,7 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "ask_traveler_name", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers }}"}},
-                {"to_step": "ask_travel_dates", "priority": 2, "condition_config": {"type": "always_true"}} # Corrected transition
+                {"to_step": "ask_travel_dates", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
         # Step 8: Ask for contact email
@@ -207,8 +236,20 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "update_profile_with_email", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "inquiry_email"}},
-                {"to_step": "ask_payment_option", "priority": 2, "condition_config": {"type": "always_true"}} # Skip if no email provided
+                {"to_step": "ask_email_support", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
+        },
+        # Step 8b: If no email, offer support
+        {
+            "name": "ask_email_support",
+            "type": "send_message",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "If you have trouble providing an email, please contact our support team at bookings@kalaisafaris.com or type 'menu' to return to the main menu."}
+                }
+            },
+            "transitions": [{"to_step": "end_booking_flow_final", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "update_profile_with_email",
@@ -221,6 +262,37 @@ BOOKING_FLOW = {
             },
             "transitions": [{"to_step": "ask_payment_option", "condition_config": {"type": "always_true"}}]
         },
+        # Step 9: Show booking summary and confirm
+        {
+            "name": "show_booking_summary",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% for t in travelers_details %}- {{ t.name }}, Age: {{ t.age }}, Nationality: {{ t.nationality }}, Medical: {{ t.medical }}\n{% endfor %}\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "summary_confirmation"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please reply 'yes' to confirm or 'edit' to make changes."}
+            },
+            "transitions": [
+                {"to_step": "ask_payment_option", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "summary_confirmation", "value": "yes"}},
+                {"to_step": "edit_booking_details", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "summary_confirmation", "value": "edit"}},
+                {"to_step": "show_booking_summary", "priority": 3, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        # Step 9b: Edit booking details (simple restart for now)
+        {
+            "name": "edit_booking_details",
+            "type": "send_message",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Let's start over so you can update your details. Type 'menu' at any time to return to the main menu."}
+                }
+            },
+            "transitions": [{"to_step": "start_booking", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 10: Payment options
         {
             "name": "ask_payment_option",
             "type": "question",
@@ -231,12 +303,7 @@ BOOKING_FLOW = {
                         "type": "list",
                         "header": {"type": "text", "text": "Confirm & Pay"},
                         "body": {
-                            "text": """Please confirm your booking details:
-
-*Tour:* {{ tour_name }}
-*Dates:* {{ start_date }} to {{ end_date }}
-*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)
-*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*"""
+                            "text": "Select a payment option below."
                         },
                         "footer": {"text": "Select an option"},
                         "action": {

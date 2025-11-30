@@ -45,8 +45,21 @@ MY_BOOKINGS_FLOW = {
 ---
 {% endfor %}
 
-Type *menu* to return to the main menu."""
+Type *menu* to return to the main menu or contact bookings@kalaisafaris.com for help."""
                 }
+            },
+            "transitions": [
+                {"to_step": "end_my_bookings", "priority": 1, "condition_config": {"type": "always_true"}},
+                {"to_step": "bookings_support", "priority": 2, "condition_config": {"type": "invalid_or_no_selection"}}
+            ]
+        },
+        # Fallback/support step if user input is invalid
+        {
+            "name": "bookings_support",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "If you need help or want to see your bookings again, type 'menu' or contact bookings@kalaisafaris.com."}
             },
             "transitions": [
                 {"to_step": "end_my_bookings", "condition_config": {"type": "always_true"}}

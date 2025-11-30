@@ -55,11 +55,31 @@ TOUR_INQUIRY_FLOW = {
             "transitions": [
                 {
                     "to_step": "process_inquiry_data",
+                    "priority": 1,
                     "condition_config": {
                         "type": "whatsapp_flow_response_received",
                         "variable_name": "whatsapp_flow_response_received"
                     }
+                },
+                {
+                    "to_step": "inquiry_flow_support",
+                    "priority": 2,
+                    "condition_config": {"type": "timeout_or_missing_data", "timeout_seconds": 600}
                 }
+            ]
+        },
+        # Fallback/support step if WhatsApp flow is incomplete or times out
+        {
+            "name": "inquiry_flow_support",
+            "type": "send_message",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "It looks like your inquiry was not completed. If you need help or want to try again, please type 'menu' or contact our team at bookings@kalaisafaris.com."}
+                }
+            },
+            "transitions": [
+                {"to_step": "confirm_and_end", "condition_config": {"type": "always_true"}}
             ]
         },
         {

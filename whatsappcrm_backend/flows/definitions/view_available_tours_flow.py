@@ -71,7 +71,22 @@ Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price|float) }}*
             "transitions": [
                 {"to_step": "start_booking_inquiry", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "book_this_tour"}},
                 {"to_step": "increment_tour_index", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "view_next_tour"}},
-                {"to_step": "switch_to_main_menu", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "back_to_menu"}}
+                {"to_step": "switch_to_main_menu", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "back_to_menu"}},
+                {"to_step": "tour_fallback_support", "priority": 3, "condition_config": {"type": "invalid_or_no_selection"}}
+            ]
+        },
+        # Fallback/support step if user input is invalid
+        {
+            "name": "tour_fallback_support",
+            "type": "send_message",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "If you need help or want to see the tours again, type 'menu' or contact bookings@kalaisafaris.com."}
+                }
+            },
+            "transitions": [
+                {"to_step": "switch_to_main_menu", "condition_config": {"type": "always_true"}}
             ]
         },
         {

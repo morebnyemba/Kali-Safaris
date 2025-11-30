@@ -42,6 +42,39 @@ Shall I proceed and create a booking request for you? A travel expert will then 
                 {"to_step": "end_flow_cancelled", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cancel_inquiry"}}
             ]
         },
+            # Step 2: Show summary and ask for confirmation
+            {
+                "name": "show_custom_tour_summary",
+                "type": "question",
+                "config": {
+                    "message_config": {
+                        "message_type": "text",
+                        "text": {"body": "Here is a summary of your custom tour inquiry:\n\n*Destinations:* {{ destinations }}\n*Preferred Dates:* {{ preferred_dates }}\n*Number of Travelers:* {{ number_of_travelers }}\n*Notes:* {{ notes }}\n\nIs everything correct? (yes/edit)"}
+                    },
+                    "reply_config": {"expected_type": "text", "save_to_variable": "summary_confirmation"},
+                    "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please reply 'yes' to confirm or 'edit' to make changes."}
+                },
+                "transitions": [
+                    {"to_step": "submit_custom_tour_inquiry", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "summary_confirmation", "value": "yes"}},
+                    {"to_step": "edit_custom_tour_details", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "summary_confirmation", "value": "edit"}},
+                    {"to_step": "custom_tour_support", "priority": 3, "condition_config": {"type": "invalid_or_no_selection"}},
+                    {"to_step": "show_custom_tour_summary", "priority": 4, "condition_config": {"type": "always_true"}}
+                ]
+            },
+            # Step 2b: Fallback/support if user input is invalid
+            {
+                "name": "custom_tour_support",
+                "type": "send_message",
+                "config": {
+                    "message_config": {
+                        "message_type": "text",
+                        "text": {"body": "If you need help or want to start over, type 'menu' or contact bookings@kalaisafaris.com."}
+                    }
+                },
+                "transitions": [
+                    {"to_step": "end_custom_tour_confirmation", "condition_config": {"type": "always_true"}}
+                ]
+            },
         {
             "name": "create_booking_from_inquiry_action",
             "type": "action",
