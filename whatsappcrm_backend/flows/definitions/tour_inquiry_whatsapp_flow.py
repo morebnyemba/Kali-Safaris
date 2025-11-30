@@ -63,7 +63,7 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
                 "type": "SingleColumnLayout",
                 "children": [
                     {"type": "text", "text": "How many people are traveling?"},
-                    {"type": "dropdown", "label": "Travelers", "name": "number_of_travelers", "required": True, "data_source": [
+                    {"type": "select", "label": "Travelers", "name": "number_of_travelers", "required": True, "data_source": [
                         {"id": "1", "title": "1 traveler"},
                         {"id": "2", "title": "2 travelers"},
                         {"id": "3", "title": "3 travelers"},
