@@ -1,7 +1,7 @@
 # whatsappcrm_backend/flows/definitions/tour_inquiry_whatsapp_flow.py
 
 TOUR_INQUIRY_WHATSAPP_FLOW_METADATA = {
-    "name": "tour_inquiry_whatsapp_flow",
+    "name": "tour_inquiry_whatsapp",
     "friendly_name": "Tour Inquiry WhatsApp Flow",
     "description": "A robust, production-ready WhatsApp interactive flow for collecting detailed safari tour inquiries from users, including destinations, dates, group size, and special requests.",
     "trigger_keywords": ["tour inquiry", "safari inquiry", "book safari", "plan trip"],
