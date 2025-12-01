@@ -1,5 +1,10 @@
 # whatsappcrm_backend/flows/definitions/date_picker_whatsapp_flow.py
 
+"""
+WhatsApp Flow JSON definition for Date Picker.
+This is a reusable interactive flow for selecting dates.
+"""
+
 DATE_PICKER_WHATSAPP_FLOW_METADATA = {
     "name": "date_picker_whatsapp_flow",
     "friendly_name": "Date Picker WhatsApp Flow",
@@ -13,7 +18,7 @@ DATE_PICKER_WHATSAPP_FLOW = {
     "screens": [
         {
             "id": "DATE_PICKER",
-            "title": "Select Date(s)",
+            "title": "Select Date",
             "data": {
                 "selected_date": {
                     "type": "string",
@@ -23,25 +28,35 @@ DATE_PICKER_WHATSAPP_FLOW = {
             "layout": {
                 "type": "SingleColumnLayout",
                 "children": [
-                    {"type": "TextHeading", "text": "Choose Your Dates"},
-                    {"type": "TextBody", "text": "Please select the date or date range."},
+                    {
+                        "type": "TextHeading",
+                        "text": "Choose Your Date"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "Please select your preferred date."
+                    },
                     {
                         "type": "DatePicker",
                         "name": "selected_date",
-                        "label": "Select Date(s)",
-                        "mode": "single",
-                        "range": {"min": "", "max": ""}
+                        "label": "Select Date",
+                        "required": True
                     },
                     {
                         "type": "Footer",
                         "label": "Confirm Selection",
                         "on-click-action": {
                             "name": "complete",
-                            "payload": {"selected_date": "${form.selected_date}"}
+                            "payload": {
+                                "selected_date": "${form.selected_date}"
+                            }
                         }
                     }
                 ]
-            }
+            },
+            "terminal": True,
+            "success": True
         }
     ]
 }
+
