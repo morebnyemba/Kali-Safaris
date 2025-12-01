@@ -37,16 +37,15 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
         },
         {
             "id": "DATES",
-            "title": "Preferred Travel Dates",
+            "title": "Preferred Travel Date",
             "data": {
-                "preferred_dates": {"type": "string", "__example__": "Mid-August 2024"}
+                "preferred_date": {"type": "string", "__example__": "2024-08-15"}
             },
             "layout": {
                 "type": "column",
                 "children": [
-                    {"type": "text", "text": "When would you like to travel? (e.g., Mid-August 2024)"},
-                    {"type": "DatePicker", "id": "travel_dates", "label": "Preferred Travel Dates"},
-                    {"type": "input", "input_type": "text", "label": "Travel Dates", "name": "preferred_dates", "required": True},
+                    {"type": "text", "text": "When would you like to travel? (Pick a single date)"},
+                    {"type": "DatePicker", "id": "travel_date", "label": "Preferred Travel Date", "name": "preferred_date", "required": True},
                     {"type": "button", "label": "Next", "on-click-action": {"name": "navigate", "next": {"type": "screen", "name": "TRAVELERS"}}}
                 ]
             }
