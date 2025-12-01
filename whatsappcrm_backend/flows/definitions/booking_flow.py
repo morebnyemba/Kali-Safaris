@@ -289,7 +289,7 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "ask_traveler_name", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers }}"}},
-                {"to_step": "ask_travel_dates", "priority": 2, "condition_config": {"type": "always_true"}}
+                {"to_step": "ask_email", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
         # Step 8: Ask for contact email
