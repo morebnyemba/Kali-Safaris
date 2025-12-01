@@ -25,16 +25,29 @@ TOUR_INQUIRY_WHATSAPP_FLOW = {
         },
         {
             "id": "DESTINATIONS",
-            "title": "Destinations of Interest",
-            "data": {
-                "destinations": {"type": "string", "__example__": "Maasai Mara, Serengeti"}
-            },
+            "title": "Choose Destinations",
             "layout": {
                 "type": "column",
                 "children": [
                     {"type": "text", "text": "Which destinations would you like to visit? (e.g., Maasai Mara, Serengeti, Victoria Falls)"},
                     {"type": "input", "input_type": "text", "label": "Destinations", "name": "destinations", "required": True},
                     {"type": "button", "label": "Next", "on-click-action": {"name": "navigate", "next": {"type": "screen", "name": "DATES"}}}
+                ]
+            }
+        },
+        {
+            "id": "DATES",
+            "title": "Preferred Travel Dates",
+            "data": {
+                "preferred_dates": {"type": "string", "__example__": "Mid-August 2024"}
+            },
+            "layout": {
+                "type": "column",
+                "children": [
+                    {"type": "text", "text": "When would you like to travel? (e.g., Mid-August 2024)"},
+                    {"type": "DatePicker", "id": "travel_dates", "label": "Preferred Travel Dates"},
+                    {"type": "input", "input_type": "text", "label": "Travel Dates", "name": "preferred_dates", "required": True},
+                    {"type": "button", "label": "Next", "on-click-action": {"name": "navigate", "next": {"type": "screen", "name": "TRAVELERS"}}}
                 ]
             }
         },
