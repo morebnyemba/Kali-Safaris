@@ -3,6 +3,10 @@
 """
 WhatsApp Flow JSON definition for Tour Inquiry.
 This is a production-ready interactive flow for collecting safari tour inquiries.
+
+Note: In Meta's WhatsApp Flow specification, each screen must declare all data variables
+it will receive and pass. The data schema is intentionally repeated across screens
+as this is required by the WhatsApp Flows API for proper data binding.
 """
 
 TOUR_INQUIRY_WHATSAPP_FLOW_METADATA = {

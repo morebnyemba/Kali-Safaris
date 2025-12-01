@@ -2,6 +2,11 @@
 """
 WhatsApp Flow JSON definition for Service Booking.
 This flow collects service booking information including date selection.
+
+Note: In Meta's WhatsApp Flow specification:
+1. Each screen must declare all data variables it receives and passes
+2. The 'complete' action's payload sends collected data back to the backend
+   for processing (this is how the form data is captured)
 """
 
 SERVICE_BOOKING_FLOW = {
