@@ -25,7 +25,7 @@ TOUR_INQUIRY_FLOW = {
                         "parameters": {
                             "flow_message_version": "3",
                             "flow_token": "YOUR_UNIQUE_FLOW_TOKEN", # This can be dynamically generated
-                            "flow_id": "YOUR_WHATSAPP_FLOW_ID", # This will be the ID from the WhatsAppFlow model once synced
+                            "flow_id": "{{ get_whatsapp_flow_id('tour_inquiry_whatsapp') }}", # Dynamically retrieved from WhatsAppFlow model
                             "flow_cta": "Start Inquiry",
                             "flow_action": "navigate",
                             "flow_action_payload": {

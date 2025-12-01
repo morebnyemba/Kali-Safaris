@@ -68,7 +68,7 @@ BOOKING_FLOW = {
                             "parameters": {
                                 "flow_message_version": "3",
                                 "flow_token": "a_unique_token_for_this_interaction",
-                                "flow_id": "{{ get_whatsapp_flow_id('date_picker_flow') }}",
+                                "flow_id": "{{ get_whatsapp_flow_id('date_picker_whatsapp_flow') }}",
                                 "flow_cta": "Select Dates",
                                 "flow_action": "navigate",
                                 "flow_action_payload": {
