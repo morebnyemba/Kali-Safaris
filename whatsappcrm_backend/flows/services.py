@@ -15,14 +15,14 @@ from jinja2 import Environment, select_autoescape, Undefined, pass_context
 from django.core.exceptions import ValidationError as DjangoValidationError # Renamed to avoid conflict with Pydantic
 from pydantic import ValidationError
 from django.conf import settings
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import re
 import uuid
 from decimal import Decimal, InvalidOperation
 import json
 
 from conversations.models import Contact, Message
-from .models import Flow, FlowStep, FlowTransition, ContactFlowState
+from .models import Flow, FlowStep, FlowTransition, ContactFlowState, WhatsAppFlow
 from notifications.services import queue_notifications_to_users
 from customer_data.models import CustomerProfile
 
@@ -184,6 +184,60 @@ def to_interactive_rows_filter(context, value, row_template=None):
 
     return json.dumps(rows_list)
 
+# Cache for WhatsApp flow_id lookups to avoid repeated database queries
+# Uses a simple in-memory cache with a 5-minute TTL
+_whatsapp_flow_id_cache = {}
+_whatsapp_flow_id_cache_ttl = 300  # 5 minutes in seconds
+
+def get_whatsapp_flow_id(flow_name: str) -> str:
+    """
+    Jinja2 global function to look up a WhatsApp flow_id by its name.
+    This allows templates to dynamically retrieve flow IDs from synced WhatsApp flows
+    stored in the database instead of hardcoding them in settings.
+    
+    Results are cached for 5 minutes to avoid repeated database queries.
+    
+    Usage in template: {{ get_whatsapp_flow_id('date_picker_flow') }}
+    
+    Args:
+        flow_name: The name of the WhatsApp flow to look up
+        
+    Returns:
+        The flow_id string if found and published, empty string otherwise
+    """
+    import time
+    
+    # Check cache first
+    cache_entry = _whatsapp_flow_id_cache.get(flow_name)
+    if cache_entry:
+        cached_value, cached_time = cache_entry
+        if time.time() - cached_time < _whatsapp_flow_id_cache_ttl:
+            logger.debug(f"Cache hit for WhatsApp flow '{flow_name}': {cached_value}")
+            return cached_value
+    
+    # Cache miss or expired - query database
+    try:
+        whatsapp_flow = WhatsAppFlow.objects.filter(
+            name=flow_name,
+            is_active=True,
+            sync_status='published'
+        ).first()
+        
+        if whatsapp_flow and whatsapp_flow.flow_id:
+            flow_id = whatsapp_flow.flow_id
+            logger.debug(f"Retrieved flow_id '{flow_id}' for WhatsApp flow '{flow_name}'")
+        else:
+            flow_id = ''
+            logger.warning(f"No published WhatsApp flow found with name '{flow_name}'")
+        
+        # Update cache
+        _whatsapp_flow_id_cache[flow_name] = (flow_id, time.time())
+        return flow_id
+        
+    except Exception as e:
+        logger.error(f"Error looking up WhatsApp flow '{flow_name}': {e}")
+        return ''
+
 jinja_env = Environment(
     loader=None, # We're loading templates from strings, not files
     autoescape=select_autoescape(['html', 'xml'], disabled_extensions=('txt',), default_for_string=False),
@@ -194,6 +248,8 @@ jinja_env.filters['strftime'] = strftime_filter # Add the custom filter
 jinja_env.filters['truncatewords'] = truncatewords_filter # Add the filter
 jinja_env.filters['to_interactive_rows'] = to_interactive_rows_filter # Add the new filter
 jinja_env.globals['now'] = timezone.now # Make 'now' globally available for date comparisons
+jinja_env.globals['timedelta'] = timedelta # Make 'timedelta' globally available for date arithmetic
+jinja_env.globals['get_whatsapp_flow_id'] = get_whatsapp_flow_id # Make flow_id lookup available in templates
 
 def _get_value_from_context_or_contact(variable_path: str, flow_context: dict, contact: Contact) -> Any:
     """
