@@ -22,7 +22,7 @@ from decimal import Decimal, InvalidOperation
 import json
 
 from conversations.models import Contact, Message
-from .models import Flow, FlowStep, FlowTransition, ContactFlowState
+from .models import Flow, FlowStep, FlowTransition, ContactFlowState, WhatsAppFlow
 from notifications.services import queue_notifications_to_users
 from customer_data.models import CustomerProfile
 
@@ -184,11 +184,18 @@ def to_interactive_rows_filter(context, value, row_template=None):
 
     return json.dumps(rows_list)
 
+# Cache for WhatsApp flow_id lookups to avoid repeated database queries
+# Uses a simple in-memory cache with a 5-minute TTL
+_whatsapp_flow_id_cache = {}
+_whatsapp_flow_id_cache_ttl = 300  # 5 minutes in seconds
+
 def get_whatsapp_flow_id(flow_name: str) -> str:
     """
     Jinja2 global function to look up a WhatsApp flow_id by its name.
     This allows templates to dynamically retrieve flow IDs from synced WhatsApp flows
     stored in the database instead of hardcoding them in settings.
+    
+    Results are cached for 5 minutes to avoid repeated database queries.
     
     Usage in template: {{ get_whatsapp_flow_id('date_picker_flow') }}
     
@@ -198,7 +205,17 @@ def get_whatsapp_flow_id(flow_name: str) -> str:
     Returns:
         The flow_id string if found and published, empty string otherwise
     """
-    from .models import WhatsAppFlow
+    import time
+    
+    # Check cache first
+    cache_entry = _whatsapp_flow_id_cache.get(flow_name)
+    if cache_entry:
+        cached_value, cached_time = cache_entry
+        if time.time() - cached_time < _whatsapp_flow_id_cache_ttl:
+            logger.debug(f"Cache hit for WhatsApp flow '{flow_name}': {cached_value}")
+            return cached_value
+    
+    # Cache miss or expired - query database
     try:
         whatsapp_flow = WhatsAppFlow.objects.filter(
             name=flow_name,
@@ -207,11 +224,16 @@ def get_whatsapp_flow_id(flow_name: str) -> str:
         ).first()
         
         if whatsapp_flow and whatsapp_flow.flow_id:
-            logger.debug(f"Retrieved flow_id '{whatsapp_flow.flow_id}' for WhatsApp flow '{flow_name}'")
-            return whatsapp_flow.flow_id
+            flow_id = whatsapp_flow.flow_id
+            logger.debug(f"Retrieved flow_id '{flow_id}' for WhatsApp flow '{flow_name}'")
         else:
+            flow_id = ''
             logger.warning(f"No published WhatsApp flow found with name '{flow_name}'")
-            return ''
+        
+        # Update cache
+        _whatsapp_flow_id_cache[flow_name] = (flow_id, time.time())
+        return flow_id
+        
     except Exception as e:
         logger.error(f"Error looking up WhatsApp flow '{flow_name}': {e}")
         return ''
