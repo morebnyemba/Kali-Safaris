@@ -23,6 +23,7 @@ import json
 
 from conversations.models import Contact, Message
 from .models import Flow, FlowStep, FlowTransition, ContactFlowState, WhatsAppFlow
+from .whatsapp_flow_service import WhatsAppFlowService
 from notifications.services import queue_notifications_to_users
 from customer_data.models import CustomerProfile
 
@@ -34,6 +35,10 @@ from .schemas import (
 )
 
 logger = logging.getLogger(__name__)
+
+# --- WhatsApp Flow Constants ---
+WHATSAPP_FLOW_CONTEXT_KEY = '_using_whatsapp_flow'
+WHATSAPP_FLOW_ID_CONTEXT_KEY = '_whatsapp_flow_id'
 
 # --- Dynamic Custom Action Registry ---
 class FlowActionRegistry:
@@ -897,6 +902,38 @@ def _handle_fallback(current_step: FlowStep, contact: Contact, flow_context: dic
         handover_message = "Apologies, I've encountered a technical issue and can't continue. I'm alerting a team member to assist you."
         return _create_human_handover_actions(contact, handover_message)
 
+def _generate_flow_token(contact: Contact, whatsapp_flow: 'WhatsAppFlow') -> str:
+    """
+    Generates a unique flow token for tracking a WhatsApp Flow session.
+    
+    Args:
+        contact: The Contact instance
+        whatsapp_flow: The WhatsAppFlow instance
+        
+    Returns:
+        A unique flow token string
+    """
+    return f"{contact.id}_{whatsapp_flow.id}_{uuid.uuid4().hex[:8]}"
+
+
+def _mark_context_for_whatsapp_flow(initial_context: dict, whatsapp_flow: 'WhatsAppFlow') -> dict:
+    """
+    Marks the flow context to indicate we're waiting for a WhatsApp Flow response.
+    
+    Args:
+        initial_context: The initial context dictionary
+        whatsapp_flow: The WhatsAppFlow instance
+        
+    Returns:
+        Updated context dictionary
+    """
+    return {
+        **initial_context,
+        WHATSAPP_FLOW_CONTEXT_KEY: True,
+        WHATSAPP_FLOW_ID_CONTEXT_KEY: whatsapp_flow.id
+    }
+
+
 def _get_whatsapp_flow_for_traditional_flow(traditional_flow: Flow) -> Optional['WhatsAppFlow']:
     """
     Checks if there's an active, published WhatsApp Flow associated with the traditional flow.
@@ -936,9 +973,10 @@ def _send_whatsapp_flow_message(contact: Contact, whatsapp_flow: 'WhatsAppFlow',
     Returns:
         List of actions to perform (the message to send)
     """
-    from .whatsapp_flow_service import WhatsAppFlowService
-    
     try:
+        # Generate a unique flow token for this session
+        flow_token = _generate_flow_token(contact, whatsapp_flow)
+        
         # Create the flow message using the service's helper method
         flow_message_data = WhatsAppFlowService.create_flow_message_data(
             flow_id=whatsapp_flow.flow_id,
@@ -947,7 +985,7 @@ def _send_whatsapp_flow_message(contact: Contact, whatsapp_flow: 'WhatsAppFlow',
             header_text=whatsapp_flow.friendly_name,
             body_text=whatsapp_flow.description or "Please complete the form",
             footer_text="",
-            flow_token=f"{contact.id}_{whatsapp_flow.id}_{uuid.uuid4().hex[:8]}"
+            flow_token=flow_token
         )
         
         # Create the action to send the WhatsApp Flow
@@ -1530,11 +1568,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                     actions_to_perform.extend(whatsapp_flow_actions)
                     
                     # Mark in the context that we're waiting for a WhatsApp Flow response
-                    contact_flow_state.flow_context_data = {
-                        **initial_context,
-                        '_using_whatsapp_flow': True,
-                        '_whatsapp_flow_id': whatsapp_flow.id
-                    }
+                    contact_flow_state.flow_context_data = _mark_context_for_whatsapp_flow(initial_context, whatsapp_flow)
                     contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
                     
                     return actions_to_perform
@@ -1757,11 +1791,7 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                             actions_to_perform.extend(whatsapp_flow_actions)
                             
                             # Mark in the context that we're waiting for a WhatsApp Flow response
-                            new_contact_flow_state.flow_context_data = {
-                                **initial_context_for_new_flow,
-                                '_using_whatsapp_flow': True,
-                                '_whatsapp_flow_id': whatsapp_flow.id
-                            }
+                            new_contact_flow_state.flow_context_data = _mark_context_for_whatsapp_flow(initial_context_for_new_flow, whatsapp_flow)
                             new_contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
                             
                             break  # Exit the loop as we're waiting for WhatsApp Flow response
