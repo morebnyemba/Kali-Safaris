@@ -897,6 +897,75 @@ def _handle_fallback(current_step: FlowStep, contact: Contact, flow_context: dic
         handover_message = "Apologies, I've encountered a technical issue and can't continue. I'm alerting a team member to assist you."
         return _create_human_handover_actions(contact, handover_message)
 
+def _get_whatsapp_flow_for_traditional_flow(traditional_flow: Flow) -> Optional['WhatsAppFlow']:
+    """
+    Checks if there's an active, published WhatsApp Flow associated with the traditional flow.
+    
+    Args:
+        traditional_flow: The traditional Flow instance
+        
+    Returns:
+        The WhatsAppFlow instance if one exists and is ready, None otherwise
+    """
+    try:
+        whatsapp_flow = traditional_flow.whatsapp_flows.filter(
+            is_active=True,
+            sync_status='published'
+        ).first()
+        
+        if whatsapp_flow:
+            logger.info(f"Found active published WhatsApp Flow '{whatsapp_flow.name}' (ID: {whatsapp_flow.flow_id}) for traditional flow '{traditional_flow.name}'")
+            return whatsapp_flow
+        else:
+            logger.debug(f"No active published WhatsApp Flow found for traditional flow '{traditional_flow.name}'")
+            return None
+    except Exception as e:
+        logger.error(f"Error checking for WhatsApp Flow: {e}")
+        return None
+
+
+def _send_whatsapp_flow_message(contact: Contact, whatsapp_flow: 'WhatsAppFlow', initial_context: dict = None) -> List[Dict[str, Any]]:
+    """
+    Sends a WhatsApp Flow message to a contact.
+    
+    Args:
+        contact: The Contact to send the flow to
+        whatsapp_flow: The WhatsAppFlow to send
+        initial_context: Optional initial context data
+        
+    Returns:
+        List of actions to perform (the message to send)
+    """
+    from .whatsapp_flow_service import WhatsAppFlowService
+    
+    try:
+        # Create the flow message using the service's helper method
+        flow_message_data = WhatsAppFlowService.create_flow_message_data(
+            flow_id=whatsapp_flow.flow_id,
+            screen="WELCOME",
+            flow_cta="Continue",
+            header_text=whatsapp_flow.friendly_name,
+            body_text=whatsapp_flow.description or "Please complete the form",
+            footer_text="",
+            flow_token=f"{contact.id}_{whatsapp_flow.id}_{uuid.uuid4().hex[:8]}"
+        )
+        
+        # Create the action to send the WhatsApp Flow
+        action = {
+            'type': 'send_whatsapp_message',
+            'recipient_wa_id': contact.whatsapp_id,
+            'message_type': 'interactive',
+            'data': flow_message_data
+        }
+        
+        logger.info(f"Created WhatsApp Flow message for contact {contact.whatsapp_id}, flow '{whatsapp_flow.name}'")
+        return [action]
+        
+    except Exception as e:
+        logger.error(f"Error creating WhatsApp Flow message: {e}")
+        return []
+
+
 def _trigger_new_flow(contact: Contact, message_data: dict, incoming_message_obj: Message) -> bool:
     """
     Finds and sets up the initial state for a new flow based on a trigger keyword.
@@ -1443,39 +1512,61 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             flow_was_triggered = _trigger_new_flow(contact, message_data, incoming_message_obj)
             
             if flow_was_triggered:
-                # A new flow was started. Execute its entry step's actions now.
+                # A new flow was started. Check if there's a WhatsApp flow to use instead.
                 contact_flow_state = ContactFlowState.objects.select_related('current_flow', 'current_step').prefetch_related(prefetch_query).filter(contact=contact).first()
                 if not contact_flow_state:
                     logger.warning(f"Flow was triggered for contact {contact.id} but no state was found immediately after (likely ended on first step). Exiting.")
                     return []
 
-                entry_step = contact_flow_state.current_step
-                initial_context = contact_flow_state.flow_context_data or {}
-                
-                entry_actions, updated_context = _execute_step_actions(entry_step, contact, initial_context.copy())
-                actions_to_perform.extend(entry_actions)
-                
-                contact_flow_state.flow_context_data = updated_context
-                contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
-                
-                # If the entry step was a question or ends the flow, we are done with this message.
-                if entry_step.step_type in ['question', 'end_flow', 'human_handover']:
-                    # A question step should not fall through. It should wait for the next message.
-                    # So we process its actions and exit, preventing the main loop from running on the same message.
-                    # The same applies for end_flow and human_handover, which terminate the flow logic for this cycle.
-                    final_actions_for_meta_view = []
-                    for action in actions_to_perform:
-                        if action.get('type') == '_internal_command_clear_flow_state':
-                            _clear_contact_flow_state(contact)
-                            logger.debug(f"Contact {contact.id}: Processed internal command to clear flow state from entry step.")
-                        elif action.get('type') == 'send_whatsapp_message':
-                            final_actions_for_meta_view.append(action)
+                # Check if there's an active published WhatsApp Flow for this traditional flow
+                whatsapp_flow = _get_whatsapp_flow_for_traditional_flow(contact_flow_state.current_flow)
+                if whatsapp_flow:
+                    # Use the WhatsApp Flow instead of traditional flow
+                    logger.info(f"Using WhatsApp Flow '{whatsapp_flow.name}' instead of traditional flow '{contact_flow_state.current_flow.name}' for contact {contact.whatsapp_id}")
                     
-                    return final_actions_for_meta_view
+                    # Send the WhatsApp Flow message
+                    initial_context = contact_flow_state.flow_context_data or {}
+                    whatsapp_flow_actions = _send_whatsapp_flow_message(contact, whatsapp_flow, initial_context)
+                    actions_to_perform.extend(whatsapp_flow_actions)
+                    
+                    # Mark in the context that we're waiting for a WhatsApp Flow response
+                    contact_flow_state.flow_context_data = {
+                        **initial_context,
+                        '_using_whatsapp_flow': True,
+                        '_whatsapp_flow_id': whatsapp_flow.id
+                    }
+                    contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
+                    
+                    return actions_to_perform
                 else:
-                    # It's a fall-through step. We need to enter the main processing loop
-                    # with an "internal" message to check for transitions.
-                    message_data = {'type': 'internal_flow_start'}
+                    # Use traditional flow - execute its entry step's actions now.
+                    entry_step = contact_flow_state.current_step
+                    initial_context = contact_flow_state.flow_context_data or {}
+                    
+                    entry_actions, updated_context = _execute_step_actions(entry_step, contact, initial_context.copy())
+                    actions_to_perform.extend(entry_actions)
+                    
+                    contact_flow_state.flow_context_data = updated_context
+                    contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
+                    
+                    # If the entry step was a question or ends the flow, we are done with this message.
+                    if entry_step.step_type in ['question', 'end_flow', 'human_handover']:
+                        # A question step should not fall through. It should wait for the next message.
+                        # So we process its actions and exit, preventing the main loop from running on the same message.
+                        # The same applies for end_flow and human_handover, which terminate the flow logic for this cycle.
+                        final_actions_for_meta_view = []
+                        for action in actions_to_perform:
+                            if action.get('type') == '_internal_command_clear_flow_state':
+                                _clear_contact_flow_state(contact)
+                                logger.debug(f"Contact {contact.id}: Processed internal command to clear flow state from entry step.")
+                            elif action.get('type') == 'send_whatsapp_message':
+                                final_actions_for_meta_view.append(action)
+                        
+                        return final_actions_for_meta_view
+                    else:
+                        # It's a fall-through step. We need to enter the main processing loop
+                        # with an "internal" message to check for transitions.
+                        message_data = {'type': 'internal_flow_start'}
             else:
                 # No flow triggered, nothing more to do.
                 return []
@@ -1655,30 +1746,50 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                             started_at=timezone.now()
                         )
 
-                        # Manually execute the actions for the new entry point step.
-                        # This ensures that 'action' steps at the start of a flow are run immediately
-                        # after a switch, before the loop continues to evaluate transitions.
-                        entry_actions, updated_context = _execute_step_actions(
-                            entry_point_step, contact, initial_context_for_new_flow.copy()
-                        )
-                        actions_to_perform.extend(entry_actions)
-                        
-                        # Save the context after this first execution
-                        new_contact_flow_state.flow_context_data = updated_context
-                        new_contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
-                        logger.debug(f"Contact {contact.id}: Executed entry step '{entry_point_step.name}' and saved context.")
-                        
-                        # Check if the new entry point immediately ended the flow.
-                        # If so, break the main loop to allow the clear_state command to be processed.
-                        if any(action.get('type') == '_internal_command_clear_flow_state' for action in entry_actions):
-                            break
-                        
-                        # The message is "consumed" by the first step that uses it.
-                        # For subsequent automatic steps in the new flow, we need to prevent reprocessing the original message.
-                        message_data = {'type': 'internal_switch_flow'}
-                        incoming_message_obj = None
-                        
-                        continue # Restart the loop to process the new flow's entry point
+                        # Check if there's an active published WhatsApp Flow for this traditional flow
+                        whatsapp_flow = _get_whatsapp_flow_for_traditional_flow(target_flow)
+                        if whatsapp_flow:
+                            # Use the WhatsApp Flow instead of traditional flow
+                            logger.info(f"Using WhatsApp Flow '{whatsapp_flow.name}' instead of traditional flow '{target_flow.name}' for contact {contact.whatsapp_id}")
+                            
+                            # Send the WhatsApp Flow message
+                            whatsapp_flow_actions = _send_whatsapp_flow_message(contact, whatsapp_flow, initial_context_for_new_flow)
+                            actions_to_perform.extend(whatsapp_flow_actions)
+                            
+                            # Mark in the context that we're waiting for a WhatsApp Flow response
+                            new_contact_flow_state.flow_context_data = {
+                                **initial_context_for_new_flow,
+                                '_using_whatsapp_flow': True,
+                                '_whatsapp_flow_id': whatsapp_flow.id
+                            }
+                            new_contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
+                            
+                            break  # Exit the loop as we're waiting for WhatsApp Flow response
+                        else:
+                            # Use traditional flow - manually execute the actions for the new entry point step.
+                            # This ensures that 'action' steps at the start of a flow are run immediately
+                            # after a switch, before the loop continues to evaluate transitions.
+                            entry_actions, updated_context = _execute_step_actions(
+                                entry_point_step, contact, initial_context_for_new_flow.copy()
+                            )
+                            actions_to_perform.extend(entry_actions)
+                            
+                            # Save the context after this first execution
+                            new_contact_flow_state.flow_context_data = updated_context
+                            new_contact_flow_state.save(update_fields=['flow_context_data', 'last_updated_at'])
+                            logger.debug(f"Contact {contact.id}: Executed entry step '{entry_point_step.name}' and saved context.")
+                            
+                            # Check if the new entry point immediately ended the flow.
+                            # If so, break the main loop to allow the clear_state command to be processed.
+                            if any(action.get('type') == '_internal_command_clear_flow_state' for action in entry_actions):
+                                break
+                            
+                            # The message is "consumed" by the first step that uses it.
+                            # For subsequent automatic steps in the new flow, we need to prevent reprocessing the original message.
+                            message_data = {'type': 'internal_switch_flow'}
+                            incoming_message_obj = None
+                            
+                            continue # Restart the loop to process the new flow's entry point
 
                     except (Flow.DoesNotExist, ValueError) as e:
                         logger.error(f"Contact {contact.id}: Failed to switch flow to '{switch_action.get('target_flow_name')}'. Error: {e}", exc_info=True)
