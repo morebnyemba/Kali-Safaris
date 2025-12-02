@@ -937,6 +937,7 @@ def _mark_context_for_whatsapp_flow(initial_context: dict, whatsapp_flow: 'Whats
 def _get_whatsapp_flow_for_traditional_flow(traditional_flow: Flow) -> Optional['WhatsAppFlow']:
     """
     Checks if there's an active, published WhatsApp Flow associated with the traditional flow.
+    Ensures the flow has been properly synced with Meta (has a flow_id).
     
     Args:
         traditional_flow: The traditional Flow instance
@@ -947,7 +948,10 @@ def _get_whatsapp_flow_for_traditional_flow(traditional_flow: Flow) -> Optional[
     try:
         whatsapp_flow = traditional_flow.whatsapp_flows.filter(
             is_active=True,
-            sync_status='published'
+            sync_status='published',
+            flow_id__isnull=False  # Ensure flow has been synced and has a flow_id from Meta
+        ).exclude(
+            flow_id=''  # Exclude flows with empty flow_id
         ).first()
         
         if whatsapp_flow:
@@ -964,6 +968,7 @@ def _get_whatsapp_flow_for_traditional_flow(traditional_flow: Flow) -> Optional[
 def _send_whatsapp_flow_message(contact: Contact, whatsapp_flow: 'WhatsAppFlow', initial_context: dict = None) -> List[Dict[str, Any]]:
     """
     Sends a WhatsApp Flow message to a contact.
+    Validates that the flow has been properly synced with Meta before sending.
     
     Args:
         contact: The Contact to send the flow to
@@ -974,6 +979,16 @@ def _send_whatsapp_flow_message(contact: Contact, whatsapp_flow: 'WhatsAppFlow',
         List of actions to perform (the message to send)
     """
     try:
+        # Validate that the flow has been synced and has a flow_id from Meta
+        if not whatsapp_flow.flow_id:
+            logger.error(f"Cannot send WhatsApp Flow '{whatsapp_flow.name}': flow_id is missing. Flow may not be synced with Meta.")
+            return []
+        
+        # Validate sync status
+        if whatsapp_flow.sync_status != 'published':
+            logger.error(f"Cannot send WhatsApp Flow '{whatsapp_flow.name}': sync_status is '{whatsapp_flow.sync_status}', expected 'published'.")
+            return []
+        
         # Generate a unique flow token for this session
         flow_token = _generate_flow_token(contact, whatsapp_flow)
         
@@ -996,7 +1011,7 @@ def _send_whatsapp_flow_message(contact: Contact, whatsapp_flow: 'WhatsAppFlow',
             'data': flow_message_data
         }
         
-        logger.info(f"Created WhatsApp Flow message for contact {contact.whatsapp_id}, flow '{whatsapp_flow.name}'")
+        logger.info(f"Created WhatsApp Flow message for contact {contact.whatsapp_id}, flow '{whatsapp_flow.name}' (flow_id: {whatsapp_flow.flow_id})")
         return [action]
         
     except Exception as e:
