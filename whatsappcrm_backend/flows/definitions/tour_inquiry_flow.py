@@ -8,10 +8,30 @@ TOUR_INQUIRY_FLOW = {
     "is_active": True,
     "steps": [
         {
-                # Placeholder for missing step: confirm_and_end (if not already present)
-                # (No action needed if already present)
             "name": "entry_point_inquiry",
             "is_entry_point": True,
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "query_model",
+                    "app_label": "flows",
+                    "model_name": "WhatsAppFlow",
+                    "variable_name": "tour_inquiry_whatsapp_flow",
+                    "filters_template": {
+                        "name": "tour_inquiry_whatsapp",
+                        "sync_status": "published"
+                    },
+                    "fields_to_return": ["flow_id", "friendly_name"],
+                    "limit": 1
+                }]
+            },
+            "transitions": [
+                {"to_step": "send_inquiry_flow", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "tour_inquiry_whatsapp_flow.0"}},
+                {"to_step": "fallback_inquiry_support", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "send_inquiry_flow",
             "type": "send_message",
             "config": {
                 "message_type": "interactive",
@@ -24,8 +44,8 @@ TOUR_INQUIRY_FLOW = {
                         "name": "flow",
                         "parameters": {
                             "flow_message_version": "3",
-                            "flow_token": "YOUR_UNIQUE_FLOW_TOKEN", # This can be dynamically generated
-                            "flow_id": "{{ get_whatsapp_flow_id('tour_inquiry_whatsapp') }}", # Dynamically retrieved from WhatsAppFlow model
+                            "flow_token": "{{ contact.id }}-inquiry-{{ 'now'|date:'U' }}",
+                            "flow_id": "{{ tour_inquiry_whatsapp_flow.0.flow_id }}",
                             "flow_cta": "Start Inquiry",
                             "flow_action": "navigate",
                             "flow_action_payload": {
@@ -40,6 +60,17 @@ TOUR_INQUIRY_FLOW = {
                     "to_step": "wait_for_flow_response",
                     "condition_config": {"type": "always_true"}
                 }
+            ]
+        },
+        {
+            "name": "fallback_inquiry_support",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "Sorry, the interactive form is currently unavailable. Please contact our team at bookings@kalaisafaris.com or type 'menu' to see other options."}
+            },
+            "transitions": [
+                {"to_step": "confirm_and_end", "condition_config": {"type": "always_true"}}
             ]
         },
         {

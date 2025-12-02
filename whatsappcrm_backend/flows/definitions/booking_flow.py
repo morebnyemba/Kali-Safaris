@@ -49,9 +49,32 @@ BOOKING_FLOW = {
                 "reply_config": {"expected_type": "number", "save_to_variable": "num_children", "validation_regex": "^[0-9]+$"},
                 "fallback_config": {"re_prompt_message_text": "Please enter a valid number for children (e.g., 0, 1)."}
             },
-            "transitions": [{"to_step": "ask_travel_dates", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "query_date_picker_whatsapp_flow", "condition_config": {"type": "always_true"}}]
         },
-        # Step 7: Ask for preferred travel dates using Native Flow
+        # Step 3: Query the WhatsApp Flow from database
+        {
+            "name": "query_date_picker_whatsapp_flow",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "query_model",
+                    "app_label": "flows",
+                    "model_name": "WhatsAppFlow",
+                    "variable_name": "date_picker_whatsapp_flow",
+                    "filters_template": {
+                        "name": "date_picker_whatsapp_flow",
+                        "sync_status": "published"
+                    },
+                    "fields_to_return": ["flow_id", "friendly_name"],
+                    "limit": 1
+                }]
+            },
+            "transitions": [
+                {"to_step": "ask_travel_dates", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "date_picker_whatsapp_flow.0"}},
+                {"to_step": "fallback_ask_dates_text", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        # Step 4: Ask for preferred travel dates using Native Flow
         {
             "name": "ask_travel_dates",
             "type": "question",
@@ -67,8 +90,8 @@ BOOKING_FLOW = {
                             "name": "flow",
                             "parameters": {
                                 "flow_message_version": "3",
-                                "flow_token": "a_unique_token_for_this_interaction",
-                                "flow_id": "{{ get_whatsapp_flow_id('date_picker_whatsapp_flow') }}",
+                                "flow_token": "{{ contact.id }}-booking-{{ 'now'|date:'U' }}",
+                                "flow_id": "{{ date_picker_whatsapp_flow.0.flow_id }}",
                                 "flow_cta": "Select Dates",
                                 "flow_action": "navigate",
                                 "flow_action_payload": {
@@ -93,13 +116,58 @@ BOOKING_FLOW = {
             },
             "transitions": [{"to_step": "process_date_selection", "condition_config": {"type": "always_true"}}]
         },
+        # Step 5: Fallback if WhatsApp Flow is not available
+        {
+            "name": "fallback_ask_dates_text",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Please enter your preferred start date for the tour (e.g., 2025-12-25 or December 25, 2025):"}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "start_date_text"}
+            },
+            "transitions": [{"to_step": "fallback_ask_end_date", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "fallback_ask_end_date",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "And your preferred end date (e.g., 2025-12-30 or December 30, 2025):"}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "end_date_text"}
+            },
+            "transitions": [{"to_step": "process_fallback_dates", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "process_fallback_dates",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ start_date_text }}"},
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ end_date_text }}"}
+                ]
+            },
+            "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
+        },
         {
             "name": "process_date_selection",
             "type": "action",
             "config": {
                 "actions_to_run": [
                     {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ date_selection_response.start_date }}"},
-                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ date_selection_response.end_date }}"},
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ date_selection_response.end_date }}"}
+                ]
+            },
+            "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "query_seasonal_pricing",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
                     {
                         "action_type": "query_model",
                         "app_label": "products_and_services",
@@ -107,8 +175,8 @@ BOOKING_FLOW = {
                         "variable_name": "seasonal_price",
                         "filters_template": {
                             "tour_id": "{{ tour_id }}",
-                            "start_date__lte": "{{ date_selection_response.start_date }}",
-                            "end_date__gte": "{{ date_selection_response.start_date }}"
+                            "start_date__lte": "{{ start_date }}",
+                            "end_date__gte": "{{ start_date }}"
                         },
                         "fields_to_return": ["price_per_adult", "price_per_child"],
                         "limit": 1
@@ -221,7 +289,7 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "ask_traveler_name", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers }}"}},
-                {"to_step": "ask_travel_dates", "priority": 2, "condition_config": {"type": "always_true"}}
+                {"to_step": "ask_email", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
         # Step 8: Ask for contact email

@@ -1529,6 +1529,20 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
                                 nfm_response_data = json.loads(response_json_str)
                             except json.JSONDecodeError: 
                                 logger.warning(f"Could not parse nfm_reply response_json for question step {current_step.name}")
+                # Handle resumption from WhatsApp Flow response that was already saved to context
+                elif message_data.get('type') == 'internal_whatsapp_flow_response':
+                    # The WhatsApp Flow response was already processed and saved to the flow context
+                    # by the WhatsAppFlowResponseProcessor. Retrieve it from there.
+                    has_response_flag = flow_context.get('whatsapp_flow_response_received', False)
+                    saved_flow_data = flow_context.get('whatsapp_flow_data')
+                    if has_response_flag and saved_flow_data:
+                        nfm_response_data = saved_flow_data
+                        logger.info(f"Resuming flow with pre-saved WhatsApp flow data for question step '{current_step.name}'.")
+                    else:
+                        logger.warning(
+                            f"Received internal_whatsapp_flow_response but context is incomplete for step '{current_step.name}'. "
+                            f"Response flag: {has_response_flag}, Data present: {saved_flow_data is not None}"
+                        )
                 
                 image_payload = message_data.get('image') if message_data.get('type') == 'image' else None
                 location_payload = message_data.get('location') if message_data.get('type') == 'location' else None
