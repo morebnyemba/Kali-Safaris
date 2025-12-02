@@ -18,6 +18,43 @@ DATE_PICKER_WHATSAPP_FLOW = {
     "version": "7.3",
     "screens": [
         {
+            "id": "WELCOME",
+            "title": "Date Selection",
+            "data": {
+                "selected_date": {
+                    "type": "string",
+                    "__example__": "2025-12-25"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextHeading",
+                        "text": "Select Your Date"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "Please choose your preferred date for the booking."
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Continue",
+                        "on-click-action": {
+                            "name": "navigate",
+                            "next": {
+                                "type": "screen",
+                                "name": "DATE_PICKER"
+                            },
+                            "payload": {
+                                "selected_date": ""
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
             "id": "DATE_PICKER",
             "title": "Select Date",
             "data": {

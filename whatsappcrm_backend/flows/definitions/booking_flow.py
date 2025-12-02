@@ -95,7 +95,7 @@ BOOKING_FLOW = {
                                 "flow_cta": "Select Dates",
                                 "flow_action": "navigate",
                                 "flow_action_payload": {
-                                    "screen": "Date_Picker_Screen",
+                                    "screen": "WELCOME",
                                     "data": {
                                         "date_picker_config": {
                                             "type": "range",
