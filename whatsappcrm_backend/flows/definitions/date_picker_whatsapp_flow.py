@@ -10,7 +10,8 @@ DATE_PICKER_WHATSAPP_FLOW_METADATA = {
     "friendly_name": "Date Picker WhatsApp Flow",
     "description": "Interactive WhatsApp flow for selecting dates.",
     "trigger_keywords": ["date picker", "select date"],
-    "is_active": True
+    "is_active": True,
+    "flow_definition_name": None  # This is a reusable component, not a replacement for a specific traditional flow
 }
 
 DATE_PICKER_WHATSAPP_FLOW = {
