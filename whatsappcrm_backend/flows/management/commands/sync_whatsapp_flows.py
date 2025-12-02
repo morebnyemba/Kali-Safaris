@@ -3,7 +3,7 @@ Management command to sync WhatsApp interactive flows with Meta.
 """
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
-from flows.models import WhatsAppFlow
+from flows.models import WhatsAppFlow, Flow
 from flows.whatsapp_flow_service import WhatsAppFlowService
 from meta_integration.models import MetaAppConfig
 from flows.definitions.tour_inquiry_whatsapp_flow import TOUR_INQUIRY_WHATSAPP_FLOW, TOUR_INQUIRY_WHATSAPP_FLOW_METADATA
@@ -72,6 +72,19 @@ class Command(BaseCommand):
 
             try:
                 with transaction.atomic():
+                    # Get the traditional flow to link to (if specified in metadata)
+                    flow_definition = None
+                    flow_definition_name = metadata.get('flow_definition_name')
+                    if flow_definition_name:
+                        try:
+                            flow_definition = Flow.objects.get(name=flow_definition_name)
+                            self.stdout.write(f'  Found traditional flow: {flow_definition.name}')
+                        except Flow.DoesNotExist:
+                            self.stdout.write(self.style.WARNING(
+                                f'  Warning: Traditional flow "{flow_definition_name}" not found. '
+                                'WhatsApp Flow will be created without flow_definition link.'
+                            ))
+                    
                     whatsapp_flow, created = WhatsAppFlow.objects.get_or_create(
                         name=flow_name,
                         defaults={
@@ -80,6 +93,7 @@ class Command(BaseCommand):
                             'flow_json': flow_json,
                             'is_active': metadata.get('is_active', True),
                             'meta_app_config': meta_config,
+                            'flow_definition': flow_definition,  # Link to traditional flow
                         }
                     )
 
@@ -93,6 +107,7 @@ class Command(BaseCommand):
                         whatsapp_flow.friendly_name = flow_friendly_name
                         whatsapp_flow.description = flow_description
                         whatsapp_flow.is_active = metadata.get('is_active', True)
+                        whatsapp_flow.flow_definition = flow_definition  # Update flow_definition link
                         whatsapp_flow.save()
                         self.stdout.write('  Flow record updated in database')
                     else:

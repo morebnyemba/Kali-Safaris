@@ -14,7 +14,8 @@ TOUR_INQUIRY_WHATSAPP_FLOW_METADATA = {
     "friendly_name": "Tour Inquiry WhatsApp Flow",
     "description": "A robust, production-ready WhatsApp interactive flow for collecting detailed safari tour inquiries from users, including destinations, dates, group size, and special requests.",
     "trigger_keywords": ["tour inquiry", "safari inquiry", "book safari", "plan trip"],
-    "is_active": True
+    "is_active": True,
+    "flow_definition_name": "tour_inquiry_flow"  # Link to traditional flow that this WhatsApp Flow can replace or augment
 }
 
 TOUR_INQUIRY_WHATSAPP_FLOW = {
