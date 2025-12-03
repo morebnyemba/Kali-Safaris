@@ -349,6 +349,9 @@ BOOKING_FLOW = {
             "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
         },
         # Step 6: Add the collected details to the list and increment the counter
+        # Note: This step tracks both overall traveler_index (1 to num_travelers) and separate
+        # adult_index and child_index counters. Adults are collected first (traveler_index 1 to num_adults),
+        # then children (traveler_index num_adults+1 to num_travelers).
         {
             "name": "add_traveler_to_list",
             "type": "action",
