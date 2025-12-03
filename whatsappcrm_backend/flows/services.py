@@ -147,6 +147,39 @@ def strftime_filter(value, format_string='%b %d, %Y'):
     
     return dt_obj.strftime(format_string) if dt_obj else value
 
+def parse_date_filter(value):
+    """
+    Jinja2 filter to parse a date string into a date object.
+    Handles various common date formats.
+    """
+    if not value:
+        return None
+    
+    if isinstance(value, (datetime, date)):
+        return value
+    
+    if isinstance(value, str):
+        try:
+            # Try parsing as ISO datetime first
+            dt_obj = parse_datetime(value)
+            if dt_obj:
+                return dt_obj.date() if isinstance(dt_obj, datetime) else dt_obj
+        except (ValueError, TypeError):
+            pass
+        
+        # Try common date formats
+        for fmt in ('%Y-%m-%d', '%m/%d/%Y', '%d-%m-%Y', '%Y/%m/%d', '%d/%m/%Y'):
+            try:
+                dt_obj = datetime.strptime(value, fmt)
+                return dt_obj.date()
+            except ValueError:
+                continue
+        
+        logger.warning(f"Could not parse date string: {value}")
+        return None
+    
+    return None
+
 def truncatewords_filter(value, length=25, end_text='...'):
     """
     Jinja2 filter to truncate a string after a certain number of words.
@@ -250,6 +283,7 @@ jinja_env = Environment(
     enable_async=False
 )
 jinja_env.filters['strftime'] = strftime_filter # Add the custom filter
+jinja_env.filters['parse_date'] = parse_date_filter # Add the parse_date filter for date string parsing
 jinja_env.filters['truncatewords'] = truncatewords_filter # Add the filter
 jinja_env.filters['to_interactive_rows'] = to_interactive_rows_filter # Add the new filter
 jinja_env.globals['now'] = timezone.now # Make 'now' globally available for date comparisons
