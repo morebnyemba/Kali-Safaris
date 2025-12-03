@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Tour
+from .models import Tour, SeasonalTourPrice
 
 @admin.register(Tour)
 class TourAdmin(admin.ModelAdmin):
@@ -16,5 +16,25 @@ class TourAdmin(admin.ModelAdmin):
         }),
         ('Details & Pricing', {
             'fields': ('location', 'duration_days', 'base_price', 'is_active')
+        }),
+    )
+
+
+@admin.register(SeasonalTourPrice)
+class SeasonalTourPriceAdmin(admin.ModelAdmin):
+    """
+    Admin interface for the SeasonalTourPrice model.
+    """
+    list_display = ('tour', 'start_date', 'end_date', 'price_per_adult', 'price_per_child', 'is_active')
+    list_filter = ('is_active', 'tour')
+    search_fields = ('tour__name',)
+    list_editable = ('is_active',)
+    date_hierarchy = 'start_date'
+    fieldsets = (
+        ('Tour & Period', {
+            'fields': ('tour', 'start_date', 'end_date', 'is_active')
+        }),
+        ('Pricing', {
+            'fields': ('price_per_adult', 'price_per_child')
         }),
     )
