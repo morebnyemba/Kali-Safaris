@@ -168,7 +168,7 @@ BOOKING_FLOW = {
             "config": {
                 "actions_to_run": [
                     {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ start_date_text }}"},
-                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (start_date_text | parse_date + timedelta(days=tour_duration_days - 1)) | strftime('%Y-%m-%d') }}"}
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (start_date_text | parse_date + timedelta(days=tour_duration_days|int - 1)) | strftime('%Y-%m-%d') }}"}
                 ]
             },
             "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
@@ -178,8 +178,8 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ date_selection_response.selected_date }}"},
-                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (date_selection_response.selected_date | parse_date + timedelta(days=tour_duration_days - 1)) | strftime('%Y-%m-%d') }}"}
+                    {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ date_selection_response['selected_date'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (date_selection_response['selected_date'] | parse_date + timedelta(days=tour_duration_days|int - 1)) | strftime('%Y-%m-%d') }}"}
                 ]
             },
             "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
@@ -330,10 +330,10 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response.traveler_name }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response.traveler_age }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response.traveler_nationality }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response.traveler_medical or 'None' }}"}
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response['traveler_name'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response['traveler_age'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response['traveler_nationality'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response['traveler_medical'] | default('None') }}"}
                 ]
             },
             "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
