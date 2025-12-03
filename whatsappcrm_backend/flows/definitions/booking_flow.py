@@ -177,7 +177,7 @@ BOOKING_FLOW = {
                             "tour_id": "{{ tour_id }}",
                             "start_date__lte": "{{ start_date }}",
                             "end_date__gte": "{{ start_date }}",
-                            "is_active": true
+                            "is_active": True
                         },
                         "fields_to_return": ["price_per_adult", "price_per_child"],
                         "limit": 1
