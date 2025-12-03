@@ -333,7 +333,7 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response['traveler_name'] }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response['traveler_age'] }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response['traveler_nationality'] }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response['traveler_medical'] | default('None') }}"}
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response['traveler_medical'] | default('No special requirements') }}"}
                 ]
             },
             "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
