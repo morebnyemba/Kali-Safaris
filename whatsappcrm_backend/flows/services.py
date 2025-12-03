@@ -1103,6 +1103,14 @@ def _evaluate_numeric_comparison(operator: str, actual_value: Any, expected_valu
     Returns:
         Boolean result of the comparison
     """
+    # Mapping of operators to condition names for logging
+    operator_to_name = {
+        '<=': 'less_than_or_equal',
+        '<': 'less_than',
+        '>=': 'greater_than_or_equal',
+        '>': 'greater_than'
+    }
+    
     result = False
     try:
         actual_numeric = float(actual_value) if actual_value is not None else None
@@ -1119,9 +1127,10 @@ def _evaluate_numeric_comparison(operator: str, actual_value: Any, expected_valu
     except (ValueError, TypeError) as e:
         logger.warning(f"Could not convert values to numeric for comparison: actual='{actual_value}', expected='{expected_value}'. Error: {e}")
     
+    condition_name = operator_to_name.get(operator, operator)
     logger.debug(
         f"Contact {contact.id}, Flow {transition.current_step.flow.id}, Step {transition.current_step.id}: "
-        f"Condition 'variable_{operator.replace('<=', 'less_than_or_equal').replace('<', 'less_than').replace('>=', 'greater_than_or_equal').replace('>', 'greater_than')}' check for '{variable_name}'. "
+        f"Condition 'variable_{condition_name}' check for '{variable_name}'. "
         f"Actual: '{actual_value}', Expected: '{expected_value}'. Result: {result}"
     )
     return result
