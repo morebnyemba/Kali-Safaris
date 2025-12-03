@@ -198,7 +198,83 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "num_travelers", "value_template": "{{ num_adults|int + num_children|int }}"}
                 ]
             },
-            "transitions": [{"to_step": "ask_traveler_name", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "query_traveler_details_whatsapp_flow", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 3b: Query the Traveler Details WhatsApp Flow from database
+        {
+            "name": "query_traveler_details_whatsapp_flow",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "query_model",
+                    "app_label": "flows",
+                    "model_name": "WhatsAppFlow",
+                    "variable_name": "traveler_details_whatsapp_flow",
+                    "filters_template": {
+                        "name": "traveler_details_whatsapp_flow",
+                        "sync_status": "published"
+                    },
+                    "fields_to_return": ["flow_id", "friendly_name"],
+                    "limit": 1
+                }]
+            },
+            "transitions": [
+                {"to_step": "ask_traveler_details_via_flow", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "traveler_details_whatsapp_flow.0"}},
+                {"to_step": "ask_traveler_name", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        # Step 3c: Ask for traveler details using WhatsApp Flow
+        {
+            "name": "ask_traveler_details_via_flow",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "flow",
+                        "header": {"type": "text", "text": "Traveler {{ traveler_index }} of {{ num_travelers }}"},
+                        "body": {"text": "Please provide the details for this traveler."},
+                        "footer": {"text": "Click the button to continue."},
+                        "action": {
+                            "name": "flow",
+                            "parameters": {
+                                "flow_message_version": "3",
+                                "flow_token": "{{ contact.id }}-traveler-{{ traveler_index }}-{{ 'now'|date:'U' }}",
+                                "flow_id": "{{ traveler_details_whatsapp_flow.0.flow_id }}",
+                                "flow_cta": "Enter Details",
+                                "flow_action": "navigate",
+                                "flow_action_payload": {
+                                    "screen": "TRAVELER_INFO",
+                                    "data": {
+                                        "traveler_number": "{{ traveler_index }}",
+                                        "total_travelers": "{{ num_travelers }}",
+                                        "traveler_name": "",
+                                        "traveler_age": "",
+                                        "traveler_nationality": "",
+                                        "traveler_medical": ""
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "nfm_reply", "save_to_variable": "traveler_details_response"}
+            },
+            "transitions": [{"to_step": "process_traveler_details_response", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 3d: Process traveler details response from WhatsApp Flow
+        {
+            "name": "process_traveler_details_response",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response.traveler_name }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response.traveler_age }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response.traveler_nationality }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response.traveler_medical or 'None' }}"}
+                ]
+            },
+            "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "calculate_total_cost",
@@ -288,7 +364,7 @@ BOOKING_FLOW = {
                 ]
             },
             "transitions": [
-                {"to_step": "ask_traveler_name", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers }}"}},
+                {"to_step": "query_traveler_details_whatsapp_flow", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers }}"}},
                 {"to_step": "ask_email", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },

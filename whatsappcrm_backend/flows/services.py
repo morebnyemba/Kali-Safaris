@@ -1086,6 +1086,56 @@ def _trigger_new_flow(contact: Contact, message_data: dict, incoming_message_obj
     return False
 
 
+def _evaluate_numeric_comparison(operator: str, actual_value: Any, expected_value: Any, variable_name: str, 
+                                  transition: FlowTransition, contact: Contact, flow_context: dict) -> bool:
+    """
+    Helper function to evaluate numeric comparison conditions.
+    
+    Args:
+        operator: The comparison operator ('<=', '<', '>=', '>')
+        actual_value: The actual value from context
+        expected_value: The expected value to compare against
+        variable_name: Name of the variable being compared
+        transition: The transition being evaluated
+        contact: The contact
+        flow_context: The flow context
+    
+    Returns:
+        Boolean result of the comparison
+    """
+    # Mapping of operators to condition names for logging
+    operator_to_name = {
+        '<=': 'less_than_or_equal',
+        '<': 'less_than',
+        '>=': 'greater_than_or_equal',
+        '>': 'greater_than'
+    }
+    
+    result = False
+    try:
+        actual_numeric = float(actual_value) if actual_value is not None else None
+        expected_numeric = float(expected_value) if expected_value is not None else None
+        if actual_numeric is not None and expected_numeric is not None:
+            if operator == '<=':
+                result = actual_numeric <= expected_numeric
+            elif operator == '<':
+                result = actual_numeric < expected_numeric
+            elif operator == '>=':
+                result = actual_numeric >= expected_numeric
+            elif operator == '>':
+                result = actual_numeric > expected_numeric
+    except (ValueError, TypeError) as e:
+        logger.warning(f"Could not convert values to numeric for comparison: actual='{actual_value}', expected='{expected_value}'. Error: {e}")
+    
+    condition_name = operator_to_name.get(operator, operator)
+    logger.debug(
+        f"Contact {contact.id}, Flow {transition.current_step.flow.id}, Step {transition.current_step.id}: "
+        f"Condition 'variable_{condition_name}' check for '{variable_name}'. "
+        f"Actual: '{actual_value}', Expected: '{expected_value}'. Result: {result}"
+    )
+    return result
+
+
 def _evaluate_transition_condition(transition: FlowTransition, contact: Contact, message_data: dict, flow_context: dict, incoming_message_obj: Message) -> bool:
     config = transition.condition_config
     if not isinstance(config, dict):
@@ -1213,6 +1263,38 @@ def _evaluate_transition_condition(transition: FlowTransition, contact: Contact,
             f"Expected item: '{expected_item}'. Result: {result}"
         )
         return result
+
+    elif condition_type == 'variable_less_than_or_equal':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        actual_value = _get_value_from_context_or_contact(variable_name, flow_context, contact)
+        expected_value = _resolve_value(value_template, flow_context, contact)
+        return _evaluate_numeric_comparison('<=', actual_value, expected_value, variable_name, transition, contact, flow_context)
+
+    elif condition_type == 'variable_less_than':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        actual_value = _get_value_from_context_or_contact(variable_name, flow_context, contact)
+        expected_value = _resolve_value(value_template, flow_context, contact)
+        return _evaluate_numeric_comparison('<', actual_value, expected_value, variable_name, transition, contact, flow_context)
+
+    elif condition_type == 'variable_greater_than_or_equal':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        actual_value = _get_value_from_context_or_contact(variable_name, flow_context, contact)
+        expected_value = _resolve_value(value_template, flow_context, contact)
+        return _evaluate_numeric_comparison('>=', actual_value, expected_value, variable_name, transition, contact, flow_context)
+
+    elif condition_type == 'variable_greater_than':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        actual_value = _get_value_from_context_or_contact(variable_name, flow_context, contact)
+        expected_value = _resolve_value(value_template, flow_context, contact)
+        return _evaluate_numeric_comparison('>', actual_value, expected_value, variable_name, transition, contact, flow_context)
 
     elif condition_type == 'nfm_response_field_equals' and nfm_response_data:
         field_path = config.get('field_path')
