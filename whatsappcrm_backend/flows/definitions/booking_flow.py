@@ -27,7 +27,7 @@ BOOKING_FLOW = {
             },
             "transitions": [{"to_step": "query_tour_details", "condition_config": {"type": "always_true"}}]
         },
-        # Step 1b: Query tour details to get duration
+        # Step 1b: Query tour details to get duration and base price
         {
             "name": "query_tour_details",
             "type": "action",
@@ -40,7 +40,7 @@ BOOKING_FLOW = {
                     "filters_template": {
                         "id": "{{ tour_id }}"
                     },
-                    "fields_to_return": ["duration_days", "name"],
+                    "fields_to_return": ["duration_days", "name", "base_price"],
                     "limit": 1
                 }]
             },
@@ -168,7 +168,7 @@ BOOKING_FLOW = {
             "config": {
                 "actions_to_run": [
                     {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ start_date_text }}"},
-                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (start_date_text | parse_date + timedelta(days=tour_duration_days - 1)) | strftime('%Y-%m-%d') }}"}
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (start_date_text | parse_date + timedelta(days=tour_duration_days|int - 1)) | strftime('%Y-%m-%d') }}"}
                 ]
             },
             "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
@@ -178,8 +178,8 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ date_selection_response.selected_date }}"},
-                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (date_selection_response.selected_date | parse_date + timedelta(days=tour_duration_days - 1)) | strftime('%Y-%m-%d') }}"}
+                    {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ date_selection_response['selected_date'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (date_selection_response['selected_date'] | parse_date + timedelta(days=tour_duration_days|int - 1)) | strftime('%Y-%m-%d') }}"}
                 ]
             },
             "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
@@ -207,8 +207,46 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "calculate_total_cost", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "seasonal_price.0"}},
-                {"to_step": "handle_no_price_for_date", "priority": 2, "condition_config": {"type": "always_true"}}
+                {"to_step": "use_base_pricing", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
+        },
+        # Step 2b: Use base pricing as fallback when seasonal pricing is not available
+        {
+            "name": "use_base_pricing",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "price_per_adult",
+                        "value_template": "{{ tour_details.0.base_price }}"
+                    },
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "price_per_child",
+                        "value_template": "{{ tour_details.0.base_price }}"
+                    }
+                ]
+            },
+            "transitions": [
+                {"to_step": "calculate_total_cost_base", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "tour_details.0.base_price"}},
+                {"to_step": "handle_missing_price_data", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        # Step 2c: Calculate total cost using base pricing
+        {
+            "name": "calculate_total_cost_base",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "total_cost",
+                        "value_template": "{{ (price_per_adult|float * num_adults|int) + (price_per_child|float * num_children|int) }}"
+                    }
+                ]
+            },
+            "transitions": [{"to_step": "initialize_traveler_loop", "condition_config": {"type": "always_true"}}]
         },
         # Step 3: Initialize the loop counter for collecting traveler details
         {
@@ -292,10 +330,10 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response.traveler_name }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response.traveler_age }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response.traveler_nationality }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response.traveler_medical or 'None' }}"}
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response['traveler_name'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response['traveler_age'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response['traveler_nationality'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response['traveler_medical'] | default('No special requirements') }}"}
                 ]
             },
             "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
@@ -701,40 +739,13 @@ BOOKING_FLOW = {
             }
         },
         {
-            "name": "handle_no_price_for_date",
-            "type": "action",
-            "config": {
-                "actions_to_run": [
-                    {
-                        "action_type": "create_model_instance",
-                        "app_label": "customer_data",
-                        "model_name": "TourInquiry",
-                        "fields_template": {
-                            "customer": "current",
-                            "destination": "{{ tour_name }}",
-                            "number_of_travelers": "{{ num_adults|int + num_children|int }}",
-                            "preferred_dates": "{{ start_date }} to {{ end_date }}",
-                            "notes": "Pricing not available for selected dates. Contact Email: {{ contact.customer_profile.email if contact.customer_profile.email else 'Not provided' }}. Phone: {{ contact.phone_number }}",
-                            "status": "new"
-                        },
-                        "save_to_variable": "no_price_inquiry"
-                    },
-                    {
-                        "action_type": "send_group_notification",
-                        "params_template": {
-                            "group_names": ["Sales Team"],
-                            "template_name": "new_tour_inquiry_alert"
-                        }
-                    }
-                ]
-            },
-            "transitions": [{"to_step": "send_no_price_message", "condition_config": {"type": "always_true"}}]
-        },
-        {
-            "name": "send_no_price_message",
+            "name": "handle_missing_price_data",
             "type": "end_flow",
             "config": {
-                "message_config": {"message_type": "text", "text": {"body": "We're sorry, but pricing is not available for the selected dates ({{ start_date }} to {{ end_date }}).\n\nYour inquiry has been recorded (Ref: #{{ no_price_inquiry.id }}), and a travel expert will contact you shortly to provide a custom quote for the *{{ tour_name }}* tour.\n\nType 'menu' to return to the main menu."}}
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "We apologize, but we're unable to retrieve pricing information for this tour at the moment.\n\nPlease contact our team at bookings@kalaisafaris.com or type 'menu' to return to the main menu. We'll be happy to provide you with a custom quote."}
+                }
             }
         },
         {
