@@ -195,7 +195,9 @@ BOOKING_FLOW = {
             "config": {
                 "actions_to_run": [
                     {"action_type": "set_context_variable", "variable_name": "traveler_index", "value_template": 1},
-                    {"action_type": "set_context_variable", "variable_name": "num_travelers", "value_template": "{{ num_adults|int + num_children|int }}"}
+                    {"action_type": "set_context_variable", "variable_name": "num_travelers", "value_template": "{{ num_adults|int + num_children|int }}"},
+                    {"action_type": "set_context_variable", "variable_name": "adult_index", "value_template": 1},
+                    {"action_type": "set_context_variable", "variable_name": "child_index", "value_template": 1}
                 ]
             },
             "transitions": [{"to_step": "query_traveler_details_whatsapp_flow", "condition_config": {"type": "always_true"}}]
@@ -232,8 +234,8 @@ BOOKING_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "flow",
-                        "header": {"type": "text", "text": "Traveler {{ traveler_index }} of {{ num_travelers }}"},
-                        "body": {"text": "Please provide the details for this traveler."},
+                        "header": {"type": "text", "text": "{% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}"},
+                        "body": {"text": "Please provide the details for this {% if adult_index <= num_adults|int %}adult{% else %}child{% endif %} traveler."},
                         "footer": {"text": "Click the button to continue."},
                         "action": {
                             "name": "flow",
@@ -297,7 +299,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Let's get the details for Traveler {{ traveler_index }} of {{ num_travelers }}.\n\nWhat is their full name?"}
+                    "text": {"body": "Let's get the details for {% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}.\n\nWhat is their full name?"}
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_name"},
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid name."}
@@ -354,12 +356,22 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical}] }}"
+                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'type': ('adult' if adult_index <= num_adults|int else 'child')}] }}"
                     },
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "traveler_index",
                         "value_template": "{{ traveler_index + 1 }}"
+                    },
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "adult_index",
+                        "value_template": "{{ adult_index + 1 if adult_index <= num_adults|int else adult_index }}"
+                    },
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "child_index",
+                        "value_template": "{{ child_index + 1 if adult_index > num_adults|int else child_index }}"
                     }
                 ]
             },
@@ -413,7 +425,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% for t in travelers_details %}- {{ t.name }}, Age: {{ t.age }}, Nationality: {{ t.nationality }}, Medical: {{ t.medical }}\n{% endfor %}\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"}
+                    "text": {"body": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% for t in travelers_details %}- {{ t.name }} ({{ t.type|capitalize }}), Age: {{ t.age }}, Nationality: {{ t.nationality }}, Medical: {{ t.medical }}\n{% endfor %}\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"}
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "summary_confirmation"},
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please reply 'yes' to confirm or 'edit' to make changes."}
