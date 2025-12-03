@@ -8,6 +8,7 @@ from flows.whatsapp_flow_service import WhatsAppFlowService
 from meta_integration.models import MetaAppConfig
 from flows.definitions.tour_inquiry_whatsapp_flow import TOUR_INQUIRY_WHATSAPP_FLOW, TOUR_INQUIRY_WHATSAPP_FLOW_METADATA
 from flows.definitions.date_picker_whatsapp_flow import DATE_PICKER_WHATSAPP_FLOW, DATE_PICKER_WHATSAPP_FLOW_METADATA
+from flows.definitions.traveler_details_whatsapp_flow import TRAVELER_DETAILS_WHATSAPP_FLOW, TRAVELER_DETAILS_WHATSAPP_FLOW_METADATA
 
 class Command(BaseCommand):
     help = 'Sync WhatsApp interactive flows with the Meta platform'
@@ -16,7 +17,7 @@ class Command(BaseCommand):
         parser.add_argument(
             '--flow',
             type=str,
-            choices=['tour_inquiry', 'date_picker', 'all'],
+            choices=['tour_inquiry', 'date_picker', 'traveler_details', 'all'],
             default='all',
             help='Which flow to sync (default: all)'
         )
@@ -56,6 +57,11 @@ class Command(BaseCommand):
             flows_to_sync.append({
                 'json': DATE_PICKER_WHATSAPP_FLOW,
                 'metadata': DATE_PICKER_WHATSAPP_FLOW_METADATA
+            })
+        if flow_choice in ['traveler_details', 'all']:
+            flows_to_sync.append({
+                'json': TRAVELER_DETAILS_WHATSAPP_FLOW,
+                'metadata': TRAVELER_DETAILS_WHATSAPP_FLOW_METADATA
             })
 
         if not flows_to_sync:
