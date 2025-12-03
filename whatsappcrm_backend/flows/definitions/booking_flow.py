@@ -212,7 +212,7 @@ BOOKING_FLOW = {
                     }
                 ]
             },
-            "transitions": [{"to_step": "ask_email", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "initialize_traveler_loop", "condition_config": {"type": "always_true"}}]
         },
         # Step 4: Ask for the current traveler's full name
         {
@@ -328,7 +328,7 @@ BOOKING_FLOW = {
                     "fields_to_update": {"email": "{{ inquiry_email }}"}
                 }]
             },
-            "transitions": [{"to_step": "ask_payment_option", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "show_booking_summary", "condition_config": {"type": "always_true"}}]
         },
         # Step 9: Show booking summary and confirm
         {
