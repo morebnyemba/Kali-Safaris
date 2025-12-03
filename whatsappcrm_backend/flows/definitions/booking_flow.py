@@ -228,7 +228,10 @@ BOOKING_FLOW = {
                     }
                 ]
             },
-            "transitions": [{"to_step": "calculate_total_cost_base", "condition_config": {"type": "always_true"}}]
+            "transitions": [
+                {"to_step": "calculate_total_cost_base", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "tour_details.0.base_price"}},
+                {"to_step": "handle_missing_price_data", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
         },
         # Step 2c: Calculate total cost using base pricing
         {
@@ -732,6 +735,16 @@ BOOKING_FLOW = {
                 "message_config": {
                     "message_type": "text",
                     "text": {"body": "Thank you, {{ contact.name }}! Your inquiry for the *{{ tour_name }}* tour has been received (Ref: #{{ created_inquiry.id }}).\n\nWe had an issue generating the PDF, but a travel specialist will email a detailed quote to *{{ inquiry_email }}* shortly.\n\nType *menu* to return to the main menu."}
+                }
+            }
+        },
+        {
+            "name": "handle_missing_price_data",
+            "type": "end_flow",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "We apologize, but we're unable to retrieve pricing information for this tour at the moment.\n\nPlease contact our team at bookings@kalaisafaris.com or type 'menu' to return to the main menu. We'll be happy to provide you with a custom quote."}
                 }
             }
         },
