@@ -176,7 +176,8 @@ BOOKING_FLOW = {
                         "filters_template": {
                             "tour_id": "{{ tour_id }}",
                             "start_date__lte": "{{ start_date }}",
-                            "end_date__gte": "{{ start_date }}"
+                            "end_date__gte": "{{ start_date }}",
+                            "is_active": true
                         },
                         "fields_to_return": ["price_per_adult", "price_per_child"],
                         "limit": 1
@@ -677,10 +678,39 @@ BOOKING_FLOW = {
         },
         {
             "name": "handle_no_price_for_date",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {
+                        "action_type": "create_model_instance",
+                        "app_label": "customer_data",
+                        "model_name": "TourInquiry",
+                        "fields_template": {
+                            "customer": "current",
+                            "destination": "{{ tour_name }}",
+                            "number_of_travelers": "{{ num_adults|int + num_children|int }}",
+                            "preferred_dates": "{{ start_date }} to {{ end_date }}",
+                            "notes": "Pricing not available for selected dates. Contact Email: {{ contact.customer_profile.email if contact.customer_profile.email else 'Not provided' }}. Phone: {{ contact.phone_number }}",
+                            "status": "new"
+                        },
+                        "save_to_variable": "no_price_inquiry"
+                    },
+                    {
+                        "action_type": "send_group_notification",
+                        "params_template": {
+                            "group_names": ["Sales Team"],
+                            "template_name": "new_tour_inquiry_alert"
+                        }
+                    }
+                ]
+            },
+            "transitions": [{"to_step": "send_no_price_message", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "send_no_price_message",
             "type": "end_flow",
             "config": {
-                "message_config": {"message_type": "text", "text": {"body": "We're sorry, but pricing is not available for the selected dates. A travel expert has been notified and will contact you shortly to assist with a custom quote.\n\nType 'menu' to return to the main menu."}}
-                # Optionally, add a 'send_group_notification' action here to alert the sales team.
+                "message_config": {"message_type": "text", "text": {"body": "We're sorry, but pricing is not available for the selected dates ({{ start_date }} to {{ end_date }}).\n\nYour inquiry has been recorded (Ref: #{{ no_price_inquiry.id }}), and a travel expert will contact you shortly to provide a custom quote for the *{{ tour_name }}* tour.\n\nType 'menu' to return to the main menu."}}
             }
         },
         {
