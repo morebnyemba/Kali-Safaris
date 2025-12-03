@@ -37,3 +37,43 @@ class Tour(models.Model):
         ordering = ['name']
         verbose_name = _("Tour Package")
         verbose_name_plural = _("Tour Packages")
+
+
+class SeasonalTourPrice(models.Model):
+    """
+    Represents seasonal pricing for tours.
+    Allows different prices for different date ranges.
+    """
+    tour = models.ForeignKey(
+        Tour,
+        on_delete=models.CASCADE,
+        related_name='seasonal_prices',
+        verbose_name=_("Tour")
+    )
+    start_date = models.DateField(_("Start Date"), help_text=_("Start date of the pricing period"))
+    end_date = models.DateField(_("End Date"), help_text=_("End date of the pricing period"))
+    price_per_adult = models.DecimalField(
+        _("Price Per Adult"),
+        max_digits=10,
+        decimal_places=2,
+        help_text=_("Price per adult for this period")
+    )
+    price_per_child = models.DecimalField(
+        _("Price Per Child"),
+        max_digits=10,
+        decimal_places=2,
+        blank=True,
+        null=True,
+        help_text=_("Price per child for this period (optional, defaults to adult price)")
+    )
+    is_active = models.BooleanField(_("Is Active"), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.tour.name} - {self.start_date} to {self.end_date}"
+
+    class Meta:
+        ordering = ['tour', 'start_date']
+        verbose_name = _("Seasonal Tour Price")
+        verbose_name_plural = _("Seasonal Tour Prices")
