@@ -151,11 +151,16 @@ def parse_date_filter(value):
     """
     Jinja2 filter to parse a date string into a date object.
     Handles various common date formats.
+    Returns a date object (not datetime) for consistent date arithmetic.
     """
     if not value:
         return None
     
-    if isinstance(value, (datetime, date)):
+    # Convert datetime to date for consistency
+    if isinstance(value, datetime):
+        return value.date()
+    
+    if isinstance(value, date):
         return value
     
     if isinstance(value, str):
@@ -163,7 +168,7 @@ def parse_date_filter(value):
             # Try parsing as ISO datetime first
             dt_obj = parse_datetime(value)
             if dt_obj:
-                return dt_obj.date() if isinstance(dt_obj, datetime) else dt_obj
+                return dt_obj.date()
         except (ValueError, TypeError):
             pass
         
