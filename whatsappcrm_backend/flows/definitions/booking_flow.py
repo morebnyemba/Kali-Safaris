@@ -25,6 +25,39 @@ BOOKING_FLOW = {
                     }
                 ]
             },
+            "transitions": [{"to_step": "query_tour_details", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 1b: Query tour details to get duration
+        {
+            "name": "query_tour_details",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "query_model",
+                    "app_label": "products_and_services",
+                    "model_name": "Tour",
+                    "variable_name": "tour_details",
+                    "filters_template": {
+                        "id": "{{ tour_id }}"
+                    },
+                    "fields_to_return": ["duration_days", "name"],
+                    "limit": 1
+                }]
+            },
+            "transitions": [
+                {"to_step": "set_tour_duration", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "tour_details.0"}},
+                {"to_step": "ask_number_of_travelers", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        # Step 1c: Set tour duration variable for easy access
+        {
+            "name": "set_tour_duration",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "tour_duration_days", "value_template": "{{ tour_details.0.duration_days }}"}
+                ]
+            },
             "transitions": [{"to_step": "ask_number_of_travelers", "condition_config": {"type": "always_true"}}]
         },
         # Step 2: Ask how many people are traveling
@@ -74,7 +107,7 @@ BOOKING_FLOW = {
                 {"to_step": "fallback_ask_dates_text", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
-        # Step 4: Ask for preferred travel dates using Native Flow
+        # Step 4: Ask for preferred travel start date using Native Flow
         {
             "name": "ask_travel_dates",
             "type": "question",
@@ -83,8 +116,8 @@ BOOKING_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "flow",
-                        "header": {"type": "text", "text": "Select Your Dates"},
-                        "body": {"text": "Please select your desired start and end dates for the tour."},
+                        "header": {"type": "text", "text": "Select Start Date"},
+                        "body": {"text": "Please select your desired start date for the tour. The tour duration is {{ tour_duration_days }} day(s)."},
                         "footer": {"text": "Click the button to open the date picker."},
                         "action": {
                             "name": "flow",
@@ -92,15 +125,15 @@ BOOKING_FLOW = {
                                 "flow_message_version": "3",
                                 "flow_token": "{{ contact.id }}-booking-{{ 'now'|date:'U' }}",
                                 "flow_id": "{{ date_picker_whatsapp_flow.0.flow_id }}",
-                                "flow_cta": "Select Dates",
+                                "flow_cta": "Select Date",
                                 "flow_action": "navigate",
                                 "flow_action_payload": {
                                     "screen": "WELCOME",
                                     "data": {
                                         "date_picker_config": {
-                                            "type": "range",
-                                            "title": "Select Tour Dates",
-                                            "description": "Choose the start and end dates for your adventure.",
+                                            "type": "single",
+                                            "title": "Select Tour Start Date",
+                                            "description": "Choose the start date for your adventure.",
                                             "range": {
                                                 "min": "{{ now() | strftime('%Y-%m-%d') }}",
                                                 "max": "{{ (now() + timedelta(days=730)) | strftime('%Y-%m-%d') }}"
@@ -123,21 +156,9 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Please enter your preferred start date for the tour (e.g., 2025-12-25 or December 25, 2025):"}
+                    "text": {"body": "Please enter your preferred start date for the tour (e.g., 2025-12-25 or December 25, 2025). The tour duration is {{ tour_duration_days }} day(s)."}
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "start_date_text"}
-            },
-            "transitions": [{"to_step": "fallback_ask_end_date", "condition_config": {"type": "always_true"}}]
-        },
-        {
-            "name": "fallback_ask_end_date",
-            "type": "question",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "And your preferred end date (e.g., 2025-12-30 or December 30, 2025):"}
-                },
-                "reply_config": {"expected_type": "text", "save_to_variable": "end_date_text"}
             },
             "transitions": [{"to_step": "process_fallback_dates", "condition_config": {"type": "always_true"}}]
         },
@@ -147,7 +168,7 @@ BOOKING_FLOW = {
             "config": {
                 "actions_to_run": [
                     {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ start_date_text }}"},
-                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ end_date_text }}"}
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (start_date_text | parse_date + timedelta(days=tour_duration_days - 1)) | strftime('%Y-%m-%d') }}"}
                 ]
             },
             "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
@@ -157,8 +178,8 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ date_selection_response.start_date }}"},
-                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ date_selection_response.end_date }}"}
+                    {"action_type": "set_context_variable", "variable_name": "start_date", "value_template": "{{ date_selection_response.selected_date }}"},
+                    {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (date_selection_response.selected_date | parse_date + timedelta(days=tour_duration_days - 1)) | strftime('%Y-%m-%d') }}"}
                 ]
             },
             "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]

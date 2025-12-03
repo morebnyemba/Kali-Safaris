@@ -21,13 +21,9 @@ DATE_PICKER_WHATSAPP_FLOW = {
             "id": "WELCOME",
             "title": "Date Selection",
             "data": {
-                "start_date": {
+                "selected_date": {
                     "type": "string",
                     "__example__": "2025-12-25"
-                },
-                "end_date": {
-                    "type": "string",
-                    "__example__": "2025-12-30"
                 }
             },
             "layout": {
@@ -35,11 +31,11 @@ DATE_PICKER_WHATSAPP_FLOW = {
                 "children": [
                     {
                         "type": "TextHeading",
-                        "text": "Select Your Tour Dates"
+                        "text": "Select Your Date"
                     },
                     {
                         "type": "TextBody",
-                        "text": "Please choose your start and end dates for the tour."
+                        "text": "Please choose your preferred date for the booking."
                     },
                     {
                         "type": "Footer",
@@ -51,8 +47,7 @@ DATE_PICKER_WHATSAPP_FLOW = {
                                 "name": "DATE_PICKER"
                             },
                             "payload": {
-                                "start_date": "",
-                                "end_date": ""
+                                "selected_date": ""
                             }
                         }
                     }
@@ -61,15 +56,11 @@ DATE_PICKER_WHATSAPP_FLOW = {
         },
         {
             "id": "DATE_PICKER",
-            "title": "Select Tour Dates",
+            "title": "Select Date",
             "data": {
-                "start_date": {
+                "selected_date": {
                     "type": "string",
                     "__example__": "2025-12-25"
-                },
-                "end_date": {
-                    "type": "string",
-                    "__example__": "2025-12-30"
                 }
             },
             "layout": {
@@ -77,22 +68,16 @@ DATE_PICKER_WHATSAPP_FLOW = {
                 "children": [
                     {
                         "type": "TextHeading",
-                        "text": "Choose Your Tour Dates"
+                        "text": "Choose Your Date"
                     },
                     {
                         "type": "TextBody",
-                        "text": "Please select your start and end dates for the tour."
+                        "text": "Please select your preferred date."
                     },
                     {
                         "type": "DatePicker",
-                        "name": "start_date",
-                        "label": "Start Date",
-                        "required": True
-                    },
-                    {
-                        "type": "DatePicker",
-                        "name": "end_date",
-                        "label": "End Date",
+                        "name": "selected_date",
+                        "label": "Select Date",
                         "required": True
                     },
                     {
@@ -101,8 +86,7 @@ DATE_PICKER_WHATSAPP_FLOW = {
                         "on-click-action": {
                             "name": "complete",
                             "payload": {
-                                "start_date": "${form.start_date}",
-                                "end_date": "${form.end_date}"
+                                "selected_date": "${form.selected_date}"
                             }
                         }
                     }
