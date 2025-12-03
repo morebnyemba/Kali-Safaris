@@ -87,7 +87,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "label": "Dietary/Medical Needs",
                         "required": False,
                         "input-type": "text",
-                        "helper-text": "Any dietary restrictions or medical needs (type 'None' if not applicable)"
+                        "helper-text": "Any dietary restrictions or medical needs (optional)"
                     },
                     {
                         "type": "Footer",
