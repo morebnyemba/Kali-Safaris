@@ -1214,6 +1214,94 @@ def _evaluate_transition_condition(transition: FlowTransition, contact: Contact,
         )
         return result
 
+    elif condition_type == 'variable_less_than_or_equal':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        actual_value = _get_value_from_context_or_contact(variable_name, flow_context, contact)
+        expected_value = _resolve_value(value_template, flow_context, contact)
+        result = False
+        try:
+            actual_numeric = float(actual_value) if actual_value is not None else None
+            expected_numeric = float(expected_value) if expected_value is not None else None
+            if actual_numeric is not None and expected_numeric is not None:
+                result = actual_numeric <= expected_numeric
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Could not convert values to numeric for comparison: actual='{actual_value}', expected='{expected_value}'. Error: {e}")
+        
+        logger.debug(
+            f"Contact {contact.id}, Flow {transition.current_step.flow.id}, Step {transition.current_step.id}: "
+            f"Condition 'variable_less_than_or_equal' check for '{variable_name}'. "
+            f"Actual: '{actual_value}', Expected: '{expected_value}'. Result: {result}"
+        )
+        return result
+
+    elif condition_type == 'variable_less_than':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        actual_value = _get_value_from_context_or_contact(variable_name, flow_context, contact)
+        expected_value = _resolve_value(value_template, flow_context, contact)
+        result = False
+        try:
+            actual_numeric = float(actual_value) if actual_value is not None else None
+            expected_numeric = float(expected_value) if expected_value is not None else None
+            if actual_numeric is not None and expected_numeric is not None:
+                result = actual_numeric < expected_numeric
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Could not convert values to numeric for comparison: actual='{actual_value}', expected='{expected_value}'. Error: {e}")
+        
+        logger.debug(
+            f"Contact {contact.id}, Flow {transition.current_step.flow.id}, Step {transition.current_step.id}: "
+            f"Condition 'variable_less_than' check for '{variable_name}'. "
+            f"Actual: '{actual_value}', Expected: '{expected_value}'. Result: {result}"
+        )
+        return result
+
+    elif condition_type == 'variable_greater_than_or_equal':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        actual_value = _get_value_from_context_or_contact(variable_name, flow_context, contact)
+        expected_value = _resolve_value(value_template, flow_context, contact)
+        result = False
+        try:
+            actual_numeric = float(actual_value) if actual_value is not None else None
+            expected_numeric = float(expected_value) if expected_value is not None else None
+            if actual_numeric is not None and expected_numeric is not None:
+                result = actual_numeric >= expected_numeric
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Could not convert values to numeric for comparison: actual='{actual_value}', expected='{expected_value}'. Error: {e}")
+        
+        logger.debug(
+            f"Contact {contact.id}, Flow {transition.current_step.flow.id}, Step {transition.current_step.id}: "
+            f"Condition 'variable_greater_than_or_equal' check for '{variable_name}'. "
+            f"Actual: '{actual_value}', Expected: '{expected_value}'. Result: {result}"
+        )
+        return result
+
+    elif condition_type == 'variable_greater_than':
+        variable_name = config.get('variable_name')
+        value_template = config.get('value_template')
+        if variable_name is None or value_template is None: return False
+        actual_value = _get_value_from_context_or_contact(variable_name, flow_context, contact)
+        expected_value = _resolve_value(value_template, flow_context, contact)
+        result = False
+        try:
+            actual_numeric = float(actual_value) if actual_value is not None else None
+            expected_numeric = float(expected_value) if expected_value is not None else None
+            if actual_numeric is not None and expected_numeric is not None:
+                result = actual_numeric > expected_numeric
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Could not convert values to numeric for comparison: actual='{actual_value}', expected='{expected_value}'. Error: {e}")
+        
+        logger.debug(
+            f"Contact {contact.id}, Flow {transition.current_step.flow.id}, Step {transition.current_step.id}: "
+            f"Condition 'variable_greater_than' check for '{variable_name}'. "
+            f"Actual: '{actual_value}', Expected: '{expected_value}'. Result: {result}"
+        )
+        return result
+
     elif condition_type == 'nfm_response_field_equals' and nfm_response_data:
         field_path = config.get('field_path')
         if not field_path: return False
