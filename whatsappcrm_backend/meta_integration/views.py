@@ -396,11 +396,39 @@ class MetaWebhookAPIView(View):
         # Handle nfm_reply (WhatsApp Flow response)
         if msg_data.get("type") == "interactive" and msg_data.get("interactive", {}).get("type") == "nfm_reply":
             logger.info(f"nfm_reply (flow response) received for contact {contact.id}. Processing...")
+            
+            # Create a message object for the flow response
+            incoming_msg_obj, msg_created = Message.objects.update_or_create(
+                wamid=whatsapp_message_id,
+                defaults={
+                    'contact': contact,
+                    'app_config': active_config,
+                    'direction': 'in',
+                    'message_type': 'interactive',
+                    'content_payload': msg_data,
+                    'timestamp': message_timestamp,
+                    'status': 'delivered',
+                    'status_timestamp': message_timestamp,
+                }
+            )
+            
+            if log_entry and log_entry.pk:
+                log_entry.message = incoming_msg_obj
+                log_entry.save(update_fields=['message'])
+            
+            # Process the WhatsApp flow response data
             success, notes = process_whatsapp_flow_response(msg_data, contact, active_config)
+            
             if success:
-                self._save_log(log_entry, 'processed', notes)
+                # Queue the flow continuation task asynchronously for reliable transition
+                transaction.on_commit(
+                    lambda: process_flow_for_message_task.delay(incoming_msg_obj.id)
+                )
+                logger.info(f"Queued flow continuation task for WhatsApp flow response message {incoming_msg_obj.id}.")
+                self._save_log(log_entry, 'processed', f"{notes} Flow continuation queued.")
             else:
                 self._save_log(log_entry, 'error', notes)
+            
             return # Stop further processing for this message type
 
         incoming_msg_obj, msg_created = Message.objects.update_or_create(

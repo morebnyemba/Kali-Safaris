@@ -2084,11 +2084,8 @@ def process_whatsapp_flow_response(msg_data: dict, contact: Contact, app_config)
         )
         if processor_result and processor_result.get("success"):
             logger.info(f"Successfully updated flow context for WhatsApp flow response.")
-            # Trigger the flow engine to resume from the wait step
-            try:
-                process_message_for_flow(contact, {"type": "internal_whatsapp_flow_response"}, None)
-            except Exception as e:
-                logger.error(f"Error auto-resuming flow after WhatsApp flow response: {e}", exc_info=True)
+            # Note: Flow continuation will be triggered asynchronously by the calling code
+            # via process_flow_for_message_task to ensure reliable transaction handling
             return True, 'Flow context updated with WhatsApp flow data.'
         else:
             error_note = processor_result.get("notes") if processor_result else "Unknown error"
