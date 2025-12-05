@@ -8,7 +8,7 @@ This is a reusable interactive flow for collecting individual traveler informati
 TRAVELER_DETAILS_WHATSAPP_FLOW_METADATA = {
     "name": "traveler_details_whatsapp_flow",
     "friendly_name": "Traveler Details WhatsApp Flow",
-    "description": "Interactive WhatsApp flow for collecting traveler details (name, age, nationality, medical needs).",
+    "description": "Interactive WhatsApp flow for collecting traveler details (name, age, nationality, medical needs, gender, ID number).",
     "trigger_keywords": ["traveler details", "passenger info"],
     "is_active": True,
     "flow_definition_name": None  # This is a reusable component used in loops
@@ -44,6 +44,14 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                 "traveler_medical": {
                     "type": "string",
                     "__example__": "None"
+                },
+                "traveler_gender": {
+                    "type": "string",
+                    "__example__": "Male"
+                },
+                "traveler_id_number": {
+                    "type": "string",
+                    "__example__": "123456789"
                 }
             },
             "layout": {
@@ -90,6 +98,34 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "helper-text": "Any dietary restrictions or medical needs (optional)"
                     },
                     {
+                        "type": "RadioButtonsGroup",
+                        "name": "traveler_gender",
+                        "label": "Gender",
+                        "required": True,
+                        "data-source": [
+                            {
+                                "id": "male",
+                                "title": "Male"
+                            },
+                            {
+                                "id": "female",
+                                "title": "Female"
+                            },
+                            {
+                                "id": "other",
+                                "title": "Other"
+                            }
+                        ]
+                    },
+                    {
+                        "type": "TextInput",
+                        "name": "traveler_id_number",
+                        "label": "ID/Passport Number",
+                        "required": True,
+                        "input-type": "text",
+                        "helper-text": "Enter ID or Passport number"
+                    },
+                    {
                         "type": "Footer",
                         "label": "Continue",
                         "on-click-action": {
@@ -98,7 +134,9 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                                 "traveler_name": "${form.traveler_name}",
                                 "traveler_age": "${form.traveler_age}",
                                 "traveler_nationality": "${form.traveler_nationality}",
-                                "traveler_medical": "${form.traveler_medical}"
+                                "traveler_medical": "${form.traveler_medical}",
+                                "traveler_gender": "${form.traveler_gender}",
+                                "traveler_id_number": "${form.traveler_id_number}"
                             }
                         }
                     }
