@@ -171,7 +171,7 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (start_date_text | parse_date + timedelta(days=tour_duration_days|int - 1)) | strftime('%Y-%m-%d') }}"}
                 ]
             },
-            "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "confirm_selected_dates", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "process_date_selection",
@@ -182,7 +182,23 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "end_date", "value_template": "{{ (date_selection_response['selected_date'] | parse_date + timedelta(days=tour_duration_days|int - 1)) | strftime('%Y-%m-%d') }}"}
                 ]
             },
-            "transitions": [{"to_step": "query_seasonal_pricing", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "confirm_selected_dates", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "confirm_selected_dates",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "You have selected the following dates:\n\n*Start Date:* {{ start_date }}\n*End Date:* {{ end_date }}\n*Duration:* {{ tour_duration_days }} day(s)\n\nIs this correct? Reply 'yes' to confirm or 'edit' to select different dates."}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "date_confirmation"}
+            },
+            "transitions": [
+                {"to_step": "query_seasonal_pricing", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "date_confirmation", "value": "yes"}},
+                {"to_step": "query_date_picker_whatsapp_flow", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "date_confirmation", "value": "edit"}},
+                {"to_step": "confirm_selected_dates", "priority": 3, "condition_config": {"type": "always_true"}}
+            ]
         },
         {
             "name": "query_seasonal_pricing",
@@ -313,7 +329,9 @@ BOOKING_FLOW = {
                                         "traveler_name": "",
                                         "traveler_age": "",
                                         "traveler_nationality": "",
-                                        "traveler_medical": ""
+                                        "traveler_medical": "",
+                                        "traveler_gender": "",
+                                        "traveler_id_number": ""
                                     }
                                 }
                             }
@@ -333,7 +351,9 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response['traveler_name'] }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response['traveler_age'] }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response['traveler_nationality'] }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response['traveler_medical'] | default('No special requirements') }}"}
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response['traveler_medical'] | default('No special requirements') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_gender", "value_template": "{{ traveler_details_response['traveler_gender'] }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ traveler_details_response['traveler_id_number'] }}"}
                 ]
             },
             "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
@@ -419,7 +439,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'type': ('adult' if adult_index <= num_adults|int else 'child')}] }}"
+                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'type': ('adult' if adult_index <= num_adults|int else 'child')}] }}"
                     },
                     {
                         "action_type": "set_context_variable",
@@ -488,7 +508,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% for t in travelers_details %}- {{ t.name }} ({{ t.type|capitalize }}), Age: {{ t.age }}, Nationality: {{ t.nationality }}, Medical: {{ t.medical }}\n{% endfor %}\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"}
+                    "text": {"body": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% for t in travelers_details %}- {{ t.name }} ({{ t.type|capitalize }}), Age: {{ t.age }}, Gender: {{ t.gender|capitalize }}, Nationality: {{ t.nationality }}, ID: {{ t.id_number }}, Medical: {{ t.medical }}\n{% endfor %}\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"}
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "summary_confirmation"},
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please reply 'yes' to confirm or 'edit' to make changes."}
