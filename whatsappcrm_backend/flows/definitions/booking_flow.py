@@ -192,12 +192,13 @@ BOOKING_FLOW = {
                     "message_type": "text",
                     "text": {"body": "You have selected the following dates:\n\n*Start Date:* {{ start_date }}\n*End Date:* {{ end_date }}\n*Duration:* {{ tour_duration_days }} day(s)\n\nIs this correct? Reply 'yes' to confirm or 'edit' to select different dates."}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "date_confirmation"}
+                "reply_config": {"expected_type": "text", "save_to_variable": "date_confirmation"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please reply 'yes' to confirm the dates or 'edit' to change them."}
             },
             "transitions": [
                 {"to_step": "query_seasonal_pricing", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "date_confirmation", "value": "yes"}},
                 {"to_step": "query_date_picker_whatsapp_flow", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "date_confirmation", "value": "edit"}},
-                {"to_step": "confirm_selected_dates", "priority": 3, "condition_config": {"type": "always_true"}}
+                {"to_step": "query_seasonal_pricing", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
         },
         {
@@ -423,8 +424,8 @@ BOOKING_FLOW = {
                     "message_type": "text",
                     "text": {"body": "What is the gender of *{{ current_traveler_name }}*? (Male/Female/Other)"}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_gender"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid gender (Male, Female, or Other)."}
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_gender", "validation_regex": "^(?i)(male|female|other|m|f)$"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid gender (Male, Female, Other, or M/F)."}
             },
             "transitions": [{"to_step": "ask_traveler_id_number", "condition_config": {"type": "always_true"}}]
         },
@@ -437,8 +438,8 @@ BOOKING_FLOW = {
                     "message_type": "text",
                     "text": {"body": "What is the ID or Passport number for *{{ current_traveler_name }}*?"}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_id_number"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid ID or Passport number."}
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_id_number", "validation_regex": "^[A-Za-z0-9]{5,20}$"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid ID or Passport number (5-20 alphanumeric characters)."}
             },
             "transitions": [{"to_step": "ask_traveler_medical", "condition_config": {"type": "always_true"}}]
         },
