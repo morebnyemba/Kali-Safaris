@@ -412,9 +412,37 @@ BOOKING_FLOW = {
                 "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_nationality"},
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid nationality."}
             },
+            "transitions": [{"to_step": "ask_traveler_gender", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 5c: Ask for gender
+        {
+            "name": "ask_traveler_gender",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "What is the gender of *{{ current_traveler_name }}*? (Male/Female/Other)"}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_gender"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid gender (Male, Female, or Other)."}
+            },
+            "transitions": [{"to_step": "ask_traveler_id_number", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 5d: Ask for ID/Passport number
+        {
+            "name": "ask_traveler_id_number",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "What is the ID or Passport number for *{{ current_traveler_name }}*?"}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_id_number"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid ID or Passport number."}
+            },
             "transitions": [{"to_step": "ask_traveler_medical", "condition_config": {"type": "always_true"}}]
         },
-        # Step 5c: Ask for dietary/medical needs
+        # Step 5e: Ask for dietary/medical needs
         {
             "name": "ask_traveler_medical",
             "type": "question",

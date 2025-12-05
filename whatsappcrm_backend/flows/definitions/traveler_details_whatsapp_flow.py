@@ -8,7 +8,7 @@ This is a reusable interactive flow for collecting individual traveler informati
 TRAVELER_DETAILS_WHATSAPP_FLOW_METADATA = {
     "name": "traveler_details_whatsapp_flow",
     "friendly_name": "Traveler Details WhatsApp Flow",
-    "description": "Interactive WhatsApp flow for collecting traveler details (name, age, nationality, medical needs).",
+    "description": "Interactive WhatsApp flow for collecting traveler details (name, age, nationality, medical needs, gender, ID number).",
     "trigger_keywords": ["traveler details", "passenger info"],
     "is_active": True,
     "flow_definition_name": None  # This is a reusable component used in loops
