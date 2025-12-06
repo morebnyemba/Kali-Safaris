@@ -219,7 +219,8 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "query_seasonal_pricing", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_dates"}},
-                {"to_step": "query_date_picker_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_dates"}}
+                {"to_step": "query_date_picker_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_dates"}},
+                {"to_step": "query_seasonal_pricing", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
         },
         {
@@ -626,7 +627,8 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "ask_payment_option", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_booking"}},
-                {"to_step": "edit_booking_details", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_booking"}}
+                {"to_step": "edit_booking_details", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_booking"}},
+                {"to_step": "ask_payment_option", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
         },
         # Step 9b: Edit booking details (simple restart for now)
