@@ -127,7 +127,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                     },
                     {
                         "type": "Footer",
-                        "label": "Continue",
+                        "label": "Submit Details",
                         "on-click-action": {
                             "name": "complete",
                             "payload": {

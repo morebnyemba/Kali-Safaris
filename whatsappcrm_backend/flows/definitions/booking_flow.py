@@ -189,16 +189,37 @@ BOOKING_FLOW = {
             "type": "question",
             "config": {
                 "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "You have selected the following dates:\n\n*Start Date:* {{ start_date }}\n*End Date:* {{ end_date }}\n*Duration:* {{ tour_duration_days }} day(s)\n\nIs this correct? Reply 'yes' to confirm or 'edit' to select different dates."}
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "body": {
+                            "text": "You have selected the following dates:\n\n*Start Date:* {{ start_date }}\n*End Date:* {{ end_date }}\n*Duration:* {{ tour_duration_days }} day(s)\n\nAre these dates correct?"
+                        },
+                        "action": {
+                            "buttons": [
+                                {
+                                    "type": "reply",
+                                    "reply": {
+                                        "id": "confirm_dates",
+                                        "title": "Confirm"
+                                    }
+                                },
+                                {
+                                    "type": "reply",
+                                    "reply": {
+                                        "id": "edit_dates",
+                                        "title": "Edit Dates"
+                                    }
+                                }
+                            ]
+                        }
+                    }
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "date_confirmation"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please reply 'yes' to confirm the dates or 'edit' to change them."}
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "date_confirmation"}
             },
             "transitions": [
-                {"to_step": "query_seasonal_pricing", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "date_confirmation", "value": "yes"}},
-                {"to_step": "query_date_picker_whatsapp_flow", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "date_confirmation", "value": "edit"}},
-                {"to_step": "query_seasonal_pricing", "priority": 3, "condition_config": {"type": "always_true"}}
+                {"to_step": "query_seasonal_pricing", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_dates"}},
+                {"to_step": "query_date_picker_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_dates"}}
             ]
         },
         {
@@ -357,7 +378,46 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ traveler_details_response['traveler_id_number'] }}"}
                 ]
             },
-            "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "confirm_traveler_details", "condition_config": {"type": "always_true"}}]
+        },
+        # Step 3e: Confirm traveler details with buttons
+        {
+            "name": "confirm_traveler_details",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "body": {
+                            "text": "Please confirm the details for {% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}:\n\n*Name:* {{ current_traveler_name }}\n*Age:* {{ current_traveler_age }}\n*Nationality:* {{ current_traveler_nationality }}\n*Gender:* {{ current_traveler_gender }}\n*ID Number:* {{ current_traveler_id_number }}\n*Medical/Dietary:* {{ current_traveler_medical }}\n\nAre these details correct?"
+                        },
+                        "action": {
+                            "buttons": [
+                                {
+                                    "type": "reply",
+                                    "reply": {
+                                        "id": "confirm_traveler",
+                                        "title": "Confirm"
+                                    }
+                                },
+                                {
+                                    "type": "reply",
+                                    "reply": {
+                                        "id": "edit_traveler",
+                                        "title": "Edit"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "traveler_confirmation"}
+            },
+            "transitions": [
+                {"to_step": "add_traveler_to_list", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_traveler"}},
+                {"to_step": "query_traveler_details_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_traveler"}}
+            ]
         },
         {
             "name": "calculate_total_cost",
@@ -468,7 +528,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'type': ('adult' if adult_index <= num_adults|int else 'child')}] }}"
+                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'type': ('adult' if traveler_index <= num_adults|int else 'child')}] }}"
                     },
                     {
                         "action_type": "set_context_variable",
@@ -478,12 +538,12 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "adult_index",
-                        "value_template": "{{ adult_index + 1 if adult_index <= num_adults|int else adult_index }}"
+                        "value_template": "{{ adult_index + 1 if traveler_index <= num_adults|int else adult_index }}"
                     },
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "child_index",
-                        "value_template": "{{ child_index + 1 if adult_index > num_adults|int else child_index }}"
+                        "value_template": "{{ child_index + 1 if traveler_index > num_adults|int else child_index }}"
                     }
                 ]
             },
@@ -536,16 +596,37 @@ BOOKING_FLOW = {
             "type": "question",
             "config": {
                 "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% for t in travelers_details %}- {{ t.name }} ({{ t.type|capitalize }}), Age: {{ t.age }}, Gender: {{ t.gender|capitalize }}, Nationality: {{ t.nationality }}, ID: {{ t.id_number }}, Medical: {{ t.medical }}\n{% endfor %}\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"}
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "body": {
+                            "text": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% for t in travelers_details %}- {{ t.name }} ({{ t.type|capitalize }}), Age: {{ t.age }}, Gender: {{ t.gender|capitalize }}, Nationality: {{ t.nationality }}, ID: {{ t.id_number }}, Medical: {{ t.medical }}\n{% endfor %}\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"
+                        },
+                        "action": {
+                            "buttons": [
+                                {
+                                    "type": "reply",
+                                    "reply": {
+                                        "id": "confirm_booking",
+                                        "title": "Confirm"
+                                    }
+                                },
+                                {
+                                    "type": "reply",
+                                    "reply": {
+                                        "id": "edit_booking",
+                                        "title": "Edit Details"
+                                    }
+                                }
+                            ]
+                        }
+                    }
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "summary_confirmation"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please reply 'yes' to confirm or 'edit' to make changes."}
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "summary_confirmation"}
             },
             "transitions": [
-                {"to_step": "ask_payment_option", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "summary_confirmation", "value": "yes"}},
-                {"to_step": "edit_booking_details", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "summary_confirmation", "value": "edit"}},
-                {"to_step": "show_booking_summary", "priority": 3, "condition_config": {"type": "always_true"}}
+                {"to_step": "ask_payment_option", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_booking"}},
+                {"to_step": "edit_booking_details", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_booking"}}
             ]
         },
         # Step 9b: Edit booking details (simple restart for now)
