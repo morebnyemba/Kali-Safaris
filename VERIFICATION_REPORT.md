@@ -69,16 +69,25 @@ The loop correctly collects details for all travelers (both adults and children)
 - `child_index` = 1
 
 **Loop Increment Logic** (`add_traveler_to_list`, lines 524-555):
+
+The step first adds the current traveler to the list, then increments the counters in this order:
+
 ```python
-# Increment traveler_index (always)
+# 1. Add current traveler to list (uses current traveler_index value)
+
+# 2. Increment traveler_index (always)
 "traveler_index": "{{ traveler_index + 1 }}"
 
-# Increment adult_index only while processing adults
+# 3. Conditionally increment adult_index (uses current traveler_index BEFORE increment)
+#    Increments if we just processed an adult (traveler_index <= num_adults)
 "adult_index": "{{ adult_index + 1 if traveler_index <= num_adults|int else adult_index }}"
 
-# Increment child_index only when processing children
+# 4. Conditionally increment child_index (uses current traveler_index BEFORE increment)
+#    Increments if we just processed a child (traveler_index > num_adults)
 "child_index": "{{ child_index + 1 if traveler_index > num_adults|int else child_index }}"
 ```
+
+**Important**: The conditions for incrementing `adult_index` and `child_index` use the current `traveler_index` value BEFORE it is incremented, which correctly identifies the type of traveler that was just added.
 
 **Loop Continuation**:
 - Priority 1: Loop back to `query_traveler_details_whatsapp_flow` if `traveler_index <= num_travelers`
@@ -165,7 +174,10 @@ No code changes are required. The implementation matches the requirements specif
 
 ## Test Artifacts
 
-- `/tmp/validate_booking_flow.py` - Validation script
-- `/tmp/test_booking_flow_confirmations.py` - Comprehensive test suite
+The validation scripts used to verify the implementation have been committed to the repository:
 
-Both scripts are available for future regression testing.
+- `whatsappcrm_backend/flows/validation_tests/validate_booking_flow.py` - Validation script
+- `whatsappcrm_backend/flows/validation_tests/test_booking_flow_confirmations.py` - Comprehensive test suite
+- `whatsappcrm_backend/flows/validation_tests/README.md` - Documentation for running the tests
+
+These scripts are available for future regression testing when modifying the booking flow.
