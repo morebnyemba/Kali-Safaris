@@ -605,7 +605,7 @@ BOOKING_FLOW = {
                     "interactive": {
                         "type": "button",
                         "body": {
-                            "text": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% for t in travelers_details %}- {{ t.name }} ({{ t.type|capitalize }}), Age: {{ t.age }}, Gender: {{ t.gender|capitalize }}, Nationality: {{ t.nationality }}, ID: {{ t.id_number }}, Medical: {{ t.medical }}\n{% endfor %}\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"
+                            "text": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n*Travelers:*\n{% set valid_travelers = travelers_details | selectattr('name', 'defined') | selectattr('name') | list %}{% for t in valid_travelers[:10] %}\n- {{ t.name }} ({{ t.type|capitalize }}), Age: {{ t.age }}, Gender: {{ t.gender|capitalize }}, Nationality: {{ t.nationality }}, ID: {{ t.id_number }}, Medical: {{ t.medical }}{% endfor %}{% if valid_travelers|length > 10 %}\n... and {{ valid_travelers|length - 10 }} more traveler(s){% endif %}\n\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"
                         },
                         "action": {
                             "buttons": [

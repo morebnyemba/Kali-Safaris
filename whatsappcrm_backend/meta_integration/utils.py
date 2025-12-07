@@ -73,6 +73,16 @@ def send_whatsapp_message(to_phone_number: str, message_type: str, data: dict, c
             logger.warning(f"Correcting preview_url to boolean for text message. Original: {data['preview_url']}")
             data["preview_url"] = str(data["preview_url"]).lower() == 'true'
         payload[message_type]["preview_url"] = data["preview_url"]
+    
+    # Validate interactive message body length (WhatsApp limit: 1024 characters)
+    if message_type == "interactive" and isinstance(data, dict):
+        body_text = data.get("body", {}).get("text", "") if isinstance(data.get("body"), dict) else ""
+        if len(body_text) > 1024:
+            logger.warning(f"Interactive message body exceeds 1024 characters ({len(body_text)} chars). Truncating to fit limit.")
+            truncated_text = body_text[:1000] + "\n\n... (details truncated)"
+            if isinstance(data.get("body"), dict):
+                data["body"]["text"] = truncated_text
+            payload[message_type] = data
 
     logger.debug(f"Sending WhatsApp message via config '{config.name}'. URL: {url}, Payload: {json.dumps(payload)}")
 
