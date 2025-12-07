@@ -333,7 +333,7 @@ BOOKING_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "flow",
-                        "header": {"type": "text", "text": "{% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}"},
+                        "header": {"type": "text", "text": "Traveler {{ traveler_index }} of {{ num_travelers }}"},
                         "body": {"text": "Please provide the details for this {% if adult_index <= num_adults|int %}adult{% else %}child{% endif %} traveler."},
                         "footer": {"text": "Click the button to continue."},
                         "action": {
@@ -379,46 +379,7 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ traveler_details_response['traveler_id_number'] }}"}
                 ]
             },
-            "transitions": [{"to_step": "confirm_traveler_details", "condition_config": {"type": "always_true"}}]
-        },
-        # Step 3e: Confirm traveler details with buttons
-        {
-            "name": "confirm_traveler_details",
-            "type": "question",
-            "config": {
-                "message_config": {
-                    "message_type": "interactive",
-                    "interactive": {
-                        "type": "button",
-                        "body": {
-                            "text": "Please confirm the details for {% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}:\n\n*Name:* {{ current_traveler_name }}\n*Age:* {{ current_traveler_age }}\n*Nationality:* {{ current_traveler_nationality }}\n*Gender:* {{ current_traveler_gender }}\n*ID Number:* {{ current_traveler_id_number }}\n*Medical/Dietary:* {{ current_traveler_medical }}\n\nAre these details correct?"
-                        },
-                        "action": {
-                            "buttons": [
-                                {
-                                    "type": "reply",
-                                    "reply": {
-                                        "id": "confirm_traveler",
-                                        "title": "Confirm"
-                                    }
-                                },
-                                {
-                                    "type": "reply",
-                                    "reply": {
-                                        "id": "edit_traveler",
-                                        "title": "Edit"
-                                    }
-                                }
-                            ]
-                        }
-                    }
-                },
-                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "traveler_confirmation"}
-            },
-            "transitions": [
-                {"to_step": "add_traveler_to_list", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_traveler"}},
-                {"to_step": "query_traveler_details_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_traveler"}}
-            ]
+            "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "calculate_total_cost",
