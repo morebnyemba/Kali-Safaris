@@ -371,15 +371,18 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response['traveler_name'] }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response['traveler_age'] }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response['traveler_nationality'] }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response['traveler_medical'] | default('No special requirements') }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_gender", "value_template": "{{ traveler_details_response['traveler_gender'] }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ traveler_details_response['traveler_id_number'] }}"}
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ (traveler_details_response or {}).get('traveler_name', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ (traveler_details_response or {}).get('traveler_age', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ (traveler_details_response or {}).get('traveler_nationality', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ (traveler_details_response or {}).get('traveler_medical', 'No special requirements') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_gender", "value_template": "{{ (traveler_details_response or {}).get('traveler_gender', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ (traveler_details_response or {}).get('traveler_id_number', '') }}"}
                 ]
             },
-            "transitions": [{"to_step": "confirm_traveler_details", "condition_config": {"type": "always_true"}}]
+            "transitions": [
+                {"to_step": "confirm_traveler_details", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "traveler_details_response.traveler_name"}},
+                {"to_step": "ask_traveler_name", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
         },
         # Step 3e: Confirm traveler details with buttons
         {
@@ -417,7 +420,8 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "add_traveler_to_list", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_traveler"}},
-                {"to_step": "query_traveler_details_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_traveler"}}
+                {"to_step": "query_traveler_details_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_traveler"}},
+                {"to_step": "add_traveler_to_list", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
         },
         {
@@ -515,7 +519,7 @@ BOOKING_FLOW = {
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_medical"}
             },
-            "transitions": [{"to_step": "add_traveler_to_list", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "confirm_traveler_details", "condition_config": {"type": "always_true"}}]
         },
         # Step 6: Add the collected details to the list and increment the counter
         # Note: This step tracks both overall traveler_index (1 to num_travelers) and separate
