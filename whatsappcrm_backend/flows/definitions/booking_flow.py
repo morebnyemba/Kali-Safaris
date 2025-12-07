@@ -371,16 +371,16 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ traveler_details_response.get('traveler_name', '') if traveler_details_response else '' }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ traveler_details_response.get('traveler_age', '') if traveler_details_response else '' }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ traveler_details_response.get('traveler_nationality', '') if traveler_details_response else '' }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ traveler_details_response.get('traveler_medical', 'No special requirements') if traveler_details_response else 'No special requirements' }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_gender", "value_template": "{{ traveler_details_response.get('traveler_gender', '') if traveler_details_response else '' }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ traveler_details_response.get('traveler_id_number', '') if traveler_details_response else '' }}"}
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ (traveler_details_response or {}).get('traveler_name', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ (traveler_details_response or {}).get('traveler_age', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ (traveler_details_response or {}).get('traveler_nationality', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ (traveler_details_response or {}).get('traveler_medical', 'No special requirements') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_gender", "value_template": "{{ (traveler_details_response or {}).get('traveler_gender', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ (traveler_details_response or {}).get('traveler_id_number', '') }}"}
                 ]
             },
             "transitions": [
-                {"to_step": "confirm_traveler_details", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "current_traveler_name"}},
+                {"to_step": "confirm_traveler_details", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "traveler_details_response.traveler_name"}},
                 {"to_step": "ask_traveler_name", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
