@@ -82,6 +82,9 @@ def send_whatsapp_message(to_phone_number: str, message_type: str, data: dict, c
             truncation_suffix = "\n\n... (details truncated)"
             max_content_length = 1024 - len(truncation_suffix)
             truncated_text = body_text[:max_content_length] + truncation_suffix
+            # Final safety check to ensure we don't exceed 1024 chars
+            if len(truncated_text) > 1024:
+                truncated_text = truncated_text[:1024]
             if isinstance(data.get("body"), dict):
                 data["body"]["text"] = truncated_text
             payload[message_type] = data
