@@ -334,7 +334,7 @@ BOOKING_FLOW = {
                     "interactive": {
                         "type": "flow",
                         "header": {"type": "text", "text": "Traveler {{ traveler_index }} of {{ num_travelers }}"},
-                        "body": {"text": "Please provide the details for this {% if adult_index <= num_adults|int %}adult{% else %}child{% endif %} traveler."},
+                        "body": {"text": "Please provide the details for traveler {{ traveler_index }}."},
                         "footer": {"text": "Click the button to continue."},
                         "action": {
                             "name": "flow",
