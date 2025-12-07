@@ -67,7 +67,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Great choice! You're booking the *{{ tour_name }}* tour.\n\nHow many adults (18+) will be traveling?"}
+                    "text": {"body": "Great choice! You're booking the *{{ tour_name }}* tour.\n\nHow many adults (12+) will be traveling?"}
                 },
                 "reply_config": {"expected_type": "number", "save_to_variable": "num_adults", "validation_regex": "^[1-9][0-9]*$"},
                 "fallback_config": {"re_prompt_message_text": "Please enter a valid number for adults (e.g., 2)."}
@@ -78,7 +78,7 @@ BOOKING_FLOW = {
             "name": "ask_number_of_children",
             "type": "question",
             "config": {
-                "message_config": {"message_type": "text", "text": {"body": "And how many children (under 18) will be traveling?"}},
+                "message_config": {"message_type": "text", "text": {"body": "And how many children (under 12) will be traveling?"}},
                 "reply_config": {"expected_type": "number", "save_to_variable": "num_children", "validation_regex": "^[0-9]+$"},
                 "fallback_config": {"re_prompt_message_text": "Please enter a valid number for children (e.g., 0, 1)."}
             },
@@ -333,8 +333,8 @@ BOOKING_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "flow",
-                        "header": {"type": "text", "text": "{% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}"},
-                        "body": {"text": "Please provide the details for this {% if adult_index <= num_adults|int %}adult{% else %}child{% endif %} traveler."},
+                        "header": {"type": "text", "text": "Traveler {{ traveler_index }} of {{ num_travelers }}"},
+                        "body": {"text": "Please provide the details for traveler {{ traveler_index }}."},
                         "footer": {"text": "Click the button to continue."},
                         "action": {
                             "name": "flow",
@@ -391,7 +391,7 @@ BOOKING_FLOW = {
                     "interactive": {
                         "type": "button",
                         "body": {
-                            "text": "Please confirm the details for {% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}:\n\n*Name:* {{ current_traveler_name }}\n*Age:* {{ current_traveler_age }}\n*Nationality:* {{ current_traveler_nationality }}\n*Gender:* {{ current_traveler_gender }}\n*ID Number:* {{ current_traveler_id_number }}\n*Medical/Dietary:* {{ current_traveler_medical }}\n\nAre these details correct?"
+                            "text": "Please confirm the details for Traveler {{ traveler_index }}:\n\n*Name:* {{ current_traveler_name }}\n*Age:* {{ current_traveler_age }}\n*Nationality:* {{ current_traveler_nationality }}\n*Gender:* {{ current_traveler_gender }}\n*ID Number:* {{ current_traveler_id_number }}\n*Medical/Dietary:* {{ current_traveler_medical }}\n\nAre these details correct?"
                         },
                         "action": {
                             "buttons": [
