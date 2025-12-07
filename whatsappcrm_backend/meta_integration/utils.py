@@ -79,7 +79,9 @@ def send_whatsapp_message(to_phone_number: str, message_type: str, data: dict, c
         body_text = data.get("body", {}).get("text", "") if isinstance(data.get("body"), dict) else ""
         if len(body_text) > 1024:
             logger.warning(f"Interactive message body exceeds 1024 characters ({len(body_text)} chars). Truncating to fit limit.")
-            truncated_text = body_text[:1000] + "\n\n... (details truncated)"
+            truncation_suffix = "\n\n... (details truncated)"
+            max_content_length = 1024 - len(truncation_suffix)
+            truncated_text = body_text[:max_content_length] + truncation_suffix
             if isinstance(data.get("body"), dict):
                 data["body"]["text"] = truncated_text
             payload[message_type] = data
