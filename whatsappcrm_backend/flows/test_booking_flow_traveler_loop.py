@@ -43,11 +43,11 @@ class TravelerLoopConditionTests(TestCase):
             'value_template': '{{ num_travelers|int }}'
         }
         
-        # Test cases for 2 travelers
+        # Test cases for 2 travelers (index represents next traveler to collect after increment)
         test_cases = [
-            (1, 2, True, "Should continue after collecting traveler 1"),
-            (2, 2, True, "Should continue after collecting traveler 1 (index now 2)"),
-            (3, 2, False, "Should stop after collecting traveler 2 (index now 3)"),
+            (1, 2, True, "Should continue to collect traveler 1"),
+            (2, 2, True, "Should continue to collect traveler 2"),
+            (3, 2, False, "Should stop after collecting all 2 travelers"),
         ]
         
         for traveler_index, num_travelers, expected, description in test_cases:
