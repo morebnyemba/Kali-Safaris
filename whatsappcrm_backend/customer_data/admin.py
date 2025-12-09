@@ -114,7 +114,7 @@ class BookingAdmin(admin.ModelAdmin):
     list_editable = ('payment_status',)
     date_hierarchy = 'start_date'
     inlines = [TravelerInline]
-    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel']
+    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date']
     fieldsets = (
         ('Booking Core Info', {
             'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')
@@ -270,6 +270,31 @@ class BookingAdmin(admin.ModelAdmin):
         return response
     
     export_booking_travelers_excel.short_description = "Export travelers from selected bookings to CSV/Excel"
+    
+    def export_manifest_for_date(self, request, queryset):
+        """
+        Export a ZimParks-compliant manifest for bookings on a specific date.
+        Uses the first booking's start_date from the selected queryset.
+        """
+        from .exports import export_booking_manifest_pdf
+        
+        if not queryset.exists():
+            self.message_user(request, "No bookings selected.", level='warning')
+            return
+        
+        # Use the start_date from the first booking in the queryset
+        booking_date = queryset.first().start_date
+        
+        # Filter all bookings for that date (not just selected ones)
+        self.message_user(
+            request, 
+            f"Generating manifest for {booking_date.strftime('%B %d, %Y')} (all bookings on that date)...",
+            level='info'
+        )
+        
+        return export_booking_manifest_pdf(booking_date)
+    
+    export_manifest_for_date.short_description = "Export Manifest for Booking Date (ZimParks Format)"
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):

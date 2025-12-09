@@ -17,7 +17,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
-from .models import Payment, MemberProfile
+from .models import Payment, MemberProfile, Booking, Traveler
 
 logger = logging.getLogger(__name__)
 
@@ -508,4 +508,151 @@ def export_givers_list_publication_pdf(queryset, period_name):
     buffer.seek(0)
     response = HttpResponse(buffer, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="givers_publication_list_{period_name}_{timezone.now().strftime("%Y-%m-%d")}.pdf"'
+    return response
+
+
+# --- Booking Manifest Export Functions ---
+
+def export_booking_manifest_pdf(booking_date):
+    """
+    Generates a professional PDF manifest for bookings on a specific date.
+    Contains only essential information needed by ZimParks:
+    - Full Name
+    - ID Number
+    - Nationality
+    - Age
+    
+    Args:
+        booking_date: Date object for which to generate the manifest
+        
+    Returns:
+        HttpResponse with PDF content
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer, 
+        pagesize=letter, 
+        rightMargin=40, 
+        leftMargin=40, 
+        topMargin=40, 
+        bottomMargin=50
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Get company details from settings
+    company_name = getattr(settings, 'COMPANY_DETAILS', {}).get('NAME', 'Kalai Safaris')
+    
+    # Title
+    title = Paragraph(
+        f"<b>{company_name}</b><br/>Safari Booking Manifest", 
+        styles['h1']
+    )
+    elements.append(title)
+    elements.append(Spacer(1, 12))
+    
+    # Date information
+    date_info = Paragraph(
+        f"<b>Tour Date:</b> {booking_date.strftime('%B %d, %Y')}<br/>"
+        f"<b>Report Generated:</b> {timezone.now().strftime('%B %d, %Y at %H:%M')}",
+        styles['Normal']
+    )
+    elements.append(date_info)
+    elements.append(Spacer(1, 20))
+    
+    # Get all bookings for the specified date
+    bookings = Booking.objects.filter(
+        start_date=booking_date
+    ).prefetch_related('travelers').order_by('booking_reference')
+    
+    if not bookings.exists():
+        no_bookings_text = Paragraph(
+            f"<i>No bookings found for {booking_date.strftime('%B %d, %Y')}</i>",
+            styles['Italic']
+        )
+        elements.append(no_bookings_text)
+    else:
+        # Summary
+        total_travelers = sum(booking.travelers.count() for booking in bookings)
+        summary = Paragraph(
+            f"<b>Total Bookings:</b> {bookings.count()}<br/>"
+            f"<b>Total Travelers:</b> {total_travelers}",
+            styles['Normal']
+        )
+        elements.append(summary)
+        elements.append(Spacer(1, 20))
+        
+        # Build table data
+        headers = ["Full Name", "ID Number", "Nationality", "Age"]
+        data = [headers]
+        
+        for booking in bookings:
+            # Add booking reference header
+            booking_header = [
+                Paragraph(f"<b>Booking: {booking.booking_reference} - {booking.tour_name}</b>", styles['Normal']),
+                "", "", ""
+            ]
+            data.append(booking_header)
+            
+            # Add travelers for this booking
+            travelers = booking.travelers.all().order_by('traveler_type', 'name')
+            if not travelers.exists():
+                # If no traveler details, show booking info
+                data.append([
+                    "No traveler details recorded",
+                    "-",
+                    "-",
+                    "-"
+                ])
+            else:
+                for traveler in travelers:
+                    data.append([
+                        traveler.name,
+                        traveler.id_number or "Not provided",
+                        traveler.nationality or "Not provided",
+                        str(traveler.age)
+                    ])
+            
+            # Add spacing row between bookings
+            data.append(["", "", "", ""])
+        
+        # Create table with appropriate column widths
+        col_widths = [200, 120, 100, 60]
+        table = Table(data, colWidths=col_widths, hAlign='LEFT')
+        table.setStyle(TableStyle([
+            # Header row styling
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F2D')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 0), (-1, 0), 12),
+            
+            # Data rows styling
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -1), 9),
+            ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            
+            # Grid lines
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            
+            # Alternating row colors for better readability
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F5F5F5')]),
+        ]))
+        elements.append(table)
+    
+    # Build PDF
+    doc.build(elements, onFirstPage=_draw_pdf_footer, onLaterPages=_draw_pdf_footer)
+    buffer.seek(0)
+    
+    # Create response
+    response = HttpResponse(buffer, content_type='application/pdf')
+    filename = f"booking_manifest_{booking_date.strftime('%Y-%m-%d')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response

@@ -894,9 +894,57 @@ BOOKING_FLOW = {
                 "message_type": "document",
                 "document": {
                     "link": "{{ quote_pdf_url }}",
-                    "filename": "Kalai_Safaris_Quote_{{ created_inquiry.id }}.pdf",
-                    "caption": "Thank you, {{ contact.name }}! Here is the preliminary quote for your *{{ tour_name }}* tour (Ref: #{{ created_inquiry.id }}).\n\nA travel specialist will also email a detailed itinerary to *{{ inquiry_email }}* shortly."
+                    "filename": "Kalai_Safaris_Quote_{{ created_inquiry.inquiry_reference }}.pdf",
+                    "caption": "Thank you, {{ contact.name }}! Here is your quote for the *{{ tour_name }}* tour (Ref: #{{ created_inquiry.inquiry_reference }}).\n\nA travel specialist will contact you soon to discuss your itinerary."
                 }
+            },
+            "transitions": [{"to_step": "ask_contact_preference", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "ask_contact_preference",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "body": {"text": "Would you like us to contact you on this number or provide a different contact number?"},
+                        "action": {
+                            "buttons": [
+                                {"type": "reply", "reply": {"id": "use_current", "title": "Use This Number"}},
+                                {"type": "reply", "reply": {"id": "provide_another", "title": "Another Number"}}
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "contact_choice"}
+            },
+            "transitions": [
+                {"to_step": "end_booking_flow_final", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "use_current"}},
+                {"to_step": "ask_alternate_contact", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "provide_another"}}
+            ]
+        },
+        {
+            "name": "ask_alternate_contact",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Please provide the phone number where you'd like to be contacted (with country code, e.g., +263771234567):"}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "alternate_contact_number"},
+                "fallback_config": {"re_prompt_message_text": "Please provide a valid phone number."}
+            },
+            "transitions": [{"to_step": "save_alternate_contact", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "save_alternate_contact",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "update_customer_profile",
+                    "fields_to_update": {"notes": "Preferred contact: {{ alternate_contact_number }}"}
+                }]
             },
             "transitions": [{"to_step": "end_booking_flow_final", "condition_config": {"type": "always_true"}}]
         },
@@ -907,7 +955,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Thank you, {{ contact.name }}! Your inquiry for the *{{ tour_name }}* tour has been received (Ref: #{{ created_inquiry.id }}).\n\nWe had an issue generating the PDF, but a travel specialist will email a detailed quote to *{{ inquiry_email }}* shortly.\n\nType *menu* to return to the main menu."}
+                    "text": {"body": "Thank you, {{ contact.name }}! Your inquiry for the *{{ tour_name }}* tour has been received (Ref: #{{ created_inquiry.inquiry_reference }}).\n\nWe had an issue generating the PDF, but a travel specialist will contact you shortly with a detailed quote.\n\nType *menu* to return to the main menu."}
                 }
             }
         },

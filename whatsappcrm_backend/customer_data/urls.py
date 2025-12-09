@@ -16,4 +16,5 @@ app_name = 'customer_data_api'
 # The API URLs are now determined automatically by the router.
 urlpatterns = [
     path('', include(router.urls)),
+    path('export/manifest/', views.export_booking_manifest, name='export_booking_manifest'),
 ]

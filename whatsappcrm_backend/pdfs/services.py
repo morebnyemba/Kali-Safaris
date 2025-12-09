@@ -76,8 +76,9 @@ def generate_quote_pdf(quote_context: dict) -> str | None:
         story.append(Paragraph(f"Date: {datetime.now().strftime('%B %d, %Y')}", styles['Normal']))
         story.append(Spacer(1, 0.25*inch))
 
-        # Quote Details
-        quote_id = quote_context.get('created_inquiry', {}).get('id', 'N/A')
+        # Quote Details - use inquiry_reference if available, otherwise fall back to id
+        created_inquiry = quote_context.get('created_inquiry', {})
+        quote_id = created_inquiry.get('inquiry_reference') or created_inquiry.get('id', 'N/A')
         
         # Handle contact object properly
         contact = quote_context.get('contact', {})
@@ -112,7 +113,7 @@ def generate_quote_pdf(quote_context: dict) -> str | None:
             inquiry_dates = 'N/A'
         
         story.append(Paragraph(f"<b>Quote For:</b> {customer_name}", styles['Normal']))
-        story.append(Paragraph(f"<b>Quote ID:</b> Q-{quote_id}", styles['Normal']))
+        story.append(Paragraph(f"<b>Quote ID:</b> {quote_id}", styles['Normal']))
         story.append(Spacer(1, 0.2*inch))
         story.append(Paragraph(f"<b>Tour:</b> {tour_name}", styles['Normal']))
         story.append(Paragraph(f"<b>Number of Travelers:</b> {num_travelers}", styles['Normal']))

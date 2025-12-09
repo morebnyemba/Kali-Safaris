@@ -228,7 +228,7 @@ class Booking(models.Model):
         MANUAL_ENTRY = 'manual_entry', _('Manual Entry')
         PHONE_CALL = 'phone_call', _('Phone Call')
 
-    booking_reference = models.CharField(_("Booking Reference"), max_length=100, unique=True, db_index=True)
+    booking_reference = models.CharField(_("Booking Reference"), max_length=100, unique=True, db_index=True, blank=True)
     customer = models.ForeignKey(
         CustomerProfile,
         on_delete=models.SET_NULL,
@@ -272,6 +272,19 @@ class Booking(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        """Auto-generate booking_reference if not provided."""
+        if not self.booking_reference:
+            from .reference_generator import generate_booking_reference
+            # Keep trying until we get a unique reference
+            max_attempts = 10
+            for _ in range(max_attempts):
+                ref = generate_booking_reference()
+                if not Booking.objects.filter(booking_reference=ref).exists():
+                    self.booking_reference = ref
+                    break
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Booking {self.booking_reference} for {self.customer}"
@@ -419,6 +432,7 @@ class TourInquiry(models.Model):
         CLOSED = 'closed', _('Closed')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    inquiry_reference = models.CharField(_("Inquiry Reference"), max_length=100, unique=True, db_index=True, blank=True)
     customer = models.ForeignKey(
         CustomerProfile,
         on_delete=models.CASCADE,
@@ -446,8 +460,21 @@ class TourInquiry(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    def save(self, *args, **kwargs):
+        """Auto-generate inquiry_reference if not provided."""
+        if not self.inquiry_reference:
+            from .reference_generator import generate_inquiry_reference
+            # Keep trying until we get a unique reference
+            max_attempts = 10
+            for _ in range(max_attempts):
+                ref = generate_inquiry_reference()
+                if not TourInquiry.objects.filter(inquiry_reference=ref).exists():
+                    self.inquiry_reference = ref
+                    break
+        super().save(*args, **kwargs)
+
     def __str__(self):
-        return f"Inquiry from {self.customer} for {self.destinations or 'a tour'}"
+        return f"Inquiry {self.inquiry_reference} from {self.customer} for {self.destinations or 'a tour'}"
 
     class Meta:
         ordering = ['-created_at']

@@ -158,4 +158,36 @@ class TourInquiryViewSet(viewsets.ModelViewSet):
     serializer_class = TourInquirySerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
     filterset_fields = ['status', 'customer', 'assigned_agent']
+
+
+# --- Booking Manifest Export View ---
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from django.http import HttpResponse
+from datetime import datetime
+from .exports import export_booking_manifest_pdf
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_booking_manifest(request):
+    """
+    Export booking manifest for a specific date.
+    Query parameter: date (format: YYYY-MM-DD)
+    """
+    date_str = request.GET.get('date')
+    if not date_str:
+        return Response(
+            {"error": "Date parameter is required (format: YYYY-MM-DD)"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        booking_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return Response(
+            {"error": "Invalid date format. Use YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    return export_booking_manifest_pdf(booking_date)
     search_fields = ['destination', 'tour_type', 'notes']
