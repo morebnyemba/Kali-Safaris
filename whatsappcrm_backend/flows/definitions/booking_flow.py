@@ -727,6 +727,29 @@ BOOKING_FLOW = {
                     "save_to_variable": "created_booking"
                 }]
             },
+            "transitions": [{"to_step": "save_travelers_to_booking", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "save_travelers_to_booking",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "save_travelers_to_booking",
+                    "params_template": {
+                        "booking_context_var": "created_booking",
+                        "travelers_context_var": "travelers_details"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "show_booking_reference", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "show_booking_reference",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "✅ Your booking has been created!\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n\nPlease save this reference number for your records."}
+            },
             "transitions": [{"to_step": "initiate_payment", "condition_config": {"type": "always_true"}}]
         },
         {
@@ -754,8 +777,22 @@ BOOKING_FLOW = {
                 }]
             },
             "transitions": [
-                {"to_step": "send_manual_payment_instructions", "priority": 1, "condition_config": {"type": "always_true"}}
+                {"to_step": "save_travelers_to_manual_booking", "priority": 1, "condition_config": {"type": "always_true"}}
             ]
+        },
+        {
+            "name": "save_travelers_to_manual_booking",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "save_travelers_to_booking",
+                    "params_template": {
+                        "booking_context_var": "created_booking",
+                        "travelers_context_var": "travelers_details"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "send_manual_payment_instructions", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "send_manual_payment_instructions",
@@ -816,7 +853,7 @@ BOOKING_FLOW = {
                         "model_name": "TourInquiry",
                         "fields_template": {
                             "customer": "current",
-                            "destination": "{{ tour_name }}",
+                            "destinations": "{{ tour_name }}",
                             "number_of_travelers": "{{ num_adults|int + num_children|int }}",
                             "preferred_dates": "{{ start_date }} to {{ end_date }}",
                             "notes": "Quote requested via WhatsApp for a pre-defined tour. Contact Email: {{ inquiry_email }}.",

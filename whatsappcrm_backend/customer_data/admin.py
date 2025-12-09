@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry
+from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry, Traveler
 
 class InteractionInline(admin.TabularInline):
     """
@@ -83,6 +83,16 @@ class InteractionAdmin(admin.ModelAdmin):
         }),
     )
 
+class TravelerInline(admin.TabularInline):
+    """
+    Inline admin for displaying travelers associated with a booking.
+    """
+    model = Traveler
+    extra = 0
+    fields = ('name', 'age', 'nationality', 'gender', 'id_number', 'traveler_type', 'medical_dietary_requirements')
+    readonly_fields = ('created_at',)
+    show_change_link = True
+
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     """
@@ -94,6 +104,7 @@ class BookingAdmin(admin.ModelAdmin):
     autocomplete_fields = ['customer', 'tour', 'assigned_agent']
     list_editable = ('payment_status',)
     date_hierarchy = 'created_at'
+    inlines = [TravelerInline]
     fieldsets = (
         ('Booking Core Info', {
             'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')
@@ -118,6 +129,32 @@ class PaymentAdmin(admin.ModelAdmin):
     search_fields = ('id', 'booking__booking_reference', 'transaction_reference')
     readonly_fields = ('created_at', 'updated_at')
     autocomplete_fields = ['booking']
+
+@admin.register(Traveler)
+class TravelerAdmin(admin.ModelAdmin):
+    """
+    Admin interface for the Traveler model.
+    """
+    list_display = ('name', 'booking', 'traveler_type', 'age', 'nationality', 'gender')
+    list_filter = ('traveler_type', 'nationality', 'gender')
+    search_fields = ('name', 'id_number', 'booking__booking_reference')
+    readonly_fields = ('id', 'created_at', 'updated_at')
+    autocomplete_fields = ['booking']
+    fieldsets = (
+        ('Traveler Info', {
+            'fields': ('booking', 'name', 'age', 'traveler_type')
+        }),
+        ('Identity & Nationality', {
+            'fields': ('nationality', 'gender', 'id_number')
+        }),
+        ('Special Requirements', {
+            'fields': ('medical_dietary_requirements',)
+        }),
+        ('System Timestamps', {
+            'fields': ('id', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
 
 @admin.register(TourInquiry)
 class TourInquiryAdmin(admin.ModelAdmin):

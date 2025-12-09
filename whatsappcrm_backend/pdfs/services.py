@@ -78,11 +78,33 @@ def generate_quote_pdf(quote_context: dict) -> str | None:
 
         # Quote Details
         quote_id = quote_context.get('created_inquiry', {}).get('id', 'N/A')
-        customer_name = quote_context.get('contact', {}).name or 'Valued Customer'
+        
+        # Handle contact object properly
+        contact = quote_context.get('contact', {})
+        if hasattr(contact, 'name'):
+            customer_name = contact.name or 'Valued Customer'
+        else:
+            customer_name = contact.get('name', 'Valued Customer') if isinstance(contact, dict) else 'Valued Customer'
+        
         tour_name = quote_context.get('tour_name', 'N/A')
-        num_travelers = quote_context.get('num_travelers', 'N/A')
+        
+        # Calculate total travelers from context
+        num_adults = quote_context.get('num_adults', 0)
+        num_children = quote_context.get('num_children', 0)
+        num_travelers = quote_context.get('num_travelers')
+        if num_travelers is None:
+            num_travelers = int(num_adults) + int(num_children) if num_adults or num_children else 'N/A'
+        
         total_cost = quote_context.get('total_cost', 0.0)
-        inquiry_dates = quote_context.get('inquiry_dates', 'N/A')
+        
+        # Get dates from context
+        start_date = quote_context.get('start_date', '')
+        end_date = quote_context.get('end_date', '')
+        inquiry_dates = quote_context.get('inquiry_dates')
+        if not inquiry_dates and start_date and end_date:
+            inquiry_dates = f"{start_date} to {end_date}"
+        elif not inquiry_dates:
+            inquiry_dates = 'N/A'
         
         story.append(Paragraph(f"<b>Quote For:</b> {customer_name}", styles['Normal']))
         story.append(Paragraph(f"<b>Quote ID:</b> Q-{quote_id}", styles['Normal']))
@@ -91,7 +113,14 @@ def generate_quote_pdf(quote_context: dict) -> str | None:
         story.append(Paragraph(f"<b>Number of Travelers:</b> {num_travelers}", styles['Normal']))
         story.append(Paragraph(f"<b>Preferred Dates:</b> {inquiry_dates}", styles['Normal']))
         story.append(Spacer(1, 0.2*inch))
-        story.append(Paragraph(f"<b>Estimated Cost:</b> ${total_cost:,.2f}", styles['h3']))
+        
+        # Format total cost properly
+        try:
+            cost_float = float(total_cost) if total_cost else 0.0
+            story.append(Paragraph(f"<b>Estimated Cost:</b> ${cost_float:,.2f}", styles['h3']))
+        except (ValueError, TypeError):
+            story.append(Paragraph(f"<b>Estimated Cost:</b> ${total_cost}", styles['h3']))
+        
         story.append(Spacer(1, 0.5*inch))
         story.append(Paragraph("<i>This is a preliminary quote. A travel specialist will provide a final detailed itinerary and invoice. Prices are subject to change based on availability and final arrangements.</i>", styles['Italic']))
 
