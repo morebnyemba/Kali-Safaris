@@ -25,7 +25,7 @@ class Migration(migrations.Migration):
                 ('traveler_type', models.CharField(choices=[('adult', 'Adult'), ('child', 'Child')], default='adult', max_length=10, verbose_name='Traveler Type')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),
                 ('updated_at', models.DateTimeField(auto_now=True)),
-                ('booking', models.ForeignKey(help_text='The booking this traveler is associated with.', on_delete=django.db.models.deletion.CASCADE, related_name='travelers', to='customer_data.booking')),
+                ('booking', models.ForeignKey(db_index=True, help_text='The booking this traveler is associated with.', on_delete=django.db.models.deletion.CASCADE, related_name='travelers', to='customer_data.booking')),
             ],
             options={
                 'verbose_name': 'Traveler',

@@ -93,7 +93,12 @@ def generate_quote_pdf(quote_context: dict) -> str | None:
         num_children = quote_context.get('num_children', 0)
         num_travelers = quote_context.get('num_travelers')
         if num_travelers is None:
-            num_travelers = int(num_adults) + int(num_children) if num_adults or num_children else 'N/A'
+            try:
+                adults = int(num_adults) if num_adults else 0
+                children = int(num_children) if num_children else 0
+                num_travelers = adults + children if (adults or children) else 'N/A'
+            except (ValueError, TypeError):
+                num_travelers = 'N/A'
         
         total_cost = quote_context.get('total_cost', 0.0)
         
