@@ -1,9 +1,3 @@
-# --- IsStaffOrReadOnly Permission ---
-from rest_framework import viewsets, permissions, status
-from rest_framework.response import Response
-from rest_framework_simplejwt.views import TokenObtainPairView
-from django.shortcuts import get_object_or_404
-from django.http import Http404
 # whatsappcrm_backend/customer_data/views.py
 from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
@@ -159,7 +153,6 @@ class TourInquiryViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
     filterset_fields = ['status', 'customer', 'assigned_agent']
 
-
 # --- Booking Manifest Export View ---
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
@@ -190,4 +183,3 @@ def export_booking_manifest(request):
         )
     
     return export_booking_manifest_pdf(booking_date)
-    search_fields = ['destination', 'tour_type', 'notes']

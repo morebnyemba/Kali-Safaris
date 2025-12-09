@@ -279,11 +279,16 @@ class Booking(models.Model):
             from .reference_generator import generate_booking_reference
             # Keep trying until we get a unique reference
             max_attempts = 10
-            for _ in range(max_attempts):
+            for attempt in range(max_attempts):
                 ref = generate_booking_reference()
                 if not Booking.objects.filter(booking_reference=ref).exists():
                     self.booking_reference = ref
                     break
+            
+            # If we couldn't generate a unique reference after max attempts, raise an error
+            if not self.booking_reference:
+                raise ValueError(f"Failed to generate a unique booking reference after {max_attempts} attempts")
+        
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -466,11 +471,16 @@ class TourInquiry(models.Model):
             from .reference_generator import generate_inquiry_reference
             # Keep trying until we get a unique reference
             max_attempts = 10
-            for _ in range(max_attempts):
+            for attempt in range(max_attempts):
                 ref = generate_inquiry_reference()
                 if not TourInquiry.objects.filter(inquiry_reference=ref).exists():
                     self.inquiry_reference = ref
                     break
+            
+            # If we couldn't generate a unique reference after max attempts, raise an error
+            if not self.inquiry_reference:
+                raise ValueError(f"Failed to generate a unique inquiry reference after {max_attempts} attempts")
+        
         super().save(*args, **kwargs)
 
     def __str__(self):
