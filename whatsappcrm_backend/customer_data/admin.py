@@ -163,12 +163,12 @@ class BookingAdmin(admin.ModelAdmin):
         data = [['Name', 'Booking Ref', 'Tour', 'Tour Date', 'Type', 'Age', 'Nationality', 'Gender', 'ID Number']]
         
         for traveler in travelers:
-            start_date = traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking.start_date else 'N/A'
+            start_date = traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking and traveler.booking.start_date else 'N/A'
             
             data.append([
                 traveler.name,
-                traveler.booking.booking_reference,
-                traveler.booking.tour_name,
+                traveler.booking.booking_reference if traveler.booking else 'N/A',
+                traveler.booking.tour_name if traveler.booking else 'N/A',
                 start_date,
                 traveler.get_traveler_type_display(),
                 str(traveler.age),
