@@ -296,6 +296,56 @@ class Booking(models.Model):
             self.save(update_fields=['amount_paid'])
 
 
+class Traveler(models.Model):
+    """
+    Represents an individual traveler associated with a booking.
+    Stores detailed information for each person traveling on a tour.
+    """
+    class TravelerType(models.TextChoices):
+        ADULT = 'adult', _('Adult')
+        CHILD = 'child', _('Child')
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    booking = models.ForeignKey(
+        Booking,
+        on_delete=models.CASCADE,
+        related_name='travelers',
+        db_index=True,
+        help_text=_("The booking this traveler is associated with.")
+    )
+    
+    # Traveler Details
+    name = models.CharField(_("Full Name"), max_length=255)
+    age = models.PositiveIntegerField(_("Age"))
+    nationality = models.CharField(_("Nationality"), max_length=100)
+    gender = models.CharField(_("Gender"), max_length=20)
+    id_number = models.CharField(_("ID/Passport Number"), max_length=50)
+    medical_dietary_requirements = models.TextField(
+        _("Medical/Dietary Requirements"), 
+        blank=True, 
+        null=True,
+        help_text=_("Any special medical or dietary needs.")
+    )
+    traveler_type = models.CharField(
+        _("Traveler Type"),
+        max_length=10,
+        choices=TravelerType.choices,
+        default=TravelerType.ADULT
+    )
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.name} ({self.traveler_type}) - {self.booking.booking_reference}"
+
+    class Meta:
+        verbose_name = _("Traveler")
+        verbose_name_plural = _("Travelers")
+        ordering = ['booking', 'traveler_type', 'name']
+
+
 class Payment(models.Model):
     """
     Represents a single payment transaction made towards a booking.

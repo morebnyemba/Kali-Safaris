@@ -161,3 +161,88 @@ def create_placeholder_order(context: dict, params: dict) -> dict:
         logger.error(f"Error creating placeholder booking {order_number}: {e}", exc_info=True)
 
     return context
+
+@register_flow_action('save_travelers_to_booking')
+def save_travelers_to_booking(context: dict, params: dict) -> dict:
+    """
+    Saves traveler details from the context to Traveler model instances
+    associated with a booking.
+    """
+    from customer_data.models import Traveler
+    
+    booking_var = params.get('booking_context_var', 'created_booking')
+    travelers_var = params.get('travelers_context_var', 'travelers_details')
+    
+    booking_data = context.get(booking_var)
+    travelers_details = context.get(travelers_var, [])
+    
+    if not booking_data or 'id' not in booking_data:
+        logger.error(f"save_travelers_to_booking: Booking data not found in context variable '{booking_var}'.")
+        return context
+    
+    if not isinstance(travelers_details, list) or not travelers_details:
+        logger.warning(f"save_travelers_to_booking: No traveler details found in context variable '{travelers_var}'.")
+        return context
+    
+    try:
+        booking = Booking.objects.get(pk=booking_data['id'])
+        
+        # Create Traveler instances for each traveler in the list
+        travelers_created = 0
+        for traveler_data in travelers_details:
+            if not isinstance(traveler_data, dict):
+                continue
+                
+            # Extract traveler information
+            name = traveler_data.get('name', '')
+            age = traveler_data.get('age', 0)
+            nationality = traveler_data.get('nationality', '')
+            gender = traveler_data.get('gender', '')
+            id_number = traveler_data.get('id_number', '')
+            medical = traveler_data.get('medical', '')
+            traveler_type = traveler_data.get('type', 'adult')
+            
+            # Skip if essential fields are missing
+            if not name or age is None or age == '':
+                logger.warning(f"Skipping traveler with incomplete data: {traveler_data}")
+                continue
+            
+            # Validate and convert age to integer
+            try:
+                age_int = int(age)
+                if age_int < 0 or age_int > 150:
+                    logger.warning(f"Skipping traveler {name} with invalid age: {age}")
+                    continue
+            except (ValueError, TypeError):
+                logger.warning(f"Skipping traveler {name} with non-numeric age: {age}")
+                continue
+            
+            # Process medical requirements
+            medical_requirements = ''
+            if medical and isinstance(medical, str):
+                medical_lower = medical.lower()
+                if medical_lower not in ['none', 'no', 'n/a', '']:
+                    medical_requirements = medical
+            
+            # Create Traveler instance
+            Traveler.objects.create(
+                booking=booking,
+                name=name,
+                age=age_int,
+                nationality=nationality,
+                gender=gender,
+                id_number=id_number,
+                medical_dietary_requirements=medical_requirements,
+                traveler_type=traveler_type
+            )
+            travelers_created += 1
+        
+        logger.info(f"Successfully created {travelers_created} traveler records for Booking {booking.booking_reference}.")
+        context['travelers_saved_count'] = travelers_created
+        
+    except Booking.DoesNotExist:
+        logger.error(f"save_travelers_to_booking: Booking with ID {booking_data['id']} not found.")
+    except Exception as e:
+        logger.error(f"Error saving travelers to booking: {e}", exc_info=True)
+    
+    return context
