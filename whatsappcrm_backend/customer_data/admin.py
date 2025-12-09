@@ -1,4 +1,13 @@
 from django.contrib import admin
+from django.http import HttpResponse
+from django.utils import timezone
+from io import BytesIO
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.lib import colors
+from reportlab.lib.units import inch
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
+import csv
 from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry, Traveler
 
 class InteractionInline(admin.TabularInline):
@@ -98,13 +107,14 @@ class BookingAdmin(admin.ModelAdmin):
     """
     Admin interface for the Booking model.
     """
-    list_display = ('booking_reference', 'customer', 'tour_name', 'start_date', 'payment_status', 'total_amount', 'assigned_agent')
+    list_display = ('booking_reference', 'customer', 'tour_name', 'start_date', 'payment_status', 'total_amount', 'assigned_agent', 'get_traveler_count')
     list_filter = ('payment_status', 'source', 'start_date', 'assigned_agent')
     search_fields = ('booking_reference', 'tour_name', 'customer__first_name', 'customer__last_name', 'customer__contact__whatsapp_id')
     autocomplete_fields = ['customer', 'tour', 'assigned_agent']
     list_editable = ('payment_status',)
-    date_hierarchy = 'created_at'
+    date_hierarchy = 'start_date'
     inlines = [TravelerInline]
+    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel']
     fieldsets = (
         ('Booking Core Info', {
             'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')
@@ -121,6 +131,126 @@ class BookingAdmin(admin.ModelAdmin):
         }),
     )
     list_select_related = ('customer', 'tour', 'assigned_agent')
+    
+    def get_traveler_count(self, obj):
+        """Display the number of travelers for this booking."""
+        return obj.travelers.count()
+    get_traveler_count.short_description = 'Travelers'
+    
+    def export_booking_travelers_pdf(self, request, queryset):
+        """Export travelers from selected bookings to PDF."""
+        # Get all travelers from selected bookings
+        travelers = Traveler.objects.filter(booking__in=queryset).select_related('booking')
+        
+        # Create the HttpResponse object with PDF headers
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="booking_travelers_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        
+        # Create the PDF object using ReportLab
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        
+        # Container for PDF elements
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        title = Paragraph(f"<b>Traveler Manifest</b><br/>Generated: {timezone.now().strftime('%B %d, %Y at %H:%M')}<br/>Total Bookings: {queryset.count()} | Total Travelers: {travelers.count()}", styles['Heading1'])
+        elements.append(title)
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Prepare data for table
+        data = [['Name', 'Booking Ref', 'Tour', 'Tour Date', 'Type', 'Age', 'Nationality', 'Gender', 'ID Number']]
+        
+        for traveler in travelers:
+            data.append([
+                traveler.name,
+                traveler.booking.booking_reference,
+                traveler.booking.tour_name,
+                traveler.booking.start_date.strftime('%Y-%m-%d'),
+                traveler.get_traveler_type_display(),
+                str(traveler.age),
+                traveler.nationality,
+                traveler.gender,
+                traveler.id_number
+            ])
+        
+        # Create table
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        elements.append(table)
+        
+        # Build PDF
+        doc.build(elements)
+        
+        # Get PDF from buffer and write to response
+        pdf = buffer.getvalue()
+        buffer.close()
+        response.write(pdf)
+        
+        self.message_user(request, f"Successfully exported {travelers.count()} traveler(s) from {queryset.count()} booking(s) to PDF.")
+        return response
+    
+    export_booking_travelers_pdf.short_description = "Export travelers from selected bookings to PDF"
+    
+    def export_booking_travelers_excel(self, request, queryset):
+        """Export travelers from selected bookings to CSV (Excel-compatible)."""
+        # Get all travelers from selected bookings
+        travelers = Traveler.objects.filter(booking__in=queryset).select_related('booking', 'booking__customer')
+        
+        # Create the HttpResponse object with CSV headers
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="booking_travelers_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        
+        # Create CSV writer
+        writer = csv.writer(response)
+        
+        # Write header row
+        writer.writerow([
+            'Name', 'Booking Reference', 'Tour Name', 'Tour Start Date', 'Tour End Date',
+            'Traveler Type', 'Age', 'Nationality', 'Gender', 'ID/Passport Number',
+            'Medical/Dietary Requirements', 'Booking Status', 'Total Amount', 'Customer Name', 'Customer Email'
+        ])
+        
+        # Write data rows
+        for traveler in travelers:
+            customer_name = traveler.booking.customer.get_full_name() if traveler.booking.customer else 'N/A'
+            customer_email = traveler.booking.customer.email if traveler.booking.customer else 'N/A'
+            
+            writer.writerow([
+                traveler.name,
+                traveler.booking.booking_reference,
+                traveler.booking.tour_name,
+                traveler.booking.start_date.strftime('%Y-%m-%d'),
+                traveler.booking.end_date.strftime('%Y-%m-%d'),
+                traveler.get_traveler_type_display(),
+                traveler.age,
+                traveler.nationality,
+                traveler.gender,
+                traveler.id_number,
+                traveler.medical_dietary_requirements or 'None',
+                traveler.booking.get_payment_status_display(),
+                traveler.booking.total_amount,
+                customer_name,
+                customer_email
+            ])
+        
+        self.message_user(request, f"Successfully exported {travelers.count()} traveler(s) from {queryset.count()} booking(s) to CSV/Excel.")
+        return response
+    
+    export_booking_travelers_excel.short_description = "Export travelers from selected bookings to CSV/Excel"
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
@@ -135,11 +265,12 @@ class TravelerAdmin(admin.ModelAdmin):
     """
     Admin interface for the Traveler model.
     """
-    list_display = ('name', 'booking', 'traveler_type', 'age', 'nationality', 'gender')
-    list_filter = ('traveler_type', 'nationality', 'gender')
-    search_fields = ('name', 'id_number', 'booking__booking_reference')
+    list_display = ('name', 'booking', 'traveler_type', 'age', 'nationality', 'gender', 'get_tour_date')
+    list_filter = ('traveler_type', 'nationality', 'gender', 'booking__start_date')
+    search_fields = ('name', 'id_number', 'booking__booking_reference', 'booking__tour_name')
     readonly_fields = ('id', 'created_at', 'updated_at')
     autocomplete_fields = ['booking']
+    actions = ['export_travelers_pdf', 'export_travelers_excel']
     fieldsets = (
         ('Traveler Info', {
             'fields': ('booking', 'name', 'age', 'traveler_type')
@@ -155,6 +286,116 @@ class TravelerAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def get_tour_date(self, obj):
+        """Display the tour start date from the booking."""
+        return obj.booking.start_date if obj.booking else None
+    get_tour_date.short_description = 'Tour Date'
+    get_tour_date.admin_order_field = 'booking__start_date'
+    
+    def export_travelers_pdf(self, request, queryset):
+        """Export selected travelers to PDF."""
+        # Create the HttpResponse object with PDF headers
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="travelers_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.pdf"'
+        
+        # Create the PDF object using ReportLab
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        
+        # Container for PDF elements
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Title
+        title = Paragraph(f"<b>Traveler List Export</b><br/>Generated: {timezone.now().strftime('%B %d, %Y at %H:%M')}", styles['Heading1'])
+        elements.append(title)
+        elements.append(Spacer(1, 0.2*inch))
+        
+        # Prepare data for table
+        data = [['Name', 'Booking Ref', 'Tour', 'Tour Date', 'Type', 'Age', 'Nationality', 'Gender', 'ID Number']]
+        
+        for traveler in queryset.select_related('booking'):
+            data.append([
+                traveler.name,
+                traveler.booking.booking_reference if traveler.booking else 'N/A',
+                traveler.booking.tour_name if traveler.booking else 'N/A',
+                traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking else 'N/A',
+                traveler.get_traveler_type_display(),
+                str(traveler.age),
+                traveler.nationality,
+                traveler.gender,
+                traveler.id_number
+            ])
+        
+        # Create table
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ]))
+        
+        elements.append(table)
+        
+        # Build PDF
+        doc.build(elements)
+        
+        # Get PDF from buffer and write to response
+        pdf = buffer.getvalue()
+        buffer.close()
+        response.write(pdf)
+        
+        self.message_user(request, f"Successfully exported {queryset.count()} traveler(s) to PDF.")
+        return response
+    
+    export_travelers_pdf.short_description = "Export selected travelers to PDF"
+    
+    def export_travelers_excel(self, request, queryset):
+        """Export selected travelers to CSV (Excel-compatible)."""
+        # Create the HttpResponse object with CSV headers
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="travelers_export_{timezone.now().strftime("%Y%m%d_%H%M%S")}.csv"'
+        
+        # Create CSV writer
+        writer = csv.writer(response)
+        
+        # Write header row
+        writer.writerow([
+            'Name', 'Booking Reference', 'Tour Name', 'Tour Start Date', 'Tour End Date',
+            'Traveler Type', 'Age', 'Nationality', 'Gender', 'ID/Passport Number',
+            'Medical/Dietary Requirements', 'Booking Status', 'Total Amount'
+        ])
+        
+        # Write data rows
+        for traveler in queryset.select_related('booking', 'booking__customer'):
+            writer.writerow([
+                traveler.name,
+                traveler.booking.booking_reference if traveler.booking else 'N/A',
+                traveler.booking.tour_name if traveler.booking else 'N/A',
+                traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking else 'N/A',
+                traveler.booking.end_date.strftime('%Y-%m-%d') if traveler.booking else 'N/A',
+                traveler.get_traveler_type_display(),
+                traveler.age,
+                traveler.nationality,
+                traveler.gender,
+                traveler.id_number,
+                traveler.medical_dietary_requirements or 'None',
+                traveler.booking.get_payment_status_display() if traveler.booking else 'N/A',
+                traveler.booking.total_amount if traveler.booking else 'N/A'
+            ])
+        
+        self.message_user(request, f"Successfully exported {queryset.count()} traveler(s) to CSV/Excel.")
+        return response
+    
+    export_travelers_excel.short_description = "Export selected travelers to CSV/Excel"
 
 @admin.register(TourInquiry)
 class TourInquiryAdmin(admin.ModelAdmin):
