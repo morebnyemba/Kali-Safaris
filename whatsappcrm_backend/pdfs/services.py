@@ -124,7 +124,9 @@ def generate_quote_pdf(quote_context: dict) -> str | None:
             cost_float = float(total_cost) if total_cost else 0.0
             story.append(Paragraph(f"<b>Estimated Cost:</b> ${cost_float:,.2f}", styles['h3']))
         except (ValueError, TypeError):
-            story.append(Paragraph(f"<b>Estimated Cost:</b> ${total_cost}", styles['h3']))
+            # Handle non-numeric values safely
+            cost_str = str(total_cost) if total_cost not in [None, ''] else 'N/A'
+            story.append(Paragraph(f"<b>Estimated Cost:</b> ${cost_str}", styles['h3']))
         
         story.append(Spacer(1, 0.5*inch))
         story.append(Paragraph("<i>This is a preliminary quote. A travel specialist will provide a final detailed itinerary and invoice. Prices are subject to change based on availability and final arrangements.</i>", styles['Italic']))

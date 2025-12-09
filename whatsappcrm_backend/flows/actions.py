@@ -203,7 +203,7 @@ def save_travelers_to_booking(context: dict, params: dict) -> dict:
             traveler_type = traveler_data.get('type', 'adult')
             
             # Skip if essential fields are missing
-            if not name or not age:
+            if not name or age is None or age == '':
                 logger.warning(f"Skipping traveler with incomplete data: {traveler_data}")
                 continue
             
@@ -217,6 +217,13 @@ def save_travelers_to_booking(context: dict, params: dict) -> dict:
                 logger.warning(f"Skipping traveler {name} with non-numeric age: {age}")
                 continue
             
+            # Process medical requirements
+            medical_requirements = ''
+            if medical and isinstance(medical, str):
+                medical_lower = medical.lower()
+                if medical_lower not in ['none', 'no', 'n/a', '']:
+                    medical_requirements = medical
+            
             # Create Traveler instance
             Traveler.objects.create(
                 booking=booking,
@@ -225,7 +232,7 @@ def save_travelers_to_booking(context: dict, params: dict) -> dict:
                 nationality=nationality,
                 gender=gender,
                 id_number=id_number,
-                medical_dietary_requirements=medical if medical and medical.lower() not in ['none', 'no', 'n/a'] else '',
+                medical_dietary_requirements=medical_requirements,
                 traveler_type=traveler_type
             )
             travelers_created += 1
