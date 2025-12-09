@@ -533,27 +533,27 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'type': ('adult' if traveler_index <= num_adults|int else 'child')}] }}"
+                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
                     },
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "traveler_index",
-                        "value_template": "{{ traveler_index + 1 }}"
+                        "value_template": "{{ (traveler_index|int) + 1 }}"
                     },
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "adult_index",
-                        "value_template": "{{ adult_index + 1 if traveler_index <= num_adults|int else adult_index }}"
+                        "value_template": "{{ (adult_index|int) + 1 if (traveler_index|int) <= (num_adults|int) else (adult_index|int) }}"
                     },
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "child_index",
-                        "value_template": "{{ child_index + 1 if traveler_index > num_adults|int else child_index }}"
+                        "value_template": "{{ (child_index|int) + 1 if (traveler_index|int) > (num_adults|int) else (child_index|int) }}"
                     }
                 ]
             },
             "transitions": [
-                {"to_step": "query_traveler_details_whatsapp_flow", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers }}"}},
+                {"to_step": "query_traveler_details_whatsapp_flow", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers|int }}"}},
                 {"to_step": "ask_email", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
