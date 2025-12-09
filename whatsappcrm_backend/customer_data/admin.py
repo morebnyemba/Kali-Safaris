@@ -392,18 +392,35 @@ class TravelerAdmin(admin.ModelAdmin):
         writer.writerow([
             'Name', 'Booking Reference', 'Tour Name', 'Tour Start Date', 'Tour End Date',
             'Traveler Type', 'Age', 'Nationality', 'Gender', 'ID/Passport Number',
-            'Medical/Dietary Requirements', 'Booking Status', 'Total Amount'
+            'Medical/Dietary Requirements', 'Booking Status', 'Total Amount', 'Customer Name', 'Customer Email'
         ])
         
         # Write data rows
-        for traveler in queryset.select_related('booking'):
-            start_date = traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking and traveler.booking.start_date else 'N/A'
-            end_date = traveler.booking.end_date.strftime('%Y-%m-%d') if traveler.booking and traveler.booking.end_date else 'N/A'
+        for traveler in queryset.select_related('booking', 'booking__customer'):
+            # Safely access booking and customer data
+            if traveler.booking:
+                customer_name = traveler.booking.customer.get_full_name() if traveler.booking.customer else 'N/A'
+                customer_email = traveler.booking.customer.email if traveler.booking.customer else 'N/A'
+                start_date = traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking.start_date else 'N/A'
+                end_date = traveler.booking.end_date.strftime('%Y-%m-%d') if traveler.booking.end_date else 'N/A'
+                booking_ref = traveler.booking.booking_reference
+                tour_name = traveler.booking.tour_name
+                payment_status = traveler.booking.get_payment_status_display()
+                total_amount = traveler.booking.total_amount
+            else:
+                customer_name = 'N/A'
+                customer_email = 'N/A'
+                start_date = 'N/A'
+                end_date = 'N/A'
+                booking_ref = 'N/A'
+                tour_name = 'N/A'
+                payment_status = 'N/A'
+                total_amount = 'N/A'
             
             writer.writerow([
                 traveler.name,
-                traveler.booking.booking_reference if traveler.booking else 'N/A',
-                traveler.booking.tour_name if traveler.booking else 'N/A',
+                booking_ref,
+                tour_name,
                 start_date,
                 end_date,
                 traveler.get_traveler_type_display(),
@@ -412,8 +429,10 @@ class TravelerAdmin(admin.ModelAdmin):
                 traveler.gender,
                 traveler.id_number,
                 traveler.medical_dietary_requirements or 'None',
-                traveler.booking.get_payment_status_display() if traveler.booking else 'N/A',
-                traveler.booking.total_amount if traveler.booking else 'N/A'
+                payment_status,
+                total_amount,
+                customer_name,
+                customer_email
             ])
         
         self.message_user(request, f"Successfully exported {queryset.count()} traveler(s) to CSV/Excel.")
