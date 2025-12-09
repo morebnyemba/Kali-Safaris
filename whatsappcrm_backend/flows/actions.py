@@ -207,11 +207,21 @@ def save_travelers_to_booking(context: dict, params: dict) -> dict:
                 logger.warning(f"Skipping traveler with incomplete data: {traveler_data}")
                 continue
             
+            # Validate and convert age to integer
+            try:
+                age_int = int(age)
+                if age_int < 0 or age_int > 150:
+                    logger.warning(f"Skipping traveler {name} with invalid age: {age}")
+                    continue
+            except (ValueError, TypeError):
+                logger.warning(f"Skipping traveler {name} with non-numeric age: {age}")
+                continue
+            
             # Create Traveler instance
             Traveler.objects.create(
                 booking=booking,
                 name=name,
-                age=int(age),
+                age=age_int,
                 nationality=nationality,
                 gender=gender,
                 id_number=id_number,
