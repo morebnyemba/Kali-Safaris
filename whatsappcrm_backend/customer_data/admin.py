@@ -228,13 +228,15 @@ class BookingAdmin(admin.ModelAdmin):
         for traveler in travelers:
             customer_name = traveler.booking.customer.get_full_name() if traveler.booking.customer else 'N/A'
             customer_email = traveler.booking.customer.email if traveler.booking.customer else 'N/A'
+            start_date = traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking.start_date else 'N/A'
+            end_date = traveler.booking.end_date.strftime('%Y-%m-%d') if traveler.booking.end_date else 'N/A'
             
             writer.writerow([
                 traveler.name,
                 traveler.booking.booking_reference,
                 traveler.booking.tour_name,
-                traveler.booking.start_date.strftime('%Y-%m-%d'),
-                traveler.booking.end_date.strftime('%Y-%m-%d'),
+                start_date,
+                end_date,
                 traveler.get_traveler_type_display(),
                 traveler.age,
                 traveler.nationality,
@@ -375,13 +377,16 @@ class TravelerAdmin(admin.ModelAdmin):
         ])
         
         # Write data rows
-        for traveler in queryset.select_related('booking', 'booking__customer'):
+        for traveler in queryset.select_related('booking'):
+            start_date = traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking and traveler.booking.start_date else 'N/A'
+            end_date = traveler.booking.end_date.strftime('%Y-%m-%d') if traveler.booking and traveler.booking.end_date else 'N/A'
+            
             writer.writerow([
                 traveler.name,
                 traveler.booking.booking_reference if traveler.booking else 'N/A',
                 traveler.booking.tour_name if traveler.booking else 'N/A',
-                traveler.booking.start_date.strftime('%Y-%m-%d') if traveler.booking else 'N/A',
-                traveler.booking.end_date.strftime('%Y-%m-%d') if traveler.booking else 'N/A',
+                start_date,
+                end_date,
                 traveler.get_traveler_type_display(),
                 traveler.age,
                 traveler.nationality,
