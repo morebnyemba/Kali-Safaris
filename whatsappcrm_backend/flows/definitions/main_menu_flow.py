@@ -17,7 +17,7 @@ MAIN_MENU_FLOW = {
                     "interactive": {
                         "type": "list",
                         "header": {"type": "text", "text": "Kalai Safaris Main Menu"},
-                        "body": {"text": "Welcome to Kalai Safaris! How can we help you plan your next adventure? Please select an option below."},
+                        "body": {"text": "Welcome{% if contact.name %}, {{ contact.name }}{% endif %}! How can we help you plan your next adventure? Please select an option below."},
                         "footer": {"text": "Session expires after 5 mins of inactivity"},
                         "action": {
                             "button": "Select an Option",
