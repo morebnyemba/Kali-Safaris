@@ -17,7 +17,7 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib import colors
 
-from .models import Payment, MemberProfile, Booking, Traveler
+from .models import Payment, Booking, Traveler
 
 logger = logging.getLogger(__name__)
 
@@ -93,128 +93,17 @@ def _draw_pdf_footer(canvas, doc):
 
 def get_giver_name(payment):
     """Helper to get the best available name for a giver."""
-    if payment.member and payment.member.get_full_name():
-        return payment.member.get_full_name()
-    if payment.contact and payment.contact.name:
-        return payment.contact.name
-    if payment.contact:
-        return payment.contact.whatsapp_id
+    # Payment is linked to a booking, which has a customer
+    if payment.booking and payment.booking.customer:
+        customer = payment.booking.customer
+        full_name = customer.get_full_name()
+        if full_name:
+            return full_name
+        elif customer.contact and customer.contact.name:
+            return customer.contact.name
+        elif customer.contact:
+            return customer.contact.whatsapp_id
     return "Anonymous Giver"
-
-# --- Member Export Functions ---
-
-def export_members_to_excel(queryset):
-    """
-    Generates an Excel file with detailed information for the given queryset of MemberProfiles.
-    """
-    response = HttpResponse(
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    )
-    response['Content-Disposition'] = f'attachment; filename="member_details_{timezone.now().strftime("%Y-%m-%d")}.xlsx"'
-
-    workbook = openpyxl.Workbook()
-    sheet = workbook.active
-    sheet.title = 'Member Details'
-
-    # --- Add Title ---
-    church_name = _get_church_name()
-    title_font = Font(bold=True, size=16)
-    sheet.cell(row=1, column=1, value=f"{church_name} - Member Details Report").font = title_font
-    sheet.merge_cells('A1:L1')
-
-    powered_by_font = Font(italic=True, size=9)
-    sheet.cell(row=2, column=1, value="Powered by Slyker Tech Web Services").font = powered_by_font
-    sheet.merge_cells('A2:L2')
-
-    headers = [
-        "First Name", "Last Name", "WhatsApp ID", "Email", "Date of Birth",
-        "Gender", "Marital Status", "Membership Status", "Date Joined",
-        "City", "Country", "Notes"
-    ]
-    bold_font = Font(bold=True)
-    # Start headers from row 4 to leave space for title
-    for col_num, header in enumerate(headers, 1):
-        cell = sheet.cell(row=4, column=col_num, value=header)
-        cell.font = bold_font
-
-    for row_num, member in enumerate(queryset.select_related('contact'), 5):
-        sheet.cell(row=row_num, column=1, value=member.first_name)
-        sheet.cell(row=row_num, column=2, value=member.last_name)
-        sheet.cell(row=row_num, column=3, value=member.contact.whatsapp_id if member.contact else "")
-        sheet.cell(row=row_num, column=4, value=member.email)
-        sheet.cell(row=row_num, column=5, value=member.date_of_birth)
-        sheet.cell(row=row_num, column=6, value=member.get_gender_display())
-        sheet.cell(row=row_num, column=7, value=member.get_marital_status_display())
-        sheet.cell(row=row_num, column=8, value=member.get_membership_status_display())
-        sheet.cell(row=row_num, column=9, value=member.date_joined)
-        sheet.cell(row=row_num, column=10, value=member.city)
-        sheet.cell(row=row_num, column=11, value=member.country)
-        sheet.cell(row=row_num, column=12, value=member.notes)
-
-    _auto_adjust_excel_columns(sheet)
-    workbook.save(response)
-    return response
-
-def export_members_to_pdf(queryset):
-    """
-    Generates a PDF file with a summary of member details for the given queryset.
-    """
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=40)
-    elements = []
-    styles = getSampleStyleSheet()
-
-    church_name = _get_church_name()
-    elements.append(Paragraph(f"{church_name} - Member Details Report", styles['h1']))
-    elements.append(Spacer(1, 6))
-
-    # Add a note that full details are available in the Excel export
-    note_style = styles['Italic']
-    note_style.fontSize = 9
-    elements.append(Paragraph(
-        "<i>Note: This is a summary report. For full details including addresses, notes, and more, please use the 'Export ALL members to Excel' option.</i>",
-        note_style
-    ))
-    elements.append(Spacer(1, 12))
-
-    headers = ["Name", "WhatsApp ID", "Email", "Membership", "DOB", "Gender", "City", "Date Joined"]
-    data = [headers]
-    for member in queryset.select_related('contact'):
-        data.append([
-            member.get_full_name() or "",
-            member.contact.whatsapp_id if member.contact else "",
-            member.email or "",
-            member.get_membership_status_display() or "",
-            member.date_of_birth.strftime("%Y-%m-%d") if member.date_of_birth else "",
-            member.get_gender_display() or "",
-            member.city or "",
-            member.date_joined.strftime("%Y-%m-%d") if member.date_joined else ""
-        ])
-
-    # Define column widths to fit the landscape page (total usable width ~732 points)
-    col_widths = [140, 100, 120, 80, 70, 60, 90, 72]
-    table = Table(data, colWidths=col_widths, hAlign='LEFT')
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F8B3A')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),  # Smaller font to fit more data
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-        ('TOPPADDING', (0, 0), (-1, 0), 10),
-        ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
-        ('TOPPADDING', (0, 1), (-1, -1), 6),
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor('#F0F0F0')),
-        ('GRID', (0, 0), (-1, -1), 1, colors.black),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-    ]))
-    elements.append(table)
-
-    doc.build(elements, onFirstPage=_draw_pdf_footer, onLaterPages=_draw_pdf_footer)
-    buffer.seek(0)
-    response = HttpResponse(buffer, content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="member_details_summary_{timezone.now().strftime("%Y-%m-%d")}.pdf"'
-    return response
 
 # --- Payment Summary Export Functions ---
 
@@ -371,11 +260,14 @@ def export_givers_list_finance_excel(queryset, period_name):
         cell.font = header_font
 
     givers = {}
-    for payment in queryset.select_related('member', 'contact'):
-        contact_id = payment.contact_id
-        if contact_id not in givers:
-            givers[contact_id] = {'name': get_giver_name(payment), 'total': Decimal('0.00')}
-        givers[contact_id]['total'] += payment.amount
+    for payment in queryset.select_related('booking__customer__contact'):
+        # Get customer from booking
+        if not payment.booking or not payment.booking.customer:
+            continue
+        customer_id = payment.booking.customer.contact_id
+        if customer_id not in givers:
+            givers[customer_id] = {'name': get_giver_name(payment), 'total': Decimal('0.00')}
+        givers[customer_id]['total'] += payment.amount
 
     sorted_givers = sorted(givers.values(), key=lambda x: x['name'])
     
@@ -404,11 +296,14 @@ def export_givers_list_finance_pdf(queryset, period_name):
     elements.extend([title, Spacer(1, 24)])
 
     givers = {}
-    for payment in queryset.select_related('member', 'contact'):
-        contact_id = payment.contact_id
-        if contact_id not in givers:
-            givers[contact_id] = {'name': get_giver_name(payment), 'total': Decimal('0.00')}
-        givers[contact_id]['total'] += payment.amount
+    for payment in queryset.select_related('booking__customer__contact'):
+        # Get customer from booking
+        if not payment.booking or not payment.booking.customer:
+            continue
+        customer_id = payment.booking.customer.contact_id
+        if customer_id not in givers:
+            givers[customer_id] = {'name': get_giver_name(payment), 'total': Decimal('0.00')}
+        givers[customer_id]['total'] += payment.amount
 
     sorted_givers = sorted(givers.values(), key=lambda x: x['name'])
 
@@ -465,7 +360,7 @@ def export_givers_list_publication_excel(queryset, period_name):
 
     sheet.cell(row=5, column=1, value="Giver Name").font = header_font
 
-    giver_names = sorted(list(set(get_giver_name(p) for p in queryset.select_related('member', 'contact'))))
+    giver_names = sorted(list(set(get_giver_name(p) for p in queryset.select_related('booking__customer__contact'))))
 
     for row_num, name in enumerate(giver_names, 6):
         sheet.cell(row=row_num, column=1, value=name)
@@ -488,7 +383,7 @@ def export_givers_list_publication_pdf(queryset, period_name):
     subtitle = Paragraph(f"For {period_name.replace('_', ' ').title()}", styles['h2'])
     elements.extend([title, subtitle, Spacer(1, 24)])
 
-    giver_names = sorted(list(set(get_giver_name(p) for p in queryset.select_related('member', 'contact'))))
+    giver_names = sorted(list(set(get_giver_name(p) for p in queryset.select_related('booking__customer__contact'))))
 
     data = [["Giver Name"]] + [[name] for name in giver_names]
 
