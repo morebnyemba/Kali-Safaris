@@ -83,6 +83,7 @@ INSTALLED_APPS = [
     'notifications.apps.NotificationsConfig',
     'customer_data.apps.CustomerDataConfig',
     'ai_integration.apps.AiIntegrationConfig',
+    'pdfs.apps.PdfsConfig',
     
 ]
 INSTALLED_APPS.insert(0, 'email_integration.apps.EmailIntegrationConfig') # Add our new app
