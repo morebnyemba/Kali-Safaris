@@ -29,6 +29,7 @@ pdf2image
 pdfminer.six
 Pillow
 pytesseract
+openpyxl
 
 # --- Admin & Utilities ---
 django-jazzmin
