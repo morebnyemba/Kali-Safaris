@@ -96,8 +96,9 @@ def get_giver_name(payment):
     # Payment is linked to a booking, which has a customer
     if payment.booking and payment.booking.customer:
         customer = payment.booking.customer
-        if customer.full_name:
-            return customer.full_name
+        full_name = customer.get_full_name()
+        if full_name:
+            return full_name
         elif customer.contact and customer.contact.name:
             return customer.contact.name
         elif customer.contact:
