@@ -1,0 +1,61 @@
+# Pinned Dependencies for Kali Safaris WhatsApp CRM Backend
+# Generated: December 2024
+# Python: 3.10+
+
+# --- Core Django & Server ---
+django==4.2.11  # LTS version, security updates until April 2026
+gunicorn==21.2.0
+psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+whitenoise==6.6.0
+
+# --- Django REST Framework & Auth ---
+djangorestframework==3.14.0
+djangorestframework-simplejwt==5.3.1
+django-cors-headers==4.3.1
+drf-nested-routers==0.93.5
+paynow==1.0.7
+
+# --- Celery for Background Tasks ---
+celery==5.3.6
+redis==5.0.1
+django-celery-beat==2.5.0
+django-celery-results==2.5.1
+
+# --- Channels for WebSockets ---
+channels==4.0.0
+channels-redis==4.2.0
+daphne==4.1.0
+
+# --- AI, Document & Image Processing ---
+google-genai==0.3.0
+google-api-core==2.15.0
+pdf2image==1.17.0
+pdfminer.six==20221105
+Pillow==10.2.0
+pytesseract==0.3.10
+openpyxl==3.1.2
+
+# --- Admin & Utilities ---
+django-jazzmin==2.6.0
+django-extensions==3.2.3
+
+# --- API, Monitoring & Other ---
+drf-spectacular==0.27.1
+django-prometheus==2.3.1
+django-csp==3.8
+imapclient==3.0.1
+jinja2==3.1.3
+pydantic==2.6.0
+requests==2.31.0
+reportlab==4.0.9
+
+# Security Notes:
+# - All versions are checked as of December 2024
+# - Django 4.2 is LTS with security support until April 2026
+# - Update regularly and test thoroughly
+# - Check for security advisories: https://www.djangoproject.com/weblog/
+
+# To update to latest compatible versions:
+# pip install -U -r requirements.txt
+# pip freeze > requirements-locked.txt

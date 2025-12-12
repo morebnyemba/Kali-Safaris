@@ -126,5 +126,5 @@ If you discover a security vulnerability:
 
 ---
 
-**Last Updated**: December 2025  
+**Last Updated**: December 2024  
 **Next Review**: Quarterly or after any security incident
