@@ -74,7 +74,6 @@ export default function ConversationView() {
 
   useEffect(() => {
     if (lastJsonMessage) {
-      console.log("Received message:", lastJsonMessage);
       setMessages(prevMessages => {
         const existingMessageIndex = prevMessages.findIndex(msg => msg.id === lastJsonMessage.id);
         if (existingMessageIndex !== -1) {
@@ -99,7 +98,6 @@ export default function ConversationView() {
         setMessages(messagesData.results || []);
       } catch (error) {
         toast.error('Failed to load conversation data.');
-        console.error(error);
       } finally {
         setIsLoading(false);
       }

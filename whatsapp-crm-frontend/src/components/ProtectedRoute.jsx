@@ -23,7 +23,6 @@ export default function ProtectedRoute({ children }) {
   }
 
   if (!isAuthenticated) {
-    console.log("ProtectedRoute: Not authenticated, redirecting to login. From:", location.pathname);
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

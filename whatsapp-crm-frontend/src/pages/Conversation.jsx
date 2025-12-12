@@ -189,8 +189,6 @@ export default function ConversationsPage() {
   }, [accessToken, selectedContact]);
 
   const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket(getSocketUrl, {
-    onOpen: () => console.log(`WebSocket opened for contact ${selectedContact?.id}`),
-    onClose: () => console.log(`WebSocket closed for contact ${selectedContact?.id}`),
     shouldReconnect: (closeEvent) => true,
   });
   
