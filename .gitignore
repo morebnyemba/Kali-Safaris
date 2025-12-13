@@ -1,9 +1,53 @@
+# Python
 *.pyc
+*.pyo
 __pycache__/
-node_modules/
-.vscode/
+*.so
+*.egg
+*.egg-info
+dist/
+build/
+
+# Virtual Environments
 venv/
 env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Environment Variables (NEVER commit these!)
 .env
+.env.local
+.env.*.local
+*.env
+!.env.example
+*.env.prod
+*.env.save*
+.env.mailu
+mailu.env
+
+# Database
 *.sqlite3
 db.sqlite3
+*.db
+
+# Django
+staticfiles/
+mediafiles/
+media/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

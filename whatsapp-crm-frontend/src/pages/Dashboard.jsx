@@ -138,7 +138,6 @@ export default function Dashboard() {
   const { lastJsonMessage, readyState } = useWebSocket(getSocketUrl, { shouldReconnect: () => true });
 
   const handleApiError = useCallback((error) => {
-    console.error("API Error:", error);
     // The global 'auth-error' event listener in AuthContext handles 401 errors,
     // which includes showing a toast and logging the user out. We avoid duplicating that logic here.
     if (error.response && error.response.status === 401) {
@@ -247,7 +246,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (lastJsonMessage) {
       const { type, payload } = lastJsonMessage;
-      console.log("WebSocket message received:", type, payload);
 
       switch (type) {
         case 'stats_update':
@@ -290,7 +288,7 @@ export default function Dashboard() {
           }
           break;
         default:
-          console.warn(`Unhandled WebSocket message type: ${type}`);
+          // Unhandled WebSocket message type
           break;
       }
     }

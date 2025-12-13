@@ -1,10 +1,15 @@
-# Kali Safaris WhatsApp CRM Backend
+# Kali Safaris WhatsApp CRM
 
-This project is the backend for Kali Safaris, a WhatsApp-based Customer Relationship Management (CRM) system designed to manage customer interactions, automate workflows, and integrate with Meta's WhatsApp Business Platform.
+⚠️ **SECURITY NOTICE**: Please read [SECURITY.md](SECURITY.md) before setting up this project. There are important security considerations regarding environment variables and credential management.
 
-## Project Overview
+This project is a WhatsApp-based Customer Relationship Management (CRM) system designed to manage customer interactions, automate workflows, and integrate with Meta's WhatsApp Business Platform.
 
-Kali Safaris CRM streamlines communication with customers through WhatsApp, enabling automated responses, interactive flows, and efficient management of customer data, bookings, and service requests. The system is built with Django, Django Rest Framework, and Celery for asynchronous task processing.
+## Project Structure
+
+- **whatsappcrm_backend/** - Django backend with REST API
+- **whatsapp-crm-frontend/** - React frontend with Vite
+- **public-website/** - Public-facing website
+- **nginx_proxy/** - Nginx reverse proxy configuration
 
 ## Features
 
@@ -15,6 +20,42 @@ Kali Safaris CRM streamlines communication with customers through WhatsApp, enab
 -   **Notification System**: Sends automated WhatsApp notifications to customers and internal teams based on events and flow progress.
 -   **Catalog Integration**: (Planned) Sync products with Meta's Product Catalog for rich product messaging.
 -   **Payment Integration**: (Planned) Integrates with payment gateways for seamless transaction processing.
+
+## Quick Start
+
+### Prerequisites
+
+*   **Python 3.10+**: For running the Django backend
+*   **Node.js 18+**: For running the React frontend
+*   **Redis**: For caching, message queuing, and WebSocket support
+    *   Linux/Mac: Install via package manager (`apt-get install redis-server` or `brew install redis`)
+    *   Windows: Use [Memurai](https://memurai.com/) (Redis-compatible)
+*   **PostgreSQL** (Production) or **SQLite** (Development)
+*   **Git**: For cloning the repository
+
+### Environment Setup
+
+⚠️ **IMPORTANT**: Never commit `.env` files with actual credentials!
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/morebnyemba/Kali-Safaris.git
+   cd Kali-Safaris
+   ```
+
+2. **Set up environment variables**:
+   ```bash
+   # Backend
+   cp whatsappcrm_backend/.env.example whatsappcrm_backend/.env
+   
+   # Frontend
+   cp whatsapp-crm-frontend/.env.example whatsapp-crm-frontend/.env
+   
+   # Docker (if using)
+   cp .env.example .env
+   ```
+
+3. **Edit the `.env` files** with your actual credentials (see comments in .env.example files)
 
 ## Local Setup (without Docker)
 
@@ -29,15 +70,19 @@ This guide details how to set up and run the Kali Safaris backend locally withou
 
 ### Backend Setup
 
-1.  **Clone the repository**:
+1.  **Navigate to backend directory**:
     ```bash
-    git clone <repository_url>
-    cd Kali Safaris/whatsappcrm_backend
+    cd whatsappcrm_backend
     ```
 
 2.  **Create and activate a virtual environment**:
     ```bash
     python -m venv venv
+    
+    # On Linux/Mac
+    source venv/bin/activate
+    
+    # On Windows
     .\venv\Scripts\activate
     ```
 
@@ -46,31 +91,10 @@ This guide details how to set up and run the Kali Safaris backend locally withou
     pip install -r requirements.txt
     ```
 
-4.  **Database Setup (SQLite)**:
-    Ensure `DB_ENGINE` in your `.env` file (or `whatsappcrm_backend/.env`) is set to `django.db.backends.sqlite3` and `DB_NAME` points to a local file (e.g., `db.sqlite3`).
-    ```ini
-    # .env
-    DEBUG=True
-    SECRET_KEY='your-secret-key'
-    # ... other settings ...
-
-    DB_ENGINE=django.db.backends.sqlite3
-    DB_NAME=db.sqlite3
-    
-    # Celery/Redis configuration for Memurai
-    CELERY_BROKER_URL=redis://localhost:6379/0
-    CELERY_RESULT_BACKEND=redis://localhost:6379/0
-    REDIS_URL=redis://localhost:6379/0
-
-    # Meta Integration (replace with your actual values)
-    META_VERIFY_TOKEN="your_meta_verify_token"
-    META_APP_ID="your_meta_app_id"
-    META_APP_SECRET="your_meta_app_secret"
-    META_BUSINESS_ACCOUNT_ID="your_meta_business_account_id"
-    META_ACCESS_TOKEN="your_meta_access_token" # Usually long-lived system user token
-
-    # Optional: For absolute media URLs if needed by Meta Catalog Service
-    BACKEND_DOMAIN_FOR_CSP="localhost:8000" # Or your public domain if exposing locally
+4.  **Configure environment** (if not done in Quick Start):
+    ```bash
+    cp .env.example .env
+    # Edit .env with your actual values
     ```
 
 5.  **Run database migrations**:
@@ -92,21 +116,75 @@ This guide details how to set up and run the Kali Safaris backend locally withou
     ```bash
     python manage.py runserver
     ```
+    Backend will be available at `http://localhost:8000`
 
-9.  **Start Celery worker and beat scheduler**:
-    Open two *separate* terminal windows within your virtual environment:
+9.  **Start Celery worker and beat scheduler** (in separate terminals):
     ```bash
     # Terminal 1: Celery Worker
     celery -A whatsappcrm_backend worker -l info
-    ```
-    ```bash
+    
     # Terminal 2: Celery Beat (Scheduler)
     celery -A whatsappcrm_backend beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
     ```
 
-### Running the Application
+### Frontend Setup
 
-With the Django server, Celery worker, and Celery beat running, the backend is fully operational. You can access the Django Admin at `http://localhost:8000/admin/` and interact with the API endpoints.
+1.  **Navigate to frontend directory**:
+    ```bash
+    cd whatsapp-crm-frontend
+    ```
+
+2.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
+
+3.  **Configure environment** (if not done in Quick Start):
+    ```bash
+    cp .env.example .env
+    # Edit .env with your backend URL
+    ```
+
+4.  **Start development server**:
+    ```bash
+    npm run dev
+    ```
+    Frontend will be available at `http://localhost:5173`
+
+## Docker Setup (Production)
+
+1.  **Configure environment variables**:
+    ```bash
+    cp .env.example .env
+    cp whatsappcrm_backend/.env.example whatsappcrm_backend/.env.prod
+    # Edit both files with your production values
+    ```
+
+2.  **Build and start containers**:
+    ```bash
+    docker-compose up -d
+    ```
+
+3.  **Run initial setup** (first time only):
+    ```bash
+    docker-compose exec backend python manage.py migrate
+    docker-compose exec backend python manage.py createsuperuser
+    docker-compose exec backend python manage.py load_notification_templates
+    docker-compose exec backend python manage.py collectstatic --noinput
+    ```
+
+4.  **Access the application**:
+    - Backend API: Configure via Nginx Proxy Manager (port 81)
+    - Frontend: Configure via Nginx Proxy Manager (port 81)
+    - Admin Interface: `https://your-backend-domain/admin/`
+
+## Running the Application
+
+With the Django server, Celery worker, Celery beat, and frontend running, the application is fully operational.
+
+- **Admin Interface**: `http://localhost:8000/admin/`
+- **Frontend**: `http://localhost:5173`
+- **API Documentation**: `http://localhost:8000/api/schema/swagger-ui/` (if enabled)
 
 ### Meta Integration Setup (Critical for WhatsApp Flows)
 
@@ -163,3 +241,133 @@ The `notifications` app manages sending automated notifications to contacts and 
 -   **`notifications/models.py`**: Defines `NotificationTemplate` for storing reusable message templates.
 -   **`notifications/services.py`**: Provides functions for queuing and sending notifications, often used by flow actions.
 -   **`flows/management/commands/load_notification_templates.py`**: A management command to load and update predefined notification templates into the database.
+
+## Best Practices
+
+### Security
+
+- **Never commit `.env` files** - Always use `.env.example` as templates
+- **Rotate credentials regularly** - Especially after any exposure or team changes
+- **Use strong passwords** - Generate random passwords for databases and services
+- **Enable HTTPS in production** - Use Let's Encrypt for free SSL certificates
+- **Keep dependencies updated** - Regularly update packages to patch security vulnerabilities
+- **Review logs regularly** - Monitor for unauthorized access attempts
+
+### Development
+
+- **Use virtual environments** - Isolate project dependencies
+- **Run linters before committing** - Use ESLint for frontend, flake8/black for backend
+- **Write tests** - Add tests for new features and bug fixes
+- **Document changes** - Keep documentation in sync with code changes
+- **Use meaningful commit messages** - Follow conventional commit format
+
+### Production
+
+- **Set DEBUG=False** - Never run with DEBUG=True in production
+- **Use PostgreSQL** - Don't use SQLite in production
+- **Enable Redis password** - Secure Redis if exposed to network
+- **Configure proper logging** - Use centralized logging for monitoring
+- **Set up backups** - Regular automated backups of database and media files
+- **Monitor performance** - Use tools like django-prometheus for metrics
+
+## Troubleshooting
+
+### Backend Issues
+
+**Database connection errors:**
+```bash
+# Check PostgreSQL is running
+sudo systemctl status postgresql
+
+# Check connection settings in .env
+# Verify DB_HOST, DB_PORT, DB_USER, DB_PASSWORD
+```
+
+**Celery tasks not running:**
+```bash
+# Verify Redis is running
+redis-cli ping  # Should return PONG
+
+# Check Celery worker logs
+celery -A whatsappcrm_backend worker -l debug
+
+# Verify CELERY_BROKER_URL in .env
+```
+
+**Migration errors:**
+```bash
+# Reset migrations (development only!)
+python manage.py migrate --fake-initial
+
+# Or create fresh migrations
+python manage.py makemigrations
+python manage.py migrate
+```
+
+### Frontend Issues
+
+**API connection errors:**
+```bash
+# Verify VITE_API_BASE_URL in whatsapp-crm-frontend/.env
+# Check backend is running and accessible
+# Check CORS settings in backend settings.py
+```
+
+**Build errors:**
+```bash
+# Clear node_modules and reinstall
+rm -rf node_modules package-lock.json
+npm install
+
+# Clear Vite cache
+rm -rf node_modules/.vite
+npm run dev
+```
+
+### Docker Issues
+
+**Container won't start:**
+```bash
+# Check logs
+docker-compose logs backend
+
+# Rebuild containers
+docker-compose down
+docker-compose build --no-cache
+docker-compose up -d
+```
+
+**Permission errors:**
+```bash
+# Fix ownership of volumes
+sudo chown -R $USER:$USER .
+
+# Or reset volumes (will lose data!)
+docker-compose down -v
+docker-compose up -d
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Make your changes
+4. Run tests and linters
+5. Commit your changes (`git commit -m 'Add amazing feature'`)
+6. Push to the branch (`git push origin feature/amazing-feature`)
+7. Open a Pull Request
+
+## License
+
+This project is proprietary. All rights reserved.
+
+## Support
+
+For issues and questions:
+- Check existing documentation in this README
+- Review [SECURITY.md](SECURITY.md) for security-related concerns
+- Contact the development team
+
+---
+
+**Last Updated**: December 2024
