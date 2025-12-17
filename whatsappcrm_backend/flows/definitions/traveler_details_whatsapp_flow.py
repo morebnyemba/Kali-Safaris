@@ -59,7 +59,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                 "children": [
                     {
                         "type": "TextHeading",
-                        "text": "Traveler ${data.traveler_number} of ${data.total_travelers}"
+                        "text": "Traveler Details"
                     },
                     {
                         "type": "TextBody",
