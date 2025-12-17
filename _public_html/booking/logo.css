@@ -1,0 +1,61 @@
+@charset "utf-8";
+/* CSS change color on logo */
+
+ #logs {
+	border-radius:10%;
+  -webkit-animation: background 5s cubic-bezier(1,0,0,1) infinite;
+  animation: background 5s cubic-bezier(1,0,0,1) infinite;  
+}
+
+
+@-webkit-keyframes background {
+	border-radius:80px;
+  0% { background-color:transparent; }
+  33% { background-color:#FF0; }  
+  67% { background-color:transparent; }
+  100% { background-color: #FF0; }
+}
+
+@keyframes background {
+  0% { background-color: transparent;; }
+  33% { background-color: #FF0; }  
+  67% { background-color: transparent;; }
+  100% { background-color: #FF0; }
+}
+.popup-btn{
+    transform: rotate(-90deg);
+	
+	font-size:10px;
+}
+
+	
+	
+	
+	body {
+  
+}
+
+#group {
+  display: inline-flex;
+  padding: 0;
+}
+#group p {
+  padding-right: 5px;
+}
+input {
+  border: none;
+  border-bottom: 1px black solid;
+}
+input[type="number"] {
+  width: 50px;
+}
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
