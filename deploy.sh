@@ -46,8 +46,18 @@ backup_database() {
     TIMESTAMP=$(date +%Y%m%d_%H%M%S)
     BACKUP_FILE="$BACKUP_DIR/backup_$TIMESTAMP.sql"
     
+    # Source environment file to get DB credentials
+    if [ -f "$ENV_FILE" ]; then
+        set -a
+        source "$ENV_FILE"
+        set +a
+    fi
+    
     if docker-compose -f "$DOCKER_COMPOSE_FILE" ps | grep -q "whatsappcrm_db_prod"; then
-        docker-compose -f "$DOCKER_COMPOSE_FILE" exec -T db pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE"
+        docker-compose -f "$DOCKER_COMPOSE_FILE" exec -T db pg_dump -U "$DB_USER" "$DB_NAME" > "$BACKUP_FILE" 2>/dev/null || {
+            log_warn "Database backup failed or database not running"
+            return
+        }
         gzip "$BACKUP_FILE"
         log_info "Database backed up to $BACKUP_FILE.gz"
     else

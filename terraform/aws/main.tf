@@ -23,6 +23,11 @@ provider "aws" {
   region = var.aws_region
 }
 
+# Data Sources
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
 # VPC Configuration
 resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
@@ -49,7 +54,7 @@ resource "aws_internet_gateway" "main" {
 resource "aws_subnet" "public_1" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_1_cidr
-  availability_zone       = "${var.aws_region}a"
+  availability_zone       = data.aws_availability_zones.available.names[0]
   map_public_ip_on_launch = true
 
   tags = {
@@ -61,7 +66,7 @@ resource "aws_subnet" "public_1" {
 resource "aws_subnet" "public_2" {
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnet_2_cidr
-  availability_zone       = "${var.aws_region}b"
+  availability_zone       = data.aws_availability_zones.available.names[1]
   map_public_ip_on_launch = true
 
   tags = {
@@ -335,8 +340,13 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.backend.arn
+    type = "forward"
+    
+    forward {
+      target_group {
+        arn = aws_lb_target_group.backend.arn
+      }
+    }
   }
 }
 
