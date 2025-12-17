@@ -12,7 +12,7 @@ export default function ReservationCTA() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
           <div className="text-center md:text-left">
             <h2 className="text-3xl md:text-4xl font-bold text-white">
-              For A Best Holiday Experience.
+              For a Best Holiday Experience.
             </h2>
           </div>
           <div className="text-center md:text-right">

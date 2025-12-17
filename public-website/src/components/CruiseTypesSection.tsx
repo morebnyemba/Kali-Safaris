@@ -43,7 +43,7 @@ const cruises = [
 export default function CruiseTypesSection() {
   return (
     <>
-      {cruises.map((cruise, index) => (
+      {cruises.map((cruise) => (
         <section 
           key={cruise.id} 
           id={cruise.id} 

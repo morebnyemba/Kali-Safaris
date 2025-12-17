@@ -1,4 +1,4 @@
-import { FaFacebook, FaMapMarkerAlt, FaPhone, FaEnvelope, FaWhatsapp } from "react-icons/fa";
+import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaWhatsapp } from "react-icons/fa";
 
 export default function FooterSection() {
   const currentYear = new Date().getFullYear();
@@ -19,6 +19,7 @@ export default function FooterSection() {
               loading="lazy" 
               referrerPolicy="no-referrer-when-downgrade"
               className="rounded-lg"
+              title="Kalai Safari Location Map"
             />
           </div>
 
@@ -54,6 +55,7 @@ export default function FooterSection() {
               allowFullScreen 
               allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
               className="rounded-lg"
+              title="Kalai Safari Facebook Page"
             />
           </div>
         </div>

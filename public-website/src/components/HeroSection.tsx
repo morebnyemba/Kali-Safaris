@@ -25,20 +25,34 @@ const slides = [
 
 export default function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {
+    if (isPaused) return;
+    
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % slides.length);
     }, 5000);
+    
     return () => clearInterval(timer);
-  }, []);
+  }, [isPaused]);
 
   const nextSlide = () => {
     setCurrentSlide((prev) => (prev + 1) % slides.length);
+    setIsPaused(true);
+    setTimeout(() => setIsPaused(false), 10000); // Resume after 10s
   };
 
   const prevSlide = () => {
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
+    setIsPaused(true);
+    setTimeout(() => setIsPaused(false), 10000); // Resume after 10s
+  };
+
+  const goToSlide = (index: number) => {
+    setCurrentSlide(index);
+    setIsPaused(true);
+    setTimeout(() => setIsPaused(false), 10000); // Resume after 10s
   };
 
   return (
@@ -57,6 +71,7 @@ export default function HeroSection() {
             fill
             className="object-cover"
             priority={index === 0}
+            loading={index === 0 ? undefined : "lazy"}
           />
           <div className="absolute inset-0 bg-black/30" />
           <div className="absolute inset-0 flex items-center justify-center">
@@ -99,7 +114,7 @@ export default function HeroSection() {
         {slides.map((_, index) => (
           <button
             key={index}
-            onClick={() => setCurrentSlide(index)}
+            onClick={() => goToSlide(index)}
             className={`w-3 h-3 rounded-full transition ${
               index === currentSlide ? "bg-white" : "bg-white/50"
             }`}
