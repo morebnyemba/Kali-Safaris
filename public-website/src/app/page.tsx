@@ -1,18 +1,20 @@
-
-
 import HeroSection from "@/components/HeroSection";
-import AdvantagesSection from "@/components/AdvantagesSection";
-import GallerySection from "@/components/GallerySection";
-import CTASection from "@/components/CTASection";
+import BookingCTA from "@/components/BookingCTA";
+import IntroSection from "@/components/IntroSection";
+import CruiseTypesSection from "@/components/CruiseTypesSection";
+import PricingSection from "@/components/PricingSection";
+import ReservationCTA from "@/components/ReservationCTA";
 import FooterSection from "@/components/FooterSection";
 
 export default function Home() {
   return (
-    <div className="flex flex-col min-h-screen bg-zinc-50 dark:bg-black">
+    <div className="flex flex-col min-h-screen">
       <HeroSection />
-      <AdvantagesSection />
-      <GallerySection />
-      <CTASection />
+      <BookingCTA />
+      <IntroSection />
+      <CruiseTypesSection />
+      <PricingSection />
+      <ReservationCTA />
       <FooterSection />
     </div>
   );
