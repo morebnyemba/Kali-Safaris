@@ -10,6 +10,8 @@ This project is a WhatsApp-based Customer Relationship Management (CRM) system d
 - **whatsapp-crm-frontend/** - React frontend with Vite
 - **public-website/** - Public-facing website
 - **nginx_proxy/** - Nginx reverse proxy configuration
+- **terraform/** - Infrastructure as Code for cloud deployment
+- **.github/workflows/** - CI/CD pipeline configuration
 
 ## Features
 
@@ -153,24 +155,31 @@ This guide details how to set up and run the Kali Safaris backend locally withou
 
 ## Docker Setup (Production)
 
+For detailed cloud deployment instructions, see [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md).
+
 1.  **Configure environment variables**:
     ```bash
-    cp .env.example .env
+    cp .env.prod.example .env.prod
     cp whatsappcrm_backend/.env.example whatsappcrm_backend/.env.prod
     # Edit both files with your production values
     ```
 
 2.  **Build and start containers**:
     ```bash
-    docker-compose up -d
+    docker-compose -f docker-compose.prod.yml up -d
+    ```
+    
+    Or use the deployment script:
+    ```bash
+    ./deploy.sh
     ```
 
 3.  **Run initial setup** (first time only):
     ```bash
-    docker-compose exec backend python manage.py migrate
-    docker-compose exec backend python manage.py createsuperuser
-    docker-compose exec backend python manage.py load_notification_templates
-    docker-compose exec backend python manage.py collectstatic --noinput
+    docker-compose -f docker-compose.prod.yml exec backend python manage.py migrate
+    docker-compose -f docker-compose.prod.yml exec backend python manage.py createsuperuser
+    docker-compose -f docker-compose.prod.yml exec backend python manage.py load_notification_templates
+    docker-compose -f docker-compose.prod.yml exec backend python manage.py collectstatic --noinput
     ```
 
 4.  **Access the application**:
@@ -346,6 +355,45 @@ sudo chown -R $USER:$USER .
 docker-compose down -v
 docker-compose up -d
 ```
+
+## Cloud Deployment
+
+The project includes comprehensive cloud deployment support:
+
+### CI/CD Pipeline
+- **GitHub Actions** workflow for automated testing and deployment
+- Automated builds on push to main/develop branches
+- Docker image building and publishing
+- Automated deployments to staging and production
+
+### Infrastructure as Code
+- **Terraform** configurations for AWS deployment
+- Automated provisioning of:
+  - VPC, subnets, and networking
+  - ECS cluster for container orchestration
+  - RDS PostgreSQL database
+  - ElastiCache Redis
+  - Application Load Balancer
+  - ECR for Docker images
+
+### Documentation
+- [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) - Comprehensive cloud deployment guide
+- [terraform/aws/README.md](terraform/aws/README.md) - Terraform usage instructions
+- [deploy.sh](deploy.sh) - Production deployment script
+
+### Quick Cloud Deployment
+```bash
+# Using the deployment script
+./deploy.sh
+
+# Or using Terraform (AWS)
+cd terraform/aws
+terraform init
+terraform plan
+terraform apply
+```
+
+See [CLOUD_DEPLOYMENT.md](CLOUD_DEPLOYMENT.md) for detailed instructions.
 
 ## Contributing
 

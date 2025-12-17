@@ -1,0 +1,28 @@
+# Example terraform.tfvars file
+# Copy this to terraform.tfvars and fill in your values
+
+aws_region     = "us-east-1"
+environment    = "production"
+project_name   = "kalisafaris"
+
+# Network Configuration
+vpc_cidr              = "10.0.0.0/16"
+public_subnet_1_cidr  = "10.0.1.0/24"
+public_subnet_2_cidr  = "10.0.2.0/24"
+
+# Database Configuration
+db_instance_class = "db.t3.micro"  # Change to db.t3.small or larger for production
+db_name          = "kalisafaris_prod"
+db_username      = "kalisafaris_user"
+# db_password is sensitive - set via environment variable:
+# export TF_VAR_db_password="your_secure_password"
+
+# Redis Configuration
+redis_node_type = "cache.t3.micro"  # Change to cache.t3.small or larger for production
+
+# Notes:
+# 1. Never commit this file with actual passwords
+# 2. Use environment variables for sensitive data:
+#    export TF_VAR_db_password="your_password"
+# 3. For production, use larger instance types
+# 4. Consider using AWS Secrets Manager for credentials
