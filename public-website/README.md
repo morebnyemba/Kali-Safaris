@@ -14,7 +14,25 @@ This Next.js application serves as the main public website for Kalai Safaris, fe
 
 The website is deployed using Docker and configured to run behind an Nginx reverse proxy.
 
+### Important Note About Nginx Proxy Manager
+
+This repository includes both:
+1. **Nginx Proxy Manager (NPM)** - A UI-based reverse proxy running on port 81
+2. **nginx_proxy/** - Static nginx configuration files
+
+If you're using Nginx Proxy Manager (recommended for easier SSL management), configure the proxy rules through the NPM web interface at http://your-server:81 instead of editing nginx.conf files directly.
+
 ### SSL Certificate Setup
+
+**Option 1: Using Nginx Proxy Manager (Recommended)**
+
+1. Access NPM UI at http://your-server:81
+2. Add a new Proxy Host for kalaisafaris.com
+3. Point it to `public-website:3000`
+4. Enable SSL with Let's Encrypt through the UI
+5. NPM will automatically handle certificate generation and renewal
+
+**Option 2: Using Certbot with Static Nginx**
 
 Before deploying, ensure SSL certificates are obtained for kalaisafaris.com:
 
@@ -22,6 +40,10 @@ Before deploying, ensure SSL certificates are obtained for kalaisafaris.com:
 # Using certbot with nginx
 certbot certonly --nginx -d kalaisafaris.com -d www.kalaisafaris.com
 ```
+
+**Option 3: HTTP Only (Development/Testing)**
+
+If SSL certificates are not available, you can temporarily comment out the HTTPS server block in `nginx_proxy/nginx.conf` (lines 130-185) and access the site via HTTP only.
 
 ### Docker Deployment
 
