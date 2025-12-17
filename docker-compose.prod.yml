@@ -1,0 +1,199 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: whatsappcrm_db_prod
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kalisafaris_network
+
+  redis:
+    image: redis:7-alpine
+    container_name: whatsappcrm_redis_prod
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data_prod:/data
+    restart: always
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kalisafaris_network
+
+  backend:
+    image: ${DOCKER_USERNAME}/kali-safaris-backend:${IMAGE_TAG:-latest}
+    container_name: whatsappcrm_backend_prod
+    volumes:
+      - staticfiles_volume_prod:/app/staticfiles
+      - media_volume_prod:/app/media
+    env_file:
+      - .env.prod
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/health/\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kalisafaris_network
+
+  frontend:
+    image: ${DOCKER_USERNAME}/kali-safaris-frontend:${IMAGE_TAG:-latest}
+    container_name: whatsappcrm_frontend_prod
+    depends_on:
+      - backend
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:3000/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kalisafaris_network
+
+  celery_io_worker:
+    image: ${DOCKER_USERNAME}/kali-safaris-backend:${IMAGE_TAG:-latest}
+    container_name: whatsappcrm_celery_io_worker_prod
+    command: celery -A whatsappcrm_backend worker -Q celery -l INFO --concurrency=20
+    volumes:
+      - media_volume_prod:/app/media
+    env_file:
+      - .env.prod
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A whatsappcrm_backend inspect ping -d celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kalisafaris_network
+
+  celery_cpu_worker:
+    image: ${DOCKER_USERNAME}/kali-safaris-backend:${IMAGE_TAG:-latest}
+    container_name: whatsappcrm_celery_cpu_worker_prod
+    command: celery -A whatsappcrm_backend worker -Q cpu_heavy -l INFO --concurrency=1
+    volumes:
+      - staticfiles_volume_prod:/app/staticfiles
+      - media_volume_prod:/app/media
+    env_file:
+      - .env.prod
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A whatsappcrm_backend inspect ping -d celery@$$HOSTNAME"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - kalisafaris_network
+
+  celery_beat:
+    image: ${DOCKER_USERNAME}/kali-safaris-backend:${IMAGE_TAG:-latest}
+    container_name: whatsappcrm_celery_beat_prod
+    command: celery -A whatsappcrm_backend beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
+    env_file:
+      - .env.prod
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - kalisafaris_network
+
+  email_idle_fetcher:
+    image: ${DOCKER_USERNAME}/kali-safaris-backend:${IMAGE_TAG:-latest}
+    container_name: whatsappcrm_email_idle_fetcher_prod
+    command: python manage.py idle_email_fetcher
+    env_file:
+      - .env.prod
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: always
+    networks:
+      - kalisafaris_network
+
+  npm:
+    image: 'jc21/nginx-proxy-manager:latest'
+    container_name: whatsappcrm_npm_prod
+    ports:
+      - '80:80'   # Public HTTP Port
+      - '443:443' # Public HTTPS Port
+      - '81:81'   # Admin UI Port
+    volumes:
+      - npm_data_prod:/data
+      - npm_letsencrypt_prod:/etc/letsencrypt
+    depends_on:
+      - backend
+      - frontend
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "wget --spider -q http://localhost:81/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - kalisafaris_network
+
+  public-website:
+    build: ./public-website
+    container_name: public_website_prod
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: always
+    networks:
+      - kalisafaris_network
+
+volumes:
+  postgres_data_prod:
+    driver: local
+  redis_data_prod:
+    driver: local
+  staticfiles_volume_prod:
+    driver: local
+  media_volume_prod:
+    driver: local
+  npm_data_prod:
+    driver: local
+  npm_letsencrypt_prod:
+    driver: local
+
+networks:
+  kalisafaris_network:
+    driver: bridge
