@@ -347,8 +347,8 @@ BOOKING_FLOW = {
                                 "flow_action_payload": {
                                     "screen": "TRAVELER_INFO",
                                     "data": {
-                                        "traveler_number": "{{ traveler_index }}",
-                                        "total_travelers": "{{ num_travelers }}",
+                                        "traveler_number": "",
+                                        "total_travelers": "",
                                         "traveler_name": "",
                                         "traveler_age": "",
                                         "traveler_nationality": "",
