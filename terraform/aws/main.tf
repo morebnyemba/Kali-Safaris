@@ -178,6 +178,8 @@ resource "aws_security_group" "rds" {
 }
 
 # RDS PostgreSQL
+# NOTE: For production, consider using private subnets for the database
+# This requires setting up NAT gateways for internet access from private subnets
 resource "aws_db_subnet_group" "main" {
   name       = "${var.project_name}-db-subnet-group"
   subnet_ids = [aws_subnet.public_1.id, aws_subnet.public_2.id]
@@ -200,6 +202,7 @@ resource "aws_db_instance" "postgres" {
   password               = var.db_password
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
+  publicly_accessible    = false  # Not directly accessible from internet
   skip_final_snapshot    = var.environment == "production" ? false : true
   backup_retention_period = 7
   multi_az               = var.environment == "production" ? true : false
@@ -211,6 +214,8 @@ resource "aws_db_instance" "postgres" {
 }
 
 # ElastiCache Redis
+# NOTE: For production, consider using private subnets for Redis
+# This requires setting up NAT gateways for internet access from private subnets
 resource "aws_elasticache_subnet_group" "main" {
   name       = "${var.project_name}-redis-subnet-group"
   subnet_ids = [aws_subnet.public_1.id, aws_subnet.public_2.id]
