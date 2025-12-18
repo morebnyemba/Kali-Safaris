@@ -1,3 +1,8 @@
+'use client';
+
+import { useState } from "react";
+import BookingModal from "./BookingModal";
+
 const pricingOptions = [
   {
     price: "$15.00",
@@ -27,6 +32,14 @@ const pricingOptions = [
 ];
 
 export default function PricingSection() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedPackage, setSelectedPackage] = useState("");
+
+  const handleBookClick = (packageName: string) => {
+    setSelectedPackage(packageName);
+    setIsModalOpen(true);
+  };
+
   return (
     <section
       className="relative py-20 bg-gradient-to-b from-white via-[#fff7ec] to-white overflow-hidden"
@@ -80,7 +93,9 @@ export default function PricingSection() {
               )}
 
               <div className="relative flex justify-center mt-auto">
-                <button className="w-full rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5">
+                <button 
+                  onClick={() => handleBookClick(`${option.tag} Package - ${option.price}`)}
+                  className="w-full rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5">
                   Book this cruise
                 </button>
               </div>
@@ -95,6 +110,13 @@ export default function PricingSection() {
           </p>
         </div>
       </div>
+
+      {/* Booking Modal */}
+      <BookingModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        cruiseType={selectedPackage}
+      />
     </section>
   );
 }

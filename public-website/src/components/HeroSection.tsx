@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
+import BookingModal from "./BookingModal";
 
 const slides = [
   {
@@ -58,6 +59,7 @@ export default function HeroSection() {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [key, setKey] = useState(0);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     if (isPaused) return;
@@ -130,12 +132,16 @@ export default function HeroSection() {
                     </p>
                   )}
                   <div className="flex justify-center gap-4 md:gap-6 flex-wrap">
-                    <button className="bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black px-6 md:px-8 py-2 md:py-3 rounded-full font-bold transition-all duration-300 hover:shadow-xl transform hover:-translate-y-0.5 text-sm md:text-base">
-                      Explore Now
+                    <button 
+                      onClick={() => setIsModalOpen(true)}
+                      className="bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black px-6 md:px-8 py-2 md:py-3 rounded-full font-bold transition-all duration-300 hover:shadow-xl transform hover:-translate-y-0.5 text-sm md:text-base">
+                      Book Now
                     </button>
-                    <button className="bg-white/20 backdrop-blur-md border border-white/30 hover:bg-white/30 text-white px-6 md:px-8 py-2 md:py-3 rounded-full font-bold transition-all duration-300 hover:shadow-xl transform hover:-translate-y-0.5 text-sm md:text-base">
+                    <a 
+                      href="/#services"
+                      className="bg-white/20 backdrop-blur-md border border-white/30 hover:bg-white/30 text-white px-6 md:px-8 py-2 md:py-3 rounded-full font-bold transition-all duration-300 hover:shadow-xl transform hover:-translate-y-0.5 text-sm md:text-base">
                       Learn More
-                    </button>
+                    </a>
                   </div>
                 </>
               )}
@@ -187,6 +193,13 @@ export default function HeroSection() {
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
         </svg>
       </div>
+
+      {/* Booking Modal */}
+      <BookingModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        cruiseType="Zambezi River Cruise"
+      />
     </section>
   );
 }

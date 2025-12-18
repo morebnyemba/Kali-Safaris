@@ -1,4 +1,8 @@
+'use client';
+
 import Image from "next/image";
+import { useState } from "react";
+import BookingModal from "./BookingModal";
 
 const cruises = [
   {
@@ -45,9 +49,22 @@ const cruises = [
 ];
 
 export default function CruiseTypesSection() {
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCruise, setSelectedCruise] = useState("");
+
+  const handleBookClick = (cruiseTitle: string) => {
+    setSelectedCruise(cruiseTitle);
+    setIsModalOpen(true);
+  };
+
+  const handleAskQuestion = (cruiseTitle: string) => {
+    const message = `*[Message from Kali Safaris Website]*\n\nHi, I would like to ask a question about the ${cruiseTitle}.`;
+    const whatsappUrl = `https://wa.me/263775588884?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   return (
-    <div className="space-y-16">
-      {cruises.map((cruise, idx) => (
+    <div className="space-y-16">{cruises.map((cruise, idx) => (
         <section
           key={cruise.id}
           id={cruise.id}
@@ -88,15 +105,17 @@ export default function CruiseTypesSection() {
               </p>
 
               <div className="relative flex flex-wrap gap-3">
-                <button className="rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black font-semibold px-6 py-3 shadow-lg transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+                <button 
+                  onClick={() => handleBookClick(cruise.title)}
+                  className="rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black font-semibold px-6 py-3 shadow-lg transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-xl">
                   Book this cruise
                 </button>
-                <a
-                  href="/#contact"
+                <button
+                  onClick={() => handleAskQuestion(cruise.title)}
                   className="rounded-full border border-black/10 bg-white/70 backdrop-blur-md text-gray-800 font-semibold px-6 py-3 shadow-sm transition duration-300 hover:border-[#ff9800]/60"
                 >
                   Ask a question
-                </a>
+                </button>
               </div>
             </div>
 
@@ -129,6 +148,13 @@ export default function CruiseTypesSection() {
           </div>
         </section>
       ))}
+
+      {/* Booking Modal */}
+      <BookingModal 
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        cruiseType={selectedCruise}
+      />
     </div>
   );
 }
