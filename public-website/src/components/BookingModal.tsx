@@ -19,7 +19,7 @@ export default function BookingModal({ isOpen, onClose, cruiseType }: BookingMod
     
     const message = `*[Message from Kali Safaris Website]*\n\nHi, I would like to book a ${cruiseType} for ${numberOfPeople} ${numberOfPeople === '1' ? 'person' : 'people'} on ${new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
     
-    const whatsappUrl = `https://wa.me/263775588884?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://wa.me/263712629336?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
     
     onClose();

@@ -59,7 +59,7 @@ export default function CruiseTypesSection() {
 
   const handleAskQuestion = (cruiseTitle: string) => {
     const message = `*[Message from Kali Safaris Website]*\n\nHi, I would like to ask a question about the ${cruiseTitle}.`;
-    const whatsappUrl = `https://wa.me/263775588884?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = `https://wa.me/263712629336?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
 
