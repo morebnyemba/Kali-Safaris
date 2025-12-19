@@ -131,7 +131,7 @@ export default function FooterSection() {
 
       {/* WhatsApp Floating Button */}
       <a
-        href="https://wa.me/263712629336?text=*[Message from Kali Safaris Website]*%0A%0AI'm%20interested%20in%20your%20services%20as%20advertised%20on%20your%20website.%20Please%20tell%20me%20more!"
+        href="https://wa.me/263712629336?text=*[Message from Kalai Safaris Website]*%0A%0AI'm%20interested%20in%20your%20services%20as%20advertised%20on%20your%20website.%20Please%20tell%20me%20more!"
         target="_blank"
         rel="noopener noreferrer"
         className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#128C7E] hover:to-[#075E54] text-white rounded-full p-4 shadow-2xl transition-all duration-300 hover:scale-110 animate-pulse hover:animate-none"
