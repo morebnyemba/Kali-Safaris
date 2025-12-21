@@ -92,7 +92,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                             "text": "Tour {{ tour_index|int + 1 }} of {{ available_tours | length }}"
                         },
                         "body": {
-                            "text": """*{{ available_tours[tour_index|int].name }}*\n\n_{{ (available_tours[tour_index|int].description | striptags | replace('\r\n', '\n') | replace('\r', '\n') | split('.') | slice(0, 2) | join('. ') ) ~ '.' }}_\n\nDuration: {{ available_tours[tour_index|int].duration_value }} {{ available_tours[tour_index|int].duration_unit }}{% if available_tours[tour_index|int].duration_value|int > 1 %}s{% endif %}.\nPrice from: *${{ '%.2f'|format(display_price_per_adult|float) }}*."""
+                            "text": """*{{ available_tours[tour_index|int].name }}*\n\n{{ available_tours[tour_index|int].description | striptags | replace('\r\n', '\n') | replace('\r', '\n') | trim }}\n\nDuration: {{ available_tours[tour_index|int].duration_value }} {{ available_tours[tour_index|int].duration_unit }}{% if available_tours[tour_index|int].duration_value|int > 1 %}s{% endif %}.\nPrice from: *${{ '%.2f'|format(display_price_per_adult|float) }}*."""
                         },
                         "footer": {
                             "text": "Select an option below"
