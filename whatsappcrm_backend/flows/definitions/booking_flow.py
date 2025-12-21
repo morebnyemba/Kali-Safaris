@@ -123,7 +123,7 @@ BOOKING_FLOW = {
                             "name": "flow",
                             "parameters": {
                                 "flow_message_version": "3",
-                                "flow_token": "{{ contact.id }}-booking-{{ 'now'|date:'U' }}",
+                                "flow_token": "{{ contact.id }}-booking-{{ now().timestamp()|int }}",
                                 "flow_id": "{{ date_picker_whatsapp_flow.0.flow_id }}",
                                 "flow_cta": "Select Date",
                                 "flow_action": "navigate",
@@ -281,7 +281,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "total_cost",
-                        "value_template": "{{ (price_per_adult|float * num_adults|int) + (price_per_child|float * num_children|int) }}"
+                        "value_template": "{{ ((price_per_adult|float) * (num_adults|int)) + ((price_per_child|float) * (num_children|int)) }}"
                     }
                 ]
             },
@@ -340,7 +340,7 @@ BOOKING_FLOW = {
                             "name": "flow",
                             "parameters": {
                                 "flow_message_version": "3",
-                                "flow_token": "{{ contact.id }}-traveler-{{ traveler_index }}-{{ 'now'|date:'U' }}",
+                                "flow_token": "{{ contact.id }}-traveler-{{ traveler_index }}-{{ now().timestamp()|int }}",
                                 "flow_id": "{{ traveler_details_whatsapp_flow.0.flow_id }}",
                                 "flow_cta": "Enter Details",
                                 "flow_action": "navigate",
@@ -432,7 +432,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "total_cost",
-                        "value_template": "{{ (seasonal_price.0.price_per_adult * num_adults) + ((seasonal_price.0.price_per_child or seasonal_price.0.price_per_adult) * num_children) }}"
+                        "value_template": "{{ ((seasonal_price.0.price_per_adult|float) * (num_adults|int)) + (((seasonal_price.0.price_per_child or seasonal_price.0.price_per_adult)|float) * (num_children|int)) }}"
                     }
                 ]
             },
@@ -533,7 +533,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
+                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age|string, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
                     },
                     {
                         "action_type": "set_context_variable",
@@ -732,8 +732,8 @@ BOOKING_FLOW = {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
                         "tour_id": "{{ tour_id }}",
-                        "start_date": "{{ start_date }}",
-                        "end_date": "{{ end_date }}",
+                        "start_date": "{{ start_date | parse_date }}",
+                        "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
                         "total_amount": "{{ total_cost }}",
@@ -955,8 +955,8 @@ BOOKING_FLOW = {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
                         "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
-                        "start_date": "{{ start_date }}",
-                        "end_date": "{{ end_date }}",
+                        "start_date": "{{ start_date | parse_date }}",
+                        "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
                         "total_amount": "{{ total_cost }}",
@@ -1004,8 +1004,8 @@ BOOKING_FLOW = {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
                         "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
-                        "start_date": "{{ start_date }}",
-                        "end_date": "{{ end_date }}",
+                        "start_date": "{{ start_date | parse_date }}",
+                        "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
                         "total_amount": "{{ total_cost }}",
