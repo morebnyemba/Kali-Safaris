@@ -713,7 +713,7 @@ BOOKING_FLOW = {
                     "fields_template": {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
-                        "tour_id": "{{ tour_id }}",  # Django accepts tour_id to set the tour ForeignKey
+                        "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
                         "start_date": "{{ start_date }}",
                         "end_date": "{{ end_date }}",
                         "number_of_adults": "{{ num_adults }}",
@@ -777,7 +777,7 @@ BOOKING_FLOW = {
                     "fields_template": {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
-                        "tour_id": "{{ tour_id }}",  # Django accepts tour_id to set the tour ForeignKey
+                        "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
                         "start_date": "{{ start_date }}",
                         "end_date": "{{ end_date }}",
                         "number_of_adults": "{{ num_adults }}",
@@ -826,7 +826,7 @@ BOOKING_FLOW = {
                     "fields_template": {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
-                        "tour_id": "{{ tour_id }}",  # Django accepts tour_id to set the tour ForeignKey
+                        "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
                         "start_date": "{{ start_date }}",
                         "end_date": "{{ end_date }}",
                         "number_of_adults": "{{ num_adults }}",

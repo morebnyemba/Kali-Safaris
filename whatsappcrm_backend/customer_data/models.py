@@ -284,6 +284,8 @@ class Booking(models.Model):
             # If we have a tour and start_date, use shared reference
             # Note: Django automatically creates a tour_id field for ForeignKey relationships.
             # This field stores the primary key (ID) of the related Tour object.
+            # tour_id is accessible even when tour is None (if tour_id was set directly).
+            # This allows checking for tour association before accessing the tour object.
             if self.tour_id and self.start_date:
                 shared_ref = generate_shared_booking_reference(self.tour_id, self.start_date)
                 self.booking_reference = shared_ref

@@ -7,8 +7,11 @@ class Tour(models.Model):
     Represents a tour package offered by the agency.
     This replaces the previous Product model.
     """
-    # Constants for validation
-    HOURS_PER_YEAR = 365 * 24  # 8760 hours
+    # Constants for validation and conversion
+    MINUTES_PER_HOUR = 60
+    HOURS_PER_DAY = 24
+    MINUTES_PER_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR  # 1440
+    HOURS_PER_YEAR = 365 * HOURS_PER_DAY  # 8760 hours
     DAYS_PER_YEAR = 365
     
     class TourCategory(models.TextChoices):
@@ -84,12 +87,11 @@ class Tour(models.Model):
     def get_duration_in_days(self):
         """Returns duration converted to days (for backward compatibility)."""
         if self.duration_unit == self.DurationUnit.MINUTES:
-            # Convert minutes to days (rounded up)
-            minutes_per_day = 24 * 60
-            return max(1, (self.duration_value + minutes_per_day - 1) // minutes_per_day)
+            # Convert minutes to days (rounded up using ceiling division)
+            return max(1, (self.duration_value + self.MINUTES_PER_DAY - 1) // self.MINUTES_PER_DAY)
         elif self.duration_unit == self.DurationUnit.HOURS:
-            # Convert hours to days (rounded up)
-            return max(1, (self.duration_value + 23) // 24)
+            # Convert hours to days (rounded up using ceiling division)
+            return max(1, (self.duration_value + self.HOURS_PER_DAY - 1) // self.HOURS_PER_DAY)
         return self.duration_value
     
     def clean(self):
@@ -97,9 +99,9 @@ class Tour(models.Model):
         if self.duration_value <= 0:
             raise ValidationError({'duration_value': 'Duration value must be greater than 0.'})
         
-        if self.duration_unit == self.DurationUnit.MINUTES and self.duration_value > self.HOURS_PER_YEAR * 60:
+        if self.duration_unit == self.DurationUnit.MINUTES and self.duration_value > self.HOURS_PER_YEAR * self.MINUTES_PER_HOUR:
             raise ValidationError({
-                'duration_value': f'Duration in minutes cannot exceed {self.HOURS_PER_YEAR * 60} (1 year).'
+                'duration_value': f'Duration in minutes cannot exceed {self.HOURS_PER_YEAR * self.MINUTES_PER_HOUR} (1 year).'
             })
         
         if self.duration_unit == self.DurationUnit.HOURS and self.duration_value > self.HOURS_PER_YEAR:
