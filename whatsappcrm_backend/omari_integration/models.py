@@ -1,4 +1,63 @@
 from django.db import models
+from django.core.exceptions import ValidationError
+
+
+class OmariConfig(models.Model):
+    """
+    Stores Omari API configuration credentials in the database.
+    Only one active configuration is allowed at a time.
+    """
+    name = models.CharField(max_length=100, default='Default', help_text="Configuration name for reference")
+    base_url = models.URLField(
+        max_length=500,
+        help_text="Base URL for Omari Merchant API (e.g., https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment)"
+    )
+    merchant_key = models.CharField(
+        max_length=500,
+        help_text="API Key provided by Omari for merchant authentication"
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Only one configuration can be active at a time"
+    )
+    is_production = models.BooleanField(
+        default=False,
+        help_text="Indicates if this configuration is for production or testing"
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        verbose_name = 'Omari Configuration'
+        verbose_name_plural = 'Omari Configurations'
+        ordering = ['-is_active', '-created_at']
+    
+    def __str__(self):
+        status = "Active" if self.is_active else "Inactive"
+        env = "Production" if self.is_production else "UAT/Test"
+        return f"{self.name} ({status}, {env})"
+    
+    def clean(self):
+        """Ensure only one active configuration exists."""
+        if self.is_active:
+            # Check if there's already an active config (excluding self)
+            existing_active = OmariConfig.objects.filter(is_active=True)
+            if self.pk:
+                existing_active = existing_active.exclude(pk=self.pk)
+            
+            if existing_active.exists():
+                raise ValidationError({
+                    'is_active': 'Only one Omari configuration can be active at a time. Please deactivate the current active configuration first.'
+                })
+    
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
+    
+    @classmethod
+    def get_active_config(cls):
+        """Returns the active configuration or None."""
+        return cls.objects.filter(is_active=True).first()
 
 
 class OmariTransaction(models.Model):

@@ -1,7 +1,7 @@
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import requests
 
@@ -27,13 +27,44 @@ class OmariClient:
     4. Optionally call query() to check transaction status
     """
 
-    def __init__(self, config: OmariConfig):
+    def __init__(self, config: Optional[OmariConfig] = None):
+        """
+        Initialize the client with configuration.
+        If no config is provided, attempts to load from database.
+        """
+        if config is None:
+            config = self._load_config_from_db()
+        
+        if config is None:
+            raise ValueError(
+                "No Omari configuration found. Please configure Omari credentials in the admin panel."
+            )
+        
         self.config = config
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
             'X-Merchant-Key': self.config.merchant_key,
         })
+    
+    @staticmethod
+    def _load_config_from_db() -> Optional[OmariConfig]:
+        """Load active Omari configuration from database."""
+        try:
+            from .models import OmariConfig as OmariConfigModel
+            
+            config_model = OmariConfigModel.get_active_config()
+            if config_model:
+                return OmariConfig(
+                    base_url=config_model.base_url,
+                    merchant_key=config_model.merchant_key
+                )
+            else:
+                logger.warning("No active Omari configuration found in database.")
+                return None
+        except Exception as e:
+            logger.error(f"Error loading Omari config from database: {e}", exc_info=True)
+            return None
 
     def auth(self, msisdn: str, reference: str, amount: float, currency: str, channel: str = 'WEB') -> Dict[str, Any]:
         """

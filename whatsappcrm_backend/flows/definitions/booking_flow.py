@@ -686,10 +686,73 @@ BOOKING_FLOW = {
             "transitions": [
                 {"to_step": "set_payment_amount_full", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "pay_full"}},
                 {"to_step": "set_payment_amount_deposit", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "pay_deposit"}},
-                {"to_step": "set_payment_amount_full", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
+                {"to_step": "prepare_omari_payment", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
                 {"to_step": "create_booking_for_manual_payment", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
                 {"to_step": "create_inquiry_record_only", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
             ]
+        },
+        # New step to prepare booking for Omari payment
+        {
+            "name": "prepare_omari_payment",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost }}"}
+                ]
+            },
+            "transitions": [{"to_step": "create_booking_for_omari", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "create_booking_for_omari",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "create_model_instance",
+                    "app_label": "customer_data",
+                    "model_name": "Booking",
+                    "fields_template": {
+                        "customer": "current",
+                        "tour_name": "{{ tour_name }}",
+                        "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
+                        "start_date": "{{ start_date }}",
+                        "end_date": "{{ end_date }}",
+                        "number_of_adults": "{{ num_adults }}",
+                        "number_of_children": "{{ num_children }}",
+                        "total_amount": "{{ total_cost }}",
+                        "payment_status": "pending",
+                        "source": "whatsapp",
+                        "notes": "Booking via WhatsApp. Omari payment selected. Travelers: {{ num_adults }} adults, {{ num_children }} children."
+                    },
+                    "save_to_variable": "created_booking"
+                }]
+            },
+            "transitions": [{"to_step": "save_travelers_to_omari_booking", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "save_travelers_to_omari_booking",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "save_travelers_to_booking",
+                    "params_template": {
+                        "booking_context_var": "created_booking",
+                        "travelers_context_var": "travelers_details"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "switch_to_omari_payment", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "switch_to_omari_payment",
+            "type": "switch_flow",
+            "config": {
+                "target_flow_name": "omari_payment_flow",
+                "initial_context_template": {
+                    "booking_reference": "{{ created_booking.booking_reference }}",
+                    "amount_to_pay": "{{ total_cost }}",
+                    "source_flow": "booking_flow"
+                }
+            }
         },
         {
             "name": "set_payment_amount_full",
@@ -714,7 +777,7 @@ BOOKING_FLOW = {
                     "fields_template": {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
-                        "tour_id": "{{ tour_id }}", # Ensure tour_id is passed from view_tours_flow
+                        "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
                         "start_date": "{{ start_date }}",
                         "end_date": "{{ end_date }}",
                         "number_of_adults": "{{ num_adults }}",
@@ -763,7 +826,7 @@ BOOKING_FLOW = {
                     "fields_template": {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
-                        "tour_id": "{{ tour_id }}", # Ensure tour_id is passed from view_tours_flow
+                        "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
                         "start_date": "{{ start_date }}",
                         "end_date": "{{ end_date }}",
                         "number_of_adults": "{{ num_adults }}",

@@ -228,7 +228,7 @@ class Booking(models.Model):
         MANUAL_ENTRY = 'manual_entry', _('Manual Entry')
         PHONE_CALL = 'phone_call', _('Phone Call')
 
-    booking_reference = models.CharField(_("Booking Reference"), max_length=100, unique=True, db_index=True, blank=True)
+    booking_reference = models.CharField(_("Booking Reference"), max_length=100, db_index=True, blank=True, help_text=_("Shared reference for same tour/date"))
     customer = models.ForeignKey(
         CustomerProfile,
         on_delete=models.SET_NULL,
@@ -274,20 +274,33 @@ class Booking(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
-        """Auto-generate booking_reference if not provided."""
+        """
+        Auto-generate booking_reference if not provided.
+        For tours with a tour_id, uses a shared reference based on tour and date.
+        """
         if not self.booking_reference:
-            from .reference_generator import generate_booking_reference
-            # Keep trying until we get a unique reference
-            max_attempts = 10
-            for attempt in range(max_attempts):
-                ref = generate_booking_reference()
-                if not Booking.objects.filter(booking_reference=ref).exists():
-                    self.booking_reference = ref
-                    break
+            from .reference_generator import generate_booking_reference, generate_shared_booking_reference
             
-            # If we couldn't generate a unique reference after max attempts, raise an error
-            if not self.booking_reference:
-                raise ValueError(f"Failed to generate a unique booking reference after {max_attempts} attempts")
+            # If we have a tour and start_date, use shared reference
+            # Note: Django automatically creates a tour_id field for ForeignKey relationships.
+            # This field stores the primary key (ID) of the related Tour object.
+            # tour_id is accessible even when tour is None (if tour_id was set directly).
+            # This allows checking for tour association before accessing the tour object.
+            if self.tour_id and self.start_date:
+                shared_ref = generate_shared_booking_reference(self.tour_id, self.start_date)
+                self.booking_reference = shared_ref
+            else:
+                # Fall back to unique reference for non-tour bookings or custom bookings
+                max_attempts = 10
+                for attempt in range(max_attempts):
+                    ref = generate_booking_reference()
+                    if not Booking.objects.filter(booking_reference=ref).exists():
+                        self.booking_reference = ref
+                        break
+                
+                # If we couldn't generate a unique reference after max attempts, raise an error
+                if not self.booking_reference:
+                    raise ValueError(f"Failed to generate a unique booking reference after {max_attempts} attempts")
         
         super().save(*args, **kwargs)
 
