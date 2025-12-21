@@ -10,6 +10,20 @@ OMARI_PAYMENT_FLOW = {
         {
             "name": "start_payment",
             "is_entry_point": True,
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    # Check if booking_reference was passed from another flow
+                    {"action_type": "set_context_variable", "variable_name": "has_booking_ref", "value_template": "{% if booking_reference %}true{% else %}false{% endif %}"}
+                ]
+            },
+            "transitions": [
+                {"to_step": "find_booking", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "has_booking_ref", "value": "true"}},
+                {"to_step": "welcome_message", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "welcome_message",
             "type": "send_message",
             "config": {
                 "message_type": "text",
@@ -25,7 +39,7 @@ OMARI_PAYMENT_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Please enter your Booking Reference number (e.g., BK-SLYKER-TECH-20251023)."}
+                    "text": {"body": "Please enter your Booking Reference number (e.g., BK-T001-20251225)."}
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "booking_reference"}
             },

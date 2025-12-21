@@ -3,6 +3,8 @@
 import random
 import string
 from typing import Literal
+from datetime import date
+
 
 def generate_reference_id(prefix: Literal['BK', 'TQ']) -> str:
     """
@@ -31,6 +33,23 @@ def generate_booking_reference() -> str:
         A booking reference string like 'BK12345678'
     """
     return generate_reference_id('BK')
+
+
+def generate_shared_booking_reference(tour_id: int, start_date: date) -> str:
+    """
+    Generates a shared booking reference for a specific tour and date.
+    All travelers on the same tour and date will share this reference.
+    
+    Args:
+        tour_id: The ID of the tour package
+        start_date: The start date of the tour
+    
+    Returns:
+        A booking reference string like 'BK-T001-20231225'
+    """
+    # Format: BK-T{tour_id}-{YYYYMMDD}
+    date_str = start_date.strftime('%Y%m%d')
+    return f"BK-T{tour_id:03d}-{date_str}"
 
 
 def generate_inquiry_reference() -> str:
