@@ -52,7 +52,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "today_date",
-                        "value_template": "{{ 'now' | strftime('%Y-%m-%d') }}"
+                        "value_template": "{{ now().strftime('%Y-%m-%d') }}"
                     },
                     {
                         "action_type": "query_model",
@@ -60,7 +60,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                         "model_name": "SeasonalTourPrice",
                         "variable_name": "current_seasonal_price",
                         "filters_template": {
-                            "tour_id": "{{ available_tours[tour_index].id }}",
+                            "tour_id": "{{ available_tours[tour_index|int].id }}",
                             "start_date__lte": "{{ today_date }}",
                             "end_date__gte": "{{ today_date }}",
                             "is_active": True
@@ -71,7 +71,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "display_price_per_adult",
-                        "value_template": "{{ (current_seasonal_price.0.price_per_adult if current_seasonal_price and current_seasonal_price.0.price_per_adult is not none else available_tours[tour_index].base_price) }}"
+                        "value_template": "{{ (current_seasonal_price.0.price_per_adult if current_seasonal_price and current_seasonal_price.0.price_per_adult is not none else available_tours[tour_index|int].base_price) }}"
                     }
                 ]
             },
@@ -92,7 +92,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                             "text": "Tour {{ tour_index|int + 1 }} of {{ available_tours | length }}"
                         },
                         "body": {
-                            "text": """*{{ available_tours[tour_index].name }}*\n\n_{{ available_tours[tour_index].description | truncatewords(25) }}_\n\nDuration: {{ available_tours[tour_index].duration_value }} {{ available_tours[tour_index].duration_unit }}{% if available_tours[tour_index].duration_value|int > 1 %}s{% endif %}\nPrice from: *${{ '%.2f'|format(display_price_per_adult|float) }}*"""
+                            "text": """*{{ available_tours[tour_index|int].name }}*\n\n_{{ available_tours[tour_index|int].description | truncatewords(25) }}_\n\nDuration: {{ available_tours[tour_index|int].duration_value }} {{ available_tours[tour_index|int].duration_unit }}{% if available_tours[tour_index|int].duration_value|int > 1 %}s{% endif %}\nPrice from: *${{ '%.2f'|format(display_price_per_adult|float) }}*"""
                         },
                         "footer": {
                             "text": "Select an option below"
@@ -147,11 +147,11 @@ VIEW_AVAILABLE_TOURS_FLOW = {
             "config": {
                 "target_flow_name": "booking_flow",
                 "initial_context_template": {
-                    "tour_name": "{{ available_tours[tour_index].name }}",
-                    "tour_id": "{{ available_tours[tour_index].id }}",
-                    "tour_base_price": "{{ available_tours[tour_index].base_price }}",
-                    "tour_duration_value": "{{ available_tours[tour_index].duration_value }}",
-                    "tour_duration_unit": "{{ available_tours[tour_index].duration_unit }}"
+                    "tour_name": "{{ available_tours[tour_index|int].name }}",
+                    "tour_id": "{{ available_tours[tour_index|int].id }}",
+                    "tour_base_price": "{{ available_tours[tour_index|int].base_price }}",
+                    "tour_duration_value": "{{ available_tours[tour_index|int].duration_value }}",
+                    "tour_duration_unit": "{{ available_tours[tour_index|int].duration_unit }}"
                 }
             }
         },
