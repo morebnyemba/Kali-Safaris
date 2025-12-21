@@ -14,7 +14,7 @@ class OmariConfig(models.Model):
     )
     merchant_key = models.CharField(
         max_length=500,
-        help_text="API Key provided by O'mari for merchant authentication"
+        help_text="API Key provided by Omari for merchant authentication"
     )
     is_active = models.BooleanField(
         default=True,

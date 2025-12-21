@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
 Simple test script to verify traveler saving and booking reference generation.
 This script tests the core functionality without requiring database setup.

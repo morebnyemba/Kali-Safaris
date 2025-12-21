@@ -19,7 +19,7 @@ class Migration(migrations.Migration):
                 ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('name', models.CharField(default='Default', help_text='Configuration name for reference', max_length=100)),
                 ('base_url', models.URLField(help_text='Base URL for Omari Merchant API (e.g., https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment)', max_length=500)),
-                ('merchant_key', models.CharField(help_text="API Key provided by O'mari for merchant authentication", max_length=500)),
+                ('merchant_key', models.CharField(help_text="API Key provided by Omari for merchant authentication", max_length=500)),
                 ('is_active', models.BooleanField(default=True, help_text='Only one configuration can be active at a time')),
                 ('is_production', models.BooleanField(default=False, help_text='Indicates if this configuration is for production or testing')),
                 ('created_at', models.DateTimeField(auto_now_add=True)),

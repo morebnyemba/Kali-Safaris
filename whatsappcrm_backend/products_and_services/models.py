@@ -7,6 +7,10 @@ class Tour(models.Model):
     Represents a tour package offered by the agency.
     This replaces the previous Product model.
     """
+    # Constants for validation
+    HOURS_PER_YEAR = 365 * 24  # 8760 hours
+    DAYS_PER_YEAR = 365
+    
     class TourCategory(models.TextChoices):
         SAFARI = 'safari', _('Safari')
         CULTURAL = 'cultural', _('Cultural Tour')
@@ -82,11 +86,15 @@ class Tour(models.Model):
         if self.duration_value <= 0:
             raise ValidationError({'duration_value': 'Duration value must be greater than 0.'})
         
-        if self.duration_unit == self.DurationUnit.HOURS and self.duration_value > 8760:
-            raise ValidationError({'duration_value': 'Duration in hours cannot exceed 8760 (1 year).'})
+        if self.duration_unit == self.DurationUnit.HOURS and self.duration_value > self.HOURS_PER_YEAR:
+            raise ValidationError({
+                'duration_value': f'Duration in hours cannot exceed {self.HOURS_PER_YEAR} (1 year).'
+            })
         
-        if self.duration_unit == self.DurationUnit.DAYS and self.duration_value > 365:
-            raise ValidationError({'duration_value': 'Duration in days cannot exceed 365 (1 year).'})
+        if self.duration_unit == self.DurationUnit.DAYS and self.duration_value > self.DAYS_PER_YEAR:
+            raise ValidationError({
+                'duration_value': f'Duration in days cannot exceed {self.DAYS_PER_YEAR} (1 year).'
+            })
     
     def save(self, *args, **kwargs):
         """Auto-sync duration_days with new duration fields for backward compatibility."""

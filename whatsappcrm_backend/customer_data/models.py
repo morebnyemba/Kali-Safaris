@@ -282,11 +282,12 @@ class Booking(models.Model):
             from .reference_generator import generate_booking_reference, generate_shared_booking_reference
             
             # If we have a tour and start_date, use shared reference
+            # Note: tour_id is auto-created by Django for the tour ForeignKey
             if self.tour_id and self.start_date:
                 shared_ref = generate_shared_booking_reference(self.tour_id, self.start_date)
                 self.booking_reference = shared_ref
             else:
-                # Fall back to unique reference
+                # Fall back to unique reference for non-tour bookings or custom bookings
                 max_attempts = 10
                 for attempt in range(max_attempts):
                     ref = generate_booking_reference()
