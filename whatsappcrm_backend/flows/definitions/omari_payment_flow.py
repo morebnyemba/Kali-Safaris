@@ -13,6 +13,8 @@ OMARI_PAYMENT_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
+                    {"action_type": "verify_omari_user"},
+                    {"action_type": "set_omari_not_eligible_message"},
                     {"action_type": "set_context_variable", "variable_name": "payment_target", "value_template": "{{ payment_target if payment_target else ('booking' if source_flow == 'booking_flow' else '') }}"},
                     # Check if booking_reference or booking_id were passed from another flow
                     {"action_type": "set_context_variable", "variable_name": "has_booking_id", "value_template": "{% if booking_id %}true{% else %}false{% endif %}"},
@@ -36,6 +38,17 @@ OMARI_PAYMENT_FLOW = {
                 {"to_step": "ask_inquiry_reference", "priority": 5, "condition_config": {"type": "variable_equals", "variable_name": "payment_target", "value": "inquiry"}},
                 {"to_step": "ask_payment_target", "priority": 6, "condition_config": {"type": "always_true"}}
             ]
+        },
+        {
+            "name": "omari_not_eligible",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {
+                    "body": "{{ omari_not_eligible_message }}"
+                }
+            },
+            "transitions": [{"to_step": "end_payment_flow", "condition_config": {"type": "always_true"}}]
         },
         {"name": "booking_reference_pending", "type": "send_message", "config": {"message_type": "text", "text": {"body": "We are finalizing your booking details and will share your reference shortly. A consultant will send your payment link once the booking is ready."}}, "transitions": [{"to_step": "end_payment_flow", "condition_config": {"type": "always_true"}}]},
         {

@@ -109,6 +109,26 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
         }]
 
 
+def verify_omari_user_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
+    """
+    Flow action to verify if the current contact is an eligible Omari user.
+    Sets flow_context['is_omari_user'] to True/False. Returns no messages.
+    """
+    handler = get_payment_handler()
+    eligibility = handler.is_omari_user(contact)  # 'true' or 'unknown'
+    flow_context['is_omari_user'] = eligibility
+    return []
+
+def set_omari_not_eligible_message_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
+    """Set a shared message explaining Omari eligibility requirements."""
+    flow_context['omari_not_eligible_message'] = (
+        "Omari payments are available to Omari users only. It looks like your number isn't "
+        "linked to an Omari account. Please choose another payment method (e.g., Ecocash/"
+        "Innbucks via Paynow) or link your Omari account first."
+    )
+    return []
+
+
 def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
     """
     Flow action to process OTP input from customer.
@@ -200,6 +220,8 @@ def register_payment_actions():
     from flows.services import flow_action_registry
     
     flow_action_registry.register('initiate_omari_payment', initiate_omari_payment_action)
+    flow_action_registry.register('verify_omari_user', verify_omari_user_action)
+    flow_action_registry.register('set_omari_not_eligible_message', set_omari_not_eligible_message_action)
     flow_action_registry.register('process_otp', process_otp_action)
     flow_action_registry.register('cancel_payment', cancel_payment_action)
     

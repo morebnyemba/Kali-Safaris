@@ -18,7 +18,7 @@ from django.db import transaction as db_transaction
 
 from conversations.models import Contact, Message
 from customer_data.models import Booking
-from .models import OmariTransaction
+from .models import OmariTransaction, OmariUser
 from .services import OmariClient, OmariConfig
 from django.conf import settings
 
@@ -168,6 +168,17 @@ class WhatsAppPaymentHandler:
                 if not result.get('error') and result.get('responseCode') == '000':
                     txn.status = 'SUCCESS'
                     txn.completed_at = timezone.now()
+                    # Auto-enroll Omari user upon successful payment
+                    try:
+                        OmariUser.objects.update_or_create(
+                            msisdn=msisdn,
+                            defaults={
+                                'is_active': True,
+                                'verified_at': timezone.now()
+                            }
+                        )
+                    except Exception:
+                        logger.warning("Failed to auto-enroll Omari user %s", msisdn)
                     
                     # Update booking
                     if txn.booking:
@@ -276,6 +287,16 @@ class WhatsAppPaymentHandler:
                 digits = '263' + digits
         
         return digits
+
+    def is_omari_user(self, contact: Contact) -> str:
+        """Return 'true' if verified, else 'unknown' to allow API to enforce."""
+        try:
+            msisdn = self._format_msisdn(contact.whatsapp_id)
+            if OmariUser.objects.filter(msisdn=msisdn, is_active=True).exists():
+                return 'true'
+            return 'unknown'
+        except Exception:
+            return 'unknown'
     
     def _get_payment_state(self, contact: Contact) -> Optional[Dict[str, Any]]:
         """Get payment state from contact conversation context."""

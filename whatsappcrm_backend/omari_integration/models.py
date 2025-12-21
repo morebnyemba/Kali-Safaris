@@ -60,6 +60,26 @@ class OmariConfig(models.Model):
         return cls.objects.filter(is_active=True).first()
 
 
+class OmariUser(models.Model):
+    """
+    Represents a verified Omari user by their msisdn.
+    Used to gate Omari payments to eligible users only.
+    """
+    msisdn = models.CharField(max_length=20, unique=True, db_index=True)
+    is_active = models.BooleanField(default=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Omari User'
+        verbose_name_plural = 'Omari Users'
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"OmariUser({self.msisdn}) - {'Active' if self.is_active else 'Inactive'}"
+
+
 class OmariTransaction(models.Model):
     """Tracks Omari payment transactions through the OTP flow."""
 
