@@ -21,7 +21,15 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                         "model_name": "Tour",
                         "variable_name": "available_tours",
                         "filters_template": {"is_active": True},
-                        "fields_to_return": ["id", "name", "base_price", "duration_days", "description"],
+                        "fields_to_return": [
+                            "id",
+                            "name",
+                            "base_price",
+                            "duration_value",
+                            "duration_unit",
+                            "duration_days",
+                            "description"
+                        ],
                         "order_by": ["name"]
                     },
                     {
@@ -49,12 +57,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                             "text": "Tour {{ tour_index|int + 1 }} of {{ available_tours | length }}"
                         },
                         "body": {
-                            "text": """*{{ available_tours[tour_index].name }}*
-                            
-_{{ available_tours[tour_index].description | truncatewords(25) }}_
-                            
-Duration: {{ available_tours[tour_index].duration_days }} days
-Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price|float) }}*"""
+                            "text": """*{{ available_tours[tour_index].name }}*\n\n_{{ available_tours[tour_index].description | truncatewords(25) }}_\n\nDuration: {{ available_tours[tour_index].duration_value }} {{ available_tours[tour_index].duration_unit }}{% if available_tours[tour_index].duration_value|int > 1 %}s{% endif %}\nPrice from: *${{ "%.2f"|format(available_tours[tour_index].base_price|float) }}*"""
                         },
                         "footer": {
                             "text": "Select an option below"
@@ -111,7 +114,9 @@ Price from: *${{ "%.2f"|format(available_tours[tour_index].base_price|float) }}*
                 "initial_context_template": {
                     "tour_name": "{{ available_tours[tour_index].name }}",
                     "tour_id": "{{ available_tours[tour_index].id }}",
-                    "tour_base_price": "{{ available_tours[tour_index].base_price }}"
+                    "tour_base_price": "{{ available_tours[tour_index].base_price }}",
+                    "tour_duration_value": "{{ available_tours[tour_index].duration_value }}",
+                    "tour_duration_unit": "{{ available_tours[tour_index].duration_unit }}"
                 }
             }
         },
