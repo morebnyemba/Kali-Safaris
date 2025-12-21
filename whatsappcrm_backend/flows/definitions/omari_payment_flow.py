@@ -14,7 +14,9 @@ OMARI_PAYMENT_FLOW = {
             "config": {
                 "actions_to_run": [
                     # Check if booking_reference was passed from another flow
-                    {"action_type": "set_context_variable", "variable_name": "has_booking_ref", "value_template": "{% if booking_reference %}true{% else %}false{% endif %}"}
+                    {"action_type": "set_context_variable", "variable_name": "has_booking_ref", "value_template": "{% if booking_reference %}true{% else %}false{% endif %}"},
+                    # Get current contact phone
+                    {"action_type": "set_context_variable", "variable_name": "current_phone", "value_template": "{{ contact.phone_number }}"}
                 ]
             },
             "transitions": [
@@ -134,9 +136,46 @@ How much would you like to pay?"""
             "type": "question",
             "config": {
                 "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "header": {"type": "text", "text": "Mobile Money Account"},
+                        "body": {
+                            "text": "Would you like to use the number you're contacting us with (*{{ current_phone }}*) or a different number for the payment?"
+                        },
+                        "action": {
+                            "buttons": [
+                                {"type": "reply", "reply": {"id": "use_current", "title": "✅ Use Current Number"}},
+                                {"type": "reply", "reply": {"id": "use_different", "title": "🔄 Use Different Number"}}
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "phone_choice"}
+            },
+            "transitions": [
+                {"to_step": "set_current_phone", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "use_current"}},
+                {"to_step": "ask_alternative_phone", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "use_different"}}
+            ]
+        },
+        {
+            "name": "set_current_phone",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "payment_phone", "value_template": "{{ current_phone }}"}
+                ]
+            },
+            "transitions": [{"to_step": "initiate_payment", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "ask_alternative_phone",
+            "type": "question",
+            "config": {
+                "message_config": {
                     "message_type": "text",
                     "text": {
-                        "body": "Please enter your mobile number in the format *2637XXXXXXXX* (the number registered with your mobile money account)."
+                        "body": "Please enter your mobile money account number in the format *2637XXXXXXXX* (the number registered with your Ecocash, OneMoney, or ZimSwitch account)."
                     }
                 },
                 "reply_config": {
