@@ -40,8 +40,43 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                 ]
             },
             "transitions": [
-                {"to_step": "display_single_tour", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "available_tours.0"}},
+                {"to_step": "resolve_tour_price", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "available_tours.0"}},
                 {"to_step": "no_tours_available", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "resolve_tour_price",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "today_date",
+                        "value_template": "{{ 'now' | strftime('%Y-%m-%d') }}"
+                    },
+                    {
+                        "action_type": "query_model",
+                        "app_label": "products_and_services",
+                        "model_name": "SeasonalTourPrice",
+                        "variable_name": "current_seasonal_price",
+                        "filters_template": {
+                            "tour_id": "{{ available_tours[tour_index].id }}",
+                            "start_date__lte": "{{ today_date }}",
+                            "end_date__gte": "{{ today_date }}",
+                            "is_active": True
+                        },
+                        "fields_to_return": ["price_per_adult", "price_per_child"],
+                        "limit": 1
+                    },
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "display_price_per_adult",
+                        "value_template": "{{ (current_seasonal_price.0.price_per_adult if current_seasonal_price and current_seasonal_price.0.price_per_adult is not none else available_tours[tour_index].base_price) }}"
+                    }
+                ]
+            },
+            "transitions": [
+                {"to_step": "display_single_tour", "condition_config": {"type": "always_true"}}
             ]
         },
         {
@@ -57,7 +92,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                             "text": "Tour {{ tour_index|int + 1 }} of {{ available_tours | length }}"
                         },
                         "body": {
-                            "text": """*{{ available_tours[tour_index].name }}*\n\n_{{ available_tours[tour_index].description | truncatewords(25) }}_\n\nDuration: {{ available_tours[tour_index].duration_value }} {{ available_tours[tour_index].duration_unit }}{% if available_tours[tour_index].duration_value|int > 1 %}s{% endif %}\nPrice from: *${{ "%.2f"|format(available_tours[tour_index].base_price|float) }}*"""
+                            "text": """*{{ available_tours[tour_index].name }}*\n\n_{{ available_tours[tour_index].description | truncatewords(25) }}_\n\nDuration: {{ available_tours[tour_index].duration_value }} {{ available_tours[tour_index].duration_unit }}{% if available_tours[tour_index].duration_value|int > 1 %}s{% endif %}\nPrice from: *${{ '%.2f'|format(display_price_per_adult|float) }}*"""
                         },
                         "footer": {
                             "text": "Select an option below"
@@ -103,7 +138,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
                 }]
             },
             "transitions": [
-                {"to_step": "display_single_tour", "condition_config": {"type": "always_true"}}
+                {"to_step": "resolve_tour_price", "condition_config": {"type": "always_true"}}
             ]
         },
         {
@@ -124,7 +159,7 @@ VIEW_AVAILABLE_TOURS_FLOW = {
             "name": "switch_to_main_menu",
             "type": "switch_flow",
             "config": {
-                "target_flow_name": "kalai_safaris_main_menu"
+                "target_flow_name": "main_menu"
             }
         },
         {
