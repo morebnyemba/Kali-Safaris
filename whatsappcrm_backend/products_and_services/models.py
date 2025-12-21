@@ -21,6 +21,7 @@ class Tour(models.Model):
     class DurationUnit(models.TextChoices):
         HOURS = 'hours', _('Hours')
         DAYS = 'days', _('Days')
+        MINUTES = 'minutes', _('Minutes')
 
     name = models.CharField(_("Tour Name"), max_length=255)
     description = models.TextField(_("Description"), blank=True)
@@ -65,18 +66,28 @@ class Tour(models.Model):
     
     def get_duration_display_text(self):
         """Returns a human-readable duration string."""
-        if self.duration_unit == self.DurationUnit.HOURS:
-            if self.duration_value == 1:
+        value = self.duration_value
+        
+        if self.duration_unit == self.DurationUnit.MINUTES:
+            if value == 1:
+                return "1 minute"
+            return f"{value} minutes"
+        elif self.duration_unit == self.DurationUnit.HOURS:
+            if value == 1:
                 return "1 hour"
-            return f"{self.duration_value} hours"
+            return f"{value} hours"
         else:  # DAYS
-            if self.duration_value == 1:
+            if value == 1:
                 return "1 day"
-            return f"{self.duration_value} days"
+            return f"{value} days"
     
     def get_duration_in_days(self):
         """Returns duration converted to days (for backward compatibility)."""
-        if self.duration_unit == self.DurationUnit.HOURS:
+        if self.duration_unit == self.DurationUnit.MINUTES:
+            # Convert minutes to days (rounded up)
+            minutes_per_day = 24 * 60
+            return max(1, (self.duration_value + minutes_per_day - 1) // minutes_per_day)
+        elif self.duration_unit == self.DurationUnit.HOURS:
             # Convert hours to days (rounded up)
             return max(1, (self.duration_value + 23) // 24)
         return self.duration_value
@@ -85,6 +96,11 @@ class Tour(models.Model):
         """Validate duration values."""
         if self.duration_value <= 0:
             raise ValidationError({'duration_value': 'Duration value must be greater than 0.'})
+        
+        if self.duration_unit == self.DurationUnit.MINUTES and self.duration_value > self.HOURS_PER_YEAR * 60:
+            raise ValidationError({
+                'duration_value': f'Duration in minutes cannot exceed {self.HOURS_PER_YEAR * 60} (1 year).'
+            })
         
         if self.duration_unit == self.DurationUnit.HOURS and self.duration_value > self.HOURS_PER_YEAR:
             raise ValidationError({

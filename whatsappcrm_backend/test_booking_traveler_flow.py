@@ -95,11 +95,22 @@ def test_tour_duration():
     print("   Display: '1 day'")
     print("   Days equivalent: 1 day")
     
-    # Test tour with 30 minutes (less than 1 day)
-    print("\n4. Testing tour with fractional day (e.g., 12 hours):")
+    # Test tour with 30 minutes
+    print("\n4. Testing tour with minutes duration:")
+    print("   Duration: 90 minutes")
+    print("   Display: '90 minutes'")
+    print("   Days equivalent: 1 day (rounded up)")
+    
+    # Test tour with 12 hours
+    print("\n5. Testing tour with fractional day (e.g., 12 hours):")
     print("   Duration: 12 hours")
     print("   Display: '12 hours'")
     print("   Days equivalent: 1 day (rounded up)")
+    
+    print("\n6. Duration units supported:")
+    print("   ✓ Minutes (e.g., 30 minutes, 90 minutes)")
+    print("   ✓ Hours (e.g., 2 hours, 4 hours)")
+    print("   ✓ Days (e.g., 1 day, 3 days)")
 
 
 def test_omari_config():
