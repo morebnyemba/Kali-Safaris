@@ -13,25 +13,31 @@ OMARI_PAYMENT_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    # Check if booking_reference was passed from another flow
+                    {"action_type": "set_context_variable", "variable_name": "payment_target", "value_template": "{{ payment_target if payment_target else ('booking' if source_flow == 'booking_flow' else '') }}"},
+                    # Check if booking_reference or booking_id were passed from another flow
+                    {"action_type": "set_context_variable", "variable_name": "has_booking_id", "value_template": "{% if booking_id %}true{% else %}false{% endif %}"},
                     {"action_type": "set_context_variable", "variable_name": "has_booking_ref", "value_template": "{% if booking_reference %}true{% else %}false{% endif %}"},
                     {"action_type": "set_context_variable", "variable_name": "has_inquiry_ref", "value_template": "{% if inquiry_reference %}true{% else %}false{% endif %}"},
                     {"action_type": "set_context_variable", "variable_name": "has_payment_target", "value_template": "{% if payment_target %}true{% else %}false{% endif %}"},
-                    {"action_type": "set_context_variable", "variable_name": "booking_path_ready", "value_template": "{{ 'true' if payment_target == 'booking' and booking_reference else 'false' }}"},
+                    {"action_type": "set_context_variable", "variable_name": "booking_path_ready", "value_template": "{{ 'true' if payment_target == 'booking' and (booking_reference or booking_id) else 'false' }}"},
                     {"action_type": "set_context_variable", "variable_name": "inquiry_path_ready", "value_template": "{{ 'true' if payment_target == 'inquiry' and inquiry_reference else 'false' }}"},
+                    {"action_type": "set_context_variable", "variable_name": "booking_ref_missing_from_booking_flow", "value_template": "{{ 'true' if source_flow == 'booking_flow' and not (booking_reference or booking_id) else 'false' }}"},
                     # Get current contact phone
                     {"action_type": "set_context_variable", "variable_name": "current_phone", "value_template": "{{ contact.phone_number }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_month", "value_template": "{{ now().strftime('%Y-%m') }}"}
                 ]
             },
             "transitions": [
-                {"to_step": "find_booking", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "booking_path_ready", "value": "true"}},
-                {"to_step": "welcome_message", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "payment_target", "value": "booking"}},
-                {"to_step": "find_inquiry", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "inquiry_path_ready", "value": "true"}},
-                {"to_step": "ask_inquiry_reference", "priority": 3, "condition_config": {"type": "variable_equals", "variable_name": "payment_target", "value": "inquiry"}},
-                {"to_step": "ask_payment_target", "priority": 4, "condition_config": {"type": "always_true"}}
+                {"to_step": "find_booking_by_id", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "has_booking_id", "value": "true"}},
+                {"to_step": "find_booking_by_reference", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "has_booking_ref", "value": "true"}},
+                {"to_step": "booking_reference_pending", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "booking_ref_missing_from_booking_flow", "value": "true"}},
+                {"to_step": "welcome_message", "priority": 3, "condition_config": {"type": "variable_equals", "variable_name": "payment_target", "value": "booking"}},
+                {"to_step": "find_inquiry", "priority": 4, "condition_config": {"type": "variable_equals", "variable_name": "inquiry_path_ready", "value": "true"}},
+                {"to_step": "ask_inquiry_reference", "priority": 5, "condition_config": {"type": "variable_equals", "variable_name": "payment_target", "value": "inquiry"}},
+                {"to_step": "ask_payment_target", "priority": 6, "condition_config": {"type": "always_true"}}
             ]
         },
+        {"name": "booking_reference_pending", "type": "send_message", "config": {"message_type": "text", "text": {"body": "We are finalizing your booking details and will share your reference shortly. A consultant will send your payment link once the booking is ready."}}, "transitions": [{"to_step": "end_payment_flow", "condition_config": {"type": "always_true"}}]},
         {
             "name": "ask_payment_target",
             "type": "question",
@@ -90,10 +96,28 @@ OMARI_PAYMENT_FLOW = {
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "booking_reference"}
             },
-            "transitions": [{"to_step": "find_booking", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "find_booking_by_reference", "condition_config": {"type": "always_true"}}]
         },
         {
-            "name": "find_booking",
+            "name": "find_booking_by_id",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "query_model",
+                    "app_label": "customer_data",
+                    "model_name": "Booking",
+                    "variable_name": "found_booking",
+                    "filters_template": {"id": "{{ booking_id }}"},
+                    "fields_to_return": ["id", "booking_reference", "tour_name", "total_amount", "amount_paid", "customer_name", "customer_email"]
+                }]
+            },
+            "transitions": [
+                {"to_step": "prepare_booking_payment_details", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "found_booking.0"}},
+                {"to_step": "handle_booking_not_found", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "find_booking_by_reference",
             "type": "action",
             "config": {
                 "actions_to_run": [{

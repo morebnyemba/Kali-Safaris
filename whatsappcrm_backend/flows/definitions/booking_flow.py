@@ -697,7 +697,8 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost }}"}
+                    {"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_phone", "value_template": "{{ contact.phone_number }}"}
                 ]
             },
             "transitions": [{"to_step": "create_booking_for_omari", "condition_config": {"type": "always_true"}}]
@@ -713,13 +714,14 @@ BOOKING_FLOW = {
                     "fields_template": {
                         "customer": "current",
                         "tour_name": "{{ tour_name }}",
-                        "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
+                        "tour_id": "{{ tour_id }}",
                         "start_date": "{{ start_date }}",
                         "end_date": "{{ end_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
                         "total_amount": "{{ total_cost }}",
                         "payment_status": "pending",
+                        "booking_reference": "PENDING-{{ contact.id }}-{{ now().timestamp() }}",
                         "source": "whatsapp",
                         "notes": "Booking via WhatsApp. Omari payment selected. Travelers: {{ num_adults }} adults, {{ num_children }} children."
                     },
@@ -740,20 +742,178 @@ BOOKING_FLOW = {
                     }
                 }]
             },
-            "transitions": [{"to_step": "switch_to_omari_payment", "condition_config": {"type": "always_true"}}]
+                "transitions": [{"to_step": "omari_ask_payment_channel", "condition_config": {"type": "always_true"}}]
         },
-        {
-            "name": "switch_to_omari_payment",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "omari_payment_flow",
-                "initial_context_template": {
-                    "booking_reference": "{{ created_booking.booking_reference }}",
-                    "amount_to_pay": "{{ total_cost }}",
-                    "source_flow": "booking_flow"
+            {
+                "name": "omari_ask_payment_channel",
+                "type": "question",
+                "config": {
+                    "message_config": {
+                        "message_type": "interactive",
+                        "interactive": {
+                            "type": "button",
+                            "header": {"type": "text", "text": "Select Payment Channel"},
+                            "body": {"text": "You are paying *${{ '%.2f'|format(amount_to_pay|float) }}*. Choose your mobile money provider."},
+                            "action": {
+                                "buttons": [
+                                    {"type": "reply", "reply": {"id": "ecocash", "title": "Ecocash"}},
+                                    {"type": "reply", "reply": {"id": "onemoney", "title": "OneMoney"}},
+                                    {"type": "reply", "reply": {"id": "zipit", "title": "ZimSwitch"}}
+                                ]
+                            }
+                        }
+                    },
+                    "reply_config": {"expected_type": "interactive_id", "save_to_variable": "payment_channel"}
+                },
+                "transitions": [{"to_step": "omari_phone_choice", "condition_config": {"type": "always_true"}}]
+            },
+            {
+                "name": "omari_phone_choice",
+                "type": "question",
+                "config": {
+                    "message_config": {
+                        "message_type": "interactive",
+                        "interactive": {
+                            "type": "button",
+                            "header": {"type": "text", "text": "Mobile Money Number"},
+                            "body": {"text": "Use your current number (*{{ current_phone }}*) or enter a different number (format 2637XXXXXXXX)."},
+                            "action": {
+                                "buttons": [
+                                    {"type": "reply", "reply": {"id": "use_current", "title": "Use Current"}},
+                                    {"type": "reply", "reply": {"id": "use_different", "title": "Use Different"}}
+                                ]
+                            }
+                        }
+                    },
+                    "reply_config": {"expected_type": "interactive_id", "save_to_variable": "phone_choice"}
+                },
+                "transitions": [
+                    {"to_step": "omari_set_current_phone", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "use_current"}},
+                    {"to_step": "omari_ask_alternative_phone", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "use_different"}}
+                ]
+            },
+            {
+                "name": "omari_set_current_phone",
+                "type": "action",
+                "config": {
+                    "actions_to_run": [
+                        {"action_type": "set_context_variable", "variable_name": "payment_phone", "value_template": "{{ current_phone }}"},
+                        {"action_type": "set_context_variable", "variable_name": "payment_booking_reference", "value_template": "{{ created_booking.booking_reference or created_booking.id }}"}
+                    ]
+                },
+                "transitions": [{"to_step": "omari_initiate_payment", "condition_config": {"type": "always_true"}}]
+            },
+            {
+                "name": "omari_ask_alternative_phone",
+                "type": "question",
+                "config": {
+                    "message_config": {
+                        "message_type": "text",
+                        "text": {"body": "Enter the mobile money number to charge (format 2637XXXXXXXX)."}
+                    },
+                    "reply_config": {"expected_type": "text", "save_to_variable": "payment_phone", "validation_regex": "^2637[0-9]{8}$"},
+                    "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid Zimbabwe mobile number starting with 2637 (e.g., 263771234567)."}
+                },
+                "transitions": [{"to_step": "omari_set_payment_reference", "condition_config": {"type": "always_true"}}]
+            },
+            {
+                "name": "omari_set_payment_reference",
+                "type": "action",
+                "config": {
+                    "actions_to_run": [
+                        {"action_type": "set_context_variable", "variable_name": "payment_booking_reference", "value_template": "{{ created_booking.booking_reference or created_booking.id }}"}
+                    ]
+                },
+                "transitions": [{"to_step": "omari_initiate_payment", "condition_config": {"type": "always_true"}}]
+            },
+            {
+                "name": "omari_initiate_payment",
+                "type": "action",
+                "config": {
+                    "actions_to_run": [
+                        {"action_type": "initiate_omari_payment", "booking_reference": "{{ payment_booking_reference }}", "amount": "{{ amount_to_pay }}", "currency": "USD", "channel": "{{ payment_channel|upper }}", "msisdn": "{{ payment_phone }}"}
+                    ]
+                },
+                "transitions": [
+                    {"to_step": "omari_payment_initiated", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "omari_otp_reference"}},
+                    {"to_step": "omari_payment_initiation_failed", "priority": 2, "condition_config": {"type": "always_true"}}
+                ]
+            },
+            {
+                "name": "omari_payment_initiated",
+                "type": "question",
+                "config": {
+                    "message_config": {
+                        "message_type": "text",
+                        "text": {"body": "✅ Payment started! An OTP was sent to *{{ payment_phone }}*. Enter the OTP to confirm, or type *cancel* to abort."}
+                    },
+                    "reply_config": {"expected_type": "text", "save_to_variable": "otp_input"}
+                },
+                "transitions": [
+                    {"to_step": "omari_cancel_payment", "priority": 0, "condition_config": {"type": "text_contains_any", "values": ["cancel", "stop", "quit", "abort"]}},
+                    {"to_step": "omari_process_otp", "priority": 1, "condition_config": {"type": "always_true"}}
+                ]
+            },
+            {
+                "name": "omari_process_otp",
+                "type": "action",
+                "config": {"actions_to_run": [{"action_type": "process_otp", "otp": "{{ otp_input }}"}]},
+                "transitions": [
+                    {"to_step": "omari_finalize_booking", "priority": 0, "condition_config": {"type": "variable_exists", "variable_name": "omari_payment_success"}},
+                    {"to_step": "omari_payment_failed", "priority": 1, "condition_config": {"type": "always_true"}}
+                ]
+            },
+            {
+                "name": "omari_finalize_booking",
+                "type": "action",
+                "config": {
+                    "actions_to_run": [
+                        {
+                            "action_type": "update_model_instance",
+                            "app_label": "customer_data",
+                            "model_name": "Booking",
+                            "instance_id": "{{ created_booking.id }}",
+                            "fields_to_update": {
+                                "booking_reference": "",
+                                "payment_status": "partially_paid",
+                                "amount_paid": "{{ amount_to_pay }}"
+                            },
+                            "save_to_variable": "finalized_booking",
+                            "comment": "Setting booking_reference to empty string triggers auto-generation in Booking.save() method"
+                        }
+                    ]
+                },
+                "transitions": [{"to_step": "omari_payment_success", "condition_config": {"type": "always_true"}}]
+            },
+            {
+                "name": "omari_payment_success",
+                "type": "end_flow",
+                "config": {
+                    "message_config": {"message_type": "text", "text": {"body": "🎉 Payment confirmed!\n\nAmount: *${{ '%.2f'|format(amount_to_pay|float) }}*\n✅ Booking Reference: *{{ finalized_booking.booking_reference }}*\nPayment Ref: *{{ omari_payment_reference }}*\n\nPlease save your booking reference for future use."}}
                 }
-            }
-        },
+            },
+            {
+                "name": "omari_payment_failed",
+                "type": "question",
+                "config": {
+                    "message_config": {"message_type": "text", "text": {"body": "The OTP looks invalid or expired. Enter the OTP again or type *cancel* to abort."}},
+                    "reply_config": {"expected_type": "text", "save_to_variable": "otp_input"}
+                },
+                "transitions": [
+                    {"to_step": "omari_cancel_payment", "priority": 0, "condition_config": {"type": "text_contains_any", "values": ["cancel", "stop", "quit", "abort"]}},
+                    {"to_step": "omari_process_otp", "priority": 1, "condition_config": {"type": "always_true"}}
+                ]
+            },
+            {
+                "name": "omari_cancel_payment",
+                "type": "end_flow",
+                "config": {"message_config": {"message_type": "text", "text": {"body": "Payment canceled. You can restart payment from the menu anytime."}}}
+            },
+            {
+                "name": "omari_payment_initiation_failed",
+                "type": "end_flow",
+                "config": {"message_config": {"message_type": "text", "text": {"body": "We couldn't start the Omari payment. Please try again later or choose another payment method."}}}
+            },
         {
             "name": "set_payment_amount_full",
             "type": "action",
