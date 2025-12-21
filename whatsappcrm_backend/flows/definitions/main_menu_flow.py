@@ -35,6 +35,7 @@ MAIN_MENU_FLOW = {
                                     "title": "Support & Info",
                                     "rows": [
                                         {"id": "faq", "title": "❓ FAQs", "description": "Frequently asked questions about Kalai Safaris."},
+                                        {"id": "omari_payment", "title": "📱 Mobile Payment", "description": "Pay via Ecocash, OneMoney or ZimSwitch."},
                                         {"id": "manual_payment", "title": "💳 Manual Payment", "description": "Pay for your booking via bank transfer or other methods."},
                                         {"id": "contact_support", "title": "🆘 Contact Support", "description": "Get help from our team."},
                                         {"id": "about_kalai", "title": "ℹ️ About Kalai Safaris", "description": "Learn more about us."}
@@ -52,9 +53,10 @@ MAIN_MENU_FLOW = {
                 {"to_step": "switch_to_special_offers_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_offers"}},
                 {"to_step": "switch_to_my_bookings_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_bookings"}},
                 {"to_step": "switch_to_faq_flow", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
-                {"to_step": "switch_to_manual_payment_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_payment"}},
-                {"to_step": "switch_to_contact_support_flow", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "contact_support"}},
-                {"to_step": "show_about_kalai", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_kalai"}}
+                {"to_step": "switch_to_omari_payment_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "omari_payment"}},
+                {"to_step": "switch_to_manual_payment_flow", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_payment"}},
+                {"to_step": "switch_to_contact_support_flow", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "contact_support"}},
+                {"to_step": "show_about_kalai", "priority": 8, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_kalai"}}
             ]
         },
         {
@@ -85,6 +87,12 @@ MAIN_MENU_FLOW = {
             "name": "switch_to_faq_flow",
             "type": "switch_flow",
             "config": {"target_flow_name": "faq_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
+        },
+        {
+            "name": "switch_to_omari_payment_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "omari_payment_flow", "initial_context_template": {"source_flow": "main_menu"}},
             "transitions": []
         },
         {

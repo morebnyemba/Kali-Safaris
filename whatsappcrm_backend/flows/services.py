@@ -1569,7 +1569,20 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
     Determines if the contact is in an active flow or if a new flow should be triggered.
     This function is wrapped in a transaction.atomic decorator.
     """
-
+    
+    # --- Omari Payment OTP Handling ---
+    # Check if contact is awaiting OTP payment input before processing flows
+    # This allows payment flow to intercept messages during payment process
+    try:
+        from omari_integration.message_processor import process_payment_message
+        if process_payment_message(contact, incoming_message_obj):
+            logger.info(f"Message from contact {contact.id} was handled by Omari payment processor")
+            return []  # Message was handled, no further flow processing needed
+    except ImportError:
+        logger.debug("Omari integration not available for payment processing")
+    except Exception as e:
+        logger.error(f"Error in Omari payment message processing: {e}", exc_info=True)
+    
     # --- AI Conversation Mode Handling ---
     # This is a fast path to delegate to the AI handler if the contact is not in a standard flow.
     # It's already efficient and correctly placed.

@@ -1,0 +1,209 @@
+"""
+Basic smoke tests for Omari integration.
+Run with: python manage.py test omari_integration.tests
+"""
+import json
+from unittest.mock import patch, MagicMock
+from django.test import TestCase, Client
+from django.urls import reverse
+from .models import OmariTransaction
+from .services import OmariClient, OmariConfig
+
+
+class OmariClientTests(TestCase):
+    """Test OmariClient methods."""
+
+    def setUp(self):
+        self.config = OmariConfig(
+            base_url='https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment',
+            merchant_key='test-key-123'
+        )
+        self.client = OmariClient(self.config)
+
+    @patch('requests.Session.post')
+    def test_auth_request_format(self, mock_post):
+        """Test auth() sends correct payload and headers."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'error': False,
+            'message': 'Auth Success',
+            'responseCode': '000',
+            'otpReference': 'ETDC'
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        result = self.client.auth(
+            msisdn='263774975187',
+            reference='test-uuid-123',
+            amount=3.50,
+            currency='USD',
+            channel='WEB'
+        )
+
+        # Verify request was made with correct URL and headers
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertIn('/auth', args[0])
+        self.assertEqual(kwargs['json']['msisdn'], '263774975187')
+        self.assertEqual(kwargs['json']['amount'], 3.50)
+        self.assertEqual(kwargs['json']['currency'], 'USD')
+        
+        # Verify response
+        self.assertFalse(result['error'])
+        self.assertEqual(result['responseCode'], '000')
+
+    @patch('requests.Session.post')
+    def test_request_otp_validation(self, mock_post):
+        """Test request() sends OTP correctly."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'error': False,
+            'message': 'Payment Success',
+            'responseCode': '000',
+            'paymentReference': 'H5PSKURANNR1LKS7AJ0KV50KZG',
+            'debitReference': 'bc54b38257cf'
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        result = self.client.request(
+            msisdn='263774975187',
+            reference='test-uuid-123',
+            otp='123456'
+        )
+
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertIn('/request', args[0])
+        self.assertEqual(kwargs['json']['otp'], '123456')
+        self.assertEqual(result['paymentReference'], 'H5PSKURANNR1LKS7AJ0KV50KZG')
+
+    @patch('requests.Session.get')
+    def test_query_transaction(self, mock_get):
+        """Test query() fetches transaction status."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'error': False,
+            'status': 'Success',
+            'responseCode': '000',
+            'reference': 'test-uuid-123',
+            'amount': 3.50
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_get.return_value = mock_response
+
+        result = self.client.query('test-uuid-123')
+
+        mock_get.assert_called_once()
+        args, _ = mock_get.call_args
+        self.assertIn('/query/test-uuid-123', args[0])
+        self.assertEqual(result['status'], 'Success')
+
+
+class OmariViewTests(TestCase):
+    """Test Omari Django views."""
+
+    def setUp(self):
+        self.http_client = Client()
+
+    @patch('omari_integration.views.OmariClient.auth')
+    def test_auth_view_creates_transaction(self, mock_auth):
+        """Test auth view creates database record."""
+        mock_auth.return_value = {
+            'error': False,
+            'message': 'Auth Success',
+            'responseCode': '000',
+            'otpReference': 'ETDC'
+        }
+
+        response = self.http_client.post(
+            reverse('omari_integration:auth'),
+            data=json.dumps({
+                'msisdn': '263774975187',
+                'amount': 3.50,
+                'currency': 'USD'
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data['error'])
+        self.assertIn('reference', data)
+        
+        # Verify transaction was created
+        txn = OmariTransaction.objects.filter(reference=data['reference']).first()
+        self.assertIsNotNone(txn)
+        self.assertEqual(txn.status, 'OTP_SENT')
+        self.assertEqual(txn.otp_reference, 'ETDC')
+
+    @patch('omari_integration.views.OmariClient.request')
+    def test_request_view_updates_transaction(self, mock_request):
+        """Test request view updates transaction on payment completion."""
+        # Create initial transaction
+        txn = OmariTransaction.objects.create(
+            reference='test-uuid-456',
+            msisdn='263774975187',
+            amount=3.50,
+            currency='USD',
+            status='OTP_SENT',
+            otp_reference='ETDC'
+        )
+
+        mock_request.return_value = {
+            'error': False,
+            'message': 'Payment Success',
+            'responseCode': '000',
+            'paymentReference': 'H5PSKURANNR1LKS7AJ0KV50KZG',
+            'debitReference': 'bc54b38257cf'
+        }
+
+        response = self.http_client.post(
+            reverse('omari_integration:request'),
+            data=json.dumps({
+                'msisdn': '263774975187',
+                'reference': 'test-uuid-456',
+                'otp': '123456'
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify transaction was updated
+        txn.refresh_from_db()
+        self.assertEqual(txn.status, 'SUCCESS')
+        self.assertEqual(txn.payment_reference, 'H5PSKURANNR1LKS7AJ0KV50KZG')
+        self.assertIsNotNone(txn.completed_at)
+
+    def test_query_view_returns_status(self):
+        """Test query view endpoint."""
+        # Create transaction
+        txn = OmariTransaction.objects.create(
+            reference='test-uuid-789',
+            msisdn='263774975187',
+            amount=3.50,
+            currency='USD',
+            status='SUCCESS',
+            payment_reference='H5PSKURANNR1LKS7AJ0KV50KZG'
+        )
+
+        with patch('omari_integration.views.OmariClient.query') as mock_query:
+            mock_query.return_value = {
+                'error': False,
+                'status': 'Success',
+                'responseCode': '000',
+                'reference': 'test-uuid-789',
+                'amount': 3.50,
+                'paymentReference': 'H5PSKURANNR1LKS7AJ0KV50KZG'
+            }
+
+            response = self.http_client.get(
+                reverse('omari_integration:query', args=['test-uuid-789'])
+            )
+
+            self.assertEqual(response.status_code, 200)
+            data = response.json()
+            self.assertEqual(data['status'], 'Success')
+            self.assertEqual(data['reference'], 'test-uuid-789')

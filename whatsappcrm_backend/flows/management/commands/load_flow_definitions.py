@@ -13,6 +13,7 @@ from flows.definitions.booking_flow import BOOKING_FLOW
 from flows.definitions.special_offers_flow import SPECIAL_OFFERS_FLOW
 from flows.definitions.my_bookings_flow import MY_BOOKINGS_FLOW
 from flows.definitions.manual_payment_flow import MANUAL_PAYMENT_FLOW
+from flows.definitions.omari_payment_flow import OMARI_PAYMENT_FLOW
 from flows.definitions.custom_tour_confirmation_flow import CUSTOM_TOUR_CONFIRMATION_FLOW
 from flows.definitions.simple_add_order_flow import SIMPLE_ADD_ORDER_FLOW
 
@@ -34,6 +35,7 @@ class Command(BaseCommand):
             SPECIAL_OFFERS_FLOW,
             MY_BOOKINGS_FLOW,
             MANUAL_PAYMENT_FLOW,
+            OMARI_PAYMENT_FLOW,
             CUSTOM_TOUR_CONFIRMATION_FLOW,
             SIMPLE_ADD_ORDER_FLOW,
         ]

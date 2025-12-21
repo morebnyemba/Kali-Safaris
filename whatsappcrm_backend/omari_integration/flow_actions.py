@@ -1,0 +1,206 @@
+"""
+Custom flow actions for Omari payment integration.
+
+Register with: from omari_integration.flow_actions import register_payment_actions
+Then call: register_payment_actions()
+"""
+import logging
+from decimal import Decimal, InvalidOperation
+from typing import List, Dict, Any
+
+from conversations.models import Contact
+from customer_data.models import Booking
+from .whatsapp_handler import get_payment_handler
+
+
+logger = logging.getLogger(__name__)
+
+
+def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
+    """
+    Flow action to initiate Omari payment through WhatsApp.
+    
+    Params expected:
+        - booking_reference: str (required) - Booking reference to pay for
+        - amount: str/float (optional) - Amount to charge, defaults to booking balance
+        - currency: str (optional) - 'USD' or 'ZWG', defaults to 'USD'
+        - channel: str (optional) - 'WEB' or 'POS', defaults to 'WEB'
+    
+    Returns actions to send OTP instructions to customer.
+    """
+    booking_ref = params.get('booking_reference')
+    if not booking_ref:
+        # Try to get from flow context
+        booking_ref = flow_context.get('booking_reference')
+    
+    if not booking_ref:
+        logger.error(f"initiate_omari_payment action: missing booking_reference for contact {contact.id}")
+        return [{
+            'type': 'send_text',
+            'text': '❌ Payment initiation failed: No booking found. Please contact support.'
+        }]
+    
+    # Get booking
+    try:
+        booking = Booking.objects.get(booking_reference=booking_ref)
+    except Booking.DoesNotExist:
+        logger.error(f"Booking {booking_ref} not found for payment initiation")
+        return [{
+            'type': 'send_text',
+            'text': f'❌ Booking {booking_ref} not found. Please verify your booking reference.'
+        }]
+    
+    # Determine amount
+    amount_str = params.get('amount')
+    if amount_str:
+        try:
+            amount = Decimal(str(amount_str))
+        except (InvalidOperation, ValueError, TypeError):
+            logger.error(f"Invalid amount '{amount_str}' for payment")
+            amount = booking.total_amount - booking.amount_paid
+    else:
+        # Default to remaining balance
+        amount = booking.total_amount - booking.amount_paid
+    
+    if amount <= 0:
+        return [{
+            'type': 'send_text',
+            'text': f'✅ Booking {booking_ref} is already paid in full!'
+        }]
+    
+    currency = params.get('currency', 'USD')
+    channel = params.get('channel', 'WEB')
+    
+    # Initiate payment
+    handler = get_payment_handler()
+    result = handler.initiate_payment(
+        contact=contact,
+        booking=booking,
+        amount=amount,
+        currency=currency,
+        channel=channel
+    )
+    
+    if result['success']:
+        otp_ref = result.get('otp_reference', 'N/A')
+        message = (
+            f"💳 *Payment Initiated*\\n\\n"
+            f"Booking: {booking.booking_reference}\\n"
+            f"Amount: {currency} {amount}\\n\\n"
+            f"🔐 *OTP Reference: {otp_ref}*\\n\\n"
+            f"Please check your phone for an OTP code via SMS/Email.\\n"
+            f"Reply with your OTP code to complete the payment."
+        )
+        
+        # Store in context for next step
+        flow_context['_payment_initiated'] = True
+        flow_context['_payment_reference'] = result['reference']
+        
+        return [{
+            'type': 'send_text',
+            'text': message
+        }]
+    else:
+        error_msg = result.get('message', 'Unknown error')
+        logger.error(f"Payment initiation failed for booking {booking_ref}: {error_msg}")
+        return [{
+            'type': 'send_text',
+            'text': f'❌ Payment initiation failed: {error_msg}\\nPlease try again or contact support.'
+        }]
+
+
+def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
+    """
+    Flow action to process OTP input from customer.
+    
+    This should be called when customer sends a message while awaiting OTP.
+    Params expected:
+        - otp: str (required) - The OTP code from user input
+    
+    Returns actions to confirm payment or show error.
+    """
+    otp = params.get('otp')
+    if not otp:
+        # Try to get from flow context (captured from user message)
+        otp = flow_context.get('user_message', '').strip()
+    
+    if not otp:
+        return [{
+            'type': 'send_text',
+            'text': '❌ Please provide your OTP code to complete the payment.'
+        }]
+    
+    handler = get_payment_handler()
+    result = handler.process_otp_input(contact, otp)
+    
+    if result['success']:
+        booking = result.get('booking')
+        payment_ref = result.get('payment_reference', 'N/A')
+        
+        message = (
+            f"✅ *Payment Successful!*\\n\\n"
+            f"Payment Reference: {payment_ref}\\n"
+        )
+        
+        if booking:
+            message += (
+                f"Booking: {booking.booking_reference}\\n"
+                f"Status: {booking.get_payment_status_display()}\\n"
+                f"Amount Paid: {booking.currency if hasattr(booking, 'currency') else 'USD'} {booking.amount_paid}\\n"
+                f"Total: {booking.currency if hasattr(booking, 'currency') else 'USD'} {booking.total_amount}"
+            )
+        
+        message += "\\n\\nThank you for your payment! 🎉"
+        
+        # Clear payment state from context
+        flow_context.pop('_payment_initiated', None)
+        flow_context.pop('_payment_reference', None)
+        
+        return [{
+            'type': 'send_text',
+            'text': message
+        }]
+    else:
+        error_msg = result.get('message', 'Payment processing failed')
+        response_code = result.get('response_code', '')
+        
+        message = f"❌ *Payment Failed*\\n\\n{error_msg}"
+        if response_code and response_code != '000':
+            message += f"\\nError Code: {response_code}"
+        message += "\\n\\nPlease try again or contact support."
+        
+        return [{
+            'type': 'send_text',
+            'text': message
+        }]
+
+
+def cancel_payment_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
+    """
+    Flow action to cancel pending payment.
+    """
+    handler = get_payment_handler()
+    handler.cancel_payment(contact)
+    
+    # Clear from context
+    flow_context.pop('_payment_initiated', None)
+    flow_context.pop('_payment_reference', None)
+    
+    return [{
+        'type': 'send_text',
+        'text': '❌ Payment cancelled. You can initiate a new payment anytime.'
+    }]
+
+
+def register_payment_actions():
+    """
+    Register Omari payment actions with the flow action registry.
+    Call this in apps.py ready() method or at module load.
+    """
+    from flows.services import flow_action_registry
+    
+    flow_action_registry.register('initiate_omari_payment', initiate_omari_payment_action)
+    flow_action_registry.register('process_otp', process_otp_action)
+    flow_action_registry.register('cancel_payment', cancel_payment_action)
+    
+    logger.info("Registered Omari payment flow actions")

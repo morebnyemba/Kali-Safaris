@@ -55,6 +55,9 @@ path('crm-api/customer-data/', include('customer_data.urls', namespace='customer
     # These are helpful for testing your APIs directly in the browser during development.
     # They use SessionAuthentication.
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
+
+    # Omari payments endpoints
+    path('crm-api/payments/omari/', include('omari_integration.urls', namespace='omari_integration')),
 ]
 
 # --- Serve Media Files in Development ---

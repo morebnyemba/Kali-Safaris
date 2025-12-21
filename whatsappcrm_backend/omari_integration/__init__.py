@@ -1,0 +1,1 @@
+"""Omari payment integration app."""
