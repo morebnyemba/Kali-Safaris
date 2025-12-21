@@ -56,11 +56,74 @@ MAIN_MENU_FLOW = {
                 {"to_step": "switch_to_view_tours_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "view_tours"}},
                 {"to_step": "switch_to_special_offers_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_offers"}},
                 {"to_step": "switch_to_my_bookings_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_bookings"}},
-                {"to_step": "show_payment_options", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "payment_options"}},
+                {"to_step": "ask_payment_target", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "payment_options"}},
                 {"to_step": "switch_to_faq_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
                 {"to_step": "switch_to_contact_support_flow", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "contact_support"}},
                 {"to_step": "show_about_kalai", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_kalai"}}
             ]
+        },
+        {
+            "name": "ask_payment_target",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "list",
+                        "header": {"type": "text", "text": "Payment Type"},
+                        "body": {"text": "What would you like to pay for?"},
+                        "action": {
+                            "button": "Select Payment",
+                            "sections": [
+                                {
+                                    "title": "Booking Payments",
+                                    "rows": [
+                                        {"id": "booking_payment", "title": "Booking Installment/Balance", "description": "Pay deposit or installments for a booking."}
+                                    ]
+                                },
+                                {
+                                    "title": "Inquiries",
+                                    "rows": [
+                                        {"id": "tour_inquiry_payment", "title": "Pay for Tour Inquiry", "description": "Pay against a tour inquiry reference."}
+                                    ]
+                                },
+                                {
+                                    "title": "Back",
+                                    "rows": [
+                                        {"id": "back_to_main", "title": "Back to Main Menu", "description": "Return to main menu."}
+                                    ]
+                                }
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "payment_target"}
+            },
+            "transitions": [
+                {"to_step": "set_payment_target_booking", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "booking_payment"}},
+                {"to_step": "set_payment_target_inquiry", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "tour_inquiry_payment"}},
+                {"to_step": "show_main_menu", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "back_to_main"}}
+            ]
+        },
+        {
+            "name": "set_payment_target_booking",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "payment_target", "value_template": "booking"}
+                ]
+            },
+            "transitions": [{"to_step": "show_payment_options", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_payment_target_inquiry",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "payment_target", "value_template": "inquiry"}
+                ]
+            },
+            "transitions": [{"to_step": "show_payment_options", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "switch_to_booking_flow",
@@ -95,19 +158,19 @@ MAIN_MENU_FLOW = {
         {
             "name": "switch_to_omari_payment_flow",
             "type": "switch_flow",
-            "config": {"target_flow_name": "omari_payment_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "config": {"target_flow_name": "omari_payment_flow", "initial_context_template": {"source_flow": "main_menu", "payment_target": "{{ payment_target }}"}},
             "transitions": []
         },
         {
             "name": "switch_to_paynow_payment_flow",
             "type": "switch_flow",
-            "config": {"target_flow_name": "paynow_payment_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "config": {"target_flow_name": "paynow_payment_flow", "initial_context_template": {"source_flow": "main_menu", "payment_target": "{{ payment_target }}"}},
             "transitions": []
         },
         {
             "name": "switch_to_manual_payment_flow",
             "type": "switch_flow",
-            "config": {"target_flow_name": "manual_payment_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "config": {"target_flow_name": "manual_payment_flow", "initial_context_template": {"source_flow": "main_menu", "payment_target": "{{ payment_target }}"}},
             "transitions": []
         },
         {
@@ -119,7 +182,7 @@ MAIN_MENU_FLOW = {
                     "interactive": {
                         "type": "button",
                         "header": {"type": "text", "text": "Payment Options"},
-                        "body": {"text": "How would you like to pay for your booking?"},
+                        "body": {"text": "How would you like to pay?"},
                         "footer": {"text": "Select a payment method below"},
                         "action": {
                             "buttons": [
