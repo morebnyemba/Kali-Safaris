@@ -27,16 +27,20 @@ MAIN_MENU_FLOW = {
                                     "rows": [
                                         {"id": "book_tour", "title": "🦁 Book a Tour", "description": "Start a new safari or custom tour booking."},
                                         {"id": "view_tours", "title": "🌍 View Available Tours", "description": "See all our upcoming and featured tours."},
-                                        {"id": "special_offers", "title": "🎉 Special Offers", "description": "Check out our latest deals and discounts."},
-                                        {"id": "my_bookings", "title": "📖 My Bookings", "description": "View or manage your existing bookings."}
+                                        {"id": "special_offers", "title": "🎉 Special Offers", "description": "Check out our latest deals and discounts."}
+                                    ]
+                                },
+                                {
+                                    "title": "Management",
+                                    "rows": [
+                                        {"id": "my_bookings", "title": "📖 My Bookings", "description": "View or manage your existing bookings."},
+                                        {"id": "payment_options", "title": "💳 Make a Payment", "description": "Pay for your booking via multiple payment methods."}
                                     ]
                                 },
                                 {
                                     "title": "Support & Info",
                                     "rows": [
                                         {"id": "faq", "title": "❓ FAQs", "description": "Frequently asked questions about Kalai Safaris."},
-                                        {"id": "omari_payment", "title": "📱 Mobile Payment", "description": "Pay via Ecocash, OneMoney or ZimSwitch."},
-                                        {"id": "manual_payment", "title": "💳 Manual Payment", "description": "Pay for your booking via bank transfer or other methods."},
                                         {"id": "contact_support", "title": "🆘 Contact Support", "description": "Get help from our team."},
                                         {"id": "about_kalai", "title": "ℹ️ About Kalai Safaris", "description": "Learn more about us."}
                                     ]
@@ -52,11 +56,10 @@ MAIN_MENU_FLOW = {
                 {"to_step": "switch_to_view_tours_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "view_tours"}},
                 {"to_step": "switch_to_special_offers_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_offers"}},
                 {"to_step": "switch_to_my_bookings_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_bookings"}},
-                {"to_step": "switch_to_faq_flow", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
-                {"to_step": "switch_to_omari_payment_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "omari_payment"}},
-                {"to_step": "switch_to_manual_payment_flow", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_payment"}},
-                {"to_step": "switch_to_contact_support_flow", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "contact_support"}},
-                {"to_step": "show_about_kalai", "priority": 8, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_kalai"}}
+                {"to_step": "show_payment_options", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "payment_options"}},
+                {"to_step": "switch_to_faq_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
+                {"to_step": "switch_to_contact_support_flow", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "contact_support"}},
+                {"to_step": "show_about_kalai", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "about_kalai"}}
             ]
         },
         {
@@ -96,10 +99,46 @@ MAIN_MENU_FLOW = {
             "transitions": []
         },
         {
+            "name": "switch_to_paynow_payment_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "paynow_payment_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
+        },
+        {
             "name": "switch_to_manual_payment_flow",
             "type": "switch_flow",
             "config": {"target_flow_name": "manual_payment_flow", "initial_context_template": {"source_flow": "main_menu"}},
             "transitions": []
+        },
+        {
+            "name": "show_payment_options",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "header": {"type": "text", "text": "Payment Options"},
+                        "body": {"text": "How would you like to pay for your booking?"},
+                        "footer": {"text": "Select a payment method below"},
+                        "action": {
+                            "buttons": [
+                                {"type": "reply", "reply": {"id": "omari_payment", "title": "💳 Omari"}},
+                                {"type": "reply", "reply": {"id": "paynow_payment", "title": "📱 Ecocash, Innbucks, OneMoney"}},
+                                {"type": "reply", "reply": {"id": "manual_payment", "title": "🏦 Manual Payment"}},
+                                {"type": "reply", "reply": {"id": "back_to_main", "title": "Back to Menu"}}
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "payment_choice"}
+            },
+            "transitions": [
+                {"to_step": "switch_to_omari_payment_flow", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "omari_payment"}},
+                {"to_step": "switch_to_paynow_payment_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "paynow_payment"}},
+                {"to_step": "switch_to_manual_payment_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_payment"}},
+                {"to_step": "show_main_menu", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "back_to_main"}}
+            ]
         },
         {
             "name": "switch_to_contact_support_flow",
