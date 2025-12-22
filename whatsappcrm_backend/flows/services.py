@@ -6,7 +6,7 @@ import re
 from typing import List, Dict, Any, Optional, Union, Literal
 
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime
+from django.utils.dateparse import parse_datetime, parse_date
 from django.db import transaction
 from django.apps import apps
 from django.forms.models import model_to_dict
@@ -26,6 +26,7 @@ from .models import Flow, FlowStep, FlowTransition, ContactFlowState, WhatsAppFl
 from .whatsapp_flow_service import WhatsAppFlowService
 from notifications.services import queue_notifications_to_users
 from customer_data.models import CustomerProfile
+from .actions import flow_action_registry
 
 # Import Pydantic schemas from the new file
 from .schemas import (
@@ -39,13 +40,6 @@ logger = logging.getLogger(__name__)
 # --- WhatsApp Flow Constants ---
 WHATSAPP_FLOW_CONTEXT_KEY = '_using_whatsapp_flow'
 WHATSAPP_FLOW_ID_CONTEXT_KEY = '_whatsapp_flow_id'
-
-# --- Dynamic Custom Action Registry ---
-class FlowActionRegistry:
-    def __init__(self): self._actions = {}
-    def register(self, name, func): self._actions[name] = func; logger.info(f"Registered flow action: '{name}'")
-    def get(self, name): return self._actions.get(name)
-flow_action_registry = FlowActionRegistry()
 
 def _make_context_json_serializable(context: dict) -> dict:
     """
@@ -385,6 +379,64 @@ def _resolve_value(template_value: Any, flow_context: dict, contact: Contact) ->
     # For non-string, non-dict, non-list types, return as is
     return template_value
 
+
+def _coerce_literal(value: Any) -> Any:
+    """Parse stringified Python/JSON literals into native types when safe."""
+    if not isinstance(value, str):
+        return value
+
+    stripped = value.strip()
+    lowered = stripped.lower()
+
+    if lowered in {"true", "false"}:
+        return lowered == "true"
+    if lowered in {"none", "null"}:
+        return None
+
+    try:
+        return ast.literal_eval(value)
+    except Exception:
+        return value
+
+
+def _coerce_model_field_value(field: models.Field, value: Any) -> Any:
+    """Cast resolved template values into types expected by model fields."""
+    if value is None:
+        return value
+
+    # DateField (but not DateTimeField, which is subclass)
+    if isinstance(field, models.DateField) and not isinstance(field, models.DateTimeField):
+        if isinstance(value, str):
+            parsed_dt = parse_datetime(value)
+            parsed_date_only = parse_date(value) if parsed_dt is None else None
+            if parsed_dt:
+                return parsed_dt.date()
+            if parsed_date_only:
+                return parsed_date_only
+        if isinstance(value, datetime):
+            return value.date()
+
+    # DateTimeField
+    if isinstance(field, models.DateTimeField):
+        if isinstance(value, str):
+            parsed_dt = parse_datetime(value)
+            if parsed_dt:
+                return parsed_dt
+            parsed_date_only = parse_date(value)
+            if parsed_date_only:
+                return datetime.combine(parsed_date_only, datetime.min.time())
+        if isinstance(value, date) and not isinstance(value, datetime):
+            return datetime.combine(value, datetime.min.time())
+
+    # DecimalField
+    if isinstance(field, models.DecimalField) and isinstance(value, str):
+        try:
+            return Decimal(value)
+        except (InvalidOperation, ValueError, TypeError):
+            return value
+
+    return value
+
 def _resolve_template_components(components_config: list, flow_context: dict, contact: Contact) -> list:
     if not components_config or not isinstance(components_config, list): return []
     try:
@@ -605,6 +657,7 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                     continue # Skip default handling if it's a custom action
                 if action_type == 'set_context_variable' and action_item_conf.variable_name is not None:
                     resolved_value = _resolve_value(action_item_conf.value_template, current_step_context, contact)
+                    resolved_value = _coerce_literal(resolved_value)
                     current_step_context[action_item_conf.variable_name] = resolved_value
                     logger.info(f"Contact {contact.id}: Action in step {step.id} set context var '{action_item_conf.variable_name}' to '{resolved_value}'.")
                 elif action_type == 'update_contact_field' and action_item_conf.field_path is not None:
@@ -728,6 +781,12 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                             else:
                                 logger.error(f"Contact {contact.id} does not have a customer_profile. Cannot create {model_name}.")
                                 continue
+
+                        # Coerce resolved values to expected model field types (e.g., dates, decimals)
+                        for model_field in Model._meta.fields:
+                            field_name = model_field.name
+                            if field_name in resolved_fields:
+                                resolved_fields[field_name] = _coerce_model_field_value(model_field, resolved_fields[field_name])
                         
                         # Special handling for location data
                         if 'latitude' in resolved_fields and 'longitude' in resolved_fields:
