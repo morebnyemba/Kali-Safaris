@@ -782,6 +782,11 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                                 logger.error(f"Contact {contact.id} does not have a customer_profile. Cannot create {model_name}.")
                                 continue
 
+                        # Coerce *_id keys to integers when possible before model field casting
+                        for key, val in list(resolved_fields.items()):
+                            if key.endswith('_id') and isinstance(val, str) and val.isdigit():
+                                resolved_fields[key] = int(val)
+
                         # Coerce resolved values to expected model field types (e.g., dates, decimals)
                         for model_field in Model._meta.fields:
                             field_name = model_field.name

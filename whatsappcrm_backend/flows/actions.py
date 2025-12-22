@@ -38,12 +38,12 @@ def register_flow_action(name):
     return decorator
 
 @register_flow_action('create_booking_from_inquiry')
-def create_booking_from_inquiry(context: dict, params: dict) -> dict:
+def create_booking_from_inquiry(contact, context: dict, params: dict) -> dict:
     """
     Creates a Booking from a completed TourInquiry. This is for custom tours
     where an agent will follow up with a quote.
     """
-    contact = get_contact_from_context(context)
+    contact = contact or get_contact_from_context(context)
     if not contact or not hasattr(contact, 'customer_profile') or not contact.customer_profile:
         logger.error("create_booking_from_inquiry: Could not find contact or customer profile in context.")
         return context
@@ -84,9 +84,9 @@ def create_booking_from_inquiry(context: dict, params: dict) -> dict:
     return context
 
 @register_flow_action('initiate_tour_payment')
-def initiate_tour_payment(context: dict, params: dict) -> dict:
+def initiate_tour_payment(contact, context: dict, params: dict) -> dict:
     """Initiates a Paynow payment for a tour booking."""
-    contact = get_contact_from_context(context)
+    contact = contact or get_contact_from_context(context)
     if not contact:
         logger.error("initiate_tour_payment: Could not find contact in context.")
         return context
@@ -121,7 +121,7 @@ def initiate_tour_payment(context: dict, params: dict) -> dict:
     return context
 
 @register_flow_action('generate_and_save_quote_pdf')
-def generate_and_save_quote_pdf_action(context: dict, params: dict) -> dict:
+def generate_and_save_quote_pdf_action(contact, context: dict, params: dict) -> dict:
     """Generates a PDF quote and saves its URL to the context."""
     save_to_var = params.get('save_to_variable', 'generated_pdf_url')
     pdf_url = generate_quote_pdf(context)
@@ -130,12 +130,12 @@ def generate_and_save_quote_pdf_action(context: dict, params: dict) -> dict:
     return context
 
 @register_flow_action('create_placeholder_order')
-def create_placeholder_order(context: dict, params: dict) -> dict:
+def create_placeholder_order(contact, context: dict, params: dict) -> dict:
     """
     Creates a placeholder Booking record from a simple order number message.
     This is used by the `simple_add_order_flow`.
     """
-    contact = get_contact_from_context(context)
+    contact = contact or get_contact_from_context(context)
     if not contact or not hasattr(contact, 'customer_profile') or not contact.customer_profile:
         logger.error("create_placeholder_order: Could not find contact or customer profile in context.")
         return context
@@ -163,7 +163,7 @@ def create_placeholder_order(context: dict, params: dict) -> dict:
     return context
 
 @register_flow_action('save_travelers_to_booking')
-def save_travelers_to_booking(context: dict, params: dict) -> dict:
+def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
     """
     Saves traveler details from the context to Traveler model instances
     associated with a booking.

@@ -394,7 +394,7 @@ BOOKING_FLOW = {
                     "interactive": {
                         "type": "button",
                         "body": {
-                            "text": "Please confirm the details for Traveler {{ traveler_index }}:\n\n*Name:* {{ current_traveler_name }}\n*Age:* {{ current_traveler_age }}\n*Nationality:* {{ current_traveler_nationality }}\n*Gender:* {{ current_traveler_gender }}\n*ID Number:* {{ current_traveler_id_number }}\n*Medical/Dietary:* {{ current_traveler_medical }}\n\nAre these details correct?"
+                            "text": "Please confirm the details for Traveler {{ traveler_index }}:\n\n*Name:* {{ current_traveler_name }}\n*Age:* {{ current_traveler_age }}\n\nAre these details correct?"
                         },
                         "action": {
                             "buttons": [
@@ -429,6 +429,16 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "price_per_adult",
+                        "value_template": "{{ seasonal_price.0.price_per_adult }}"
+                    },
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "price_per_child",
+                        "value_template": "{{ seasonal_price.0.price_per_child or seasonal_price.0.price_per_adult }}"
+                    },
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "total_cost",
