@@ -707,18 +707,13 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "_action_error", "value_template": ""},
-                    {"action_type": "verify_omari_user"},
-                    {"action_type": "set_omari_not_eligible_message"},
+                    {"action_type": "set_context_variable", "variable_name": "is_omari_user", "value_template": "unknown"},
                     {"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_phone", "value_template": "{{ contact.phone_number }}"}
                 ]
             },
             "transitions": [
-                {"to_step": "omari_payment_error", "priority": 0, "condition_config": {"type": "variable_not_equals", "variable_name": "_action_error", "value": ""}},
-                {"to_step": "create_booking_for_omari", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "is_omari_user", "value": "true"}},
-                {"to_step": "create_booking_for_omari", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "is_omari_user", "value": "unknown"}},
-                {"to_step": "omari_not_eligible", "priority": 3, "condition_config": {"type": "always_true"}}
+                {"to_step": "create_booking_for_omari", "priority": 0, "condition_config": {"type": "always_true"}}
             ]
         },
         {
