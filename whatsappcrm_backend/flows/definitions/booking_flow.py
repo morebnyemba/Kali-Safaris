@@ -715,7 +715,7 @@ BOOKING_FLOW = {
                 ]
             },
             "transitions": [
-                {"to_step": "omari_payment_error", "priority": 0, "condition_config": {"type": "variable_exists", "variable_name": "_action_error"}},
+                {"to_step": "omari_payment_error", "priority": 0, "condition_config": {"type": "variable_not_equals", "variable_name": "_action_error", "value": ""}},
                 {"to_step": "create_booking_for_omari", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "is_omari_user", "value": "true"}},
                 {"to_step": "create_booking_for_omari", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "is_omari_user", "value": "unknown"}},
                 {"to_step": "omari_not_eligible", "priority": 3, "condition_config": {"type": "always_true"}}
