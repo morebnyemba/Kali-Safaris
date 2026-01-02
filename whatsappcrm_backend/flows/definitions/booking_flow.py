@@ -707,6 +707,7 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "_action_error", "value_template": ""},
                     {"action_type": "verify_omari_user"},
                     {"action_type": "set_omari_not_eligible_message"},
                     {"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost }}"},
@@ -714,9 +715,23 @@ BOOKING_FLOW = {
                 ]
             },
             "transitions": [
-                {"to_step": "create_booking_for_omari", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "is_omari_user", "value": "true"}},
-                {"to_step": "create_booking_for_omari", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "is_omari_user", "value": "unknown"}},
-                {"to_step": "omari_not_eligible", "priority": 2, "condition_config": {"type": "always_true"}}
+                {"to_step": "omari_payment_error", "priority": 0, "condition_config": {"type": "variable_exists", "variable_name": "_action_error"}},
+                {"to_step": "create_booking_for_omari", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "is_omari_user", "value": "true"}},
+                {"to_step": "create_booking_for_omari", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "is_omari_user", "value": "unknown"}},
+                {"to_step": "omari_not_eligible", "priority": 3, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "omari_payment_error",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {
+                    "body": "We ran into a problem verifying your Omari account. Please try again in a moment or choose another payment method."
+                }
+            },
+            "transitions": [
+                {"to_step": "ask_payment_option", "condition_config": {"type": "always_true"}}
             ]
         },
         {

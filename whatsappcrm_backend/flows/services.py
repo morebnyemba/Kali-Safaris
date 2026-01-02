@@ -669,8 +669,11 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                         )
                         break
                     continue # Skip default handling if it's a custom action
-                # If a previous custom action failed, stop processing further actions in this step.
-                if current_step_context.get('_action_error'):
+                # If a previous custom action failed, stop processing further actions in this step
+                # unless the next action explicitly clears the error flag.
+                if current_step_context.get('_action_error') and not (
+                    action_type == 'set_context_variable' and action_item_conf.variable_name == '_action_error'
+                ):
                     logger.warning(f"Contact {contact.id}: Halting actions for step {step.id} due to prior action error: {current_step_context['_action_error']}")
                     break
                 if action_type == 'set_context_variable' and action_item_conf.variable_name is not None:
