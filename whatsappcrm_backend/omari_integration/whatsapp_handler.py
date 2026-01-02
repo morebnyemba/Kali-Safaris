@@ -26,6 +26,14 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+def _mask_msisdn(msisdn: str) -> str:
+    """Return a lightly masked MSISDN for logging."""
+    if not msisdn:
+        return ""
+    tail = msisdn[-4:] if len(msisdn) >= 4 else msisdn
+    return f"***{tail}"
+
+
 class WhatsAppPaymentHandler:
     """Handles Omari payment flow through WhatsApp conversations."""
     
@@ -62,6 +70,15 @@ class WhatsAppPaymentHandler:
         """
         # Extract msisdn from contact whatsapp_id
         msisdn = self._format_msisdn(contact.whatsapp_id)
+        logger.info(
+            "Omari initiate_payment start | contact=%s booking=%s amount=%s currency=%s channel=%s msisdn=%s",
+            contact.id,
+            getattr(booking, 'booking_reference', None),
+            amount,
+            currency,
+            channel,
+            _mask_msisdn(msisdn),
+        )
         
         # Generate reference
         reference = str(uuid.uuid4())
@@ -77,7 +94,15 @@ class WhatsAppPaymentHandler:
             )
             
             if result.get('error'):
-                logger.error(f"Omari auth failed for contact {contact.id}: {result}")
+                logger.error(
+                    "Omari auth failed | contact=%s booking=%s reference=%s msisdn=%s response_code=%s message=%s",
+                    contact.id,
+                    getattr(booking, 'booking_reference', None),
+                    reference,
+                    _mask_msisdn(msisdn),
+                    result.get('responseCode'),
+                    result.get('message'),
+                )
                 return {
                     'success': False,
                     'message': result.get('message', 'Payment initiation failed'),
@@ -109,7 +134,15 @@ class WhatsAppPaymentHandler:
                 'initiated_at': timezone.now().isoformat(),
             })
             
-            logger.info(f"Initiated Omari payment {reference} for booking {booking.booking_reference}")
+            logger.info(
+                "Omari initiate_payment success | contact=%s booking=%s reference=%s otp_ref=%s amount=%s %s",
+                contact.id,
+                getattr(booking, 'booking_reference', None),
+                reference,
+                result.get('otpReference'),
+                amount,
+                currency,
+            )
             
             return {
                 'success': True,
@@ -120,7 +153,13 @@ class WhatsAppPaymentHandler:
             }
             
         except Exception as e:
-            logger.exception(f"Failed to initiate Omari payment for contact {contact.id}")
+            logger.exception(
+                "Omari initiate_payment exception | contact=%s booking=%s reference=%s msisdn=%s",
+                contact.id,
+                getattr(booking, 'booking_reference', None),
+                reference,
+                _mask_msisdn(msisdn),
+            )
             return {
                 'success': False,
                 'message': f'Payment initiation error: {str(e)}',
@@ -292,10 +331,22 @@ class WhatsAppPaymentHandler:
         """Return 'true' if verified, else 'unknown' to allow API to enforce."""
         try:
             msisdn = self._format_msisdn(contact.whatsapp_id)
-            if OmariUser.objects.filter(msisdn=msisdn, is_active=True).exists():
-                return 'true'
-            return 'unknown'
-        except Exception:
+            exists = OmariUser.objects.filter(msisdn=msisdn, is_active=True).exists()
+            eligibility = 'true' if exists else 'unknown'
+            logger.info(
+                "Omari is_omari_user | contact=%s msisdn=%s eligibility=%s",
+                contact.id,
+                _mask_msisdn(msisdn),
+                eligibility,
+            )
+            return eligibility
+        except Exception as exc:
+            logger.error(
+                "Omari is_omari_user failed | contact=%s error=%s",
+                contact.id,
+                exc,
+                exc_info=True,
+            )
             return 'unknown'
     
     def _get_payment_state(self, contact: Contact) -> Optional[Dict[str, Any]]:

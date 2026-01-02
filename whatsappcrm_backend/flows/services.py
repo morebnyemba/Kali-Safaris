@@ -651,6 +651,14 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                 # Handle custom actions registered in flow_action_registry
                 custom_action_func = flow_action_registry.get(action_type)
                 if custom_action_func:
+                    # If the DB connection is already marked for rollback, clear it before starting the custom action.
+                    conn = transaction.get_connection()
+                    if conn.get_rollback():
+                        logger.warning(
+                            f"Contact {contact.id}: Clearing pending rollback flag before running custom action '{action_type}' in step {step.id}."
+                        )
+                        conn.rollback()
+                        conn.set_rollback(False)
                     # Run custom actions behind a savepoint so failures don't poison the surrounding transaction.
                     savepoint = transaction.savepoint()
                     try:

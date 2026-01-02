@@ -40,6 +40,15 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
             'text': '❌ Payment initiation failed: No booking found. Please contact support.'
         }]
     
+    logger.info(
+        "initiate_omari_payment action start | contact=%s booking_ref=%s amount_param=%s currency=%s channel=%s",
+        contact.id,
+        booking_ref,
+        params.get('amount'),
+        params.get('currency'),
+        params.get('channel'),
+    )
+
     # Get booking
     try:
         booking = Booking.objects.get(booking_reference=booking_ref)
@@ -63,6 +72,7 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
         amount = booking.total_amount - booking.amount_paid
     
     if amount <= 0:
+        logger.info("initiate_omari_payment action: booking %s already paid for contact %s", booking_ref, contact.id)
         return [{
             'type': 'send_text',
             'text': f'✅ Booking {booking_ref} is already paid in full!'
@@ -83,6 +93,15 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
     
     if result['success']:
         otp_ref = result.get('otp_reference', 'N/A')
+        logger.info(
+            "initiate_omari_payment action success | contact=%s booking_ref=%s reference=%s otp_ref=%s amount=%s %s",
+            contact.id,
+            booking_ref,
+            result.get('reference'),
+            otp_ref,
+            amount,
+            currency,
+        )
         message = (
             f"💳 *Payment Initiated*\\n\\n"
             f"Booking: {booking.booking_reference}\\n"
@@ -102,7 +121,13 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
         }]
     else:
         error_msg = result.get('message', 'Unknown error')
-        logger.error(f"Payment initiation failed for booking {booking_ref}: {error_msg}")
+        logger.error(
+            "Payment initiation failed for booking %s contact=%s reference=%s: %s",
+            booking_ref,
+            contact.id,
+            result.get('reference'),
+            error_msg,
+        )
         return [{
             'type': 'send_text',
             'text': f'❌ Payment initiation failed: {error_msg}\\nPlease try again or contact support.'
@@ -115,8 +140,14 @@ def verify_omari_user_action(contact: Contact, flow_context: dict, params: dict)
     Sets flow_context['is_omari_user'] to True/False. Returns no messages.
     """
     handler = get_payment_handler()
-    eligibility = handler.is_omari_user(contact)  # 'true' or 'unknown'
-    flow_context['is_omari_user'] = eligibility
+    logger.info("verify_omari_user action start | contact=%s", contact.id)
+    try:
+        eligibility = handler.is_omari_user(contact)  # 'true' or 'unknown'
+        flow_context['is_omari_user'] = eligibility
+        logger.info("verify_omari_user action result | contact=%s eligibility=%s", contact.id, eligibility)
+    except Exception as exc:  # pragma: no cover - defensive
+        flow_context['is_omari_user'] = 'unknown'
+        logger.error("verify_omari_user action failed | contact=%s error=%s", contact.id, exc, exc_info=True)
     return []
 
 def set_omari_not_eligible_message_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
