@@ -651,10 +651,28 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                 # Handle custom actions registered in flow_action_registry
                 custom_action_func = flow_action_registry.get(action_type)
                 if custom_action_func:
-                    resolved_params = _resolve_value(action_item_conf.params_template or {}, current_step_context, contact)
-                    custom_actions = custom_action_func(contact, current_step_context, resolved_params)
-                    actions_to_perform.extend(custom_actions)
+                    # Run custom actions behind a savepoint so failures don't poison the surrounding transaction.
+                    savepoint = transaction.savepoint()
+                    try:
+                        resolved_params = _resolve_value(action_item_conf.params_template or {}, current_step_context, contact)
+                        custom_actions = custom_action_func(contact, current_step_context, resolved_params)
+                        actions_to_perform.extend(custom_actions)
+                        transaction.savepoint_commit(savepoint)
+                    except Exception as e:
+                        transaction.savepoint_rollback(savepoint)
+                        # Clear rollback flag so subsequent non-failing work can proceed.
+                        transaction.set_rollback(False)
+                        current_step_context['_action_error'] = f"{action_type} failed: {e}"
+                        logger.error(
+                            f"Contact {contact.id}: Custom action '{action_type}' failed in step {step.id}: {e}",
+                            exc_info=True,
+                        )
+                        break
                     continue # Skip default handling if it's a custom action
+                # If a previous custom action failed, stop processing further actions in this step.
+                if current_step_context.get('_action_error'):
+                    logger.warning(f"Contact {contact.id}: Halting actions for step {step.id} due to prior action error: {current_step_context['_action_error']}")
+                    break
                 if action_type == 'set_context_variable' and action_item_conf.variable_name is not None:
                     resolved_value = _resolve_value(action_item_conf.value_template, current_step_context, contact)
                     resolved_value = _coerce_literal(resolved_value)
