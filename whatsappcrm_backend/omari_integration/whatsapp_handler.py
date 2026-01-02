@@ -328,18 +328,15 @@ class WhatsAppPaymentHandler:
         return digits
 
     def is_omari_user(self, contact: Contact) -> str:
-        """Return 'true' if verified, else 'unknown' to allow API to enforce."""
+        """Defer eligibility to Omari API: always return 'unknown'."""
         try:
             msisdn = self._format_msisdn(contact.whatsapp_id)
-            exists = OmariUser.objects.filter(msisdn=msisdn, is_active=True).exists()
-            eligibility = 'true' if exists else 'unknown'
             logger.info(
-                "Omari is_omari_user | contact=%s msisdn=%s eligibility=%s",
+                "Omari is_omari_user | contact=%s msisdn=%s eligibility=unknown (API will enforce)",
                 contact.id,
                 _mask_msisdn(msisdn),
-                eligibility,
             )
-            return eligibility
+            return 'unknown'
         except Exception as exc:
             logger.error(
                 "Omari is_omari_user failed | contact=%s error=%s",
