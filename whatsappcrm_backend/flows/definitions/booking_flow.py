@@ -868,7 +868,16 @@ BOOKING_FLOW = {
                 "type": "action",
                 "config": {
                     "actions_to_run": [
-                        {"action_type": "initiate_omari_payment", "booking_reference": "{{ payment_booking_reference }}", "amount": "{{ amount_to_pay }}", "currency": "USD", "channel": "{{ payment_channel|upper }}", "msisdn": "{{ payment_phone }}"}
+                        {
+                            "action_type": "initiate_omari_payment",
+                            "params_template": {
+                                "booking_reference": "{{ payment_booking_reference }}",
+                                "amount": "{{ amount_to_pay }}",
+                                "currency": "USD",
+                                "channel": "{{ payment_channel|upper }}",
+                                "msisdn": "{{ payment_phone }}"
+                            }
+                        }
                     ]
                 },
                 "transitions": [
