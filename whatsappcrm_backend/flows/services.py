@@ -664,7 +664,23 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                     try:
                         resolved_params = _resolve_value(action_item_conf.params_template or {}, current_step_context, contact)
                         custom_actions = custom_action_func(contact, current_step_context, resolved_params)
-                        actions_to_perform.extend(custom_actions)
+
+                        # Backward compatibility: some custom actions return an updated context dict instead of action list.
+                        if isinstance(custom_actions, list):
+                            actions_to_perform.extend(custom_actions)
+                        elif isinstance(custom_actions, dict):
+                            current_step_context.update(custom_actions)
+                        elif custom_actions is None:
+                            # No-op return is acceptable; nothing to append or merge.
+                            pass
+                        else:
+                            logger.warning(
+                                "Contact %s: Custom action '%s' returned unexpected type %s; ignoring.",
+                                contact.id,
+                                action_type,
+                                type(custom_actions).__name__,
+                            )
+
                         transaction.savepoint_commit(savepoint)
                     except Exception as e:
                         transaction.savepoint_rollback(savepoint)
