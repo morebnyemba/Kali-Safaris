@@ -1082,7 +1082,7 @@ BOOKING_FLOW = {
                     "params_template": {
                         "booking_context_var": "created_booking",
                         "amount_to_pay_var": "amount_to_pay",
-                        "save_to_variable": "payment_result"
+                            "channel": "WEB",
                     }
                 }]
             },
