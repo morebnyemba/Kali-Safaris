@@ -779,67 +779,10 @@ BOOKING_FLOW = {
                     }
                 }]
             },
-                "transitions": [{"to_step": "omari_ask_payment_channel", "condition_config": {"type": "always_true"}}]
+                "transitions": [{"to_step": "omari_ask_alternative_phone", "condition_config": {"type": "always_true"}}]
         },
-            {
-                "name": "omari_ask_payment_channel",
-                "type": "question",
-                "config": {
-                    "message_config": {
-                        "message_type": "interactive",
-                        "interactive": {
-                            "type": "button",
-                            "header": {"type": "text", "text": "Select Payment Channel"},
-                            "body": {"text": "You are paying *${{ '%.2f'|format(amount_to_pay|float) }}*. Choose your mobile money provider."},
-                            "action": {
-                                "buttons": [
-                                    {"type": "reply", "reply": {"id": "ecocash", "title": "Ecocash"}},
-                                    {"type": "reply", "reply": {"id": "onemoney", "title": "OneMoney"}},
-                                    {"type": "reply", "reply": {"id": "zipit", "title": "ZimSwitch"}}
-                                ]
-                            }
-                        }
-                    },
-                    "reply_config": {"expected_type": "interactive_id", "save_to_variable": "payment_channel"}
-                },
-                "transitions": [{"to_step": "omari_phone_choice", "condition_config": {"type": "always_true"}}]
-            },
-            {
-                "name": "omari_phone_choice",
-                "type": "question",
-                "config": {
-                    "message_config": {
-                        "message_type": "interactive",
-                        "interactive": {
-                            "type": "button",
-                            "header": {"type": "text", "text": "Mobile Money Number"},
-                            "body": {"text": "Use your current number (*{{ current_phone }}*) or enter a different number (format 2637XXXXXXXX)."},
-                            "action": {
-                                "buttons": [
-                                    {"type": "reply", "reply": {"id": "use_current", "title": "Use Current"}},
-                                    {"type": "reply", "reply": {"id": "use_different", "title": "Use Different"}}
-                                ]
-                            }
-                        }
-                    },
-                    "reply_config": {"expected_type": "interactive_id", "save_to_variable": "phone_choice"}
-                },
-                "transitions": [
-                    {"to_step": "omari_set_current_phone", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "use_current"}},
-                    {"to_step": "omari_ask_alternative_phone", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "use_different"}}
-                ]
-            },
-            {
-                "name": "omari_set_current_phone",
-                "type": "action",
-                "config": {
-                    "actions_to_run": [
-                        {"action_type": "set_context_variable", "variable_name": "payment_phone", "value_template": "{{ current_phone }}"},
-                        {"action_type": "set_context_variable", "variable_name": "payment_booking_reference", "value_template": "{{ created_booking.booking_reference or created_booking.id }}"}
-                    ]
-                },
-                "transitions": [{"to_step": "omari_initiate_payment", "condition_config": {"type": "always_true"}}]
-            },
+
+
             {
                 "name": "omari_ask_alternative_phone",
                 "type": "question",
@@ -874,7 +817,7 @@ BOOKING_FLOW = {
                                 "booking_reference": "{{ payment_booking_reference }}",
                                 "amount": "{{ amount_to_pay }}",
                                 "currency": "USD",
-                                "channel": "{{ payment_channel|upper }}",
+                                "channel": "WEB",
                                 "msisdn": "{{ payment_phone }}"
                             }
                         }
