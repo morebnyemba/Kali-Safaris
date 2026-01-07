@@ -81,6 +81,9 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
     currency = params.get('currency', 'USD')
     channel = params.get('channel', 'WEB')
     
+    # Get payment phone from flow context (user-entered phone), fallback to contact phone
+    payment_phone = params.get('msisdn') or flow_context.get('payment_phone', contact.whatsapp_id)
+    
     # Initiate payment
     handler = get_payment_handler()
     result = handler.initiate_payment(
@@ -88,7 +91,8 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
         booking=booking,
         amount=amount,
         currency=currency,
-        channel=channel
+        channel=channel,
+        msisdn=payment_phone
     )
     
     if result['success']:

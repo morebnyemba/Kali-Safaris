@@ -60,7 +60,8 @@ class WhatsAppPaymentHandler:
         booking: Booking,
         amount: Decimal,
         currency: str = 'USD',
-        channel: str = 'WEB'
+        channel: str = 'WEB',
+        msisdn: str = None
     ) -> Dict[str, Any]:
         """
         Initiate Omari payment for a booking.
@@ -71,12 +72,16 @@ class WhatsAppPaymentHandler:
             amount: Amount to charge
             currency: 'USD' or 'ZWG'
             channel: 'WEB' or 'POS'
+            msisdn: Optional payment phone number (overrides contact.whatsapp_id)
             
         Returns:
             dict with 'success', 'otp_reference', 'reference', 'message'
         """
-        # Extract msisdn from contact whatsapp_id
-        msisdn = self._format_msisdn(contact.whatsapp_id)
+        # Use provided msisdn or extract from contact whatsapp_id
+        if not msisdn:
+            msisdn = self._format_msisdn(contact.whatsapp_id)
+        else:
+            msisdn = self._format_msisdn(msisdn)
         logger.info(
             "Omari initiate_payment start | contact=%s booking=%s amount=%s currency=%s channel=%s msisdn=%s",
             contact.id,
