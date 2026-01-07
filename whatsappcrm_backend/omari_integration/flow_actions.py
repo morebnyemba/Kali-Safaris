@@ -244,7 +244,6 @@ def cancel_payment_action(contact: Contact, flow_context: dict, params: dict) ->
     }]
 
 
-def register_payment_actions():
     """
     Register Omari payment actions with the flow action registry.
     Call this in apps.py ready() method or at module load.
@@ -256,5 +255,47 @@ def register_payment_actions():
     flow_action_registry.register('set_omari_not_eligible_message', set_omari_not_eligible_message_action)
     flow_action_registry.register('process_otp', process_otp_action)
     flow_action_registry.register('cancel_payment', cancel_payment_action)
+    flow_action_registry.register('validate_omari_phone', validate_omari_phone_action)
     
     logger.info("Registered Omari payment flow actions")
+def validate_omari_phone_action(contact: Contact, flow_context: dict, params: dict) -> Dict[str, Any]:
+    """
+    Validate phone number format for Omari payment.
+    
+    Params expected:
+        - phone_variable: str - Name of context variable containing phone number
+    
+    Returns context update with 'payment_phone_valid' if valid, otherwise empty dict.
+    """
+    import re
+    
+    phone_var = params.get('phone_variable', 'payment_phone')
+    phone = flow_context.get(phone_var, '').strip()
+    
+    # Zimbabwe mobile format: 2637XXXXXXXX (12 digits total)
+    PHONE_REGEX = r'^2637[0-9]{8}$'
+    
+    if not phone:
+        logger.warning(
+            "validate_omari_phone: no phone number in context | contact=%s variable=%s",
+            contact.id,
+            phone_var
+        )
+        return {}
+    
+    if re.match(PHONE_REGEX, phone):
+        logger.info(
+            "validate_omari_phone: valid format | contact=%s phone=***%s",
+            contact.id,
+            phone[-4:] if len(phone) >= 4 else "****"
+        )
+        # Return context update to set validation flag
+        return {'payment_phone_valid': True}
+    else:
+        logger.warning(
+            "validate_omari_phone: invalid format | contact=%s phone=***%s expected_format=2637XXXXXXXX",
+            contact.id,
+            phone[-4:] if len(phone) >= 4 else "****"
+        )
+        return {}
+

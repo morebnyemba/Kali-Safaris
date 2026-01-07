@@ -794,7 +794,30 @@ BOOKING_FLOW = {
                     "reply_config": {"expected_type": "text", "save_to_variable": "payment_phone", "validation_regex": "^2637[0-9]{8}$"},
                     "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid Zimbabwe mobile number starting with 2637 (e.g., 263771234567)."}
                 },
-                "transitions": [{"to_step": "omari_set_payment_reference", "condition_config": {"type": "always_true"}}]
+                "transitions": [{"to_step": "omari_validate_phone_format", "condition_config": {"type": "always_true"}}]
+            },
+            {
+                "name": "omari_validate_phone_format",
+                "type": "action",
+                "config": {
+                    "actions_to_run": [
+                        {"action_type": "validate_omari_phone", "phone_variable": "payment_phone"}
+                    ]
+                },
+                "transitions": [
+                    {"to_step": "omari_set_payment_reference", "condition_config": {"type": "variable_exists", "variable_name": "payment_phone_valid"}},
+                    {"to_step": "omari_payment_validation_failed", "condition_config": {"type": "always_true"}}
+                ]
+            },
+            {
+                "name": "omari_payment_validation_failed",
+                "type": "end_flow",
+                "config": {
+                    "message_config": {
+                        "message_type": "text",
+                        "text": {"body": "Invalid mobile number format. Please try again with a valid Zimbabwe mobile number (format 2637XXXXXXXX)."}
+                    }
+                }
             },
             {
                 "name": "omari_set_payment_reference",
