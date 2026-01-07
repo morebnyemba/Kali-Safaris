@@ -112,7 +112,8 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
         )
         
         # Store in context for next step
-        flow_context['_payment_initiated'] = True
+        # CRITICAL: flow transition checks for variable_exists omari_otp_reference
+        flow_context['omari_otp_reference'] = result.get('otp_reference')
         flow_context['_payment_reference'] = result['reference']
         
         return [{

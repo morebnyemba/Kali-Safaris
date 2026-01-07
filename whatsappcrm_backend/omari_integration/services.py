@@ -46,6 +46,14 @@ class OmariClient:
             'Content-Type': 'application/json',
             'X-Merchant-Key': self.config.merchant_key,
         })
+        
+        # Log initialization (masked key)
+        key_masked = f"***{self.config.merchant_key[-6:]}" if self.config.merchant_key else "<empty>"
+        logger.info(
+            "OmariClient initialized | url=%s merchant_key=%s",
+            self.config.base_url,
+            key_masked,
+        )
     
     @staticmethod
     def _load_config_from_db() -> Optional[OmariConfig]:
@@ -88,12 +96,30 @@ class OmariClient:
             'currency': currency,
             'channel': channel,
         }
-        logger.debug(f"Omari auth URL: {url}; payload={payload}")
-        resp = self.session.post(url, json=payload, timeout=30)
-        resp.raise_for_status()
-        data = resp.json()
-        logger.info("Omari auth response: %s", data)
-        return data
+        logger.debug(f"Omari auth payload: {payload}")
+        try:
+            resp = self.session.post(url, json=payload, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            logger.info("Omari auth success | responseCode=%s message=%s", data.get('responseCode'), data.get('message'))
+            return data
+        except requests.exceptions.HTTPError as e:
+            # Capture response body for debugging 500 errors
+            try:
+                error_body = e.response.text if e.response else "No response"
+                error_status = e.response.status_code if e.response else "No status"
+                logger.error(
+                    "Omari auth HTTP error | status=%s message=%s body=%s",
+                    error_status,
+                    str(e),
+                    error_body[:300],  # First 300 chars of response
+                )
+            except Exception as log_err:
+                logger.error("Omari auth error (failed to capture details): %s", str(log_err))
+            raise
+        except Exception as e:
+            logger.error("Omari auth unexpected error: %s", str(e), exc_info=True)
+            raise
 
     def request(self, msisdn: str, reference: str, otp: str) -> Dict[str, Any]:
         """
