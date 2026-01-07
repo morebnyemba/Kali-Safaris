@@ -1,0 +1,127 @@
+{
+  "info": {
+    "_postman_id": "00852a55-38a6-434c-b8b1-eb8d4763d8a6",
+    "name": "Omari Merchant Api Kalai Safaries",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "33320926"
+  },
+  "item": [
+    {
+      "name": "Merchant Payment Auth",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Merchant-Key",
+            "value": "c1ee8051-8c73-43a2-8be3-f4e3dc98d2f0",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"msisdn\": \"263774325309\",\n    \"reference\": \"a6da67e8-90a7-4e12-ac36-c8533cc176\",\n    \"amount\": 3,\n    \"currency\": \"USD\",\n    \"channel\": \"WEB\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment/auth",
+          "protocol": "https",
+          "host": ["omari", "v", "co", "zw"],
+          "path": ["uat", "vsuite", "omari", "api", "merchant", "api", "payment", "auth"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Merchant Payment Void",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Merchant-Key",
+            "value": "c1ee8051-8c73-43a2-8be3-f4e3dc98d2f0",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reference\": \"23e57919-b4f0-4d86-95ae-a1311ad1de79\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment/void",
+          "protocol": "https",
+          "host": ["omari", "v", "co", "zw"],
+          "path": ["uat", "vsuite", "omari", "api", "merchant", "api", "payment", "void"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Merchant Payment request",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "X-Merchant-Key",
+            "value": "c1ee8051-8c73-43a2-8be3-f4e3dc98d2f0",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n    \"msisdn\": \"263774325309\",\n    \"reference\": \"a6da67e8-90a7-4e12-ac36-c8533cc176\",\n    \"otp\": \"522252\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment/request",
+          "protocol": "https",
+          "host": ["omari", "v", "co", "zw"],
+          "path": ["uat", "vsuite", "omari", "api", "merchant", "api", "payment", "request"]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "Merchant Payment query",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "X-Merchant-Key",
+            "value": "c1ee8051-8c73-43a2-8be3-f4e3dc98d2f0",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "http://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment/query/a6da67e8-90a7-4e12-ac36-c8533cc122,",
+          "protocol": "http",
+          "host": ["splinter", "eus", "v", "co", "zw"],
+          "port": "5311",
+          "path": [
+            "vsuite",
+            "omari",
+            "api",
+            "merchant",
+            "api",
+            "payment",
+            "query",
+            "3e7ad2ce-8903-4d29-b4f6-61598c1b2de0"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}

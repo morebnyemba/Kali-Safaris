@@ -1,7 +1,9 @@
 import json
 import logging
+import os
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
+from django.conf import settings
 
 import requests
 
@@ -45,6 +47,7 @@ class OmariClient:
         self.session.headers.update({
             'Content-Type': 'application/json',
             'X-Merchant-Key': self.config.merchant_key,
+            'Accept': 'application/json',
         })
         
         # Log initialization (masked key)
@@ -54,6 +57,13 @@ class OmariClient:
             self.config.base_url,
             key_masked,
         )
+
+        # Optional: log headers unmasked if explicitly enabled (security risk)
+        if os.getenv('OMARI_LOG_HEADERS', 'False') == 'True' and getattr(settings, 'DEBUG', False):
+            try:
+                logger.warning("Omari headers (UNMASKED at init): %s", dict(self.session.headers))
+            except Exception:
+                logger.warning("Failed to log Omari headers at init")
     
     @staticmethod
     def _load_config_from_db() -> Optional[OmariConfig]:
@@ -98,6 +108,12 @@ class OmariClient:
         }
         logger.debug(f"Omari auth payload: {payload}")
         try:
+            # Optional: log outgoing headers unmasked if explicitly enabled
+            if os.getenv('OMARI_LOG_HEADERS', 'False') == 'True' and getattr(settings, 'DEBUG', False):
+                try:
+                    logger.warning("Omari auth outgoing headers (UNMASKED): %s", dict(self.session.headers))
+                except Exception:
+                    logger.warning("Failed to log Omari auth headers")
             resp = self.session.post(url, json=payload, timeout=30)
             resp.raise_for_status()
             data = resp.json()

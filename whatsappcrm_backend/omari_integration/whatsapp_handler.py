@@ -40,12 +40,19 @@ class WhatsAppPaymentHandler:
     PAYMENT_STATE_KEY = '_omari_payment_state'
     
     def __init__(self):
-        """Initialize Omari client from settings."""
-        self.client = OmariClient(OmariConfig(
-            base_url=getattr(settings, 'OMARI_API_BASE_URL', 
-                           'https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment'),
-            merchant_key=getattr(settings, 'OMARI_MERCHANT_KEY', ''),
-        ))
+        """Initialize Omari client preferring DB config with settings fallback."""
+        try:
+            # Prefer DB-stored active config (admin-editable)
+            self.client = OmariClient()
+            logger.info("Omari client configured from DB active config")
+        except ValueError:
+            # Fallback to environment-based settings if DB has no active config
+            self.client = OmariClient(OmariConfig(
+                base_url=getattr(settings, 'OMARI_API_BASE_URL',
+                                 'https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment'),
+                merchant_key=getattr(settings, 'OMARI_MERCHANT_KEY', ''),
+            ))
+            logger.warning("Omari client configured from settings (no active DB config found)")
     
     def initiate_payment(
         self, 
