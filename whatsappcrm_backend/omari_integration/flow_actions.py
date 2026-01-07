@@ -244,20 +244,6 @@ def cancel_payment_action(contact: Contact, flow_context: dict, params: dict) ->
     }]
 
 
-    """
-    Register Omari payment actions with the flow action registry.
-    Call this in apps.py ready() method or at module load.
-    """
-    from flows.services import flow_action_registry
-    
-    flow_action_registry.register('initiate_omari_payment', initiate_omari_payment_action)
-    flow_action_registry.register('verify_omari_user', verify_omari_user_action)
-    flow_action_registry.register('set_omari_not_eligible_message', set_omari_not_eligible_message_action)
-    flow_action_registry.register('process_otp', process_otp_action)
-    flow_action_registry.register('cancel_payment', cancel_payment_action)
-    flow_action_registry.register('validate_omari_phone', validate_omari_phone_action)
-    
-    logger.info("Registered Omari payment flow actions")
 def validate_omari_phone_action(contact: Contact, flow_context: dict, params: dict) -> Dict[str, Any]:
     """
     Validate phone number format for Omari payment.
@@ -298,4 +284,18 @@ def validate_omari_phone_action(contact: Contact, flow_context: dict, params: di
             phone[-4:] if len(phone) >= 4 else "****"
         )
         return {}
+
+
+def register_payment_actions():
+    """Register Omari payment actions with the flow action registry."""
+    from flows.services import flow_action_registry
+
+    flow_action_registry.register('initiate_omari_payment', initiate_omari_payment_action)
+    flow_action_registry.register('verify_omari_user', verify_omari_user_action)
+    flow_action_registry.register('set_omari_not_eligible_message', set_omari_not_eligible_message_action)
+    flow_action_registry.register('process_otp', process_otp_action)
+    flow_action_registry.register('cancel_payment', cancel_payment_action)
+    flow_action_registry.register('validate_omari_phone', validate_omari_phone_action)
+
+    logger.info("Registered Omari payment flow actions")
 
