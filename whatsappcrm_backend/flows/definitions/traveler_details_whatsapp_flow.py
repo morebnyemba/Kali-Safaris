@@ -127,9 +127,13 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                     },
                     {
                         "type": "Footer",
-                        "label": "Submit Details",
+                        "label": "Continue",
                         "on-click-action": {
-                            "name": "complete",
+                            "name": "navigate",
+                            "next": {
+                                "type": "screen",
+                                "name": "ID_DOCUMENT_UPLOAD"
+                            },
                             "payload": {
                                 "traveler_name": "${form.traveler_name}",
                                 "traveler_age": "${form.traveler_age}",
@@ -137,6 +141,73 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                                 "traveler_medical": "${form.traveler_medical}",
                                 "traveler_gender": "${form.traveler_gender}",
                                 "traveler_id_number": "${form.traveler_id_number}"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "id": "ID_DOCUMENT_UPLOAD",
+            "title": "Upload ID Document",
+            "data": {
+                "traveler_name": {
+                    "type": "string",
+                    "__example__": "John Smith"
+                },
+                "traveler_age": {
+                    "type": "string",
+                    "__example__": "35"
+                },
+                "traveler_nationality": {
+                    "type": "string",
+                    "__example__": "United States"
+                },
+                "traveler_medical": {
+                    "type": "string",
+                    "__example__": "None"
+                },
+                "traveler_gender": {
+                    "type": "string",
+                    "__example__": "Male"
+                },
+                "traveler_id_number": {
+                    "type": "string",
+                    "__example__": "123456789"
+                }
+            },
+            "layout": {
+                "type": "SingleColumnLayout",
+                "children": [
+                    {
+                        "type": "TextHeading",
+                        "text": "Upload ID/Passport"
+                    },
+                    {
+                        "type": "TextBody",
+                        "text": "Please upload a clear photo of your ID or Passport for ${data.traveler_name}. This is required for park entry."
+                    },
+                    {
+                        "type": "PhotoPicker",
+                        "name": "id_document_photo",
+                        "label": "ID/Passport Photo",
+                        "description": "Take or upload a photo of the ID/Passport",
+                        "photo-source": "camera_gallery",
+                        "required": True
+                    },
+                    {
+                        "type": "Footer",
+                        "label": "Submit Details",
+                        "on-click-action": {
+                            "name": "complete",
+                            "payload": {
+                                "traveler_name": "${data.traveler_name}",
+                                "traveler_age": "${data.traveler_age}",
+                                "traveler_nationality": "${data.traveler_nationality}",
+                                "traveler_medical": "${data.traveler_medical}",
+                                "traveler_gender": "${data.traveler_gender}",
+                                "traveler_id_number": "${data.traveler_id_number}",
+                                "id_document_photo": "${form.id_document_photo}"
                             }
                         }
                     }

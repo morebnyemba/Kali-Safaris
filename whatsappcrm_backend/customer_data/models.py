@@ -312,17 +312,22 @@ class Booking(models.Model):
         verbose_name_plural = _("Bookings")
         ordering = ['-start_date']
 
-    def update_amount_paid(self, commit=True):
+    def get_total_paid(self):
         """
-        Recalculates the amount_paid field by summing up all related successful payments.
+        Returns the total amount paid for this booking by summing all successful payments.
         """
         total_paid = self.payments.filter(
             status=Payment.PaymentStatus.SUCCESSFUL
         ).aggregate(
             total=Sum('amount')
         )['total'] or Decimal('0.00')
-        
-        self.amount_paid = total_paid
+        return total_paid
+
+    def update_amount_paid(self, commit=True):
+        """
+        Recalculates the amount_paid field by summing up all related successful payments.
+        """
+        self.amount_paid = self.get_total_paid()
         if commit:
             self.save(update_fields=['amount_paid'])
 
@@ -351,6 +356,13 @@ class Traveler(models.Model):
     nationality = models.CharField(_("Nationality"), max_length=100)
     gender = models.CharField(_("Gender"), max_length=20)
     id_number = models.CharField(_("ID/Passport Number"), max_length=50)
+    id_document = models.FileField(
+        _("ID/Passport Document"),
+        upload_to='traveler_documents/%Y/%m/',
+        blank=True,
+        null=True,
+        help_text=_("Upload a photo or scan of ID/Passport")
+    )
     medical_dietary_requirements = models.TextField(
         _("Medical/Dietary Requirements"), 
         blank=True, 

@@ -376,7 +376,8 @@ BOOKING_FLOW = {
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ (traveler_details_response or {}).get('traveler_nationality', '') }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ (traveler_details_response or {}).get('traveler_medical', 'No special requirements') }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_gender", "value_template": "{{ (traveler_details_response or {}).get('traveler_gender', '') }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ (traveler_details_response or {}).get('traveler_id_number', '') }}"}
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ (traveler_details_response or {}).get('traveler_id_number', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_document", "value_template": "{{ (traveler_details_response or {}).get('id_document_photo', '') }}"}
                 ]
             },
             "transitions": [
@@ -543,7 +544,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age|string, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
+                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age|string, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'id_document': current_traveler_id_document, 'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
                     },
                     {
                         "action_type": "set_context_variable",

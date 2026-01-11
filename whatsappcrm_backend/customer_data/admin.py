@@ -98,7 +98,7 @@ class TravelerInline(admin.TabularInline):
     """
     model = Traveler
     extra = 0
-    fields = ('name', 'age', 'nationality', 'gender', 'id_number', 'traveler_type', 'medical_dietary_requirements')
+    fields = ('name', 'age', 'nationality', 'gender', 'id_number', 'id_document', 'traveler_type', 'medical_dietary_requirements')
     readonly_fields = ('created_at',)
     show_change_link = True
 
@@ -320,7 +320,7 @@ class TravelerAdmin(admin.ModelAdmin):
             'fields': ('booking', 'name', 'age', 'traveler_type')
         }),
         ('Identity & Nationality', {
-            'fields': ('nationality', 'gender', 'id_number')
+            'fields': ('nationality', 'gender', 'id_number', 'id_document')
         }),
         ('Special Requirements', {
             'fields': ('medical_dietary_requirements',)
