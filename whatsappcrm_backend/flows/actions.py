@@ -240,20 +240,26 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
             # Handle ID document if provided
             if id_document_media_id:
                 try:
-                    from media_manager.services import download_and_save_whatsapp_media
+                    from meta_integration.utils import download_whatsapp_media
                     from django.core.files.base import ContentFile
+                    import mimetypes
                     
                     # Download the media from WhatsApp
-                    media_content, media_mime_type, file_extension = download_and_save_whatsapp_media(
+                    download_result = download_whatsapp_media(
                         id_document_media_id,
                         contact.associated_app_config
                     )
                     
-                    if media_content:
+                    if download_result:
+                        media_content, media_mime_type = download_result
+                        
+                        # Determine file extension from mime type
+                        file_extension = mimetypes.guess_extension(media_mime_type) or '.jpg'
+                        
                         # Save the document to the traveler
                         file_name = f"id_document_{traveler.id}{file_extension}"
                         traveler.id_document.save(file_name, ContentFile(media_content), save=True)
-                        logger.info(f"Successfully saved ID document for traveler {name}")
+                        logger.info(f"Successfully saved ID document for traveler {name} (mime: {media_mime_type})")
                 except Exception as e:
                     logger.error(f"Error saving ID document for traveler {name}: {e}", exc_info=True)
             
