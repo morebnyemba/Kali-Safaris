@@ -201,6 +201,7 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
             id_number = traveler_data.get('id_number', '')
             medical = traveler_data.get('medical', '')
             traveler_type = traveler_data.get('type', 'adult')
+            id_document_media_id = traveler_data.get('id_document', '')
             
             # Skip if essential fields are missing
             if not name or age is None or age == '':
@@ -225,7 +226,7 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
                     medical_requirements = medical
             
             # Create Traveler instance
-            Traveler.objects.create(
+            traveler = Traveler.objects.create(
                 booking=booking,
                 name=name,
                 age=age_int,
@@ -235,6 +236,33 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
                 medical_dietary_requirements=medical_requirements,
                 traveler_type=traveler_type
             )
+            
+            # Handle ID document if provided
+            if id_document_media_id:
+                try:
+                    from meta_integration.utils import download_whatsapp_media
+                    from django.core.files.base import ContentFile
+                    import mimetypes
+                    
+                    # Download the media from WhatsApp
+                    download_result = download_whatsapp_media(
+                        id_document_media_id,
+                        contact.associated_app_config
+                    )
+                    
+                    if download_result:
+                        media_content, media_mime_type = download_result
+                        
+                        # Determine file extension from mime type
+                        file_extension = mimetypes.guess_extension(media_mime_type) or '.jpg'
+                        
+                        # Save the document to the traveler
+                        file_name = f"id_document_{traveler.id}{file_extension}"
+                        traveler.id_document.save(file_name, ContentFile(media_content), save=True)
+                        logger.info(f"Successfully saved ID document for traveler {name} (mime: {media_mime_type})")
+                except Exception as e:
+                    logger.error(f"Error saving ID document for traveler {name}: {e}", exc_info=True)
+            
             travelers_created += 1
         
         logger.info(f"Successfully created {travelers_created} traveler records for Booking {booking.booking_reference}.")
