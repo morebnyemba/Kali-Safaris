@@ -193,7 +193,9 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "label": "ID/Passport Photo",
                         "description": "Take or upload a photo of the ID/Passport",
                         "photo-source": "camera_gallery",
-                        "required": True
+                        "required": True,
+                        "min-uploaded-photos": 1,
+                        "max-uploaded-photos": 1
                     },
                     {
                         "type": "Footer",
