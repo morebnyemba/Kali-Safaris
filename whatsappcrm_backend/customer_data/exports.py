@@ -24,13 +24,13 @@ logger = logging.getLogger(__name__)
 # --- Helper Functions ---
 
 def _get_church_name():
-    """Gets the church name from settings, with a fallback."""
+    """Gets the company name from settings, with a fallback."""
     try:
-        # Use the new centralized CHURCH_DETAILS setting
-        return settings.CHURCH_DETAILS['NAME']
+        # Use the new centralized COMPANY_DETAILS setting
+        return settings.COMPANY_DETAILS['NAME']
     except (AttributeError, KeyError):
-        logger.warning("settings.CHURCH_DETAILS['NAME'] not found. Using fallback 'Church'.")
-        return "Church"
+        logger.warning("settings.COMPANY_DETAILS['NAME'] not found. Using fallback 'Company'.")
+        return "Company"
 
 def _auto_adjust_excel_columns(sheet):
     """
@@ -52,12 +52,12 @@ def _auto_adjust_excel_columns(sheet):
         sheet.column_dimensions[col_letter].width = width + 2  # Add padding
 
 def _draw_pdf_footer(canvas, doc):
-    """Draws a standard footer on each PDF page with church details."""
+    """Draws a standard footer on each PDF page with company details."""
     canvas.saveState()
     
     # Get details from settings, with fallbacks
-    details = settings.CHURCH_DETAILS
-    name = details.get('NAME', 'Our Church')
+    details = settings.COMPANY_DETAILS
+    name = details.get('NAME', 'Our Company')
     address_line_1 = details.get('ADDRESS_LINE_1', '')
     address_line_2 = details.get('ADDRESS_LINE_2', '')
     phone = details.get('CONTACT_PHONE', '')
