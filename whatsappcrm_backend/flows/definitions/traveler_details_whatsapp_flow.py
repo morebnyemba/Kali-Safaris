@@ -3,6 +3,10 @@
 """
 WhatsApp Flow JSON definition for Traveler Details.
 This is a reusable interactive flow for collecting individual traveler information.
+
+Note: PhotoPicker components in WhatsApp Flow API v7.3 require both 
+'min-uploaded-photos' and 'max-uploaded-photos' properties (range: 0-30 and 1-30 respectively).
+Without these properties, the flow will fail Meta's validation when publishing.
 """
 
 TRAVELER_DETAILS_WHATSAPP_FLOW_METADATA = {
