@@ -79,6 +79,14 @@ class WhatsAppFlowJSONValidationTest(TestCase):
             f"PhotoPicker in {flow_name}/{screen_id}: 'min-uploaded-photos' "
             f"({min_photos}) must be <= 'max-uploaded-photos' ({max_photos})"
         )
+        
+        # Ensure 'required' property is NOT present (WhatsApp API doesn't allow it)
+        self.assertNotIn(
+            'required',
+            component,
+            f"PhotoPicker in {flow_name}/{screen_id}: 'required' property is not allowed. "
+            f"Use 'min-uploaded-photos' to control if photos are required."
+        )
     
     def validate_flow_json(self, flow_json, flow_name):
         """Validate a WhatsApp Flow JSON definition."""
@@ -155,9 +163,12 @@ class WhatsAppFlowJSONValidationTest(TestCase):
                             1,
                             "PhotoPicker should allow maximum 1 photo"
                         )
-                        self.assertTrue(
-                            child.get('required', False),
-                            "PhotoPicker should be required"
+                        # Note: PhotoPicker components should NOT have a 'required' property
+                        # The requirement is enforced by min-uploaded-photos >= 1
+                        self.assertNotIn(
+                            'required',
+                            child,
+                            "PhotoPicker should NOT have 'required' property (use min-uploaded-photos instead)"
                         )
         
         self.assertTrue(
