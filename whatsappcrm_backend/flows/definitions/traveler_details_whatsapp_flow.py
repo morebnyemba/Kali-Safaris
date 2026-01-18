@@ -25,14 +25,6 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
             "id": "TRAVELER_INFO",
             "title": "Traveler Details",
             "data": {
-                "traveler_number": {
-                    "type": "string",
-                    "__example__": "1"
-                },
-                "total_travelers": {
-                    "type": "string",
-                    "__example__": "3"
-                },
                 "traveler_name": {
                     "type": "string",
                     "__example__": "John Smith"
