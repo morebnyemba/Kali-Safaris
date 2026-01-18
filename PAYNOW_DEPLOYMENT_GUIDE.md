@@ -88,7 +88,10 @@ This is used to construct webhook URLs for Paynow callbacks.
    - Go to Meta Flow Manager: https://business.facebook.com/wa/manage/flows/
    - Create a new flow
    - Import or manually create the flow using the exported JSON as reference
-   - Update `data_channel_uri` to: `https://backend.kalaisafaris.com/crm-api/flows/paynow-payment-webhook/`
+   - **IMPORTANT**: Update `data_channel_uri` to match your environment:
+     - Production: `https://backend.kalaisafaris.com/crm-api/flows/paynow-payment-webhook/`
+     - Staging: `https://staging.kalaisafaris.com/crm-api/flows/paynow-payment-webhook/`
+     - Development: `http://localhost:8000/crm-api/flows/paynow-payment-webhook/` (requires ngrok or similar for local testing)
    - Publish the flow
 
 3. **Create WhatsAppFlow Record**:

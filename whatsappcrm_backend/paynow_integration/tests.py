@@ -9,6 +9,7 @@ from conversations.models import Contact
 from products_and_services.models import Tour
 from .services import PaynowService
 from .models import PaynowConfig
+from .constants import PAYNOW_IPN_CALLBACK_PATH
 
 
 class PaynowServiceTestCase(TestCase):
@@ -69,7 +70,7 @@ class PaynowServiceTestCase(TestCase):
         mock_sdk.return_value = mock_instance
         
         # Initialize service and initiate payment
-        service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        service = PaynowService(ipn_callback_url=PAYNOW_IPN_CALLBACK_PATH)
         result = service.initiate_payment(
             booking=self.booking,
             amount=Decimal('500.00'),
@@ -102,7 +103,7 @@ class PaynowServiceTestCase(TestCase):
         mock_sdk.return_value = mock_instance
         
         # Initialize service and initiate payment
-        service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        service = PaynowService(ipn_callback_url=PAYNOW_IPN_CALLBACK_PATH)
         result = service.initiate_payment(
             booking=self.booking,
             amount=Decimal('500.00'),
@@ -123,7 +124,7 @@ class PaynowServiceTestCase(TestCase):
     
     def test_payment_method_mapping(self):
         """Test that payment methods are correctly mapped"""
-        service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        service = PaynowService(ipn_callback_url=PAYNOW_IPN_CALLBACK_PATH)
         
         # Test with mock to avoid actual API calls
         with patch('paynow_integration.services.PaynowSDK') as mock_sdk:

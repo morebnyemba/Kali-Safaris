@@ -206,6 +206,7 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError(e.message_dict if hasattr(e, 'message_dict') else list(e))
         except Exception as e:
             logger.error(f"Unexpected error during FlowTransition update (PK: {serializer.instance.pk}): {e}", exc_info=True)
+            raise
 
 
 # Paynow Payment Flow Webhook Handler
@@ -269,9 +270,10 @@ def paynow_payment_webhook(request):
         
         # Initialize Paynow service and initiate payment
         from paynow_integration.services import PaynowService
+        from paynow_integration.constants import PAYNOW_IPN_CALLBACK_PATH
         from decimal import Decimal
         
-        paynow_service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        paynow_service = PaynowService(ipn_callback_url=PAYNOW_IPN_CALLBACK_PATH)
         
         payment_result = paynow_service.initiate_payment(
             booking=booking,

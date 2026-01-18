@@ -86,6 +86,8 @@ def create_booking_from_inquiry(contact, context: dict, params: dict) -> dict:
 @register_flow_action('initiate_tour_payment')
 def initiate_tour_payment(contact, context: dict, params: dict) -> dict:
     """Initiates a Paynow payment for a tour booking."""
+    from paynow_integration.constants import PAYNOW_IPN_CALLBACK_PATH
+    
     contact = contact or get_contact_from_context(context)
     if not contact:
         logger.error("initiate_tour_payment: Could not find contact in context.")
@@ -105,7 +107,7 @@ def initiate_tour_payment(contact, context: dict, params: dict) -> dict:
 
     try:
         booking = Booking.objects.get(pk=booking_data['id'])
-        paynow_service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        paynow_service = PaynowService(ipn_callback_url=PAYNOW_IPN_CALLBACK_PATH)
         payment_result = paynow_service.initiate_payment(
             booking=booking, 
             amount=Decimal(amount_to_pay),
@@ -136,6 +138,8 @@ def initiate_paynow_payment(contact, context: dict, params: dict) -> dict:
         - payment_method: One of 'ecocash', 'onemoney', 'innbucks'
         - save_to_variable: Variable name to save result (default: 'paynow_payment_result')
     """
+    from paynow_integration.constants import PAYNOW_IPN_CALLBACK_PATH
+    
     contact = contact or get_contact_from_context(context)
     if not contact:
         logger.error("initiate_paynow_payment: Could not find contact in context.")
@@ -162,7 +166,7 @@ def initiate_paynow_payment(contact, context: dict, params: dict) -> dict:
         booking = Booking.objects.get(pk=booking_id)
         
         # Initialize Paynow service
-        paynow_service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        paynow_service = PaynowService(ipn_callback_url=PAYNOW_IPN_CALLBACK_PATH)
         
         # Initiate payment
         payment_result = paynow_service.initiate_payment(

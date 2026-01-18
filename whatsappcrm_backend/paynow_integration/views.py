@@ -48,6 +48,8 @@ def paynow_ipn_view(request: HttpRequest) -> HttpResponse:
     Handles IPN (Instant Payment Notification) callbacks from Paynow.
     This is the server-to-server notification that confirms payment status.
     """
+    from .constants import PAYNOW_IPN_CALLBACK_PATH
+    
     try:
         # Extract IPN data from POST request
         ipn_data = {
@@ -62,7 +64,7 @@ def paynow_ipn_view(request: HttpRequest) -> HttpResponse:
         logger.info(f"Paynow IPN received: {ipn_data}")
         
         # Verify the IPN hash
-        paynow_service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        paynow_service = PaynowService(ipn_callback_url=PAYNOW_IPN_CALLBACK_PATH)
         if not paynow_service.verify_ipn_hash(ipn_data):
             logger.error(f"IPN hash verification failed for reference {ipn_data['reference']}")
             return HttpResponse("Invalid IPN signature", status=400)
