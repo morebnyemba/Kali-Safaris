@@ -108,6 +108,28 @@ print(f"Linked to: {wf.flow_definition.name if wf.flow_definition else 'None'}")
 
 ## Troubleshooting
 
+### Publishing validation error (code 4016011)
+**Error**: "Attempt to publish with validation errors" / "You need to verify that the flow has valid Flow JSON before publishing"
+
+**Cause**: Flow JSON doesn't meet WhatsApp Flow API v7.3 validation requirements.
+
+**Common issues**:
+1. **Unused data fields**: All fields declared in a screen's `data` section must be either:
+   - Used in the screen's layout (e.g., `${data.field_name}` or `${form.field_name}`), OR
+   - Passed in the navigation/completion payload to the next screen
+   
+   **Fix**: Remove any data fields that aren't used or referenced anywhere.
+
+2. **Missing PhotoPicker properties**: PhotoPicker components must have both:
+   - `min-uploaded-photos` (range: 0-30)
+   - `max-uploaded-photos` (range: 1-30)
+   
+   **Fix**: Add both properties to all PhotoPicker components.
+
+3. **Invalid screen references**: Navigation actions reference screens that don't exist.
+   
+   **Fix**: Ensure all `next.name` values match actual screen IDs.
+
 ### WhatsApp Flow not being used
 1. Check the WhatsApp Flow is synced: `sync_status='published'`
 2. Check it has a flow_id from Meta
