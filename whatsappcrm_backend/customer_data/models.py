@@ -403,6 +403,9 @@ class Payment(models.Model):
         BANK_TRANSFER = 'bank_transfer', _('Bank Transfer')
         CREDIT_CARD = 'credit_card', _('Credit Card')
         OMARI = 'omari', _('Omari')
+        PAYNOW_ECOCASH = 'paynow_ecocash', _('Paynow - Ecocash')
+        PAYNOW_ONEMONEY = 'paynow_onemoney', _('Paynow - OneMoney')
+        PAYNOW_INNBUCKS = 'paynow_innbucks', _('Paynow - Innbucks')
         OTHER = 'other', _('Other')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

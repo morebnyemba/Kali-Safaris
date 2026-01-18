@@ -22,4 +22,6 @@ urlpatterns = [
     path('', include(router.urls)),
     path('', include(flows_steps_router.urls)),
     path('', include(steps_transitions_router.urls)),
+    # Webhook for Paynow payment flow data exchange
+    path('paynow-payment-webhook/', views.paynow_payment_webhook, name='paynow-payment-webhook'),
 ]

@@ -56,8 +56,9 @@ path('crm-api/customer-data/', include('customer_data.urls', namespace='customer
     # They use SessionAuthentication.
     path('api-auth/', include('rest_framework.urls', namespace='rest_framework')),
 
-    # Omari payments endpoints
+    # Payment integration endpoints
     path('crm-api/payments/omari/', include('omari_integration.urls', namespace='omari_integration')),
+    path('crm-api/paynow/', include('paynow_integration.urls', namespace='paynow_integration')),
 ]
 
 # --- Serve Media Files in Development ---
