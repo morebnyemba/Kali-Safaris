@@ -78,7 +78,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "name": "traveler_age",
                         "label": "Age",
                         "required": True,
-                        "input-type": "number",
+                        "input-type": "text",
                         "helper-text": "Enter the traveler's age"
                     },
                     {
