@@ -105,10 +105,14 @@ def initiate_tour_payment(contact, context: dict, params: dict) -> dict:
 
     try:
         booking = Booking.objects.get(pk=booking_data['id'])
-        paynow_service = PaynowService()
+        paynow_service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
         payment_result = paynow_service.initiate_payment(
-            booking=booking, amount=Decimal(amount_to_pay),
-            customer_email=contact.customer_profile.email if hasattr(contact, 'customer_profile') else '',
+            booking=booking, 
+            amount=Decimal(amount_to_pay),
+            phone_number=context.get('payment_phone', ''),
+            email=contact.customer_profile.email if hasattr(contact, 'customer_profile') else '',
+            payment_method=context.get('payment_method', 'ecocash'),
+            description=f"Tour booking payment for {booking.tour_name}"
         )
         context[params.get('save_to_variable', 'payment_result')] = payment_result
         logger.info(f"Successfully initiated Paynow payment for Booking {booking.booking_reference}.")
@@ -117,6 +121,79 @@ def initiate_tour_payment(contact, context: dict, params: dict) -> dict:
     except Exception as e:
         logger.error(f"Error initiating Paynow payment: {e}", exc_info=True)
         context[params.get('save_to_variable', 'payment_result')] = {'error': str(e)}
+
+    return context
+
+@register_flow_action('initiate_paynow_payment')
+def initiate_paynow_payment(contact, context: dict, params: dict) -> dict:
+    """
+    Initiates a Paynow payment with detailed parameters.
+    Expected params:
+        - booking_id: The booking ID from context
+        - amount: The amount to pay
+        - phone_number: Customer phone number  
+        - email: Customer email
+        - payment_method: One of 'ecocash', 'onemoney', 'innbucks'
+        - save_to_variable: Variable name to save result (default: 'paynow_payment_result')
+    """
+    contact = contact or get_contact_from_context(context)
+    if not contact:
+        logger.error("initiate_paynow_payment: Could not find contact in context.")
+        return context
+
+    # Extract parameters from params_template
+    booking_id = params.get('booking_id')
+    amount = params.get('amount')
+    phone_number = params.get('phone_number')
+    email = params.get('email')
+    payment_method = params.get('payment_method')
+    
+    # Validate required parameters
+    if not all([booking_id, amount, phone_number, email, payment_method]):
+        logger.error(f"initiate_paynow_payment: Missing required parameters. Got: {params}")
+        context[params.get('save_to_variable', 'paynow_payment_result')] = {
+            'success': False, 
+            'message': 'Missing required payment parameters'
+        }
+        return context
+
+    try:
+        # Get the booking
+        booking = Booking.objects.get(pk=booking_id)
+        
+        # Initialize Paynow service
+        paynow_service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        
+        # Initiate payment
+        payment_result = paynow_service.initiate_payment(
+            booking=booking,
+            amount=Decimal(str(amount)),
+            phone_number=phone_number,
+            email=email,
+            payment_method=payment_method,
+            description=f"Tour booking payment for {booking.tour_name}"
+        )
+        
+        # Save result to context
+        context[params.get('save_to_variable', 'paynow_payment_result')] = payment_result
+        
+        if payment_result.get('success'):
+            logger.info(f"Successfully initiated Paynow {payment_method} payment for Booking {booking.booking_reference}")
+        else:
+            logger.warning(f"Paynow payment initiation failed for Booking {booking.booking_reference}: {payment_result.get('message')}")
+            
+    except Booking.DoesNotExist:
+        logger.error(f"initiate_paynow_payment: Booking with ID {booking_id} not found.")
+        context[params.get('save_to_variable', 'paynow_payment_result')] = {
+            'success': False,
+            'message': 'Booking not found'
+        }
+    except Exception as e:
+        logger.error(f"Error initiating Paynow payment: {e}", exc_info=True)
+        context[params.get('save_to_variable', 'paynow_payment_result')] = {
+            'success': False,
+            'message': f'Error processing payment: {str(e)}'
+        }
 
     return context
 

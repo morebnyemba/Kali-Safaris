@@ -7,6 +7,7 @@ from django.conf import settings
 
 from .paynow_wrapper import PaynowSDK # Import our wrapper
 from .models import PaynowConfig
+from customer_data.models import Payment, Booking
 
 logger = logging.getLogger(__name__)
 
@@ -107,3 +108,90 @@ class PaynowService:
         except Exception as e:
             logger.error(f"Error during Paynow SDK verify_ipn_hash: {e}", exc_info=True)
             return False
+
+    def initiate_payment(
+        self,
+        booking: Booking,
+        amount: Decimal,
+        phone_number: str,
+        email: str,
+        payment_method: str,
+        description: str = "Tour Booking Payment"
+    ) -> Dict[str, Any]:
+        """
+        Initiates a Paynow payment for a booking.
+        Creates a Payment record and calls the Paynow API.
+        
+        Args:
+            booking: The Booking instance
+            amount: Payment amount
+            phone_number: Customer phone number for mobile money
+            email: Customer email
+            payment_method: One of 'ecocash', 'onemoney', 'innbucks'
+            description: Payment description
+        
+        Returns:
+            Dict with payment result including success status, poll_url, etc.
+        """
+        if not self.paynow_sdk:
+            logger.error("Paynow SDK not initialized when initiate_payment was called.")
+            return {"success": False, "message": "Paynow service not configured."}
+        
+        # Map payment method to Paynow method type and Payment model choice
+        payment_method_map = {
+            'ecocash': ('ecocash', Payment.PaymentMethod.PAYNOW_ECOCASH),
+            'onemoney': ('onemoney', Payment.PaymentMethod.PAYNOW_ONEMONEY),
+            'innbucks': ('innbucks', Payment.PaymentMethod.PAYNOW_INNBUCKS)
+        }
+        
+        if payment_method not in payment_method_map:
+            logger.error(f"Invalid payment method: {payment_method}")
+            return {"success": False, "message": f"Invalid payment method: {payment_method}"}
+        
+        paynow_method_type, payment_model_choice = payment_method_map[payment_method]
+        
+        # Create a Payment record
+        try:
+            payment = Payment.objects.create(
+                booking=booking,
+                amount=amount,
+                currency='USD',
+                status=Payment.PaymentStatus.PENDING,
+                payment_method=payment_model_choice,
+                notes=f"Paynow {payment_method} payment initiated"
+            )
+            
+            # Generate a unique reference for this payment
+            payment_reference = f"{booking.booking_reference}-PAY-{payment.id}"
+            
+            # Initiate the Paynow payment
+            result = self.initiate_express_checkout_payment(
+                amount=amount,
+                reference=payment_reference,
+                phone_number=phone_number,
+                email=email,
+                paynow_method_type=paynow_method_type,
+                description=description
+            )
+            
+            # Update payment record with transaction reference
+            if result.get('success'):
+                payment.transaction_reference = result.get('paynow_reference', '')
+                payment.notes = f"{payment.notes}. Paynow reference: {result.get('paynow_reference')}"
+                payment.save()
+                
+                # Add payment ID to result for tracking
+                result['payment_id'] = str(payment.id)
+                logger.info(f"Payment record created with ID {payment.id} for booking {booking.booking_reference}")
+            else:
+                # Mark payment as failed
+                payment.status = Payment.PaymentStatus.FAILED
+                payment.notes = f"{payment.notes}. Failed: {result.get('message', 'Unknown error')}"
+                payment.save()
+                logger.warning(f"Payment initiation failed for booking {booking.booking_reference}: {result.get('message')}")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error creating payment record or initiating payment: {e}", exc_info=True)
+            return {"success": False, "message": f"Error processing payment: {str(e)}"}
