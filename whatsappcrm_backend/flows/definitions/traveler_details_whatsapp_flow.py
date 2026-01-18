@@ -4,9 +4,13 @@
 WhatsApp Flow JSON definition for Traveler Details.
 This is a reusable interactive flow for collecting individual traveler information.
 
-Note: PhotoPicker components in WhatsApp Flow API v7.3 require both 
-'min-uploaded-photos' and 'max-uploaded-photos' properties (range: 0-30 and 1-30 respectively).
-Without these properties, the flow will fail Meta's validation when publishing.
+Important WhatsApp Flow API v7.3 Requirements:
+1. PhotoPicker components require both 'min-uploaded-photos' and 'max-uploaded-photos' 
+   properties (range: 0-30 and 1-30 respectively).
+2. All data fields declared in a screen's 'data' section must be either:
+   - Used in the screen's layout (e.g., in text interpolation like ${data.field_name}), OR
+   - Passed in the navigation/completion payload to the next screen
+   Unused data fields will cause validation errors during publishing.
 """
 
 TRAVELER_DETAILS_WHATSAPP_FLOW_METADATA = {
@@ -25,14 +29,6 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
             "id": "TRAVELER_INFO",
             "title": "Traveler Details",
             "data": {
-                "traveler_number": {
-                    "type": "string",
-                    "__example__": "1"
-                },
-                "total_travelers": {
-                    "type": "string",
-                    "__example__": "3"
-                },
                 "traveler_name": {
                     "type": "string",
                     "__example__": "John Smith"
