@@ -206,4 +206,119 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
             raise serializers.ValidationError(e.message_dict if hasattr(e, 'message_dict') else list(e))
         except Exception as e:
             logger.error(f"Unexpected error during FlowTransition update (PK: {serializer.instance.pk}): {e}", exc_info=True)
-            raise
+
+
+# Paynow Payment Flow Webhook Handler
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+import json
+
+@csrf_exempt
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def paynow_payment_webhook(request):
+    """
+    Webhook endpoint for handling Paynow payment flow data exchanges from Meta.
+    This is called when a user submits the payment form in the WhatsApp flow.
+    
+    The endpoint receives payment details (payment_method, phone_number, email)
+    and initiates a Paynow payment, then returns appropriate screen data.
+    """
+    try:
+        # Parse the incoming request data
+        data = json.loads(request.body) if isinstance(request.body, bytes) else request.data
+        logger.info(f"Paynow payment webhook called with data: {data}")
+        
+        # Extract flow token and form data
+        flow_token = data.get('flow_token', '')
+        form_data = data.get('data', {})
+        
+        # Extract payment details from form
+        booking_reference = form_data.get('booking_reference', '')
+        amount = form_data.get('amount', '')
+        payment_method = form_data.get('payment_method', '')
+        phone_number = form_data.get('phone_number', '')
+        email = form_data.get('email', '')
+        
+        # Validate required fields
+        if not all([booking_reference, amount, payment_method, phone_number, email]):
+            logger.error(f"Missing required fields in payment webhook. Data: {form_data}")
+            return JsonResponse({
+                "version": "3.0",
+                "screen": "PAYMENT_ERROR",
+                "data": {
+                    "error_message": "Missing required payment information. Please try again."
+                }
+            })
+        
+        # Get the booking
+        from customer_data.models import Booking
+        try:
+            booking = Booking.objects.get(booking_reference=booking_reference)
+        except Booking.DoesNotExist:
+            logger.error(f"Booking not found: {booking_reference}")
+            return JsonResponse({
+                "version": "3.0",
+                "screen": "PAYMENT_ERROR",
+                "data": {
+                    "error_message": f"Booking {booking_reference} not found. Please contact support."
+                }
+            })
+        
+        # Initialize Paynow service and initiate payment
+        from paynow_integration.services import PaynowService
+        from decimal import Decimal
+        
+        paynow_service = PaynowService(ipn_callback_url='/crm-api/paynow/ipn/')
+        
+        payment_result = paynow_service.initiate_payment(
+            booking=booking,
+            amount=Decimal(str(amount)),
+            phone_number=phone_number,
+            email=email,
+            payment_method=payment_method,
+            description=f"Tour booking payment for {booking.tour_name}"
+        )
+        
+        # Return appropriate screen based on result
+        if payment_result.get('success'):
+            logger.info(f"Payment initiated successfully for booking {booking_reference}")
+            return JsonResponse({
+                "version": "3.0",
+                "screen": "PAYMENT_PROCESSING",
+                "data": {
+                    "payment_reference": payment_result.get('paynow_reference', booking_reference),
+                    "instructions": payment_result.get('instructions', 'Please check your phone for a payment prompt.'),
+                    "poll_url": payment_result.get('poll_url', '')
+                }
+            })
+        else:
+            logger.warning(f"Payment initiation failed for booking {booking_reference}: {payment_result.get('message')}")
+            return JsonResponse({
+                "version": "3.0",
+                "screen": "PAYMENT_ERROR",
+                "data": {
+                    "error_message": payment_result.get('message', 'Payment could not be initiated. Please try again.')
+                }
+            })
+            
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON in payment webhook: {e}")
+        return JsonResponse({
+            "version": "3.0",
+            "screen": "PAYMENT_ERROR",
+            "data": {
+                "error_message": "Invalid request format. Please try again."
+            }
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error in payment webhook: {e}", exc_info=True)
+        return JsonResponse({
+            "version": "3.0",
+            "screen": "PAYMENT_ERROR",
+            "data": {
+                "error_message": "An unexpected error occurred. Please contact support."
+            }
+        }, status=500)
