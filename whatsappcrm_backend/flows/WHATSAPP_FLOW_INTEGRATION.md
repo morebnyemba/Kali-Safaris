@@ -120,11 +120,13 @@ print(f"Linked to: {wf.flow_definition.name if wf.flow_definition else 'None'}")
    
    **Fix**: Remove any data fields that aren't used or referenced anywhere.
 
-2. **Missing PhotoPicker properties**: PhotoPicker components must have both:
+2. **PhotoPicker properties**: PhotoPicker components must have both:
    - `min-uploaded-photos` (range: 0-30)
    - `max-uploaded-photos` (range: 1-30)
    
-   **Fix**: Add both properties to all PhotoPicker components.
+   PhotoPicker components must NOT have a `required` property. Use `min-uploaded-photos >= 1` to make photos required.
+   
+   **Fix**: Add both min/max properties and remove any `required` property from PhotoPicker components.
 
 3. **Invalid screen references**: Navigation actions reference screens that don't exist.
    
