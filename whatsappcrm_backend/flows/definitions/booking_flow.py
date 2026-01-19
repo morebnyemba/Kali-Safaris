@@ -677,7 +677,7 @@ BOOKING_FLOW = {
                                     "title": "Mobile Money (Paynow)",
                                     "rows": [
                                         {"id": "paynow_full", "title": "Pay Full via Paynow"},
-                                        {"id": "paynow_deposit", "title": "Pay 50% Deposit via Paynow"}
+                                        {"id": "paynow_deposit", "title": "Pay 50% Deposit Paynow"}
                                     ]
                                 },
                                 {
