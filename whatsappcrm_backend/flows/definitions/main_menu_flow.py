@@ -78,7 +78,7 @@ MAIN_MENU_FLOW = {
                                 {
                                     "title": "Booking Payments",
                                     "rows": [
-                                        {"id": "booking_payment", "title": "Booking Installment/Balance", "description": "Pay deposit or installments for a booking."}
+                                        {"id": "booking_payment", "title": "Pay Balance/Installment", "description": "Pay deposit or installments for a booking."}
                                     ]
                                 },
                                 {
