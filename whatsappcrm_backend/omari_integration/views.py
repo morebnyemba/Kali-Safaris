@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 import uuid
 from django.utils import timezone
 
@@ -8,7 +7,7 @@ from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
-from .services import OmariClient, OmariConfig
+from .services import OmariClient
 from .models import OmariTransaction
 
 
@@ -16,12 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 def _build_client() -> OmariClient:
-    """Build Omari client from environment variables."""
-    cfg = OmariConfig(
-        base_url=os.getenv('OMARI_API_BASE_URL', 'https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment'),
-        merchant_key=os.getenv('OMARI_MERCHANT_KEY', ''),
-    )
-    return OmariClient(cfg)
+    """Build Omari client from database configuration."""
+    return OmariClient()
 
 
 @csrf_exempt
