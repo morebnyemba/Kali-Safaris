@@ -222,7 +222,8 @@ def omari_void_view(request: HttpRequest) -> JsonResponse:
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
-    except Exception:
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        logger.warning(f"Invalid JSON in void request: {e}")
         return JsonResponse({"error": True, "message": "Invalid JSON"}, status=400)
 
     if 'reference' not in payload:
@@ -231,13 +232,12 @@ def omari_void_view(request: HttpRequest) -> JsonResponse:
     client = _build_client()
     try:
         result = client.void(reference=payload['reference'])
-        # Update transaction record
-        txn = OmariTransaction.objects.filter(reference=payload['reference']).first()
-        if txn:
-            txn.status = 'VOIDED'
-            txn.response_code = result.get('responseCode')
-            txn.response_message = result.get('message')
-            txn.save()
+        # Update transaction record atomically
+        OmariTransaction.objects.filter(reference=payload['reference']).update(
+            status='VOIDED',
+            response_code=result.get('responseCode'),
+            response_message=result.get('message')
+        )
         return JsonResponse(result, status=200)
     except Exception as e:
         logger.exception("Failed to void Omari transaction")
