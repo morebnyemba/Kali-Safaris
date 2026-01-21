@@ -181,3 +181,24 @@ class OmariClient:
         data = resp.json()
         logger.info("Omari query response: %s", data)
         return data
+
+    def void(self, reference: str) -> Dict[str, Any]:
+        """
+        POST /void - Cancel a pending transaction.
+
+        Args:
+            reference: UUID reference for the transaction to void
+
+        Returns:
+            {"error": bool, "message": str, "responseCode": str}
+        """
+        url = f"{self.config.base_url.rstrip('/')}/void"
+        payload = {
+            'reference': reference,
+        }
+        logger.debug(f"Omari void URL: {url}; payload={payload}")
+        resp = self.session.post(url, json=payload, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+        logger.info("Omari void response: %s", data)
+        return data

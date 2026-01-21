@@ -198,3 +198,47 @@ def omari_query_view(request: HttpRequest, reference: str) -> JsonResponse:
     except Exception as e:
         logger.exception("Failed to query Omari transaction")
         return JsonResponse({"error": True, "message": str(e)}, status=502)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def omari_void_view(request: HttpRequest) -> JsonResponse:
+    """
+    POST /crm-api/payments/omari/void/
+
+    Cancels/voids a pending Omari transaction.
+
+    Request JSON:
+    {
+      "reference": "<UUID>"
+    }
+
+    Response:
+    {
+      "error": false,
+      "message": "Transaction voided successfully",
+      "responseCode": "000"
+    }
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({"error": True, "message": "Invalid JSON"}, status=400)
+
+    if 'reference' not in payload:
+        return JsonResponse({"error": True, "message": "Missing field: reference"}, status=400)
+
+    client = _build_client()
+    try:
+        result = client.void(reference=payload['reference'])
+        # Update transaction record
+        txn = OmariTransaction.objects.filter(reference=payload['reference']).first()
+        if txn:
+            txn.status = 'VOIDED'
+            txn.response_code = result.get('responseCode')
+            txn.response_message = result.get('message')
+            txn.save()
+        return JsonResponse(result, status=200)
+    except Exception as e:
+        logger.exception("Failed to void Omari transaction")
+        return JsonResponse({"error": True, "message": str(e)}, status=502)

@@ -111,6 +111,7 @@ class OmariTransaction(models.Model):
             ('SUCCESS', 'Success'),
             ('FAILED', 'Failed'),
             ('PENDING', 'Pending'),
+            ('VOIDED', 'Voided'),
         ],
         default='INITIATED'
     )
