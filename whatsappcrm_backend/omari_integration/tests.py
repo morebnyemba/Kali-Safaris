@@ -100,6 +100,27 @@ class OmariClientTests(TestCase):
         self.assertIn('/query/test-uuid-123', args[0])
         self.assertEqual(result['status'], 'Success')
 
+    @patch('requests.Session.post')
+    def test_void_transaction(self, mock_post):
+        """Test void() cancels a pending transaction."""
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            'error': False,
+            'message': 'Transaction voided successfully',
+            'responseCode': '000'
+        }
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        result = self.client.void('test-uuid-123')
+
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        self.assertIn('/void', args[0])
+        self.assertEqual(kwargs['json']['reference'], 'test-uuid-123')
+        self.assertFalse(result['error'])
+        self.assertEqual(result['responseCode'], '000')
+
 
 class OmariViewTests(TestCase):
     """Test Omari Django views."""
@@ -207,3 +228,38 @@ class OmariViewTests(TestCase):
             data = response.json()
             self.assertEqual(data['status'], 'Success')
             self.assertEqual(data['reference'], 'test-uuid-789')
+
+    @patch('omari_integration.views.OmariClient.void')
+    def test_void_view_cancels_transaction(self, mock_void):
+        """Test void view cancels a pending transaction."""
+        # Create initial transaction
+        txn = OmariTransaction.objects.create(
+            reference='test-uuid-999',
+            msisdn='263774975187',
+            amount=3.50,
+            currency='USD',
+            status='OTP_SENT',
+            otp_reference='ETDC'
+        )
+
+        mock_void.return_value = {
+            'error': False,
+            'message': 'Transaction voided successfully',
+            'responseCode': '000'
+        }
+
+        response = self.http_client.post(
+            reverse('omari_integration:void'),
+            data=json.dumps({
+                'reference': 'test-uuid-999'
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertFalse(data['error'])
+        
+        # Verify transaction was updated to VOIDED
+        txn.refresh_from_db()
+        self.assertEqual(txn.status, 'VOIDED')
