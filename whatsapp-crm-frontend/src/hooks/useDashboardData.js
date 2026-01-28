@@ -7,7 +7,7 @@ import {
 import { apiCall } from '@/lib/api';
 
 const initialStatCardsDefinition = [
-  { id: "active_conversations_count", title: "Active Conversations", defaultIcon: <FiMessageCircle />, linkTo: "/conversations", colorScheme: "green", trendKey: null, valueSuffix: "" },
+  { id: "active_conversations_count", title: "Active Conversations", defaultIcon: <FiMessageCircle />, linkTo: "/conversation", colorScheme: "green", trendKey: null, valueSuffix: "" },
   { id: "new_contacts_today", title: "New Contacts (Today)", defaultIcon: <FiUsers />, linkTo: "/contacts", colorScheme: "emerald", trendKey: "total_contacts", valueSuffix: "" },
   { id: "messages_sent_24h", title: "Messages Sent (24h)", defaultIcon: <FiTrendingUp />, linkTo: null, colorScheme: "lime", trendKey: "messages_sent_automated_percent_text", valueSuffix: "" },
   { id: "meta_configs_total", title: "Meta API Configs", defaultIcon: <FiHardDrive />, linkTo: "/api-settings", colorScheme: "teal", trendKey: "meta_config_active_name", valueSuffix: "" },
@@ -67,11 +67,18 @@ export function useDashboardData() {
         
         if (summaryValue !== undefined) {
           let trendText = newCard.trendKey && statsFromSummary[newCard.trendKey] ? (statsFromSummary[newCard.trendKey] || "") : (newCard.trend || "...");
+          let trendType = newCard.trendType;
+          
           if (newCard.id === "messages_sent_24h" && summary.bot_performance_data?.automated_resolution_rate !== undefined) {
             trendText = `${(summary.bot_performance_data.automated_resolution_rate * 100).toFixed(0)}% Auto`;
+          } else if (newCard.id === "pending_human_handovers") {
+            trendType = parseInt(summaryValue) > 0 ? "negative" : "positive";
+            trendText = parseInt(summaryValue) > 0 ? `${summaryValue} require attention` : "All clear";
           }
+          
           newCard.value = summaryValue || "0";
           newCard.trend = trendText;
+          newCard.trendType = trendType;
         } else {
           newCard.value = "N/A";
           newCard.trend = summaryResult.status === "rejected" ? "Error" : "N/A";

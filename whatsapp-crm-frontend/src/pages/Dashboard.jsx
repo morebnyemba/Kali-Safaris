@@ -28,7 +28,13 @@ import { API_BASE_URL } from '@/lib/api';
 
 // Activity icons map for WebSocket updates
 const activityIcons = {
-  default: FiActivity, FiMessageCircle, FiUsers, FiSettings, FiZap, FiCheckCircle, FiAlertCircle,
+  FiUsers,
+  FiZap,
+  FiMessageCircle,
+  FiSettings,
+  FiCheckCircle,
+  FiAlertCircle,
+  default: FiActivity,
 };
 
 const getCardStyles = (colorScheme) => {
@@ -132,19 +138,10 @@ export default function Dashboard() {
   // Sync local state with hook data when it changes
   useEffect(() => {
     setStatsCardsData(hookStatsCardsData);
-  }, [hookStatsCardsData]);
-
-  useEffect(() => {
     setRecentActivities(hookRecentActivities);
-  }, [hookRecentActivities]);
-
-  useEffect(() => {
     setConversationTrendsData(hookConversationTrendsData);
-  }, [hookConversationTrendsData]);
-
-  useEffect(() => {
     setBotPerformanceData(hookBotPerformanceData);
-  }, [hookBotPerformanceData]);
+  }, [hookStatsCardsData, hookRecentActivities, hookConversationTrendsData, hookBotPerformanceData]);
 
   // --- WebSocket Setup ---
   const getSocketUrl = useCallback(() => {
