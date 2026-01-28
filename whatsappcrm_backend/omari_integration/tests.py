@@ -3,6 +3,7 @@ Basic smoke tests for Omari integration.
 Run with: python manage.py test omari_integration.tests
 """
 import json
+from decimal import Decimal
 from unittest.mock import patch, MagicMock
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -263,3 +264,126 @@ class OmariViewTests(TestCase):
         # Verify transaction was updated to VOIDED
         txn.refresh_from_db()
         self.assertEqual(txn.status, 'VOIDED')
+
+
+class OmariFlowActionsTests(TestCase):
+    """Test Omari flow actions with proper exception handling."""
+
+    def setUp(self):
+        """Set up test contact and booking."""
+        from conversations.models import Contact
+        from customer_data.models import Booking, CustomerProfile
+        from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        User = get_user_model()
+        
+        # Create test user
+        self.user = User.objects.create_user(
+            username='testuser',
+            email='test@example.com',
+            password='testpass123'
+        )
+        
+        # Create test customer profile
+        self.customer = CustomerProfile.objects.create(
+            email='customer@test.com',
+            first_name='Test',
+            last_name='Customer'
+        )
+        
+        # Create test contact
+        self.contact = Contact.objects.create(
+            whatsapp_id='263774975187',
+            name='Test Contact',
+            profile_name='Test',
+        )
+        
+        # Use dynamic dates for booking
+        today = timezone.now().date()
+        start_date = today + timedelta(days=7)
+        end_date = start_date + timedelta(days=4)
+        
+        # Create test booking
+        self.booking = Booking.objects.create(
+            customer=self.customer,
+            booking_reference='TEST-BOOKING-123',
+            total_amount=Decimal('50.00'),
+            amount_paid=Decimal('0.00'),
+            payment_status='pending',
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    @patch('omari_integration.flow_actions.get_payment_handler')
+    def test_initiate_payment_handles_exception(self, mock_get_handler):
+        """Test that initiate_omari_payment_action handles exceptions gracefully."""
+        from omari_integration.flow_actions import initiate_omari_payment_action
+        
+        # Mock handler to raise an exception
+        mock_handler = MagicMock()
+        mock_handler.initiate_payment.side_effect = Exception('Network error')
+        mock_get_handler.return_value = mock_handler
+        
+        # Call action
+        flow_context = {
+            'payment_phone': '263774975187',
+            'amount_to_pay': 50.0
+        }
+        params = {
+            'booking_reference': 'TEST-BOOKING-123',
+            'amount': '50.00',
+            'currency': 'USD',
+            'channel': 'WEB',
+            'msisdn': '263774975187'
+        }
+        
+        result = initiate_omari_payment_action(self.contact, flow_context, params)
+        
+        # Verify error message is returned
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['type'], 'send_text')
+        self.assertIn('Payment service error', result[0]['text'])
+        self.assertIn('Network error', result[0]['text'])
+
+    @patch('omari_integration.flow_actions.get_payment_handler')
+    def test_initiate_payment_success(self, mock_get_handler):
+        """Test successful payment initiation."""
+        from omari_integration.flow_actions import initiate_omari_payment_action
+        
+        # Mock successful handler response
+        mock_handler = MagicMock()
+        mock_handler.initiate_payment.return_value = {
+            'success': True,
+            'otp_reference': 'TEST-OTP-REF',
+            'reference': 'test-uuid-123',
+            'message': 'OTP sent successfully'
+        }
+        mock_get_handler.return_value = mock_handler
+        
+        # Call action
+        flow_context = {
+            'payment_phone': '263774975187',
+            'amount_to_pay': 50.0
+        }
+        params = {
+            'booking_reference': 'TEST-BOOKING-123',
+            'amount': '50.00',
+            'currency': 'USD',
+            'channel': 'WEB',
+            'msisdn': '263774975187'
+        }
+        
+        result = initiate_omari_payment_action(self.contact, flow_context, params)
+        
+        # Verify success message is returned
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['type'], 'send_text')
+        self.assertIn('Payment Initiated', result[0]['text'])
+        self.assertIn('TEST-OTP-REF', result[0]['text'])
+        
+        # Verify context was updated
+        self.assertEqual(flow_context['omari_otp_reference'], 'TEST-OTP-REF')
+        self.assertEqual(flow_context['_payment_reference'], 'test-uuid-123')
+

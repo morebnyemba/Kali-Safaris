@@ -92,8 +92,7 @@ def _send_whatsapp_message(contact: Contact, text: str) -> None:
         send_whatsapp_message(
             to_phone_number=contact.whatsapp_id,
             message_type='text',
-            data={'body': text},
-            contact=contact
+            data={'body': text}
         )
     except Exception as e:
         logger.exception(f"Failed to send WhatsApp message to {contact.whatsapp_id}")
