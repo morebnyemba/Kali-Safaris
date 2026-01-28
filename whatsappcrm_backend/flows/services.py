@@ -505,9 +505,16 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
     raw_step_config = step.config or {}
     current_step_context = flow_context.copy() 
 
+    # Truncate config for logging to prevent massive log entries
+    config_str = str(raw_step_config)
+    if len(config_str) > 500:
+        config_preview = config_str[:500] + f"... (truncated, total length: {len(config_str)})"
+    else:
+        config_preview = config_str
+
     logger.debug(
         f"Contact {contact.id}: Executing actions for step '{step.name}' (ID: {step.id}, Type: {step.step_type}). "
-        f"Raw Config: {raw_step_config}"
+        f"Raw Config: {config_preview}"
     )
 
     if step.step_type == 'send_message':

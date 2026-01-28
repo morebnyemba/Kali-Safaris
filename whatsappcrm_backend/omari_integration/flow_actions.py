@@ -84,16 +84,29 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
     # Get payment phone from flow context (user-entered phone), fallback to contact phone
     payment_phone = params.get('msisdn') or flow_context.get('payment_phone', contact.whatsapp_id)
     
-    # Initiate payment
+    # Initiate payment with exception handling
     handler = get_payment_handler()
-    result = handler.initiate_payment(
-        contact=contact,
-        booking=booking,
-        amount=amount,
-        currency=currency,
-        channel=channel,
-        msisdn=payment_phone
-    )
+    try:
+        result = handler.initiate_payment(
+            contact=contact,
+            booking=booking,
+            amount=amount,
+            currency=currency,
+            channel=channel,
+            msisdn=payment_phone
+        )
+    except Exception as exc:
+        logger.error(
+            "initiate_omari_payment action: payment handler exception | contact=%s booking_ref=%s error=%s",
+            contact.id,
+            booking_ref,
+            exc,
+            exc_info=True,
+        )
+        return [{
+            'type': 'send_text',
+            'text': f'❌ Payment service error: {str(exc)}\\nPlease try again or contact support.'
+        }]
     
     if result['success']:
         otp_ref = result.get('otp_reference', 'N/A')
