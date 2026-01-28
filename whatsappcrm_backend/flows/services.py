@@ -2138,6 +2138,16 @@ def process_message_for_flow(contact: Contact, message_data: dict, incoming_mess
             logger.debug(f"Contact {contact.id}: Processed internal command to clear flow state.")
         elif action.get('type') == 'send_whatsapp_message': # Only pass valid message actions
             final_actions_for_meta_view.append(action)
+        elif action.get('type') == 'send_text':
+            # Convert send_text actions (from custom flow actions) to send_whatsapp_message format
+            text_content = action.get('text', '')
+            final_actions_for_meta_view.append({
+                'type': 'send_whatsapp_message',
+                'recipient_wa_id': contact.whatsapp_id,
+                'message_type': 'text',
+                'data': {'body': text_content}
+            })
+            logger.debug(f"Contact {contact.id}: Converted send_text action to send_whatsapp_message.")
         else:
             logger.warning(f"Unhandled action type in final processing: {action.get('type')}")
             
