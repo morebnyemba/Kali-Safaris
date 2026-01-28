@@ -274,6 +274,8 @@ class OmariFlowActionsTests(TestCase):
         from conversations.models import Contact
         from customer_data.models import Booking, CustomerProfile
         from django.contrib.auth import get_user_model
+        from django.utils import timezone
+        from datetime import timedelta
         
         User = get_user_model()
         
@@ -298,6 +300,11 @@ class OmariFlowActionsTests(TestCase):
             profile_name='Test',
         )
         
+        # Use dynamic dates for booking
+        today = timezone.now().date()
+        start_date = today + timedelta(days=7)
+        end_date = start_date + timedelta(days=4)
+        
         # Create test booking
         self.booking = Booking.objects.create(
             customer=self.customer,
@@ -305,8 +312,8 @@ class OmariFlowActionsTests(TestCase):
             total_amount=Decimal('50.00'),
             amount_paid=Decimal('0.00'),
             payment_status='pending',
-            start_date='2026-02-01',
-            end_date='2026-02-05',
+            start_date=start_date,
+            end_date=end_date,
         )
 
     @patch('omari_integration.flow_actions.get_payment_handler')
