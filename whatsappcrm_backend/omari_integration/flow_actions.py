@@ -221,6 +221,9 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
         
         message += "\\n\\nThank you for your payment! 🎉"
         
+        # Set success flag for flow transition
+        flow_context['omari_payment_success'] = True
+        
         # Clear payment state from context
         flow_context.pop('_payment_initiated', None)
         flow_context.pop('_payment_reference', None)

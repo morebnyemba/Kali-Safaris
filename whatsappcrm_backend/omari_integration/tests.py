@@ -387,3 +387,62 @@ class OmariFlowActionsTests(TestCase):
         self.assertEqual(flow_context['omari_otp_reference'], 'TEST-OTP-REF')
         self.assertEqual(flow_context['_payment_reference'], 'test-uuid-123')
 
+    @patch('omari_integration.flow_actions.get_payment_handler')
+    def test_process_otp_success_sets_context_variable(self, mock_get_handler):
+        """Test that process_otp_action sets omari_payment_success in context on success."""
+        from omari_integration.flow_actions import process_otp_action
+        
+        # Mock successful OTP processing
+        mock_handler = MagicMock()
+        mock_handler.process_otp_input.return_value = {
+            'success': True,
+            'payment_reference': 'PAY-REF-123',
+            'booking': self.booking,
+            'message': 'Payment successful'
+        }
+        mock_get_handler.return_value = mock_handler
+        
+        # Call action
+        flow_context = {}
+        params = {'otp': '123456'}
+        
+        result = process_otp_action(self.contact, flow_context, params)
+        
+        # Verify success message is returned
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['type'], 'send_text')
+        self.assertIn('Payment Successful', result[0]['text'])
+        self.assertIn('PAY-REF-123', result[0]['text'])
+        
+        # Verify context was updated with success flag
+        self.assertEqual(flow_context['omari_payment_success'], True)
+
+    @patch('omari_integration.flow_actions.get_payment_handler')
+    def test_process_otp_failure_does_not_set_context_variable(self, mock_get_handler):
+        """Test that process_otp_action does not set omari_payment_success on failure."""
+        from omari_integration.flow_actions import process_otp_action
+        
+        # Mock failed OTP processing
+        mock_handler = MagicMock()
+        mock_handler.process_otp_input.return_value = {
+            'success': False,
+            'message': 'Invalid OTP',
+            'response_code': '001'
+        }
+        mock_get_handler.return_value = mock_handler
+        
+        # Call action
+        flow_context = {}
+        params = {'otp': '999999'}
+        
+        result = process_otp_action(self.contact, flow_context, params)
+        
+        # Verify error message is returned
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]['type'], 'send_text')
+        self.assertIn('Payment Failed', result[0]['text'])
+        self.assertIn('Invalid OTP', result[0]['text'])
+        
+        # Verify context was NOT updated with success flag
+        self.assertNotIn('omari_payment_success', flow_context)
+
