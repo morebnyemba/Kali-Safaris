@@ -20,21 +20,21 @@ import { Skeleton } from '@/components/ui/skeleton';
 import ConversationTrendChart from '@/components/charts/ConversationTrendChat';
 import BotPerformanceDisplay from '@/components/charts/BotPerfomanceDisplay';
 
+// --- Import custom hook for dashboard data ---
+import { useDashboardData } from '@/hooks/useDashboardData';
 
 // --- API Configuration & Helper ---
-import { dashboardApi, metaApi, API_BASE_URL } from '@/lib/api';
+import { API_BASE_URL } from '@/lib/api';
 
-// Initial structure for stats cards
-const initialStatCardsDefinition = [
-  { id: "active_conversations_count", title: "Active Conversations", defaultIcon: <FiMessageCircle/>, linkTo: "/conversation", colorScheme: "green", trendKey: null, valueSuffix: "" },
-  { id: "new_contacts_today", title: "New Contacts (Today)", defaultIcon: <FiUsers/>, linkTo: "/contacts", colorScheme: "emerald", trendKey: "total_contacts", valueSuffix: "" },
-  { id: "messages_sent_24h", title: "Messages Sent (24h)", defaultIcon: <FiTrendingUp/>, linkTo: null, colorScheme: "lime", trendKey: "messages_sent_automated_percent_text", valueSuffix: "" },
-  { id: "meta_configs_total", title: "Meta API Configs", defaultIcon: <FiHardDrive/>, linkTo: "/api-settings", colorScheme: "teal", trendKey: "meta_config_active_name", valueSuffix: "" },
-  { id: "pending_human_handovers", title: "Pending Handovers", defaultIcon: <FiAlertCircle/>, linkTo: "/contacts?filter=needs_intervention", colorScheme: "red", trendKey: "pending_human_handovers_priority_text", valueSuffix: "" },
-];
-
+// Activity icons map for WebSocket updates
 const activityIcons = {
-  default: FiActivity, FiMessageCircle, FiUsers, FiSettings, FiZap, FiCheckCircle, FiAlertCircle,
+  FiUsers,
+  FiZap,
+  FiMessageCircle,
+  FiSettings,
+  FiCheckCircle,
+  FiAlertCircle,
+  default: FiActivity,
 };
 
 const getCardStyles = (colorScheme) => {
@@ -113,19 +113,35 @@ const RecentActivityCard = ({ activities, isLoading }) => (
 );
 
 export default function Dashboard() {
-  const [statsCardsData, setStatsCardsData] = useState(
-    initialStatCardsDefinition.map(card => ({...card, value: "...", trend: "..."}))
-  );
-  const [recentActivities, setRecentActivities] = useState([]);
-  const [flowInsights, setFlowInsights] = useState({ activeFlows: "...", completedToday: "...", avgSteps: "..." });
-  const [conversationTrendsData, setConversationTrendsData] = useState([]);
-  const [botPerformanceData, setBotPerformanceData] = useState({});
-
-  const [systemStatus, setSystemStatus] = useState({ status: "Initializing...", color: "text-yellow-500 dark:text-yellow-400", icon: <FiLoader className="animate-spin" /> });
-  const [isLoadingData, setIsLoadingData] = useState(true);
-  const [loadingError, setLoadingError] = useState('');
+  // Use the custom hook for dashboard data
+  const { 
+    statsCardsData: hookStatsCardsData, 
+    recentActivities: hookRecentActivities, 
+    flowInsights: hookFlowInsights, 
+    conversationTrendsData: hookConversationTrendsData, 
+    botPerformanceData: hookBotPerformanceData, 
+    systemStatus, 
+    isLoading: isLoadingData, 
+    error: loadingError, 
+    refetch: fetchData 
+  } = useDashboardData();
+  
+  // Local state for WebSocket-updated data (initialized from hook)
+  const [statsCardsData, setStatsCardsData] = useState(hookStatsCardsData);
+  const [recentActivities, setRecentActivities] = useState(hookRecentActivities);
+  const [conversationTrendsData, setConversationTrendsData] = useState(hookConversationTrendsData);
+  const [botPerformanceData, setBotPerformanceData] = useState(hookBotPerformanceData);
+  
   const navigate = useNavigate();
   const { accessToken, isLoadingAuth } = useAuth();
+
+  // Sync local state with hook data when it changes
+  useEffect(() => {
+    setStatsCardsData(hookStatsCardsData);
+    setRecentActivities(hookRecentActivities);
+    setConversationTrendsData(hookConversationTrendsData);
+    setBotPerformanceData(hookBotPerformanceData);
+  }, [hookStatsCardsData, hookRecentActivities, hookConversationTrendsData, hookBotPerformanceData]);
 
   // --- WebSocket Setup ---
   const getSocketUrl = useCallback(() => {
@@ -136,111 +152,6 @@ export default function Dashboard() {
   }, [accessToken]);
 
   const { lastJsonMessage, readyState } = useWebSocket(getSocketUrl, { shouldReconnect: () => true });
-
-  const handleApiError = useCallback((error) => {
-    // The global 'auth-error' event listener in AuthContext handles 401 errors,
-    // which includes showing a toast and logging the user out. We avoid duplicating that logic here.
-    if (error.response && error.response.status === 401) {
-      // Don't show a toast here, as the global handler will.
-    } else {
-      // Other errors: Display a generic error message
-      toast.error(`An error occurred: ${error.message}`);
-    }
-    return `Failed to load data. ${error.message}`;
-  }, []); 
-
-  const fetchData = useCallback(async () => {
-    setIsLoadingData(true); 
-    setLoadingError('');
-
-    try {
-      // Relying on the global axios client to have the Authorization header set by the interceptor.
-      const [summaryResult, configsResult] = await Promise.allSettled([
-        dashboardApi.getSummary(),
-        metaApi.getConfigs(),
-      ]);
-
-      const summary = (summaryResult.status === "fulfilled" && summaryResult.value.data) ? summaryResult.value.data : {};
-      const statsFromSummary = summary.stats_cards || {};
-      const insightsFromSummary = summary.flow_insights || {};
-      const chartsFromSummary = summary.charts_data || {};
-      const activitiesFromApi = summary.recent_activity_log || [];
-
-      let newStats = JSON.parse(JSON.stringify(initialStatCardsDefinition));
-      
-      if (configsResult.status === "fulfilled" && configsResult.value.data) {
-        const cfData = configsResult.value.data;
-        // Handle both paginated and non-paginated responses
-        const results = cfData.results || (Array.isArray(cfData) ? cfData : []);
-        const configCount = cfData.count !== undefined ? cfData.count : results.length;
-        const activeOne = results.find(c => c.is_active);
-
-        const metaConfigStatIdx = newStats.findIndex(s => s.id === "meta_configs_total"); // Matched ID
-        if(metaConfigStatIdx !== -1) {
-            newStats[metaConfigStatIdx].value = configCount.toString();
-            newStats[metaConfigStatIdx].trend = activeOne ? `1 Active` : `${configCount} Total`;
-        }
-      } else if (configsResult.status === "rejected") {
-        const errorMessage = handleApiError(configsResult.reason);
-        const idx = newStats.findIndex(s => s.id === "meta_configs_total"); // Matched ID
-        if(idx !== -1) { newStats[idx].value = "N/A"; newStats[idx].trend = "Error"; }
-        setLoadingError(prev => `${prev} Meta Configs: ${errorMessage}; `.trimStart());
-      }
-      
-      newStats = newStats.map(card => {
-          const summaryValue = statsFromSummary[card.id]?.toString();
-          if (summaryValue !== undefined) {
-              let trendText = card.trendKey && statsFromSummary[card.trendKey] ? (statsFromSummary[card.trendKey] || "") : (card.trend || "...");
-              let trendType = card.trendType;
-               if (card.id === "messages_sent_24h" && summary.bot_performance_data?.automated_resolution_rate !== undefined) {
-                trendText = `${(summary.bot_performance_data.automated_resolution_rate * 100).toFixed(0)}% Auto`;
-              } else if (card.id === "pending_human_handovers") {
-                  trendType = parseInt(summaryValue) > 0 ? "negative" : "positive";
-                  trendText = parseInt(summaryValue) > 0 ? `${summaryValue} require attention` : "All clear";
-              }
-              return {...card, value: summaryValue || "0", trend: trendText, trendType: trendType };
-          }
-          return {...card, value: "N/A", trend: (summaryResult.status === "rejected" ? "Error" : "N/A")};
-      });
-      setStatsCardsData(newStats);
-
-      setFlowInsights({
-          activeFlows: insightsFromSummary.active_flows_count || 0,
-          completedToday: insightsFromSummary.flow_completions_today || 0,
-          avgSteps: insightsFromSummary.avg_steps_per_flow?.toFixed(1) || 0,
-      });
-      setConversationTrendsData(chartsFromSummary.conversation_trends || []);
-      setBotPerformanceData(chartsFromSummary.bot_performance || {});
-      setRecentActivities(activitiesFromApi.map(act => {
-          const IconComponent = activityIcons[act.iconName] || activityIcons.default;
-          return {...act, icon: <IconComponent className={`${act.iconColor || "text-gray-500"} h-5 w-5`} /> };
-      }));
-      
-      const currentCombinedError = loadingError.trim();
-      if (!currentCombinedError && summaryResult.status === "fulfilled") {
-        setSystemStatus({ status: summary.system_status || "Operational", color: "text-green-500 dark:text-green-400", icon: <FiCheckCircle /> });
-      } else {
-         setSystemStatus({ status: "Data Error", color: "text-orange-500 dark:text-orange-400", icon: <FiAlertCircle /> });
-      }
-
-    } catch (error) { 
-      const errorMessage = handleApiError(error);
-      setLoadingError(errorMessage);
-      
-      setSystemStatus({ status: "System Error", color: "text-red-500 dark:text-red-400", icon: <FiAlertCircle /> });
-      setStatsCardsData(initialStatCardsDefinition.map(card => ({...card, value: "N/A", trend: "Error"})));
-      setFlowInsights({ activeFlows: "N/A", completedToday: "N/A", avgSteps: "N/A" });
-      setRecentActivities([{id: 'err-fetch', text: 'Failed to load activities.', time:'', icon: <FiAlertCircle className="text-red-500"/>}]);
-    } finally { 
-      setIsLoadingData(false);
-    }
-  }, [handleApiError]);
-
-  useEffect(() => {
-    if (!isLoadingAuth) {
-      fetchData();
-    }
-  }, [fetchData, isLoadingAuth]);
 
   // --- WebSocket Message Handling ---
   useEffect(() => {
@@ -360,7 +271,7 @@ export default function Dashboard() {
 
       {/* Flow Insights & Recent Activity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
-        <FlowInsightsCard insights={flowInsights} isLoading={isLoadingData} onNavigate={navigate} />
+        <FlowInsightsCard insights={hookFlowInsights} isLoading={isLoadingData} onNavigate={navigate} />
         <RecentActivityCard activities={recentActivities} isLoading={isLoadingData} />
       </div>
       

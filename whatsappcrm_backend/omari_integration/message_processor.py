@@ -88,11 +88,11 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
 def _send_whatsapp_message(contact: Contact, text: str) -> None:
     """Send a WhatsApp message to contact."""
     try:
-        from meta_integration.services import send_whatsapp_message
+        from meta_integration.utils import send_whatsapp_message
         send_whatsapp_message(
-            to_whatsapp_id=contact.whatsapp_id,
+            to_phone_number=contact.whatsapp_id,
             message_type='text',
-            content={'body': text},
+            data={'body': text},
             contact=contact
         )
     except Exception as e:
