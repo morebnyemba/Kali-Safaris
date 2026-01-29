@@ -6,11 +6,23 @@ This processor intercepts messages when a payment is pending and processes OTP i
 import logging
 import re
 
+from django.core.exceptions import ObjectDoesNotExist
+from django.db import DatabaseError
+
 from conversations.models import Contact, Message
 from .whatsapp_handler import get_payment_handler
 
-
 logger = logging.getLogger(__name__)
+
+try:
+    from flows.models import ContactFlowState
+    FLOW_STATE_AVAILABLE = True
+except ImportError:
+    FLOW_STATE_AVAILABLE = False
+    logger.warning("ContactFlowState not available - flow-based OTP handling check will be skipped")
+
+# Flow step names where OTP collection is handled by the flow system
+FLOW_OTP_COLLECTION_STEPS = ['omari_payment_initiated', 'omari_payment_failed']
 
 
 def process_payment_message(contact: Contact, message: Message) -> bool:
@@ -28,6 +40,23 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
     # Check if contact is awaiting OTP
     if not handler.is_awaiting_otp(contact):
         return False
+    
+    # Check if contact is in a flow step that handles OTP collection
+    # If so, let the flow handle the message instead of intercepting it here
+    if FLOW_STATE_AVAILABLE:
+        try:
+            contact_flow_state = ContactFlowState.objects.select_related('current_step').filter(contact=contact).first()
+            if contact_flow_state and contact_flow_state.current_step:
+                # If contact is in a flow OTP collection step, let the flow handle it
+                step_name = contact_flow_state.current_step.name
+                if step_name in FLOW_OTP_COLLECTION_STEPS:
+                    logger.debug(f"Contact {contact.id} is in flow step '{step_name}' - letting flow handle OTP input")
+                    return False
+        except (ObjectDoesNotExist, DatabaseError) as e:
+            logger.error(f"Database error checking contact flow state in payment processor: {e}", exc_info=True)
+            # Continue with message processing on database errors
+        except Exception as e:
+            logger.warning(f"Unexpected error checking contact flow state in payment processor: {e}")
     
     text = (message.text_content or '').strip()
     
