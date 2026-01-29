@@ -189,9 +189,17 @@ class WhatsAppPaymentHandler:
         Returns:
             dict with 'success', 'message', 'payment_reference', 'booking'
         """
+        logger.info(
+            "=== process_otp_input START === | contact=%s | otp_length=%s | otp_is_digit=%s",
+            contact.id,
+            len(otp) if otp else 0,
+            otp.isdigit() if otp else False
+        )
+        
         payment_state = self._get_payment_state(contact)
         
         if not payment_state or not payment_state.get('awaiting_otp'):
+            logger.warning("process_otp_input: no pending payment | contact=%s | state=%s", contact.id, payment_state)
             return {
                 'success': False,
                 'message': 'No pending payment found. Please initiate a payment first.',
@@ -200,12 +208,28 @@ class WhatsAppPaymentHandler:
         reference = payment_state.get('reference')
         msisdn = self._format_msisdn(contact.whatsapp_id)
         
+        logger.info(
+            "process_otp_input: payment state found | contact=%s reference=%s msisdn=%s",
+            contact.id,
+            reference,
+            _mask_msisdn(msisdn)
+        )
+        
         try:
             # Complete payment with OTP
+            logger.info("process_otp_input: calling Omari API request | contact=%s", contact.id)
             result = self.client.request(
                 msisdn=msisdn,
                 reference=reference,
                 otp=otp
+            )
+            
+            logger.info(
+                "process_otp_input: Omari API result | contact=%s error=%s responseCode=%s message=%s",
+                contact.id,
+                result.get('error'),
+                result.get('responseCode'),
+                result.get('message', 'N/A')[:100]
             )
             
             # Update transaction
@@ -255,6 +279,7 @@ class WhatsAppPaymentHandler:
             self._clear_payment_state(contact)
             
             if not result.get('error') and result.get('responseCode') == '000':
+                logger.info("=== process_otp_input SUCCESS === | contact=%s payment_ref=%s", contact.id, result.get('paymentReference'))
                 return {
                     'success': True,
                     'message': 'Payment completed successfully!',
@@ -263,6 +288,7 @@ class WhatsAppPaymentHandler:
                     'transaction': txn,
                 }
             else:
+                logger.warning("=== process_otp_input FAILED === | contact=%s code=%s msg=%s", contact.id, result.get('responseCode'), result.get('message'))
                 return {
                     'success': False,
                     'message': result.get('message', 'Payment failed'),
@@ -270,7 +296,7 @@ class WhatsAppPaymentHandler:
                 }
                 
         except Exception as e:
-            logger.exception(f"Failed to process OTP for contact {contact.id}")
+            logger.exception(f"=== process_otp_input EXCEPTION === | contact={contact.id} | error={str(e)}")
             return {
                 'success': False,
                 'message': f'Payment processing error: {str(e)}',

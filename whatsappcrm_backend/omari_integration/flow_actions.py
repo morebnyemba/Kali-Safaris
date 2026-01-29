@@ -188,6 +188,14 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     
     Returns actions to confirm payment or show error.
     """
+    # Detailed debugging info
+    logger.info(
+        "=== process_otp_action START === | contact=%s | params=%s | context_keys=%s",
+        contact.id,
+        {k: ('***' + str(v)[-2:] if k == 'otp' and v else v) for k, v in params.items()},
+        list(flow_context.keys())
+    )
+    
     # Mask sensitive OTP data in params for logging
     otp_from_params = params.get('otp', '')
     masked_otp = '***' + otp_from_params[-2:] if otp_from_params and len(otp_from_params) >= 2 else '<not set>'
@@ -206,29 +214,43 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     if not otp:
         # Try to get from flow context (captured from user message)
         otp = flow_context.get('user_message', '').strip()
+        logger.debug(f"OTP not in params, trying user_message: {otp[:2]}*** (len={len(otp) if otp else 0})")
     
     logger.info(
-        "process_otp_action: resolved OTP | contact=%s otp=%s",
+        "process_otp_action: resolved OTP | contact=%s otp=%s (length=%s, is_digit=%s)",
         contact.id,
-        '***' + otp[-2:] if otp and len(otp) >= 2 else '<empty>'
+        '***' + otp[-2:] if otp and len(otp) >= 2 else '<empty>',
+        len(otp) if otp else 0,
+        otp.isdigit() if otp else False
     )
     
     if not otp:
-        logger.warning("process_otp_action: no OTP provided | contact=%s", contact.id)
+        logger.warning("process_otp_action: no OTP provided | contact=%s | flow_context=%s", contact.id, {k: v for k, v in flow_context.items() if k not in ['_payment_reference']})
         return [{
             'type': 'send_text',
             'text': '❌ Please provide your OTP code to complete the payment.'
         }]
     
+    logger.info("process_otp_action: calling payment handler with OTP | contact=%s", contact.id)
     handler = get_payment_handler()
-    result = handler.process_otp_input(contact, otp)
     
-    logger.info(
-        "process_otp_action: handler result | contact=%s success=%s message=%s",
-        contact.id,
-        result.get('success'),
-        result.get('message', 'N/A')
-    )
+    try:
+        result = handler.process_otp_input(contact, otp)
+        logger.info(
+            "process_otp_action: handler result | contact=%s success=%s message=%s response_code=%s",
+            contact.id,
+            result.get('success'),
+            result.get('message', 'N/A'),
+            result.get('response_code', 'N/A')
+        )
+    except Exception as e:
+        logger.error(
+            "process_otp_action: handler exception | contact=%s error=%s",
+            contact.id,
+            str(e),
+            exc_info=True
+        )
+        result = {'success': False, 'message': f'Error processing OTP: {str(e)}'}
     
     if result['success']:
         booking = result.get('booking')
@@ -267,6 +289,7 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
         flow_context.pop('_payment_initiated', None)
         flow_context.pop('_payment_reference', None)
         
+        logger.info("=== process_otp_action SUCCESS === | contact=%s", contact.id)
         return [{
             'type': 'send_text',
             'text': message
@@ -287,6 +310,7 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
             message += f"\nError Code: {response_code}"
         message += "\n\nPlease try again or contact support."
         
+        logger.info("=== process_otp_action FAILED === | contact=%s", contact.id)
         return [{
             'type': 'send_text',
             'text': message
