@@ -67,7 +67,7 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
         return True
     
     # Extract OTP - typically 4-6 digit code
-    otp_match = re.search(r'\\b\\d{4,6}\\b', text)
+    otp_match = re.search(r'\b\d{4,6}\b', text)
     if otp_match:
         otp = otp_match.group(0)
         
