@@ -105,7 +105,7 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
         )
         return [{
             'type': 'send_text',
-            'text': f'❌ Payment service error: {str(exc)}\\nPlease try again or contact support.'
+            'text': f'❌ Payment service error: {str(exc)}\nPlease try again or contact support.'
         }]
     
     if result['success']:
@@ -120,11 +120,11 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
             currency,
         )
         message = (
-            f"💳 *Payment Initiated*\\n\\n"
-            f"Booking: {booking.booking_reference}\\n"
-            f"Amount: {currency} {amount}\\n\\n"
-            f"🔐 *OTP Reference: {otp_ref}*\\n\\n"
-            f"Please check your phone for an OTP code via SMS/Email.\\n"
+            f"💳 *Payment Initiated*\n\n"
+            f"Booking: {booking.booking_reference}\n"
+            f"Amount: {currency} {amount}\n\n"
+            f"🔐 *OTP Reference: {otp_ref}*\n\n"
+            f"Please check your phone for an OTP code via SMS/Email.\n"
             f"Reply with your OTP code to complete the payment."
         )
         
@@ -148,7 +148,7 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
         )
         return [{
             'type': 'send_text',
-            'text': f'❌ Payment initiation failed: {error_msg}\\nPlease try again or contact support.'
+            'text': f'❌ Payment initiation failed: {error_msg}\nPlease try again or contact support.'
         }]
 
 
@@ -242,19 +242,19 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
         )
         
         message = (
-            f"✅ *Payment Successful!*\\n\\n"
-            f"Payment Reference: {payment_ref}\\n"
+            f"✅ *Payment Successful!*\n\n"
+            f"Payment Reference: {payment_ref}\n"
         )
         
         if booking:
             message += (
-                f"Booking: {booking.booking_reference}\\n"
-                f"Status: {booking.get_payment_status_display()}\\n"
-                f"Amount Paid: {booking.currency if hasattr(booking, 'currency') else 'USD'} {booking.amount_paid}\\n"
+                f"Booking: {booking.booking_reference}\n"
+                f"Status: {booking.get_payment_status_display()}\n"
+                f"Amount Paid: {booking.currency if hasattr(booking, 'currency') else 'USD'} {booking.amount_paid}\n"
                 f"Total: {booking.currency if hasattr(booking, 'currency') else 'USD'} {booking.total_amount}"
             )
         
-        message += "\\n\\nThank you for your payment! 🎉"
+        message += "\n\nThank you for your payment! 🎉"
         
         # Set success flag for flow transition
         flow_context['omari_payment_success'] = True
@@ -282,10 +282,10 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
             response_code
         )
         
-        message = f"❌ *Payment Failed*\\n\\n{error_msg}"
+        message = f"❌ *Payment Failed*\n\n{error_msg}"
         if response_code and response_code != '000':
-            message += f"\\nError Code: {response_code}"
-        message += "\\n\\nPlease try again or contact support."
+            message += f"\nError Code: {response_code}"
+        message += "\n\nPlease try again or contact support."
         
         return [{
             'type': 'send_text',

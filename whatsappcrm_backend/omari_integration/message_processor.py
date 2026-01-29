@@ -79,23 +79,23 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
             payment_ref = result.get('payment_reference', 'N/A')
             
             msg = (
-                f"✅ *Payment Successful!*\\n\\n"
-                f"Payment Reference: {payment_ref}\\n"
+                f"✅ *Payment Successful!*\n\n"
+                f"Payment Reference: {payment_ref}\n"
             )
             
             if booking:
                 msg += (
-                    f"Booking: {booking.booking_reference}\\n"
-                    f"Status: {booking.get_payment_status_display()}\\n"
-                    f"Amount Paid: USD {booking.amount_paid}\\n"
+                    f"Booking: {booking.booking_reference}\n"
+                    f"Status: {booking.get_payment_status_display()}\n"
+                    f"Amount Paid: USD {booking.amount_paid}\n"
                     f"Total: USD {booking.total_amount}"
                 )
             
-            msg += "\\n\\nThank you for your payment! 🎉"
+            msg += "\n\nThank you for your payment! 🎉"
             _send_whatsapp_message(contact, msg)
         else:
             error_msg = result.get('message', 'Payment processing failed')
-            msg = f"❌ *Payment Failed*\\n\\n{error_msg}\\n\\nPlease check your OTP and try again, or type 'cancel' to cancel this payment."
+            msg = f"❌ *Payment Failed*\n\n{error_msg}\n\nPlease check your OTP and try again, or type 'cancel' to cancel this payment."
             _send_whatsapp_message(contact, msg)
         
         return True
@@ -105,9 +105,9 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
         otp_ref = payment_state.get('otp_reference', 'N/A') if payment_state else 'N/A'
         
         msg = (
-            f"🔐 *Awaiting OTP*\\n\\n"
-            f"OTP Reference: {otp_ref}\\n\\n"
-            f"Please reply with your 4-6 digit OTP code to complete the payment.\\n"
+            f"🔐 *Awaiting OTP*\n\n"
+            f"OTP Reference: {otp_ref}\n\n"
+            f"Please reply with your 4-6 digit OTP code to complete the payment.\n"
             f"Type 'cancel' to cancel this payment."
         )
         _send_whatsapp_message(contact, msg)
