@@ -875,7 +875,7 @@ BOOKING_FLOW = {
             {
                 "name": "omari_process_otp",
                 "type": "action",
-                "config": {"actions_to_run": [{"action_type": "process_otp", "otp": "{{ otp_input }}"}]},
+                "config": {"actions_to_run": [{"action_type": "process_otp", "params_template": {"otp": "{{ otp_input }}"}}]},
                 "transitions": [
                     {"to_step": "omari_finalize_booking", "priority": 0, "condition_config": {"type": "variable_exists", "variable_name": "omari_payment_success"}},
                     {"to_step": "omari_payment_failed", "priority": 1, "condition_config": {"type": "always_true"}}
