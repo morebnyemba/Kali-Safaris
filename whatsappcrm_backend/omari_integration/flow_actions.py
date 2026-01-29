@@ -188,12 +188,33 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     
     Returns actions to confirm payment or show error.
     """
+    # Mask sensitive OTP data in params for logging
+    otp_from_params = params.get('otp', '')
+    masked_otp = '***' + otp_from_params[-2:] if otp_from_params and len(otp_from_params) >= 2 else '<not set>'
+    
+    otp_input_var = flow_context.get('otp_input', '')
+    masked_otp_input = '***' + otp_input_var[-2:] if otp_input_var and len(otp_input_var) >= 2 else '<not set>'
+    
+    logger.info(
+        "process_otp_action called | contact=%s params_otp=%s otp_input_var=%s",
+        contact.id,
+        masked_otp,
+        masked_otp_input
+    )
+    
     otp = params.get('otp')
     if not otp:
         # Try to get from flow context (captured from user message)
         otp = flow_context.get('user_message', '').strip()
     
+    logger.info(
+        "process_otp_action: resolved OTP | contact=%s otp=%s",
+        contact.id,
+        '***' + otp[-2:] if otp and len(otp) >= 2 else '<empty>'
+    )
+    
     if not otp:
+        logger.warning("process_otp_action: no OTP provided | contact=%s", contact.id)
         return [{
             'type': 'send_text',
             'text': '❌ Please provide your OTP code to complete the payment.'
@@ -202,9 +223,23 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     handler = get_payment_handler()
     result = handler.process_otp_input(contact, otp)
     
+    logger.info(
+        "process_otp_action: handler result | contact=%s success=%s message=%s",
+        contact.id,
+        result.get('success'),
+        result.get('message', 'N/A')
+    )
+    
     if result['success']:
         booking = result.get('booking')
         payment_ref = result.get('payment_reference', 'N/A')
+        
+        logger.info(
+            "process_otp_action: payment successful | contact=%s payment_ref=%s booking_id=%s",
+            contact.id,
+            payment_ref,
+            booking.id if booking else 'N/A'
+        )
         
         message = (
             f"✅ *Payment Successful!*\\n\\n"
@@ -221,6 +256,13 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
         
         message += "\\n\\nThank you for your payment! 🎉"
         
+        # Set success flag for flow transition
+        flow_context['omari_payment_success'] = True
+        logger.info(
+            "process_otp_action: set context variable | contact=%s omari_payment_success=True",
+            contact.id
+        )
+        
         # Clear payment state from context
         flow_context.pop('_payment_initiated', None)
         flow_context.pop('_payment_reference', None)
@@ -232,6 +274,13 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     else:
         error_msg = result.get('message', 'Payment processing failed')
         response_code = result.get('response_code', '')
+        
+        logger.warning(
+            "process_otp_action: payment failed | contact=%s error=%s response_code=%s",
+            contact.id,
+            error_msg,
+            response_code
+        )
         
         message = f"❌ *Payment Failed*\\n\\n{error_msg}"
         if response_code and response_code != '000':
