@@ -188,11 +188,18 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     
     Returns actions to confirm payment or show error.
     """
+    # Mask sensitive OTP data in params for logging
+    otp_from_params = params.get('otp', '')
+    masked_otp = '***' + otp_from_params[-2:] if otp_from_params and len(otp_from_params) >= 2 else '<not set>'
+    
+    otp_input_var = flow_context.get('otp_input', '')
+    masked_otp_input = '***' + otp_input_var[-2:] if otp_input_var and len(otp_input_var) >= 2 else '<not set>'
+    
     logger.info(
-        "process_otp_action called | contact=%s params=%s otp_input_var=%s",
+        "process_otp_action called | contact=%s params_otp=%s otp_input_var=%s",
         contact.id,
-        params,
-        flow_context.get('otp_input', '<not set>')
+        masked_otp,
+        masked_otp_input
     )
     
     otp = params.get('otp')
