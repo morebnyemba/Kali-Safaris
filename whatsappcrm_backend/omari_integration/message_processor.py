@@ -29,6 +29,21 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
     if not handler.is_awaiting_otp(contact):
         return False
     
+    # Check if contact is in a flow step that handles OTP collection
+    # If so, let the flow handle the message instead of intercepting it here
+    try:
+        from flows.models import ContactFlowState
+        contact_flow_state = ContactFlowState.objects.filter(contact=contact).first()
+        if contact_flow_state and contact_flow_state.current_step:
+            # If contact is in omari_payment_initiated or similar OTP collection steps,
+            # let the flow handle it
+            step_name = contact_flow_state.current_step.name
+            if step_name in ['omari_payment_initiated', 'omari_payment_failed']:
+                logger.debug(f"Contact {contact.id} is in flow step '{step_name}' - letting flow handle OTP input")
+                return False
+    except Exception as e:
+        logger.warning(f"Error checking contact flow state in payment processor: {e}")
+    
     text = (message.text_content or '').strip()
     
     # Check for cancellation keywords
