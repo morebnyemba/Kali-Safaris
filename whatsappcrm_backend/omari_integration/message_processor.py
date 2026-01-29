@@ -33,12 +33,14 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
     """
     # Only process incoming text messages
     if message.direction != 'in' or message.message_type != 'text':
+        logger.debug(f"Message {message.id} not processed - direction: {message.direction}, type: {message.message_type}")
         return False
     
     handler = get_payment_handler()
     
     # Check if contact is awaiting OTP
     if not handler.is_awaiting_otp(contact):
+        logger.debug(f"Contact {contact.id} not awaiting OTP - skipping payment message processing")
         return False
     
     # Check if contact is in a flow step that handles OTP collection
@@ -50,8 +52,10 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
                 # If contact is in a flow OTP collection step, let the flow handle it
                 step_name = contact_flow_state.current_step.name
                 if step_name in FLOW_OTP_COLLECTION_STEPS:
-                    logger.debug(f"Contact {contact.id} is in flow step '{step_name}' - letting flow handle OTP input")
+                    logger.info(f"Contact {contact.id} in flow step '{step_name}' - letting flow handle OTP, not message processor")
                     return False
+                else:
+                    logger.debug(f"Contact {contact.id} in step '{step_name}' but awaiting OTP - message processor will handle")
         except (ObjectDoesNotExist, DatabaseError) as e:
             logger.error(f"Database error checking contact flow state in payment processor: {e}", exc_info=True)
             # Continue with message processing on database errors
@@ -59,6 +63,7 @@ def process_payment_message(contact: Contact, message: Message) -> bool:
             logger.warning(f"Unexpected error checking contact flow state in payment processor: {e}")
     
     text = (message.text_content or '').strip()
+    logger.info(f"Processing payment message for contact {contact.id}: '{text[:50]}'")
     
     # Check for cancellation keywords
     if text.lower() in ['cancel', 'cancel payment', 'stop', 'quit']:
