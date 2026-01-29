@@ -188,12 +188,26 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     
     Returns actions to confirm payment or show error.
     """
+    logger.info(
+        "process_otp_action called | contact=%s params=%s otp_input_var=%s",
+        contact.id,
+        params,
+        flow_context.get('otp_input', '<not set>')
+    )
+    
     otp = params.get('otp')
     if not otp:
         # Try to get from flow context (captured from user message)
         otp = flow_context.get('user_message', '').strip()
     
+    logger.info(
+        "process_otp_action: resolved OTP | contact=%s otp=%s",
+        contact.id,
+        '***' + otp[-2:] if otp and len(otp) >= 2 else '<empty>'
+    )
+    
     if not otp:
+        logger.warning("process_otp_action: no OTP provided | contact=%s", contact.id)
         return [{
             'type': 'send_text',
             'text': '❌ Please provide your OTP code to complete the payment.'
@@ -202,9 +216,23 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     handler = get_payment_handler()
     result = handler.process_otp_input(contact, otp)
     
+    logger.info(
+        "process_otp_action: handler result | contact=%s success=%s message=%s",
+        contact.id,
+        result.get('success'),
+        result.get('message', 'N/A')
+    )
+    
     if result['success']:
         booking = result.get('booking')
         payment_ref = result.get('payment_reference', 'N/A')
+        
+        logger.info(
+            "process_otp_action: payment successful | contact=%s payment_ref=%s booking_id=%s",
+            contact.id,
+            payment_ref,
+            booking.id if booking else 'N/A'
+        )
         
         message = (
             f"✅ *Payment Successful!*\\n\\n"
@@ -223,6 +251,10 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
         
         # Set success flag for flow transition
         flow_context['omari_payment_success'] = True
+        logger.info(
+            "process_otp_action: set context variable | contact=%s omari_payment_success=True",
+            contact.id
+        )
         
         # Clear payment state from context
         flow_context.pop('_payment_initiated', None)
@@ -235,6 +267,13 @@ def process_otp_action(contact: Contact, flow_context: dict, params: dict) -> Li
     else:
         error_msg = result.get('message', 'Payment processing failed')
         response_code = result.get('response_code', '')
+        
+        logger.warning(
+            "process_otp_action: payment failed | contact=%s error=%s response_code=%s",
+            contact.id,
+            error_msg,
+            response_code
+        )
         
         message = f"❌ *Payment Failed*\\n\\n{error_msg}"
         if response_code and response_code != '000':
