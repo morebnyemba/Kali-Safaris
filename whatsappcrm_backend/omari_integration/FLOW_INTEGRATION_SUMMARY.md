@@ -121,7 +121,7 @@ python manage.py migrate
 ### 2. Configure Environment
 Add to `.env`:
 ```bash
-OMARI_API_BASE_URL=https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment
+OMARI_API_BASE_URL=https://omari.v.co.zw/vsuite/omari/api/merchant/api/payment
 OMARI_MERCHANT_KEY=your_merchant_key_here
 ```
 

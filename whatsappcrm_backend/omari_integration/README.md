@@ -13,7 +13,7 @@ Add to `.env`:
 ```bash
 # Production: https://omari.v.co.zw/vsuite/omari/api/merchant/api/payment
 # Sandbox: https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment
-OMARI_API_BASE_URL=https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment
+OMARI_API_BASE_URL=https://omari.v.co.zw/vsuite/omari/api/merchant/api/payment
 OMARI_MERCHANT_KEY=your-api-key-here
 ```
 
