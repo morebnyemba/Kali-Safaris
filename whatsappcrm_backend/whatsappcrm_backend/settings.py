@@ -467,5 +467,5 @@ GCP_INVOICE_PROCESSOR_ID = os.getenv('GCP_INVOICE_PROCESSOR_ID')
 # --- Omari Payments Configuration (v1.2.0) ---
 # Production: https://omari.v.co.zw/vsuite/omari/api/merchant/api/payment
 # Sandbox: https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment
-OMARI_API_BASE_URL = os.getenv('OMARI_API_BASE_URL', 'https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment')
+OMARI_API_BASE_URL = os.getenv('OMARI_API_BASE_URL', 'https://omari.v.co.zw/vsuite/omari/api/merchant/api/payment')
 OMARI_MERCHANT_KEY = os.getenv('OMARI_MERCHANT_KEY', '')  # X-Merchant-Key header
