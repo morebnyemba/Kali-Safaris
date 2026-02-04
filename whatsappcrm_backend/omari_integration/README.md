@@ -176,7 +176,7 @@ Or via main menu: Type `menu` → Select "📱 Mobile Payment"
 - OTP detection happens automatically via `message_processor.py`
 - Payment state stored in contact's `conversation_context`
 - **Payment record created** in `customer_data.Payment` model with method='omari'
-- Booking `amount_paid` automatically updated via `Payment.save()` hook
+- Booking `amount_paid` manually updated within locked transaction for concurrency safety
 - Booking `payment_status` updated on success:
   - `DEPOSIT_PAID` if partial payment
   - `PAID` if full amount paid
@@ -189,19 +189,20 @@ Users can cancel anytime by typing: `cancel`, `cancel payment`, `stop`, or `quit
 ### Payment Records
 
 When an Omari payment succeeds, the system automatically:
-1. Creates a `Payment` record in the database with:
+1. Locks the booking with `select_for_update()` for concurrent safety
+2. Creates a `Payment` record in the database with:
    - `payment_method` = 'omari'
    - `status` = 'successful'
    - `transaction_reference` = Omari payment reference
    - `notes` = Includes debit reference from Omari
-2. Updates the `Booking`:
-   - `amount_paid` is recalculated from all successful payments
+3. Updates the `Booking` within the locked transaction:
+   - `amount_paid` is incremented by the payment amount
    - `payment_status` is updated based on total amount:
      - `PAID` when `amount_paid >= total_amount`
      - `DEPOSIT_PAID` when `amount_paid > 0` but less than total
      - `PENDING` when no payments made yet
 
-This ensures full payment tracking and audit trail for all Omari transactions.
+This ensures full payment tracking, audit trail, and concurrency safety for all Omari transactions.
 
 ### Admin Monitoring
 

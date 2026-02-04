@@ -159,7 +159,7 @@ def omari_request_view(request: HttpRequest) -> JsonResponse:
                         booking = Booking.objects.select_for_update().get(id=txn.booking.id)
                         
                         # Create Payment record for this Omari transaction
-                        # We bypass the Payment.save() hook by using update_fields to prevent
+                        # We bypass the Payment.save() hook by using super().save() to prevent
                         # automatic booking.update_amount_paid() which would bypass our lock
                         payment = Payment(
                             booking=booking,
