@@ -333,6 +333,184 @@ class PaymentAdmin(admin.ModelAdmin):
     search_fields = ('id', 'booking__booking_reference', 'transaction_reference')
     readonly_fields = ('created_at', 'updated_at')
     autocomplete_fields = ['booking']
+    actions = ['approve_payments', 'reject_payments']
+    
+    def approve_payments(self, request, queryset):
+        """
+        Approve selected payments, update booking references, and notify customers.
+        """
+        from django.db import transaction
+        from meta_integration.utils import send_whatsapp_message
+        
+        approved_count = 0
+        error_count = 0
+        
+        for payment in queryset.filter(status=Payment.PaymentStatus.PENDING):
+            try:
+                with transaction.atomic():
+                    # Update payment status
+                    payment.status = Payment.PaymentStatus.SUCCESSFUL
+                    payment.notes = (payment.notes or '') + f"\n[Approved by {request.user.username} on {timezone.now().strftime('%Y-%m-%d %H:%M')}]"
+                    payment.save()
+                    
+                    # Update booking reference to shared format if applicable
+                    if payment.booking:
+                        booking = payment.booking
+                        
+                        # Lock the booking for update
+                        booking = Booking.objects.select_for_update().get(pk=booking.pk)
+                        
+                        # Update booking reference to shared format
+                        old_reference = booking.booking_reference
+                        was_updated, new_reference = booking.update_to_shared_reference(commit=False)
+                        
+                        # Update payment status based on amount paid
+                        if booking.amount_paid >= booking.total_amount:
+                            booking.payment_status = Booking.PaymentStatus.PAID
+                        elif booking.amount_paid > 0:
+                            booking.payment_status = Booking.PaymentStatus.DEPOSIT_PAID
+                        
+                        # Save booking with all updates
+                        if was_updated:
+                            booking.save(update_fields=['payment_status', 'booking_reference', 'updated_at'])
+                            self.message_user(
+                                request,
+                                f"Updated booking reference: {old_reference} → {new_reference}",
+                                level='info'
+                            )
+                        else:
+                            booking.save(update_fields=['payment_status', 'updated_at'])
+                        
+                        # Send confirmation to customer via WhatsApp
+                        if booking.customer and booking.customer.contact:
+                            try:
+                                message_body = (
+                                    f"✅ *Payment Approved!*\n\n"
+                                    f"Your payment of ${payment.amount:.2f} for booking *{booking.booking_reference}* has been approved.\n\n"
+                                    f"Tour: {booking.tour_name}\n"
+                                    f"Date: {booking.start_date.strftime('%B %d, %Y')}\n"
+                                    f"Amount Paid: ${booking.amount_paid:.2f}\n"
+                                    f"Total: ${booking.total_amount:.2f}\n"
+                                )
+                                
+                                if booking.payment_status == Booking.PaymentStatus.PAID:
+                                    message_body += "\n✅ Your booking is now fully paid!\n"
+                                else:
+                                    balance = booking.total_amount - booking.amount_paid
+                                    message_body += f"\nBalance Due: ${balance:.2f}\n"
+                                
+                                # Check if travelers are recorded
+                                traveler_count = booking.travelers.count()
+                                if traveler_count == 0:
+                                    message_body += (
+                                        "\n📋 *Next Step:* Please provide traveler details for all passengers.\n"
+                                        "Reply with *traveler details* to get started."
+                                    )
+                                
+                                send_whatsapp_message(
+                                    booking.customer.contact.whatsapp_id,
+                                    'text',
+                                    {'body': message_body},
+                                    booking.customer.contact.associated_app_config
+                                )
+                            except Exception as e:
+                                self.message_user(
+                                    request,
+                                    f"Payment approved but failed to send WhatsApp notification: {e}",
+                                    level='warning'
+                                )
+                    
+                    approved_count += 1
+                    
+            except Exception as e:
+                error_count += 1
+                self.message_user(
+                    request,
+                    f"Error approving payment {payment.id}: {e}",
+                    level='error'
+                )
+        
+        if approved_count > 0:
+            self.message_user(
+                request,
+                f"Successfully approved {approved_count} payment(s).",
+                level='success'
+            )
+        
+        if error_count > 0:
+            self.message_user(
+                request,
+                f"Failed to approve {error_count} payment(s). Check error messages above.",
+                level='error'
+            )
+    
+    approve_payments.short_description = "Approve selected payments"
+    
+    def reject_payments(self, request, queryset):
+        """
+        Reject selected payments and notify customers.
+        """
+        from meta_integration.utils import send_whatsapp_message
+        
+        rejected_count = 0
+        error_count = 0
+        
+        for payment in queryset.filter(status=Payment.PaymentStatus.PENDING):
+            try:
+                # Update payment status
+                payment.status = Payment.PaymentStatus.FAILED
+                payment.notes = (payment.notes or '') + f"\n[Rejected by {request.user.username} on {timezone.now().strftime('%Y-%m-%d %H:%M')}]"
+                payment.save()
+                
+                # Send notification to customer via WhatsApp
+                if payment.booking and payment.booking.customer and payment.booking.customer.contact:
+                    try:
+                        booking = payment.booking
+                        message_body = (
+                            f"❌ *Payment Not Approved*\n\n"
+                            f"Unfortunately, we couldn't verify your payment of ${payment.amount:.2f} for booking *{booking.booking_reference}*.\n\n"
+                            f"Please contact our finance team or try submitting the payment again with a clear proof of payment.\n\n"
+                            f"You can record a new payment by typing *manual payment*."
+                        )
+                        
+                        send_whatsapp_message(
+                            booking.customer.contact.whatsapp_id,
+                            'text',
+                            {'body': message_body},
+                            booking.customer.contact.associated_app_config
+                        )
+                    except Exception as e:
+                        self.message_user(
+                            request,
+                            f"Payment rejected but failed to send WhatsApp notification: {e}",
+                            level='warning'
+                        )
+                
+                rejected_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                self.message_user(
+                    request,
+                    f"Error rejecting payment {payment.id}: {e}",
+                    level='error'
+                )
+        
+        if rejected_count > 0:
+            self.message_user(
+                request,
+                f"Successfully rejected {rejected_count} payment(s).",
+                level='success'
+            )
+        
+        if error_count > 0:
+            self.message_user(
+                request,
+                f"Failed to reject {error_count} payment(s). Check error messages above.",
+                level='error'
+            )
+    
+    reject_payments.short_description = "Reject selected payments"
 
 @admin.register(Traveler)
 class TravelerAdmin(admin.ModelAdmin):
