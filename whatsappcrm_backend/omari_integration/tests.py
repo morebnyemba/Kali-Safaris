@@ -199,6 +199,82 @@ class OmariViewTests(TestCase):
         self.assertEqual(txn.payment_reference, 'H5PSKURANNR1LKS7AJ0KV50KZG')
         self.assertIsNotNone(txn.completed_at)
 
+    @patch('omari_integration.views.OmariClient.request')
+    def test_request_view_creates_payment_record(self, mock_request):
+        """Test request view creates Payment record and updates booking when payment succeeds."""
+        from customer_data.models import Booking, CustomerProfile, Payment
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Create test customer and booking
+        customer = CustomerProfile.objects.create(
+            email='test@example.com',
+            first_name='Test',
+            last_name='Customer'
+        )
+        
+        today = timezone.now().date()
+        booking = Booking.objects.create(
+            customer=customer,
+            booking_reference='TEST-BOOKING-456',
+            tour_name='Test Safari',
+            start_date=today + timedelta(days=7),
+            end_date=today + timedelta(days=10),
+            total_amount=Decimal('100.00'),
+            amount_paid=Decimal('0.00'),
+            payment_status=Booking.PaymentStatus.PENDING
+        )
+        
+        # Create initial transaction linked to booking
+        txn = OmariTransaction.objects.create(
+            reference='test-uuid-789',
+            msisdn='263774975187',
+            amount=Decimal('50.00'),
+            currency='USD',
+            status='OTP_SENT',
+            otp_reference='ETDC',
+            booking=booking
+        )
+
+        mock_request.return_value = {
+            'error': False,
+            'message': 'Payment Success',
+            'responseCode': '000',
+            'paymentReference': 'OMARI-PAY-REF-123',
+            'debitReference': 'DEBIT-REF-456'
+        }
+
+        response = self.http_client.post(
+            reverse('omari_integration:request'),
+            data=json.dumps({
+                'msisdn': '263774975187',
+                'reference': 'test-uuid-789',
+                'otp': '123456'
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify transaction was updated
+        txn.refresh_from_db()
+        self.assertEqual(txn.status, 'SUCCESS')
+        
+        # Verify Payment record was created
+        payment = Payment.objects.filter(booking=booking).first()
+        self.assertIsNotNone(payment)
+        self.assertEqual(payment.amount, Decimal('50.00'))
+        self.assertEqual(payment.currency, 'USD')
+        self.assertEqual(payment.status, Payment.PaymentStatus.SUCCESSFUL)
+        self.assertEqual(payment.payment_method, Payment.PaymentMethod.OMARI)
+        self.assertEqual(payment.transaction_reference, 'OMARI-PAY-REF-123')
+        self.assertIn('DEBIT-REF-456', payment.notes)
+        
+        # Verify booking was updated
+        booking.refresh_from_db()
+        self.assertEqual(booking.amount_paid, Decimal('50.00'))
+        self.assertEqual(booking.payment_status, Booking.PaymentStatus.DEPOSIT_PAID)
+
     def test_query_view_returns_status(self):
         """Test query view endpoint."""
         # Create transaction
@@ -445,4 +521,166 @@ class OmariFlowActionsTests(TestCase):
         
         # Verify context was NOT updated with success flag
         self.assertNotIn('omari_payment_success', flow_context)
+
+
+class WhatsAppPaymentHandlerTests(TestCase):
+    """Test WhatsAppPaymentHandler payment processing with booking updates."""
+
+    def setUp(self):
+        """Set up test data."""
+        from conversations.models import Contact
+        from customer_data.models import Booking, CustomerProfile
+        from django.utils import timezone
+        from datetime import timedelta
+        
+        # Create test customer
+        self.customer = CustomerProfile.objects.create(
+            email='test@example.com',
+            first_name='Test',
+            last_name='Customer'
+        )
+        
+        # Create test contact
+        self.contact = Contact.objects.create(
+            whatsapp_id='263774975187',
+            name='Test Contact',
+            profile_name='Test',
+        )
+        
+        # Create test booking
+        today = timezone.now().date()
+        self.booking = Booking.objects.create(
+            customer=self.customer,
+            booking_reference='TEST-BOOKING-WA-001',
+            tour_name='Test Safari',
+            start_date=today + timedelta(days=7),
+            end_date=today + timedelta(days=10),
+            total_amount=Decimal('200.00'),
+            amount_paid=Decimal('0.00'),
+            payment_status=Booking.PaymentStatus.PENDING
+        )
+
+    @patch('omari_integration.whatsapp_handler.OmariClient')
+    def test_process_otp_creates_payment_record(self, mock_client_class):
+        """Test that process_otp_input creates Payment record and updates booking."""
+        from omari_integration.whatsapp_handler import WhatsAppPaymentHandler
+        from customer_data.models import Payment
+        import uuid
+        
+        # Create mock client
+        mock_client = MagicMock()
+        mock_client.request.return_value = {
+            'error': False,
+            'message': 'Payment Success',
+            'responseCode': '000',
+            'paymentReference': 'WA-PAY-REF-999',
+            'debitReference': 'WA-DEBIT-999'
+        }
+        mock_client_class.return_value = mock_client
+        
+        # Create handler and initiate payment state
+        handler = WhatsAppPaymentHandler()
+        reference = str(uuid.uuid4())
+        
+        # Create transaction
+        txn = OmariTransaction.objects.create(
+            reference=reference,
+            msisdn='263774975187',
+            amount=Decimal('100.00'),
+            currency='USD',
+            status='OTP_SENT',
+            otp_reference='WA-OTP-REF',
+            booking=self.booking
+        )
+        
+        # Set payment state on contact
+        handler._set_payment_state(self.contact, {
+            'reference': reference,
+            'otp_reference': 'WA-OTP-REF',
+            'booking_id': self.booking.id,
+            'amount': '100.00',
+            'currency': 'USD',
+            'awaiting_otp': True,
+        })
+        
+        # Process OTP
+        result = handler.process_otp_input(self.contact, '123456')
+        
+        # Verify success
+        self.assertTrue(result['success'])
+        self.assertEqual(result['payment_reference'], 'WA-PAY-REF-999')
+        
+        # Verify Payment record was created
+        payment = Payment.objects.filter(booking=self.booking).first()
+        self.assertIsNotNone(payment)
+        self.assertEqual(payment.amount, Decimal('100.00'))
+        self.assertEqual(payment.currency, 'USD')
+        self.assertEqual(payment.status, Payment.PaymentStatus.SUCCESSFUL)
+        self.assertEqual(payment.payment_method, Payment.PaymentMethod.OMARI)
+        self.assertEqual(payment.transaction_reference, 'WA-PAY-REF-999')
+        self.assertIn('WA-DEBIT-999', payment.notes)
+        
+        # Verify booking was updated
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.amount_paid, Decimal('100.00'))
+        self.assertEqual(self.booking.payment_status, Booking.PaymentStatus.DEPOSIT_PAID)
+        
+        # Verify transaction was updated
+        txn.refresh_from_db()
+        self.assertEqual(txn.status, 'SUCCESS')
+        self.assertIsNotNone(txn.completed_at)
+
+    @patch('omari_integration.whatsapp_handler.OmariClient')
+    def test_process_otp_marks_booking_paid_when_full_amount(self, mock_client_class):
+        """Test that booking is marked as PAID when full amount is paid."""
+        from omari_integration.whatsapp_handler import WhatsAppPaymentHandler
+        import uuid
+        
+        # Create mock client
+        mock_client = MagicMock()
+        mock_client.request.return_value = {
+            'error': False,
+            'message': 'Payment Success',
+            'responseCode': '000',
+            'paymentReference': 'FULL-PAY-REF',
+            'debitReference': 'FULL-DEBIT'
+        }
+        mock_client_class.return_value = mock_client
+        
+        # Create handler
+        handler = WhatsAppPaymentHandler()
+        reference = str(uuid.uuid4())
+        
+        # Create transaction for full amount
+        txn = OmariTransaction.objects.create(
+            reference=reference,
+            msisdn='263774975187',
+            amount=Decimal('200.00'),  # Full amount
+            currency='USD',
+            status='OTP_SENT',
+            otp_reference='FULL-OTP',
+            booking=self.booking
+        )
+        
+        # Set payment state
+        handler._set_payment_state(self.contact, {
+            'reference': reference,
+            'otp_reference': 'FULL-OTP',
+            'booking_id': self.booking.id,
+            'amount': '200.00',
+            'currency': 'USD',
+            'awaiting_otp': True,
+        })
+        
+        # Process OTP
+        result = handler.process_otp_input(self.contact, '123456')
+        
+        # Verify success
+        self.assertTrue(result['success'])
+        
+        # Verify booking was marked as PAID
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.amount_paid, Decimal('200.00'))
+        self.assertEqual(self.booking.payment_status, Booking.PaymentStatus.PAID)
+
 
