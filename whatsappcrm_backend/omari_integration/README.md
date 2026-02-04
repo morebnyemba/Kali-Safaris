@@ -201,8 +201,34 @@ When an Omari payment succeeds, the system automatically:
      - `PAID` when `amount_paid >= total_amount`
      - `DEPOSIT_PAID` when `amount_paid > 0` but less than total
      - `PENDING` when no payments made yet
+4. **Updates booking reference to shared format** (if applicable):
+   - If booking has a `tour_id` and `start_date`, reference updates to `BK-T{tour_id}-{YYYYMMDD}`
+   - Groups all users booking the same tour on the same date
+   - Example: `BK-T005-20260210` for Tour ID 5 on Feb 10, 2026
+   - Idempotent - won't update if already in shared format
 
 This ensures full payment tracking, audit trail, and concurrency safety for all Omari transactions.
+
+### Booking Reference Grouping
+
+After payment, bookings for the same tour and date share a common reference:
+
+**Example:**
+- **Before Payment:**
+  - User A: `BK12345678` (random)
+  - User B: `BK87654321` (random)
+  - Both booking "Victoria Falls Safari" starting Feb 10, 2026
+
+- **After Payment:**
+  - User A: `BK-T005-20260210` (shared)
+  - User B: `BK-T005-20260210` (shared)
+  - Both grouped together for easy management
+
+**Benefits:**
+- Easy to identify travelers on same tour/date
+- Simplifies group coordination and logistics
+- Tour operators can see all bookings at a glance
+- Payment status tracked individually per customer
 
 ### Admin Monitoring
 
