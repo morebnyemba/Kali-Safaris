@@ -49,7 +49,7 @@ class WhatsAppPaymentHandler:
             # Fallback to environment-based settings if DB has no active config
             self.client = OmariClient(OmariConfig(
                 base_url=getattr(settings, 'OMARI_API_BASE_URL',
-                                 'https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment'),
+                                 'https://omari.v.co.zw/vsuite/omari/api/merchant/api/payment'),
                 merchant_key=getattr(settings, 'OMARI_MERCHANT_KEY', ''),
             ))
             logger.warning("Omari client configured from settings (no active DB config found)")
