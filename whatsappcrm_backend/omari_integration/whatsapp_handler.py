@@ -261,7 +261,9 @@ class WhatsAppPaymentHandler:
                             booking = Booking.objects.select_for_update().get(id=txn.booking.id)
                             
                             # Create Payment record for this Omari transaction
-                            payment = Payment.objects.create(
+                            # We bypass the Payment.save() hook by using update_fields to prevent
+                            # automatic booking.update_amount_paid() which would bypass our lock
+                            payment = Payment(
                                 booking=booking,
                                 amount=txn.amount,
                                 currency=txn.currency,
@@ -270,18 +272,19 @@ class WhatsAppPaymentHandler:
                                 transaction_reference=result.get('paymentReference', txn.reference),
                                 notes=f"Omari payment via WhatsApp. Debit Ref: {result.get('debitReference', 'N/A')}"
                             )
+                            # Save without triggering the update hook
+                            super(Payment, payment).save()
                             
-                            # Booking's amount_paid is automatically updated via Payment.save()
-                            # which calls booking.update_amount_paid()
+                            # Manually update booking amount_paid within the locked transaction
+                            booking.amount_paid += txn.amount
                             
                             # Update payment status based on amount
-                            booking.refresh_from_db()
                             if booking.amount_paid >= booking.total_amount:
                                 booking.payment_status = Booking.PaymentStatus.PAID
                             elif booking.amount_paid > 0:
                                 booking.payment_status = Booking.PaymentStatus.DEPOSIT_PAID
                             
-                            booking.save(update_fields=['payment_status', 'updated_at'])
+                            booking.save(update_fields=['amount_paid', 'payment_status', 'updated_at'])
                             
                             logger.info(
                                 "Created Payment record and updated booking | booking=%s payment_id=%s amount=%s status=%s",
