@@ -17,4 +17,5 @@ app_name = 'customer_data_api'
 urlpatterns = [
     path('', include(router.urls)),
     path('export/manifest/', views.export_booking_manifest, name='export_booking_manifest'),
+    path('export/passenger-summary/', views.export_passenger_summary, name='export_passenger_summary'),
 ]

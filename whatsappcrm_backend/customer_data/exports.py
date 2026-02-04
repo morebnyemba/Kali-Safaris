@@ -408,6 +408,300 @@ def export_givers_list_publication_pdf(queryset, period_name):
 
 # --- Booking Manifest Export Functions ---
 
+def export_passenger_manifest_summary_excel(booking_date):
+    """
+    Generates an operational summary report in Excel format for confirmed bookings on a specific date.
+    Shows headcount per booking group for crew seating arrangements and park fees.
+    
+    Args:
+        booking_date: Date object for which to generate the summary
+        
+    Returns:
+        HttpResponse with Excel content
+    """
+    response = HttpResponse(
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    filename = f"passenger_summary_{booking_date.strftime('%Y-%m-%d')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = 'Passenger Summary'
+    
+    # Company name and title
+    company_name = getattr(settings, 'COMPANY_DETAILS', {}).get('NAME', 'Kalai Safaris')
+    main_title_font = Font(bold=True, size=16)
+    sheet.cell(row=1, column=1, value=company_name).font = main_title_font
+    sheet.merge_cells('A1:D1')
+    
+    bold_font = Font(bold=True, size=14)
+    sheet.cell(row=2, column=1, value="Passenger Manifest Summary - Operational Report").font = bold_font
+    sheet.merge_cells('A2:D2')
+    
+    # Date info
+    sheet.cell(row=3, column=1, value=f"Tour Date: {booking_date.strftime('%B %d, %Y')}")
+    sheet.merge_cells('A3:D3')
+    
+    sheet.cell(row=4, column=1, value=f"Generated: {timezone.now().strftime('%B %d, %Y at %H:%M')}")
+    sheet.merge_cells('A4:D4')
+    
+    powered_by_font = Font(italic=True, size=9)
+    sheet.cell(row=5, column=1, value="Powered by Slyker Tech Web Services").font = powered_by_font
+    sheet.merge_cells('A5:D5')
+    
+    # Get confirmed bookings
+    confirmed_bookings = Booking.objects.filter(
+        start_date=booking_date,
+        payment_status__in=[Booking.PaymentStatus.PAID, Booking.PaymentStatus.DEPOSIT_PAID]
+    ).prefetch_related('travelers').select_related('customer').order_by('booking_reference')
+    
+    if not confirmed_bookings.exists():
+        sheet.cell(row=7, column=1, value=f"No confirmed bookings found for {booking_date.strftime('%B %d, %Y')}")
+    else:
+        # Build summary data
+        booking_groups = []
+        total_passengers = 0
+        
+        for booking in confirmed_bookings:
+            traveler_count = booking.travelers.count()
+            if traveler_count == 0:
+                traveler_count = booking.number_of_adults + booking.number_of_children
+            
+            if booking.customer:
+                customer_name = booking.customer.get_full_name() or (booking.customer.contact.name if booking.customer.contact else booking.booking_reference)
+            else:
+                customer_name = booking.booking_reference
+            
+            booking_groups.append({
+                'name': customer_name,
+                'reference': booking.booking_reference,
+                'count': traveler_count,
+                'tour': booking.tour_name
+            })
+            total_passengers += traveler_count
+        
+        # Summary in requested format
+        summary_parts = [f"{group['name']}({group['count']})" for group in booking_groups]
+        summary_text = ", ".join(summary_parts) + f" total: {total_passengers}"
+        
+        sheet.cell(row=7, column=1, value="Confirmed Passenger Summary:").font = Font(bold=True)
+        sheet.merge_cells('A7:D7')
+        
+        sheet.cell(row=8, column=1, value=summary_text)
+        sheet.merge_cells('A8:D8')
+        
+        # Breakdown table
+        header_font = Font(bold=True)
+        headers = ["Booking Reference", "Customer/Group", "Tour", "Passenger Count"]
+        for col_num, header in enumerate(headers, 1):
+            cell = sheet.cell(row=10, column=col_num, value=header)
+            cell.font = header_font
+        
+        row_num = 11
+        for group in booking_groups:
+            sheet.cell(row=row_num, column=1, value=group['reference'])
+            sheet.cell(row=row_num, column=2, value=group['name'])
+            sheet.cell(row=row_num, column=3, value=group['tour'])
+            sheet.cell(row=row_num, column=4, value=group['count'])
+            row_num += 1
+        
+        # Total row
+        sheet.cell(row=row_num, column=1, value="TOTAL").font = header_font
+        sheet.cell(row=row_num, column=4, value=total_passengers).font = header_font
+        
+        # Usage notes
+        row_num += 2
+        sheet.cell(row=row_num, column=1, value="Usage Notes:").font = Font(bold=True)
+        sheet.merge_cells(f'A{row_num}:D{row_num}')
+        row_num += 1
+        sheet.cell(row=row_num, column=1, value="• Individual counts - Used by crew for seating arrangements and logistics")
+        sheet.merge_cells(f'A{row_num}:D{row_num}')
+        row_num += 1
+        sheet.cell(row=row_num, column=1, value="• Total count - Used for calculating park fees and vehicle capacity")
+        sheet.merge_cells(f'A{row_num}:D{row_num}')
+    
+    _auto_adjust_excel_columns(sheet)
+    workbook.save(response)
+    return response
+
+
+def export_passenger_manifest_summary_pdf(booking_date):
+    """
+    Generates an operational summary report for confirmed bookings on a specific date.
+    Shows headcount per booking group for crew seating arrangements and park fees.
+    
+    Format: Customer/Group(count), Customer/Group(count), total: X
+    
+    Args:
+        booking_date: Date object for which to generate the summary
+        
+    Returns:
+        HttpResponse with PDF content
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=letter,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=50
+    )
+    elements = []
+    styles = getSampleStyleSheet()
+    
+    # Get company details from settings
+    company_name = getattr(settings, 'COMPANY_DETAILS', {}).get('NAME', 'Kalai Safaris')
+    
+    # Title
+    title = Paragraph(
+        f"<b>{company_name}</b><br/>Passenger Manifest Summary - Operational Report",
+        styles['h1']
+    )
+    elements.append(title)
+    elements.append(Spacer(1, 12))
+    
+    # Date information
+    date_info = Paragraph(
+        f"<b>Tour Date:</b> {booking_date.strftime('%B %d, %Y')}<br/>"
+        f"<b>Report Generated:</b> {timezone.now().strftime('%B %d, %Y at %H:%M')}",
+        styles['Normal']
+    )
+    elements.append(date_info)
+    elements.append(Spacer(1, 20))
+    
+    # Get only confirmed (paid/deposit paid) bookings for the specified date
+    confirmed_bookings = Booking.objects.filter(
+        start_date=booking_date,
+        payment_status__in=[Booking.PaymentStatus.PAID, Booking.PaymentStatus.DEPOSIT_PAID]
+    ).prefetch_related('travelers').select_related('customer').order_by('booking_reference')
+    
+    if not confirmed_bookings.exists():
+        no_bookings_text = Paragraph(
+            f"<i>No confirmed bookings found for {booking_date.strftime('%B %d, %Y')}</i>",
+            styles['Italic']
+        )
+        elements.append(no_bookings_text)
+    else:
+        # Build summary data
+        booking_groups = []
+        total_passengers = 0
+        
+        for booking in confirmed_bookings:
+            traveler_count = booking.travelers.count()
+            # If no travelers recorded, use the booking's adult + children count
+            if traveler_count == 0:
+                traveler_count = booking.number_of_adults + booking.number_of_children
+            
+            # Get customer name or use booking reference
+            if booking.customer:
+                customer_name = booking.customer.get_full_name() or booking.customer.contact.name if booking.customer.contact else booking.booking_reference
+            else:
+                customer_name = booking.booking_reference
+            
+            booking_groups.append({
+                'name': customer_name,
+                'reference': booking.booking_reference,
+                'count': traveler_count,
+                'tour': booking.tour_name
+            })
+            total_passengers += traveler_count
+        
+        # Summary paragraph in requested format
+        summary_parts = [f"{group['name']}({group['count']})" for group in booking_groups]
+        summary_text = ", ".join(summary_parts) + f" <b>total: {total_passengers}</b>"
+        
+        summary_para = Paragraph(
+            f"<b>Confirmed Passenger Summary:</b><br/>{summary_text}",
+            styles['Normal']
+        )
+        elements.append(summary_para)
+        elements.append(Spacer(1, 20))
+        
+        # Detailed breakdown table
+        breakdown_title = Paragraph("<b>Breakdown by Booking Group:</b>", styles['Heading2'])
+        elements.append(breakdown_title)
+        elements.append(Spacer(1, 10))
+        
+        # Build table data
+        headers = ["Booking Reference", "Customer/Group", "Tour", "Passenger Count"]
+        data = [headers]
+        
+        for group in booking_groups:
+            data.append([
+                group['reference'],
+                group['name'],
+                group['tour'],
+                str(group['count'])
+            ])
+        
+        # Add total row
+        data.append([
+            Paragraph("<b>TOTAL</b>", styles['Normal']),
+            "",
+            "",
+            Paragraph(f"<b>{total_passengers}</b>", styles['Normal'])
+        ])
+        
+        # Create table
+        col_widths = [140, 150, 150, 80]
+        table = Table(data, colWidths=col_widths, hAlign='LEFT')
+        table.setStyle(TableStyle([
+            # Header row styling
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2C5F2D')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'LEFT'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('TOPPADDING', (0, 0), (-1, 0), 12),
+            
+            # Data rows styling
+            ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -2), 9),
+            ('ALIGN', (0, 1), (-1, -2), 'LEFT'),
+            ('ALIGN', (3, 1), (-1, -2), 'CENTER'),
+            
+            # Total row styling
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#D3D3D3')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('ALIGN', (3, -1), (3, -1), 'CENTER'),
+            
+            # Grid and padding
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 1), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 6),
+            
+            # Alternating row colors
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [colors.white, colors.HexColor('#F5F5F5')]),
+        ]))
+        elements.append(table)
+        
+        # Add usage notes
+        elements.append(Spacer(1, 20))
+        notes = Paragraph(
+            "<b>Usage Notes:</b><br/>"
+            "• <i>Individual counts</i> - Used by crew for seating arrangements and logistics<br/>"
+            "• <i>Total count</i> - Used for calculating park fees and vehicle capacity",
+            styles['Normal']
+        )
+        elements.append(notes)
+    
+    # Build PDF
+    doc.build(elements, onFirstPage=_draw_pdf_footer, onLaterPages=_draw_pdf_footer)
+    buffer.seek(0)
+    
+    # Create response
+    response = HttpResponse(buffer, content_type='application/pdf')
+    filename = f"passenger_summary_{booking_date.strftime('%Y-%m-%d')}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
 def export_booking_manifest_pdf(booking_date):
     """
     Generates a professional PDF manifest for bookings on a specific date.

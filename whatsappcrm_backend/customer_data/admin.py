@@ -114,7 +114,7 @@ class BookingAdmin(admin.ModelAdmin):
     list_editable = ('payment_status',)
     date_hierarchy = 'start_date'
     inlines = [TravelerInline]
-    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date']
+    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date', 'export_passenger_summary_for_date']
     fieldsets = (
         ('Booking Core Info', {
             'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')
@@ -295,6 +295,36 @@ class BookingAdmin(admin.ModelAdmin):
         return export_booking_manifest_pdf(booking_date)
     
     export_manifest_for_date.short_description = "Export Manifest for Booking Date (ZimParks Format)"
+    
+    def export_passenger_summary_for_date(self, request, queryset):
+        """
+        Export an operational passenger summary for bookings on a specific date.
+        Shows headcount per booking group for crew planning and park fees.
+        """
+        from .exports import export_passenger_manifest_summary_pdf
+        
+        if not queryset.exists():
+            self.message_user(request, "No bookings selected.", level='warning')
+            return
+        
+        # Use the start_date from the first booking in the queryset
+        booking_date = queryset.first().start_date
+        
+        # Filter to confirmed bookings for that date
+        confirmed_count = Booking.objects.filter(
+            start_date=booking_date,
+            payment_status__in=[Booking.PaymentStatus.PAID, Booking.PaymentStatus.DEPOSIT_PAID]
+        ).count()
+        
+        self.message_user(
+            request,
+            f"Generating passenger summary for {booking_date.strftime('%B %d, %Y')} ({confirmed_count} confirmed booking(s))...",
+            level='info'
+        )
+        
+        return export_passenger_manifest_summary_pdf(booking_date)
+    
+    export_passenger_summary_for_date.short_description = "Export Passenger Summary (Operational - Headcount)"
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
