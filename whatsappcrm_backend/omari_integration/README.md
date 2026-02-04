@@ -175,12 +175,33 @@ Or via main menu: Type `menu` → Select "📱 Mobile Payment"
 **Behind the Scenes:**
 - OTP detection happens automatically via `message_processor.py`
 - Payment state stored in contact's `conversation_context`
-- Booking `amount_paid` and `payment_status` updated on success
+- **Payment record created** in `customer_data.Payment` model with method='omari'
+- Booking `amount_paid` automatically updated via `Payment.save()` hook
+- Booking `payment_status` updated on success:
+  - `DEPOSIT_PAID` if partial payment
+  - `PAID` if full amount paid
 - Transaction logged in `OmariTransaction` model
 
 ### Canceling Payments
 
 Users can cancel anytime by typing: `cancel`, `cancel payment`, `stop`, or `quit`
+
+### Payment Records
+
+When an Omari payment succeeds, the system automatically:
+1. Creates a `Payment` record in the database with:
+   - `payment_method` = 'omari'
+   - `status` = 'successful'
+   - `transaction_reference` = Omari payment reference
+   - `notes` = Includes debit reference from Omari
+2. Updates the `Booking`:
+   - `amount_paid` is recalculated from all successful payments
+   - `payment_status` is updated based on total amount:
+     - `PAID` when `amount_paid >= total_amount`
+     - `DEPOSIT_PAID` when `amount_paid > 0` but less than total
+     - `PENDING` when no payments made yet
+
+This ensures full payment tracking and audit trail for all Omari transactions.
 
 ### Admin Monitoring
 
@@ -188,3 +209,4 @@ View all transactions in Django Admin:
 - Navigate to: **Omari Payment Integration** → **Omari Transactions**
 - Filter by status, currency, date
 - Track OTP references and payment refs
+- View linked bookings and payment records
