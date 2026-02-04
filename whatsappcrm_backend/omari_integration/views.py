@@ -6,9 +6,11 @@ from django.utils import timezone
 from django.http import JsonResponse, HttpRequest
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
+from django.db import transaction as db_transaction
 
 from .services import OmariClient
 from .models import OmariTransaction
+from customer_data.models import Booking, Payment
 
 
 logger = logging.getLogger(__name__)
@@ -150,13 +152,45 @@ def omari_request_view(request: HttpRequest) -> JsonResponse:
             if not result.get('error') and result.get('responseCode') == '000':
                 txn.status = 'SUCCESS'
                 txn.completed_at = timezone.now()
+                
+                # Update booking and create Payment record when payment succeeds
+                if txn.booking:
+                    with db_transaction.atomic():
+                        booking = Booking.objects.select_for_update().get(id=txn.booking.id)
+                        
+                        # Create Payment record for this Omari transaction
+                        payment = Payment.objects.create(
+                            booking=booking,
+                            amount=txn.amount,
+                            currency=txn.currency,
+                            status=Payment.PaymentStatus.SUCCESSFUL,
+                            payment_method=Payment.PaymentMethod.OMARI,
+                            transaction_reference=result.get('paymentReference', txn.reference),
+                            notes=f"Omari payment via API. Debit Ref: {result.get('debitReference', 'N/A')}"
+                        )
+                        
+                        # Booking's amount_paid is automatically updated via Payment.save()
+                        # which calls booking.update_amount_paid()
+                        
+                        # Update payment status based on amount
+                        booking.refresh_from_db()
+                        if booking.amount_paid >= booking.total_amount:
+                            booking.payment_status = Booking.PaymentStatus.PAID
+                        elif booking.amount_paid > 0:
+                            booking.payment_status = Booking.PaymentStatus.DEPOSIT_PAID
+                        
+                        booking.save(update_fields=['payment_status', 'updated_at'])
+                        
+                        logger.info(
+                            "Created Payment record and updated booking | booking=%s payment_id=%s amount=%s status=%s",
+                            booking.booking_reference,
+                            payment.id,
+                            txn.amount,
+                            booking.payment_status
+                        )
             else:
                 txn.status = 'FAILED'
             txn.save()
-            # TODO: Update booking/payment record if txn.status == 'SUCCESS'
-            # if txn.booking:
-            #     txn.booking.payment_status = 'PAID'
-            #     txn.booking.save()
         return JsonResponse(result, status=200)
     except Exception as e:
         logger.exception("Failed to complete Omari payment request")
