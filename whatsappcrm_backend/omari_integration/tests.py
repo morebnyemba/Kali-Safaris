@@ -275,6 +275,91 @@ class OmariViewTests(TestCase):
         self.assertEqual(booking.amount_paid, Decimal('50.00'))
         self.assertEqual(booking.payment_status, Booking.PaymentStatus.DEPOSIT_PAID)
 
+    @patch('omari_integration.views.OmariClient.request')
+    def test_request_view_updates_booking_reference_to_shared_format(self, mock_request):
+        """Test request view updates booking reference to shared format after payment."""
+        from products_and_services.models import Tour
+        
+        # Create a tour
+        tour = Tour.objects.create(
+            name="Hwange Safari",
+            description="Wildlife safari",
+            duration_days=2,
+            price_per_person=75.00
+        )
+        
+        # Create test customer and booking with tour
+        customer = CustomerProfile.objects.create(
+            email='reftest@example.com',
+            first_name='Ref',
+            last_name='Test'
+        )
+        
+        today = timezone.now().date()
+        booking = Booking.objects.create(
+            customer=customer,
+            tour=tour,
+            booking_reference='BK99999999',  # Random reference
+            tour_name='Hwange Safari',
+            start_date=today + timedelta(days=5),
+            end_date=today + timedelta(days=7),
+            total_amount=Decimal('75.00'),
+            amount_paid=Decimal('0.00'),
+            payment_status=Booking.PaymentStatus.PENDING
+        )
+        
+        old_reference = booking.booking_reference
+        
+        # Create transaction linked to booking
+        txn = OmariTransaction.objects.create(
+            reference='test-ref-update',
+            msisdn='263774975187',
+            amount=Decimal('75.00'),
+            currency='USD',
+            status='OTP_SENT',
+            otp_reference='REF-OTP',
+            booking=booking
+        )
+
+        mock_request.return_value = {
+            'error': False,
+            'message': 'Payment Success',
+            'responseCode': '000',
+            'paymentReference': 'REF-UPDATE-PAY',
+            'debitReference': 'REF-UPDATE-DEBIT'
+        }
+
+        response = self.http_client.post(
+            reverse('omari_integration:request'),
+            data=json.dumps({
+                'msisdn': '263774975187',
+                'reference': 'test-ref-update',
+                'otp': '123456'
+            }),
+            content_type='application/json'
+        )
+
+        self.assertEqual(response.status_code, 200)
+        
+        # Verify booking reference was updated to shared format
+        booking.refresh_from_db()
+        new_reference = booking.booking_reference
+        
+        # Should be in shared format: BK-T{tour_id}-{YYYYMMDD}
+        self.assertNotEqual(old_reference, new_reference)
+        self.assertTrue(new_reference.startswith('BK-T'))
+        self.assertIn(booking.start_date.strftime('%Y%m%d'), new_reference)
+        
+        # Verify payment was fully recorded
+        self.assertEqual(booking.amount_paid, Decimal('75.00'))
+        self.assertEqual(booking.payment_status, Booking.PaymentStatus.PAID)
+        
+        # Clean up
+        tour.delete()
+        booking.delete()
+        customer.delete()
+
+
     def test_query_view_returns_status(self):
         """Test query view endpoint."""
         # Create transaction
@@ -682,5 +767,91 @@ class WhatsAppPaymentHandlerTests(TestCase):
         self.booking.refresh_from_db()
         self.assertEqual(self.booking.amount_paid, Decimal('200.00'))
         self.assertEqual(self.booking.payment_status, Booking.PaymentStatus.PAID)
+
+    @patch('omari_integration.whatsapp_handler.OmariClient')
+    def test_process_otp_updates_booking_reference_to_shared_format(self, mock_client_class):
+        """Test that booking reference is updated to shared format after payment."""
+        from omari_integration.whatsapp_handler import WhatsAppPaymentHandler
+        from products_and_services.models import Tour
+        import uuid
+        
+        # Create a tour
+        tour = Tour.objects.create(
+            name="Victoria Falls Safari",
+            description="3-day safari",
+            duration_days=3,
+            price_per_person=100.00
+        )
+        
+        # Create booking with tour and random reference
+        booking_with_tour = Booking.objects.create(
+            customer=self.customer,
+            tour=tour,
+            booking_reference='BK12345678',  # Random reference
+            tour_name='Victoria Falls Safari',
+            start_date=self.booking.start_date,
+            end_date=self.booking.end_date,
+            total_amount=Decimal('100.00'),
+            amount_paid=Decimal('0.00'),
+            payment_status=Booking.PaymentStatus.PENDING
+        )
+        
+        old_reference = booking_with_tour.booking_reference
+        
+        # Create mock client
+        mock_client = MagicMock()
+        mock_client.request.return_value = {
+            'error': False,
+            'message': 'Payment Success',
+            'responseCode': '000',
+            'paymentReference': 'SHARED-PAY-REF',
+            'debitReference': 'SHARED-DEBIT'
+        }
+        mock_client_class.return_value = mock_client
+        
+        # Create handler
+        handler = WhatsAppPaymentHandler()
+        reference = str(uuid.uuid4())
+        
+        # Create transaction
+        txn = OmariTransaction.objects.create(
+            reference=reference,
+            msisdn='263774975187',
+            amount=Decimal('100.00'),
+            currency='USD',
+            status='OTP_SENT',
+            otp_reference='SHARED-OTP',
+            booking=booking_with_tour
+        )
+        
+        # Set payment state
+        handler._set_payment_state(self.contact, {
+            'reference': reference,
+            'otp_reference': 'SHARED-OTP',
+            'booking_id': booking_with_tour.id,
+            'amount': '100.00',
+            'currency': 'USD',
+            'awaiting_otp': True,
+        })
+        
+        # Process OTP
+        result = handler.process_otp_input(self.contact, '123456')
+        
+        # Verify success
+        self.assertTrue(result['success'])
+        
+        # Verify booking reference was updated to shared format
+        booking_with_tour.refresh_from_db()
+        new_reference = booking_with_tour.booking_reference
+        
+        # Should be in shared format: BK-T{tour_id}-{YYYYMMDD}
+        self.assertNotEqual(old_reference, new_reference)
+        self.assertTrue(new_reference.startswith('BK-T'))
+        self.assertIn(booking_with_tour.start_date.strftime('%Y%m%d'), new_reference)
+        
+        # Clean up
+        tour.delete()
+        booking_with_tour.delete()
+
 
 

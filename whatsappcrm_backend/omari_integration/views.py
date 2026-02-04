@@ -182,7 +182,21 @@ def omari_request_view(request: HttpRequest) -> JsonResponse:
                         elif booking.amount_paid > 0:
                             booking.payment_status = Booking.PaymentStatus.DEPOSIT_PAID
                         
-                        booking.save(update_fields=['amount_paid', 'payment_status', 'updated_at'])
+                        # Update booking reference to shared format after successful payment
+                        old_reference = booking.booking_reference
+                        was_updated, new_reference = booking.update_to_shared_reference(commit=False)
+                        
+                        # Save all changes together
+                        if was_updated:
+                            booking.save(update_fields=['amount_paid', 'payment_status', 'booking_reference', 'updated_at'])
+                            logger.info(
+                                "Updated booking reference after payment | booking=%s old_ref=%s new_ref=%s",
+                                booking.id,
+                                old_reference,
+                                new_reference
+                            )
+                        else:
+                            booking.save(update_fields=['amount_paid', 'payment_status', 'updated_at'])
                         
                         logger.info(
                             "Created Payment record and updated booking | booking=%s payment_id=%s amount=%s status=%s",
