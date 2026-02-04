@@ -8,6 +8,9 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 import csv
+import zipfile
+import os
+from django.conf import settings
 from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry, Traveler
 
 class InteractionInline(admin.TabularInline):
@@ -114,7 +117,7 @@ class BookingAdmin(admin.ModelAdmin):
     list_editable = ('payment_status',)
     date_hierarchy = 'start_date'
     inlines = [TravelerInline]
-    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date', 'export_passenger_summary_for_date']
+    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date', 'export_passenger_summary_for_date', 'download_all_id_documents']
     fieldsets = (
         ('Booking Core Info', {
             'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')
@@ -325,6 +328,77 @@ class BookingAdmin(admin.ModelAdmin):
         return export_passenger_manifest_summary_pdf(booking_date)
     
     export_passenger_summary_for_date.short_description = "Export Passenger Summary (Operational - Headcount)"
+    
+    def download_all_id_documents(self, request, queryset):
+        """
+        Download all ID documents for travelers in selected bookings as a ZIP file.
+        Organizes documents by booking reference for easy submission to ZimParks.
+        """
+        # Get all travelers with ID documents from selected bookings
+        travelers = Traveler.objects.filter(
+            booking__in=queryset
+        ).exclude(
+            id_document=''
+        ).select_related('booking')
+        
+        if not travelers.exists():
+            self.message_user(request, "No travelers with ID documents found in selected bookings.", level='warning')
+            return
+        
+        # Create ZIP file in memory
+        zip_buffer = BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Group travelers by booking for organization
+            bookings_dict = {}
+            for traveler in travelers:
+                booking_ref = traveler.booking.booking_reference
+                if booking_ref not in bookings_dict:
+                    bookings_dict[booking_ref] = []
+                bookings_dict[booking_ref].append(traveler)
+            
+            # Add each ID document to ZIP
+            for booking_ref, booking_travelers in bookings_dict.items():
+                for idx, traveler in enumerate(booking_travelers, 1):
+                    try:
+                        # Read the file content
+                        id_doc_path = traveler.id_document.path
+                        if os.path.exists(id_doc_path):
+                            # Get file extension
+                            file_ext = os.path.splitext(id_doc_path)[1]
+                            # Create a clean filename: BookingRef/TravelerName_ID.ext
+                            safe_name = traveler.name.replace(' ', '_').replace('/', '_')
+                            filename = f"{booking_ref}/{idx}_{safe_name}{file_ext}"
+                            
+                            # Add to ZIP
+                            with open(id_doc_path, 'rb') as f:
+                                zip_file.writestr(filename, f.read())
+                    except Exception as e:
+                        # Log error but continue with other documents
+                        self.message_user(
+                            request, 
+                            f"Could not add ID document for {traveler.name}: {str(e)}", 
+                            level='warning'
+                        )
+        
+        # Prepare HTTP response
+        zip_buffer.seek(0)
+        response = HttpResponse(zip_buffer.read(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="id_documents_{timezone.now().strftime("%Y%m%d_%H%M%S")}.zip"'
+        
+        # Count documents
+        total_travelers = travelers.count()
+        booking_count = queryset.count()
+        
+        self.message_user(
+            request,
+            f"✅ Successfully downloaded {total_travelers} ID document(s) from {booking_count} booking(s).",
+            level='success'
+        )
+        
+        return response
+    
+    download_all_id_documents.short_description = "📥 Download All ID Documents (ZIP)"
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
