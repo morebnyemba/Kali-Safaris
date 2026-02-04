@@ -433,22 +433,22 @@ def export_passenger_manifest_summary_excel(booking_date):
     company_name = getattr(settings, 'COMPANY_DETAILS', {}).get('NAME', 'Kalai Safaris')
     main_title_font = Font(bold=True, size=16)
     sheet.cell(row=1, column=1, value=company_name).font = main_title_font
-    sheet.merge_cells('A1:D1')
+    sheet.merge_cells('A1:E1')
     
     bold_font = Font(bold=True, size=14)
     sheet.cell(row=2, column=1, value="Passenger Manifest Summary - Operational Report").font = bold_font
-    sheet.merge_cells('A2:D2')
+    sheet.merge_cells('A2:E2')
     
     # Date info
     sheet.cell(row=3, column=1, value=f"Tour Date: {booking_date.strftime('%B %d, %Y')}")
-    sheet.merge_cells('A3:D3')
+    sheet.merge_cells('A3:E3')
     
     sheet.cell(row=4, column=1, value=f"Generated: {timezone.now().strftime('%B %d, %Y at %H:%M')}")
-    sheet.merge_cells('A4:D4')
+    sheet.merge_cells('A4:E4')
     
     powered_by_font = Font(italic=True, size=9)
     sheet.cell(row=5, column=1, value="Powered by Slyker Tech Web Services").font = powered_by_font
-    sheet.merge_cells('A5:D5')
+    sheet.merge_cells('A5:E5')
     
     # Get confirmed bookings
     confirmed_bookings = Booking.objects.filter(
@@ -462,11 +462,16 @@ def export_passenger_manifest_summary_excel(booking_date):
         # Build summary data
         booking_groups = []
         total_passengers = 0
+        total_with_id_docs = 0
         
         for booking in confirmed_bookings:
-            traveler_count = booking.travelers.count()
+            travelers = booking.travelers.all()
+            traveler_count = travelers.count()
             if traveler_count == 0:
                 traveler_count = booking.number_of_adults + booking.number_of_children
+            
+            # Count travelers with ID documents
+            id_docs_count = sum(1 for t in travelers if t.id_document)
             
             if booking.customer:
                 customer_name = booking.customer.get_full_name() or (booking.customer.contact.name if booking.customer.contact else booking.booking_reference)
@@ -477,9 +482,11 @@ def export_passenger_manifest_summary_excel(booking_date):
                 'name': customer_name,
                 'reference': booking.booking_reference,
                 'count': traveler_count,
-                'tour': booking.tour_name
+                'tour': booking.tour_name,
+                'id_docs': id_docs_count
             })
             total_passengers += traveler_count
+            total_with_id_docs += id_docs_count
         
         # Summary in requested format
         summary_parts = [f"{group['name']}({group['count']})" for group in booking_groups]
@@ -489,37 +496,45 @@ def export_passenger_manifest_summary_excel(booking_date):
         sheet.merge_cells('A7:D7')
         
         sheet.cell(row=8, column=1, value=summary_text)
-        sheet.merge_cells('A8:D8')
+        sheet.merge_cells('A8:E8')
+        
+        sheet.cell(row=9, column=1, value=f"ID Documents Uploaded: {total_with_id_docs} of {total_passengers}")
+        sheet.merge_cells('A9:E9')
         
         # Breakdown table
         header_font = Font(bold=True)
-        headers = ["Booking Reference", "Customer/Group", "Tour", "Passenger Count"]
+        headers = ["Booking Reference", "Customer/Group", "Tour", "Passengers", "ID Docs"]
         for col_num, header in enumerate(headers, 1):
-            cell = sheet.cell(row=10, column=col_num, value=header)
+            cell = sheet.cell(row=11, column=col_num, value=header)
             cell.font = header_font
         
-        row_num = 11
+        row_num = 12
         for group in booking_groups:
             sheet.cell(row=row_num, column=1, value=group['reference'])
             sheet.cell(row=row_num, column=2, value=group['name'])
             sheet.cell(row=row_num, column=3, value=group['tour'])
             sheet.cell(row=row_num, column=4, value=group['count'])
+            sheet.cell(row=row_num, column=5, value=f"{group['id_docs']}/{group['count']}")
             row_num += 1
         
         # Total row
         sheet.cell(row=row_num, column=1, value="TOTAL").font = header_font
         sheet.cell(row=row_num, column=4, value=total_passengers).font = header_font
+        sheet.cell(row=row_num, column=5, value=f"{total_with_id_docs}/{total_passengers}").font = header_font
         
         # Usage notes
         row_num += 2
         sheet.cell(row=row_num, column=1, value="Usage Notes:").font = Font(bold=True)
-        sheet.merge_cells(f'A{row_num}:D{row_num}')
+        sheet.merge_cells(f'A{row_num}:E{row_num}')
         row_num += 1
         sheet.cell(row=row_num, column=1, value="• Individual counts - Used by crew for seating arrangements and logistics")
-        sheet.merge_cells(f'A{row_num}:D{row_num}')
+        sheet.merge_cells(f'A{row_num}:E{row_num}')
         row_num += 1
         sheet.cell(row=row_num, column=1, value="• Total count - Used for calculating park fees and vehicle capacity")
-        sheet.merge_cells(f'A{row_num}:D{row_num}')
+        sheet.merge_cells(f'A{row_num}:E{row_num}')
+        row_num += 1
+        sheet.cell(row=row_num, column=1, value="• ID Docs - Number of travelers with ID/Passport images uploaded via WhatsApp")
+        sheet.merge_cells(f'A{row_num}:E{row_num}')
     
     _auto_adjust_excel_columns(sheet)
     workbook.save(response)
@@ -613,7 +628,8 @@ def export_passenger_manifest_summary_pdf(booking_date):
         summary_text = ", ".join(summary_parts) + f" <b>total: {total_passengers}</b>"
         
         summary_para = Paragraph(
-            f"<b>Confirmed Passenger Summary:</b><br/>{summary_text}",
+            f"<b>Confirmed Passenger Summary:</b><br/>{summary_text}<br/>"
+            f"<b>ID Documents Uploaded:</b> {total_with_id_docs} of {total_passengers}",
             styles['Normal']
         )
         elements.append(summary_para)
@@ -625,7 +641,7 @@ def export_passenger_manifest_summary_pdf(booking_date):
         elements.append(Spacer(1, 10))
         
         # Build table data
-        headers = ["Booking Reference", "Customer/Group", "Tour", "Passenger Count"]
+        headers = ["Booking Reference", "Customer/Group", "Tour", "Passengers", "ID Docs"]
         data = [headers]
         
         for group in booking_groups:
@@ -633,7 +649,8 @@ def export_passenger_manifest_summary_pdf(booking_date):
                 group['reference'],
                 group['name'],
                 group['tour'],
-                str(group['count'])
+                str(group['count']),
+                f"{group['id_docs']}/{group['count']}"
             ])
         
         # Add total row
@@ -641,11 +658,12 @@ def export_passenger_manifest_summary_pdf(booking_date):
             Paragraph("<b>TOTAL</b>", styles['Normal']),
             "",
             "",
-            Paragraph(f"<b>{total_passengers}</b>", styles['Normal'])
+            Paragraph(f"<b>{total_passengers}</b>", styles['Normal']),
+            Paragraph(f"<b>{total_with_id_docs}/{total_passengers}</b>", styles['Normal'])
         ])
         
         # Create table
-        col_widths = [140, 150, 150, 80]
+        col_widths = [120, 130, 130, 70, 70]
         table = Table(data, colWidths=col_widths, hAlign='LEFT')
         table.setStyle(TableStyle([
             # Header row styling
@@ -686,7 +704,8 @@ def export_passenger_manifest_summary_pdf(booking_date):
         notes = Paragraph(
             "<b>Usage Notes:</b><br/>"
             "• <i>Individual counts</i> - Used by crew for seating arrangements and logistics<br/>"
-            "• <i>Total count</i> - Used for calculating park fees and vehicle capacity",
+            "• <i>Total count</i> - Used for calculating park fees and vehicle capacity<br/>"
+            "• <i>ID Docs</i> - Number of travelers with ID/Passport images uploaded via WhatsApp",
             styles['Normal']
         )
         elements.append(notes)
@@ -772,14 +791,14 @@ def export_booking_manifest_pdf(booking_date):
         elements.append(Spacer(1, 20))
         
         # Build table data
-        headers = ["Full Name", "ID Number", "Nationality", "Age"]
+        headers = ["Full Name", "ID Number", "Nationality", "Age", "ID Doc"]
         data = [headers]
         
         for booking in bookings:
             # Add booking reference header
             booking_header = [
                 Paragraph(f"<b>Booking: {booking.booking_reference} - {booking.tour_name}</b>", styles['Normal']),
-                "", "", ""
+                "", "", "", ""
             ]
             data.append(booking_header)
             
@@ -791,22 +810,26 @@ def export_booking_manifest_pdf(booking_date):
                     "No traveler details recorded",
                     "-",
                     "-",
+                    "-",
                     "-"
                 ])
             else:
                 for traveler in travelers:
+                    # Check if ID document is uploaded
+                    id_doc_status = "✓" if traveler.id_document else "✗"
                     data.append([
                         traveler.name,
                         traveler.id_number or "Not provided",
                         traveler.nationality or "Not provided",
-                        str(traveler.age)
+                        str(traveler.age),
+                        id_doc_status
                     ])
             
             # Add spacing row between bookings
-            data.append(["", "", "", ""])
+            data.append(["", "", "", "", ""])
         
         # Create table with appropriate column widths
-        col_widths = [200, 120, 100, 60]
+        col_widths = [180, 110, 90, 50, 50]
         table = Table(data, colWidths=col_widths, hAlign='LEFT')
         table.setStyle(TableStyle([
             # Header row styling
@@ -835,6 +858,14 @@ def export_booking_manifest_pdf(booking_date):
             ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F5F5F5')]),
         ]))
         elements.append(table)
+        
+        # Add note about ID document column
+        elements.append(Spacer(1, 10))
+        id_note = Paragraph(
+            "<b>ID Doc:</b> ✓ = ID/Passport image uploaded via WhatsApp | ✗ = Not uploaded",
+            styles['Normal']
+        )
+        elements.append(id_note)
     
     # Build PDF
     doc.build(elements, onFirstPage=_draw_pdf_footer, onLaterPages=_draw_pdf_footer)
