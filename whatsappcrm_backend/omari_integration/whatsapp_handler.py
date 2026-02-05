@@ -17,7 +17,7 @@ from django.utils import timezone
 from django.db import transaction as db_transaction
 
 from conversations.models import Contact, Message
-from customer_data.models import Booking
+from customer_data.models import Booking, Payment
 from .models import OmariTransaction, OmariUser
 from .services import OmariClient, OmariConfig
 from django.conf import settings
@@ -255,10 +255,27 @@ class WhatsAppPaymentHandler:
                     except Exception:
                         logger.warning("Failed to auto-enroll Omari user %s", msisdn)
                     
-                    # Update booking
+                    # Update booking and create Payment record
                     if txn.booking:
                         with db_transaction.atomic():
                             booking = Booking.objects.select_for_update().get(id=txn.booking.id)
+                            
+                            # Create Payment record for this Omari transaction
+                            # We bypass the Payment.save() hook by using super().save() to prevent
+                            # automatic booking.update_amount_paid() which would bypass our lock
+                            payment = Payment(
+                                booking=booking,
+                                amount=txn.amount,
+                                currency=txn.currency,
+                                status=Payment.PaymentStatus.SUCCESSFUL,
+                                payment_method=Payment.PaymentMethod.OMARI,
+                                transaction_reference=result.get('paymentReference', txn.reference),
+                                notes=f"Omari payment via WhatsApp. Debit Ref: {result.get('debitReference', 'N/A')}"
+                            )
+                            # Save without triggering the update hook
+                            super(Payment, payment).save()
+                            
+                            # Manually update booking amount_paid within the locked transaction
                             booking.amount_paid += txn.amount
                             
                             # Update payment status based on amount
@@ -267,9 +284,31 @@ class WhatsAppPaymentHandler:
                             elif booking.amount_paid > 0:
                                 booking.payment_status = Booking.PaymentStatus.DEPOSIT_PAID
                             
-                            booking.save(update_fields=['amount_paid', 'payment_status', 'updated_at'])
+                            # Update booking reference to shared format after successful payment
+                            old_reference = booking.booking_reference
+                            was_updated, new_reference = booking.update_to_shared_reference(commit=False)
                             
-                            logger.info(f"Updated booking {booking.booking_reference} payment status to {booking.payment_status}")
+                            # Build list of fields to update
+                            update_fields = ['amount_paid', 'payment_status', 'updated_at']
+                            if was_updated:
+                                update_fields.append('booking_reference')
+                                logger.info(
+                                    "Updated booking reference after payment | booking=%s old_ref=%s new_ref=%s",
+                                    booking.id,
+                                    old_reference,
+                                    new_reference
+                                )
+                            
+                            # Save all changes together
+                            booking.save(update_fields=update_fields)
+                            
+                            logger.info(
+                                "Created Payment record and updated booking | booking=%s payment_id=%s amount=%s status=%s",
+                                booking.booking_reference,
+                                payment.id,
+                                txn.amount,
+                                booking.payment_status
+                            )
                 else:
                     txn.status = 'FAILED'
                 

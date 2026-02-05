@@ -16,33 +16,33 @@ MAIN_MENU_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "list",
-                        "header": {"type": "text", "text": "Kalai Safaris Main Menu"},
-                        "body": {"text": "Welcome{% if contact.name %}, {{ contact.name }}{% endif %}! How can we help you plan your next adventure? Please select an option below."},
-                        "footer": {"text": "Session expires after 5 mins of inactivity"},
+                        "header": {"type": "text", "text": "🌍 Kalai Safaris Menu"},
+                        "body": {"text": "Welcome{% if contact.name %}, *{{ contact.name }}*{% endif %}! 🦁\n\nHow can we help you plan your next adventure?\n\n💡 *Quick tip:* All options are organized by category below."},
+                        "footer": {"text": "⏱️ Session expires after 5 mins of inactivity"},
                         "action": {
                             "button": "Select an Option",
                             "sections": [
                                 {
-                                    "title": "Bookings & Tours",
+                                    "title": "🎯 Bookings & Tours",
                                     "rows": [
-                                        {"id": "book_tour", "title": "🦁 Book a Tour", "description": "Start a new safari or custom tour booking."},
-                                        {"id": "view_tours", "title": "🌍 View Available Tours", "description": "See all our upcoming and featured tours."},
-                                        {"id": "special_offers", "title": "🎉 Special Offers", "description": "Check out our latest deals and discounts."}
+                                        {"id": "book_tour", "title": "🦁 Book a Tour", "description": "Start a new safari or custom tour booking (~5 min)"},
+                                        {"id": "view_tours", "title": "🌍 View Available Tours", "description": "Browse all our upcoming and featured tours"},
+                                        {"id": "special_offers", "title": "🎉 Special Offers", "description": "Check out our latest deals and discounts"}
                                     ]
                                 },
                                 {
-                                    "title": "Management",
+                                    "title": "📋 My Account",
                                     "rows": [
-                                        {"id": "my_bookings", "title": "📖 My Bookings", "description": "View or manage your existing bookings."},
-                                        {"id": "payment_options", "title": "💳 Make a Payment", "description": "Pay for your booking via multiple payment methods."}
+                                        {"id": "my_bookings", "title": "📖 My Bookings", "description": "View or manage your existing bookings"},
+                                        {"id": "payment_options", "title": "💳 Make a Payment", "description": "Pay for your booking via Omari, Ecocash, or bank"}
                                     ]
                                 },
                                 {
-                                    "title": "Support & Info",
+                                    "title": "🆘 Support & Info",
                                     "rows": [
-                                        {"id": "faq", "title": "❓ FAQs", "description": "Frequently asked questions about Kalai Safaris."},
-                                        {"id": "contact_support", "title": "🆘 Contact Support", "description": "Get help from our team."},
-                                        {"id": "about_kalai", "title": "ℹ️ About Kalai Safaris", "description": "Learn more about us."}
+                                        {"id": "faq", "title": "❓ FAQs", "description": "Frequently asked questions & answers"},
+                                        {"id": "contact_support", "title": "📞 Contact Support", "description": "Get help from our friendly team"},
+                                        {"id": "about_kalai", "title": "ℹ️ About Us", "description": "Learn more about Kalai Safaris"}
                                     ]
                                 }
                             ]
@@ -70,27 +70,27 @@ MAIN_MENU_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "list",
-                        "header": {"type": "text", "text": "Payment Type"},
-                        "body": {"text": "What would you like to pay for?"},
+                        "header": {"type": "text", "text": "💳 Payment Type"},
+                        "body": {"text": "What would you like to pay for?\n\n📝 *Note:* Have your booking or inquiry reference ready."},
                         "action": {
-                            "button": "Select Payment",
+                            "button": "Select Payment Type",
                             "sections": [
                                 {
-                                    "title": "Booking Payments",
+                                    "title": "💰 Payments",
                                     "rows": [
-                                        {"id": "booking_payment", "title": "Pay Balance/Installment", "description": "Pay deposit or installments for a booking."}
+                                        {"id": "booking_payment", "title": "Pay for Booking", "description": "Pay deposit or balance for your safari booking"}
                                     ]
                                 },
                                 {
-                                    "title": "Inquiries",
+                                    "title": "📋 Inquiries",
                                     "rows": [
-                                        {"id": "tour_inquiry_payment", "title": "Pay for Tour Inquiry", "description": "Pay against a tour inquiry reference."}
+                                        {"id": "tour_inquiry_payment", "title": "Pay for Inquiry", "description": "Pay against a custom tour inquiry reference"}
                                     ]
                                 },
                                 {
-                                    "title": "Back",
+                                    "title": "◀️ Navigation",
                                     "rows": [
-                                        {"id": "back_to_main", "title": "Back to Main Menu", "description": "Return to main menu."}
+                                        {"id": "back_to_main", "title": "Back to Main Menu", "description": "Return to main menu"}
                                     ]
                                 }
                             ]
@@ -181,15 +181,14 @@ MAIN_MENU_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "button",
-                        "header": {"type": "text", "text": "Payment Options"},
-                        "body": {"text": "How would you like to pay?"},
-                        "footer": {"text": "Select a payment method below"},
+                        "header": {"type": "text", "text": "💳 Choose Payment Method"},
+                        "body": {"text": "Select how you'd like to pay:\n\n💡 *All methods are secure and instant*"},
+                        "footer": {"text": "Your payment will be confirmed within minutes"},
                         "action": {
                             "buttons": [
                                 {"type": "reply", "reply": {"id": "omari_payment", "title": "💳 Omari"}},
-                                {"type": "reply", "reply": {"id": "paynow_payment", "title": "📱 Ecocash, Innbucks, OneMoney"}},
-                                {"type": "reply", "reply": {"id": "manual_payment", "title": "🏦 Manual Payment"}},
-                                {"type": "reply", "reply": {"id": "back_to_main", "title": "Back to Menu"}}
+                                {"type": "reply", "reply": {"id": "paynow_payment", "title": "📱 Ecocash/Innbucks"}},
+                                {"type": "reply", "reply": {"id": "manual_payment", "title": "🏦 Bank Transfer"}}
                             ]
                         }
                     }
@@ -208,7 +207,7 @@ MAIN_MENU_FLOW = {
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {"body": "Our support team is here to help! Please describe your issue, or email bookings@kalaisafaris.com."}
+                "text": {"body": "📞 *Contact Support*\n\nOur team is here to help you!\n\n📧 *Email:* bookings@kalaisafaris.com\n📱 *WhatsApp:* Reply here with your question\n⏰ *Hours:* Mon-Fri 8AM-6PM, Sat 9AM-1PM\n\n💬 *Quick Help:*\nDescribe your issue and we'll respond as soon as possible.\n\nType *menu* to return to main menu."}
             },
             "transitions": []
         },
@@ -217,7 +216,7 @@ MAIN_MENU_FLOW = {
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {"body": "Kalai Safaris is dedicated to providing unforgettable safari experiences across Africa. Our expert guides, eco-friendly practices, and passion for wildlife ensure every journey is safe, educational, and inspiring. Type 'menu' to return to the main menu."}
+                "text": {"body": "🌍 *About Kalai Safaris*\n\nWelcome to Africa's premier safari experience! ✨\n\n🦁 *Our Mission:*\nProviding unforgettable, sustainable safari adventures across Africa's most spectacular landscapes.\n\n⭐ *What Makes Us Special:*\n• Expert local guides with years of experience\n• Eco-friendly practices protecting wildlife\n• Small group sizes for personalized attention\n• Flexible itineraries tailored to you\n• 24/7 support during your journey\n\n🏆 *Awards & Recognition:*\nTop-rated safari operator | Certified eco-tourism partner\n\n📍 *Coverage:* Victoria Falls, Hwange, Kruger, Serengeti, and more!\n\nReady for your adventure? Type *menu* to start booking! 🎉"}
             },
             "transitions": []
         }

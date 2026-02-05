@@ -175,12 +175,60 @@ Or via main menu: Type `menu` → Select "📱 Mobile Payment"
 **Behind the Scenes:**
 - OTP detection happens automatically via `message_processor.py`
 - Payment state stored in contact's `conversation_context`
-- Booking `amount_paid` and `payment_status` updated on success
+- **Payment record created** in `customer_data.Payment` model with method='omari'
+- Booking `amount_paid` manually updated within locked transaction for concurrency safety
+- Booking `payment_status` updated on success:
+  - `DEPOSIT_PAID` if partial payment
+  - `PAID` if full amount paid
 - Transaction logged in `OmariTransaction` model
 
 ### Canceling Payments
 
 Users can cancel anytime by typing: `cancel`, `cancel payment`, `stop`, or `quit`
+
+### Payment Records
+
+When an Omari payment succeeds, the system automatically:
+1. Locks the booking with `select_for_update()` for concurrent safety
+2. Creates a `Payment` record in the database with:
+   - `payment_method` = 'omari'
+   - `status` = 'successful'
+   - `transaction_reference` = Omari payment reference
+   - `notes` = Includes debit reference from Omari
+3. Updates the `Booking` within the locked transaction:
+   - `amount_paid` is incremented by the payment amount
+   - `payment_status` is updated based on total amount:
+     - `PAID` when `amount_paid >= total_amount`
+     - `DEPOSIT_PAID` when `amount_paid > 0` but less than total
+     - `PENDING` when no payments made yet
+4. **Updates booking reference to shared format** (if applicable):
+   - If booking has a `tour_id` and `start_date`, reference updates to `BK-T{tour_id}-{YYYYMMDD}`
+   - Groups all users booking the same tour on the same date
+   - Example: `BK-T005-20260210` for Tour ID 5 on Feb 10, 2026
+   - Idempotent - won't update if already in shared format
+
+This ensures full payment tracking, audit trail, and concurrency safety for all Omari transactions.
+
+### Booking Reference Grouping
+
+After payment, bookings for the same tour and date share a common reference:
+
+**Example:**
+- **Before Payment:**
+  - User A: `BK12345678` (random)
+  - User B: `BK87654321` (random)
+  - Both booking "Victoria Falls Safari" starting Feb 10, 2026
+
+- **After Payment:**
+  - User A: `BK-T005-20260210` (shared)
+  - User B: `BK-T005-20260210` (shared)
+  - Both grouped together for easy management
+
+**Benefits:**
+- Easy to identify travelers on same tour/date
+- Simplifies group coordination and logistics
+- Tour operators can see all bookings at a glance
+- Payment status tracked individually per customer
 
 ### Admin Monitoring
 
@@ -188,3 +236,4 @@ View all transactions in Django Admin:
 - Navigate to: **Omari Payment Integration** → **Omari Transactions**
 - Filter by status, currency, date
 - Track OTP references and payment refs
+- View linked bookings and payment records
