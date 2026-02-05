@@ -6,21 +6,25 @@
 The error `CommandError: Conflicting migrations detected; multiple leaf nodes in the migration graph: (0002_omariuser, 0002_omariuser_alter_omaritransaction_status in omari_integration)` occurs when Django detects two different migrations with the same number (0002) in the `omari_integration` app.
 
 ### Root Cause
-This typically happens when:
-- Two different branches created different migrations numbered 0002
-- One was applied to the database (0002_omariuser)
-- The codebase now has a different 0002 migration (0002_omariuser_alter_omaritransaction_status)
-- Django sees these as conflicting parallel migration paths
+The database has a migration called `0002_omariuser` applied, but the codebase had a file named `0002_omariuser_alter_omaritransaction_status.py` with a different filename, causing Django to see them as separate conflicting migrations.
 
 ### Solution Applied
-Created a merge migration file `0003_merge_20260205_1936.py` that:
-- Depends on both conflicting migrations
-- Contains no operations (just reconciles the migration graph)
-- Tells Django that both migration paths have been merged
+Removed the conflicting migration file `0002_omariuser_alter_omaritransaction_status.py` from the codebase. Users should regenerate it manually using Django's makemigrations command, which will create the migration with the correct name that matches what's in the database.
 
 ### How to Apply (using Docker)
-Run the following command to apply the merge migration:
 
+1. **Pull the latest code** that has the conflicting migration removed
+
+2. **Generate the migration** based on your current models:
+```bash
+docker compose exec backend python manage.py makemigrations omari_integration
+```
+
+This will create a new migration file (likely `0002_omariuser.py`) that includes:
+- CreateModel for OmariUser
+- AlterField for OmariTransaction.status (adding 'VOIDED' option)
+
+3. **Apply the migration**:
 ```bash
 docker compose exec backend python manage.py migrate omari_integration
 ```
@@ -32,11 +36,9 @@ After running migrations, verify they were applied successfully:
 docker compose exec backend python manage.py showmigrations omari_integration
 ```
 
-You should see [X] marks next to all three migrations:
+You should see [X] marks next to all migrations:
 - [X] 0001_initial
-- [X] 0002_omariuser
-- [X] 0002_omariuser_alter_omaritransaction_status
-- [X] 0003_merge_20260205_1936
+- [X] 0002_omariuser (or whatever name was generated)
 
 ---
 
