@@ -59,6 +59,7 @@ path('crm-api/customer-data/', include('customer_data.urls', namespace='customer
     # Payment integration endpoints
     path('crm-api/payments/omari/', include('omari_integration.urls', namespace='omari_integration')),
     path('crm-api/paynow/', include('paynow_integration.urls', namespace='paynow_integration')),
+    path('crm-api/payments/cbz/', include('cbz_integration.urls', namespace='cbz_integration')),
 ]
 
 # --- Serve Media Files in Development ---

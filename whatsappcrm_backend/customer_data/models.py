@@ -406,6 +406,8 @@ class Payment(models.Model):
         PAYNOW_ECOCASH = 'paynow_ecocash', _('Paynow - Ecocash')
         PAYNOW_ONEMONEY = 'paynow_onemoney', _('Paynow - OneMoney')
         PAYNOW_INNBUCKS = 'paynow_innbucks', _('Paynow - Innbucks')
+        CBZ_ECOCASH = 'cbz_ecocash', _('CBZ - EcoCash')
+        CBZ_CARD = 'cbz_card', _('CBZ - Card (Visa/Mastercard)')
         OTHER = 'other', _('Other')
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -423,7 +425,7 @@ class Payment(models.Model):
         _("Payment Status"), max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING
     )
     payment_method = models.CharField(
-        _("Payment Method"), max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.OTHER
+        _("Payment Method"), max_length=30, choices=PaymentMethod.choices, default=PaymentMethod.OTHER
     )
     transaction_reference = models.CharField(
         _("Transaction Reference"), max_length=255, blank=True, null=True,

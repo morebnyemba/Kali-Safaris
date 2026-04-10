@@ -88,6 +88,7 @@ INSTALLED_APPS = [
 ]
 INSTALLED_APPS.insert(0, 'email_integration.apps.EmailIntegrationConfig') # Add our new app
 INSTALLED_APPS.append('omari_integration.apps.OmariIntegrationConfig')
+INSTALLED_APPS.append('cbz_integration.apps.CBZIntegrationConfig')
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -469,3 +470,13 @@ GCP_INVOICE_PROCESSOR_ID = os.getenv('GCP_INVOICE_PROCESSOR_ID')
 # Sandbox: https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment
 OMARI_API_BASE_URL = os.getenv('OMARI_API_BASE_URL', 'https://omari.v.co.zw/uat/vsuite/omari/api/merchant/api/payment')
 OMARI_MERCHANT_KEY = os.getenv('OMARI_MERCHANT_KEY', '')  # X-Merchant-Key header
+
+# --- CBZ/iVeri Payments Configuration ---
+# Portal URL is the same for test and live; the Mode field in each request controls which environment is used.
+# CertificateID and ApplicationID are GUIDs generated from the iVeri backoffice portal.
+# Prefer configuring these via Django Admin (CBZConfig model) rather than environment variables.
+CBZ_PORTAL_URL = os.getenv('CBZ_PORTAL_URL', 'https://portal.host.iveri.com')
+CBZ_CERTIFICATE_ID = os.getenv('CBZ_CERTIFICATE_ID', '')  # GUID from iVeri backoffice
+CBZ_APPLICATION_ID = os.getenv('CBZ_APPLICATION_ID', '')  # GUID from acquiring bank (CBZ)
+CBZ_MODE = os.getenv('CBZ_MODE', 'Test')  # 'Test' or 'LIVE'
+
