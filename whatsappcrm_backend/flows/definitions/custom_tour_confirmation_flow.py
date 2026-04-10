@@ -16,16 +16,26 @@ CUSTOM_TOUR_CONFIRMATION_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "button",
-                        "header": {"type": "text", "text": "Confirm Your Inquiry"},
+                        "header": {"type": "text", "text": "🌍 Custom Tour Inquiry"},
                         "body": {
-                            "text": """Thank you, {{ inquiry_full_name }}! Please review your custom tour inquiry:
+                            "text": """Thank you, *{{ inquiry_full_name }}*! ✨
 
-*Destination:* {{ inquiry_destination }}
-*Travelers:* {{ inquiry_travelers }}
-*Dates:* {{ inquiry_dates }}
-*Notes:* {{ inquiry_notes }}
+Please review your custom tour inquiry:
 
-Shall I proceed and create a booking request for you? A travel expert will then finalize the details and send you a quote."""
+📍 *Destination:* {{ inquiry_destination }}
+👥 *Travelers:* {{ inquiry_travelers }}
+📅 *Dates:* {{ inquiry_dates }}
+📝 *Special Requests:* {{ inquiry_notes }}
+
+━━━━━━━━━━━━━━━━
+
+🎯 *What happens next?*
+A travel expert will:
+1. Review your requirements
+2. Design a personalized itinerary
+3. Send you a detailed quote
+
+Ready to proceed?"""
                         },
                         "action": {
                             "buttons": [
@@ -47,17 +57,36 @@ Shall I proceed and create a booking request for you? A travel expert will then 
             "type": "question",
             "config": {
                 "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Here is a summary of your custom tour inquiry:\n\n*Destinations:* {{ destinations }}\n*Preferred Dates:* {{ preferred_dates }}\n*Number of Travelers:* {{ number_of_travelers }}\n*Notes:* {{ notes }}\n\nIs everything correct? (yes/edit)"}
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "header": {"type": "text", "text": "📋 Your Custom Tour Details"},
+                        "body": {
+                            "text": """Here's a summary of your custom tour inquiry:
+
+📍 *Destinations:* {{ destinations }}
+📅 *Preferred Dates:* {{ preferred_dates }}
+👥 *Number of Travelers:* {{ number_of_travelers }}
+📝 *Additional Notes:* {{ notes }}
+
+━━━━━━━━━━━━━━━━
+
+Is everything correct?"""
+                        },
+                        "action": {
+                            "buttons": [
+                                {"type": "reply", "reply": {"id": "confirm_details", "title": "✅ Confirm"}},
+                                {"type": "reply", "reply": {"id": "edit_details", "title": "✏️ Edit"}}
+                            ]
+                        }
+                    }
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "summary_confirmation"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please reply 'yes' to confirm or 'edit' to make changes."}
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "summary_confirmation"}
             },
             "transitions": [
-                {"to_step": "submit_custom_tour_inquiry", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "summary_confirmation", "value": "yes"}},
-                {"to_step": "edit_custom_tour_details", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "summary_confirmation", "value": "edit"}},
-                {"to_step": "custom_tour_support", "priority": 3, "condition_config": {"type": "invalid_or_no_selection"}},
-                {"to_step": "show_custom_tour_summary", "priority": 4, "condition_config": {"type": "always_true"}}
+                {"to_step": "submit_custom_tour_inquiry", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_details"}},
+                {"to_step": "edit_custom_tour_details", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_details"}},
+                {"to_step": "custom_tour_support", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
         },
         {
@@ -65,7 +94,7 @@ Shall I proceed and create a booking request for you? A travel expert will then 
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {"body": "If you need help or want to start over, type 'menu' or contact bookings@kalaisafaris.com."}
+                "text": {"body": "💡 *Need Help?*\n\nIf you need assistance or want to start over:\n\n📱 Type *menu* to return to main menu\n📧 Email: bookings@kalaisafaris.com\n📞 Call us for immediate assistance"}
             },
             "transitions": [
                 {"to_step": "end_custom_tour_confirmation", "condition_config": {"type": "always_true"}}
@@ -84,14 +113,19 @@ Shall I proceed and create a booking request for you? A travel expert will then 
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {"body": "Let's edit your custom tour details. Please provide the updated information or type 'menu' to return to the main menu."}
+                "text": {"body": "✏️ *Edit Your Details*\n\nLet's update your custom tour information.\n\nPlease provide the updated details, or type *menu* to return to the main menu."}
             },
             "transitions": [{"to_step": "show_custom_tour_summary", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "end_custom_tour_confirmation",
             "type": "end_flow",
-            "config": {},
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Type *menu* to return to the main menu when you're ready."}
+                }
+            },
             "transitions": []
         },
         {
@@ -114,7 +148,22 @@ Shall I proceed and create a booking request for you? A travel expert will then 
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Excellent! Your booking request (Ref: #{{ created_booking_from_inquiry.booking_reference }}) has been created. A travel specialist will be in touch shortly to finalize your itinerary and provide a detailed quote.\n\nType 'menu' to return to the main menu."}
+                    "text": {"body": """✅ *Booking Request Created!*
+
+Your custom tour inquiry has been successfully submitted.
+
+📋 *Reference Number:* #{{ created_booking_from_inquiry.booking_reference }}
+
+🎯 *What happens next?*
+1. ⏱️ A travel specialist will review your request (within 24 hours)
+2. 📞 They'll contact you to discuss details
+3. 💰 You'll receive a personalized quote
+4. ✨ We'll finalize your perfect itinerary
+
+📧 *Track Your Request:*
+Save your reference number for easy tracking.
+
+Thank you for choosing us! Type *menu* to explore more options."""}
                 }
             }
         },
@@ -124,7 +173,7 @@ Shall I proceed and create a booking request for you? A travel expert will then 
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Your inquiry has been cancelled. If you change your mind, just type 'menu' to start over."}
+                    "text": {"body": "❌ *Inquiry Cancelled*\n\nNo worries! Your inquiry has been cancelled.\n\n🔄 *Want to try again?*\nType *menu* to start over or explore other options.\n\nWe're here whenever you're ready! 🌍✨"}
                 }
             }
         }

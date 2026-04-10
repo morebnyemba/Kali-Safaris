@@ -331,6 +331,28 @@ class Booking(models.Model):
         if commit:
             self.save(update_fields=['amount_paid'])
 
+    def update_to_shared_reference(self, commit=True):
+        """
+        Updates the booking reference to the shared format if booking has tour and start_date.
+        This groups bookings for the same tour and date under one reference.
+        
+        Returns:
+            tuple: (was_updated: bool, new_reference: str or None)
+        """
+        if self.tour_id and self.start_date:
+            from .reference_generator import generate_shared_booking_reference
+            old_reference = self.booking_reference
+            new_reference = generate_shared_booking_reference(self.tour_id, self.start_date)
+            
+            # Only update if the reference actually changed
+            if old_reference != new_reference:
+                self.booking_reference = new_reference
+                if commit:
+                    self.save(update_fields=['booking_reference', 'updated_at'])
+                return (True, new_reference)
+        
+        return (False, None)
+
 
 class Traveler(models.Model):
     """

@@ -12,7 +12,7 @@ MANUAL_PAYMENT_FLOW = {
             "is_entry_point": True,
             "type": "question",
             "config": {
-                "message_config": {"message_type": "text", "text": {"body": "To record a payment, please enter the Booking Reference number (e.g., BK-SLYKER-TECH-20251023)."}},
+                "message_config": {"message_type": "text", "text": {"body": "💰 *Record Your Payment*\n\nTo help me find your booking, please enter your Booking Reference number.\n\n📝 Example: BK-SLYKER-TECH-20251023\n\n(Type *menu* to cancel)"}},
                 "reply_config": {"expected_type": "text", "save_to_variable": "booking_reference_input"}
             },
             "transitions": [{"to_step": "find_booking", "condition_config": {"type": "always_true"}}]
@@ -27,7 +27,7 @@ MANUAL_PAYMENT_FLOW = {
                     "model_name": "Booking",
                     "variable_name": "found_booking",
                     "filters_template": {"booking_reference__iexact": "{{ booking_reference_input }}"},
-                    "fields_to_return": ["id", "booking_reference", "tour_name", "total_amount", "amount_paid"]
+                    "fields_to_return": ["id", "booking_reference", "tour_name", "total_amount", "amount_paid", "start_date"]
                 }]
             },
             "transitions": [
@@ -40,7 +40,7 @@ MANUAL_PAYMENT_FLOW = {
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {"body": "Sorry, I couldn't find a booking with that reference. Please check the number and try again.\n\nType *menu* to exit."}
+                "text": {"body": "❌ *Booking Not Found*\n\nI couldn't find a booking with reference: *{{ booking_reference_input }}*\n\n💡 *Tips:*\n• Check the reference number for typos\n• Make sure you have the complete reference\n• Reference format: BK-XXX-XXX-XXXXXXXX\n\n🔄 Type *manual payment* to try again\n📱 Type *menu* to return to main menu"}
             },
             "transitions": [{"to_step": "end_manual_payment", "condition_config": {"type": "always_true"}}]
         },
@@ -51,20 +51,52 @@ MANUAL_PAYMENT_FLOW = {
                 "message_config": {
                     "message_type": "text",
                     "text": {
-                        "body": """Found Booking: *#{{ found_booking.0.booking_reference }}*
-Tour: *{{ found_booking.0.tour_name }}*
+                        "body": """✅ *Booking Found!*
 
-Total: ${{ "%.2f"|format(found_booking.0.total_amount|float) }}
-Paid: ${{ "%.2f"|format(found_booking.0.amount_paid|float) }}
+📋 *Booking Details*
+Reference: #{{ found_booking.0.booking_reference }}
+Tour: *{{ found_booking.0.tour_name }}*
+{% if found_booking.0.start_date %}Date: {{ found_booking.0.start_date|date:'F d, Y' }}{% endif %}
+
+💰 *Payment Status*
+Total Cost: ${{ "%.2f"|format(found_booking.0.total_amount|float) }}
+Already Paid: ${{ "%.2f"|format(found_booking.0.amount_paid|float) }}
+━━━━━━━━━━━━━━━━
 *Balance Due: ${{ "%.2f"|format(found_booking.0.total_amount|float - found_booking.0.amount_paid|float) }}*
 
-How much did you pay? Please enter the amount."""
+How much did you pay?
+(Enter amount in dollars, e.g., 500)"""
                     }
                 },
                 "reply_config": {"expected_type": "number", "save_to_variable": "payment_amount"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid number for the amount."}
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "❌ Please enter a valid number for the amount.\n\n📝 Example: 500 or 1000.50"}
             },
-            "transitions": [{"to_step": "ask_payment_method", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "confirm_amount", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "confirm_amount",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "header": {"type": "text", "text": "💵 Confirm Payment Amount"},
+                        "body": {"text": "You entered: *${{ '%.2f'|format(payment_amount|float) }}*\n\nIs this amount correct?"},
+                        "action": {
+                            "buttons": [
+                                {"type": "reply", "reply": {"id": "amount_correct", "title": "✅ Yes, Correct"}},
+                                {"type": "reply", "reply": {"id": "amount_wrong", "title": "❌ No, Re-enter"}}
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "amount_confirmation"}
+            },
+            "transitions": [
+                {"to_step": "ask_payment_method", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "amount_correct"}},
+                {"to_step": "display_booking_and_ask_amount", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "amount_wrong"}}
+            ]
         },
         {
             "name": "ask_payment_method",
@@ -74,12 +106,12 @@ How much did you pay? Please enter the amount."""
                     "message_type": "interactive",
                     "interactive": {
                         "type": "button",
-                        "header": {"type": "text", "text": "Select Payment Method"},
-                        "body": {"text": "You are recording a payment of *${{ '%.2f'|format(payment_amount|float) }}*.\n\nPlease select the method you used."},
+                        "header": {"type": "text", "text": "💳 Payment Method"},
+                        "body": {"text": "Payment amount: *${{ '%.2f'|format(payment_amount|float) }}*\n\nWhich payment method did you use?"},
                         "action": {
                             "buttons": [
-                                {"type": "reply", "reply": {"id": "bank_transfer", "title": "Bank/Manual Transfer"}},
-                                {"type": "reply", "reply": {"id": "omari", "title": "Omari Payment"}}
+                                {"type": "reply", "reply": {"id": "bank_transfer", "title": "🏦 Bank Transfer"}},
+                                {"type": "reply", "reply": {"id": "omari", "title": "📱 Omari Payment"}}
                             ]
                         }
                     }
@@ -107,10 +139,43 @@ How much did you pay? Please enter the amount."""
             "name": "ask_for_pop",
             "type": "question",
             "config": {
-                "message_config": {"message_type": "text", "text": {"body": "Thank you. Please upload a screenshot or photo of your proof of payment."}},
+                "message_config": {"message_type": "text", "text": {"body": "📸 *Proof of Payment*\n\nPlease upload a clear screenshot or photo of your payment confirmation.\n\n💡 *Tips for a good photo:*\n• Transaction reference visible\n• Amount clearly shown\n• Date of payment visible\n• Good lighting, not blurry"}},
                 "reply_config": {"expected_type": "image", "save_to_variable": "pop_image_id"}
             },
-            "transitions": [{"to_step": "create_payment_record", "condition_config": {"type": "always_true"}}]
+            "transitions": [{"to_step": "show_payment_summary", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "show_payment_summary",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "header": {"type": "text", "text": "📋 Payment Summary"},
+                        "body": {"text": """Please review your payment details:
+
+*Booking Reference:* #{{ found_booking.0.booking_reference }}
+*Tour:* {{ found_booking.0.tour_name }}
+*Payment Amount:* ${{ '%.2f'|format(payment_amount|float) }}
+*Payment Method:* {{ payment_method_name }}
+*Proof:* ✅ Uploaded
+
+Is everything correct?"""},
+                        "action": {
+                            "buttons": [
+                                {"type": "reply", "reply": {"id": "submit_payment", "title": "✅ Submit"}},
+                                {"type": "reply", "reply": {"id": "cancel_payment", "title": "❌ Cancel"}}
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "final_confirmation"}
+            },
+            "transitions": [
+                {"to_step": "create_payment_record", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "submit_payment"}},
+                {"to_step": "end_manual_payment", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cancel_payment"}}
+            ]
         },
         {
             "name": "create_payment_record",
@@ -147,13 +212,34 @@ How much did you pay? Please enter the amount."""
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Thank you! We have recorded your payment of *${{ '%.2f'|format(payment_amount|float) }}* for booking *#{{ found_booking.0.booking_reference }}*.\n\nOur finance team will verify it and update your booking status shortly. You will receive a confirmation and a receipt once it's approved."}
+                    "text": {"body": """✅ *Payment Recorded Successfully!*
+
+We've received your payment submission:
+
+💰 Amount: ${{ '%.2f'|format(payment_amount|float) }}
+📋 Booking: #{{ found_booking.0.booking_reference }}
+💳 Method: {{ payment_method_name }}
+
+🔍 *What happens next?*
+1. Our finance team will verify your payment
+2. You'll receive a confirmation once approved
+3. A receipt will be sent to you
+
+⏱️ *Processing Time:* Usually within 24 hours
+
+Thank you for your payment! Type *menu* to return to the main menu."""}
                 }
             }
         },
         {
             "name": "end_manual_payment",
-            "type": "end_flow"
+            "type": "end_flow",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Payment recording cancelled. Type *menu* to return to the main menu or *manual payment* to try again."}
+                }
+            }
         }
     ]
 }

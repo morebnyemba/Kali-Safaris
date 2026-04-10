@@ -8,6 +8,9 @@ from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 import csv
+import zipfile
+import os
+from django.conf import settings
 from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry, Traveler
 
 class InteractionInline(admin.TabularInline):
@@ -114,7 +117,7 @@ class BookingAdmin(admin.ModelAdmin):
     list_editable = ('payment_status',)
     date_hierarchy = 'start_date'
     inlines = [TravelerInline]
-    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date']
+    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date', 'export_passenger_summary_for_date', 'download_all_id_documents']
     fieldsets = (
         ('Booking Core Info', {
             'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')
@@ -295,6 +298,107 @@ class BookingAdmin(admin.ModelAdmin):
         return export_booking_manifest_pdf(booking_date)
     
     export_manifest_for_date.short_description = "Export Manifest for Booking Date (ZimParks Format)"
+    
+    def export_passenger_summary_for_date(self, request, queryset):
+        """
+        Export an operational passenger summary for bookings on a specific date.
+        Shows headcount per booking group for crew planning and park fees.
+        """
+        from .exports import export_passenger_manifest_summary_pdf
+        
+        if not queryset.exists():
+            self.message_user(request, "No bookings selected.", level='warning')
+            return
+        
+        # Use the start_date from the first booking in the queryset
+        booking_date = queryset.first().start_date
+        
+        # Filter to confirmed bookings for that date
+        confirmed_count = Booking.objects.filter(
+            start_date=booking_date,
+            payment_status__in=[Booking.PaymentStatus.PAID, Booking.PaymentStatus.DEPOSIT_PAID]
+        ).count()
+        
+        self.message_user(
+            request,
+            f"Generating passenger summary for {booking_date.strftime('%B %d, %Y')} ({confirmed_count} confirmed booking(s))...",
+            level='info'
+        )
+        
+        return export_passenger_manifest_summary_pdf(booking_date)
+    
+    export_passenger_summary_for_date.short_description = "Export Passenger Summary (Operational - Headcount)"
+    
+    def download_all_id_documents(self, request, queryset):
+        """
+        Download all ID documents for travelers in selected bookings as a ZIP file.
+        Organizes documents by booking reference for easy submission to ZimParks.
+        """
+        # Get all travelers with ID documents from selected bookings
+        travelers = Traveler.objects.filter(
+            booking__in=queryset
+        ).exclude(
+            id_document=''
+        ).select_related('booking')
+        
+        if not travelers.exists():
+            self.message_user(request, "No travelers with ID documents found in selected bookings.", level='warning')
+            return
+        
+        # Create ZIP file in memory
+        zip_buffer = BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Group travelers by booking for organization
+            bookings_dict = {}
+            for traveler in travelers:
+                booking_ref = traveler.booking.booking_reference
+                if booking_ref not in bookings_dict:
+                    bookings_dict[booking_ref] = []
+                bookings_dict[booking_ref].append(traveler)
+            
+            # Add each ID document to ZIP
+            for booking_ref, booking_travelers in bookings_dict.items():
+                for idx, traveler in enumerate(booking_travelers, 1):
+                    try:
+                        # Read the file content
+                        id_doc_path = traveler.id_document.path
+                        if os.path.exists(id_doc_path):
+                            # Get file extension
+                            file_ext = os.path.splitext(id_doc_path)[1]
+                            # Create a clean filename: BookingRef/TravelerName_ID.ext
+                            safe_name = traveler.name.replace(' ', '_').replace('/', '_')
+                            filename = f"{booking_ref}/{idx}_{safe_name}{file_ext}"
+                            
+                            # Add to ZIP
+                            with open(id_doc_path, 'rb') as f:
+                                zip_file.writestr(filename, f.read())
+                    except Exception as e:
+                        # Log error but continue with other documents
+                        self.message_user(
+                            request, 
+                            f"Could not add ID document for {traveler.name}: {str(e)}", 
+                            level='warning'
+                        )
+        
+        # Prepare HTTP response
+        zip_buffer.seek(0)
+        response = HttpResponse(zip_buffer.read(), content_type='application/zip')
+        response['Content-Disposition'] = f'attachment; filename="id_documents_{timezone.now().strftime("%Y%m%d_%H%M%S")}.zip"'
+        
+        # Count documents
+        total_travelers = travelers.count()
+        booking_count = queryset.count()
+        
+        self.message_user(
+            request,
+            f"✅ Successfully downloaded {total_travelers} ID document(s) from {booking_count} booking(s).",
+            level='success'
+        )
+        
+        return response
+    
+    download_all_id_documents.short_description = "📥 Download All ID Documents (ZIP)"
 
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
@@ -303,6 +407,184 @@ class PaymentAdmin(admin.ModelAdmin):
     search_fields = ('id', 'booking__booking_reference', 'transaction_reference')
     readonly_fields = ('created_at', 'updated_at')
     autocomplete_fields = ['booking']
+    actions = ['approve_payments', 'reject_payments']
+    
+    def approve_payments(self, request, queryset):
+        """
+        Approve selected payments, update booking references, and notify customers.
+        """
+        from django.db import transaction
+        from meta_integration.utils import send_whatsapp_message
+        
+        approved_count = 0
+        error_count = 0
+        
+        for payment in queryset.filter(status=Payment.PaymentStatus.PENDING):
+            try:
+                with transaction.atomic():
+                    # Update payment status
+                    payment.status = Payment.PaymentStatus.SUCCESSFUL
+                    payment.notes = (payment.notes or '') + f"\n[Approved by {request.user.username} on {timezone.now().strftime('%Y-%m-%d %H:%M')}]"
+                    payment.save()
+                    
+                    # Update booking reference to shared format if applicable
+                    if payment.booking:
+                        booking = payment.booking
+                        
+                        # Lock the booking for update
+                        booking = Booking.objects.select_for_update().get(pk=booking.pk)
+                        
+                        # Update booking reference to shared format
+                        old_reference = booking.booking_reference
+                        was_updated, new_reference = booking.update_to_shared_reference(commit=False)
+                        
+                        # Update payment status based on amount paid
+                        if booking.amount_paid >= booking.total_amount:
+                            booking.payment_status = Booking.PaymentStatus.PAID
+                        elif booking.amount_paid > 0:
+                            booking.payment_status = Booking.PaymentStatus.DEPOSIT_PAID
+                        
+                        # Save booking with all updates
+                        if was_updated:
+                            booking.save(update_fields=['payment_status', 'booking_reference', 'updated_at'])
+                            self.message_user(
+                                request,
+                                f"Updated booking reference: {old_reference} → {new_reference}",
+                                level='info'
+                            )
+                        else:
+                            booking.save(update_fields=['payment_status', 'updated_at'])
+                        
+                        # Send confirmation to customer via WhatsApp
+                        if booking.customer and booking.customer.contact:
+                            try:
+                                message_body = (
+                                    f"✅ *Payment Approved!*\n\n"
+                                    f"Your payment of ${payment.amount:.2f} for booking *{booking.booking_reference}* has been approved.\n\n"
+                                    f"Tour: {booking.tour_name}\n"
+                                    f"Date: {booking.start_date.strftime('%B %d, %Y')}\n"
+                                    f"Amount Paid: ${booking.amount_paid:.2f}\n"
+                                    f"Total: ${booking.total_amount:.2f}\n"
+                                )
+                                
+                                if booking.payment_status == Booking.PaymentStatus.PAID:
+                                    message_body += "\n✅ Your booking is now fully paid!\n"
+                                else:
+                                    balance = booking.total_amount - booking.amount_paid
+                                    message_body += f"\nBalance Due: ${balance:.2f}\n"
+                                
+                                # Check if travelers are recorded
+                                traveler_count = booking.travelers.count()
+                                if traveler_count == 0:
+                                    message_body += (
+                                        "\n📋 *Next Step:* Please provide traveler details for all passengers.\n"
+                                        "Reply with *traveler details* to get started."
+                                    )
+                                
+                                send_whatsapp_message(
+                                    booking.customer.contact.whatsapp_id,
+                                    'text',
+                                    {'body': message_body},
+                                    booking.customer.contact.associated_app_config
+                                )
+                            except Exception as e:
+                                self.message_user(
+                                    request,
+                                    f"Payment approved but failed to send WhatsApp notification: {e}",
+                                    level='warning'
+                                )
+                    
+                    approved_count += 1
+                    
+            except Exception as e:
+                error_count += 1
+                self.message_user(
+                    request,
+                    f"Error approving payment {payment.id}: {e}",
+                    level='error'
+                )
+        
+        if approved_count > 0:
+            self.message_user(
+                request,
+                f"Successfully approved {approved_count} payment(s).",
+                level='success'
+            )
+        
+        if error_count > 0:
+            self.message_user(
+                request,
+                f"Failed to approve {error_count} payment(s). Check error messages above.",
+                level='error'
+            )
+    
+    approve_payments.short_description = "Approve selected payments"
+    
+    def reject_payments(self, request, queryset):
+        """
+        Reject selected payments and notify customers.
+        """
+        from meta_integration.utils import send_whatsapp_message
+        
+        rejected_count = 0
+        error_count = 0
+        
+        for payment in queryset.filter(status=Payment.PaymentStatus.PENDING):
+            try:
+                # Update payment status
+                payment.status = Payment.PaymentStatus.FAILED
+                payment.notes = (payment.notes or '') + f"\n[Rejected by {request.user.username} on {timezone.now().strftime('%Y-%m-%d %H:%M')}]"
+                payment.save()
+                
+                # Send notification to customer via WhatsApp
+                if payment.booking and payment.booking.customer and payment.booking.customer.contact:
+                    try:
+                        booking = payment.booking
+                        message_body = (
+                            f"❌ *Payment Not Approved*\n\n"
+                            f"Unfortunately, we couldn't verify your payment of ${payment.amount:.2f} for booking *{booking.booking_reference}*.\n\n"
+                            f"Please contact our finance team or try submitting the payment again with a clear proof of payment.\n\n"
+                            f"You can record a new payment by typing *manual payment*."
+                        )
+                        
+                        send_whatsapp_message(
+                            booking.customer.contact.whatsapp_id,
+                            'text',
+                            {'body': message_body},
+                            booking.customer.contact.associated_app_config
+                        )
+                    except Exception as e:
+                        self.message_user(
+                            request,
+                            f"Payment rejected but failed to send WhatsApp notification: {e}",
+                            level='warning'
+                        )
+                
+                rejected_count += 1
+                
+            except Exception as e:
+                error_count += 1
+                self.message_user(
+                    request,
+                    f"Error rejecting payment {payment.id}: {e}",
+                    level='error'
+                )
+        
+        if rejected_count > 0:
+            self.message_user(
+                request,
+                f"Successfully rejected {rejected_count} payment(s).",
+                level='success'
+            )
+        
+        if error_count > 0:
+            self.message_user(
+                request,
+                f"Failed to reject {error_count} payment(s). Check error messages above.",
+                level='error'
+            )
+    
+    reject_payments.short_description = "Reject selected payments"
 
 @admin.register(Traveler)
 class TravelerAdmin(admin.ModelAdmin):

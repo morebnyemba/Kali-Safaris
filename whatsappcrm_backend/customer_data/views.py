@@ -183,3 +183,38 @@ def export_booking_manifest(request):
         )
     
     return export_booking_manifest_pdf(booking_date)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def export_passenger_summary(request):
+    """
+    Export passenger summary report for a specific date (operational planning).
+    Shows headcount per booking group for crew seating and park fees.
+    Query parameters:
+    - date (required, format: YYYY-MM-DD)
+    - format (optional: 'pdf' or 'excel', default: 'pdf')
+    """
+    from .exports import export_passenger_manifest_summary_pdf, export_passenger_manifest_summary_excel
+    
+    date_str = request.GET.get('date')
+    if not date_str:
+        return Response(
+            {"error": "Date parameter is required (format: YYYY-MM-DD)"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    try:
+        booking_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return Response(
+            {"error": "Invalid date format. Use YYYY-MM-DD"},
+            status=status.HTTP_400_BAD_REQUEST
+        )
+    
+    export_format = request.GET.get('format', 'pdf').lower()
+    
+    if export_format == 'excel':
+        return export_passenger_manifest_summary_excel(booking_date)
+    else:
+        return export_passenger_manifest_summary_pdf(booking_date)
