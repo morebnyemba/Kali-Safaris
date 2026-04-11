@@ -2,18 +2,29 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function Header() {
   const [isOpen, setIsOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setScrolled(window.scrollY > 50);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   return (
-    <header className="w-full sticky top-0 z-50 backdrop-blur-md bg-gradient-to-b from-white/20 via-white/10 to-transparent border-b border-white/10 shadow-lg">
-      {/* Glassmorphism background effect */}
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute inset-0 bg-white/5 backdrop-blur-xl"></div>
-      </div>
-
+    <header
+      className={`w-full sticky top-0 z-50 transition-all duration-500 ${
+        scrolled
+          ? "bg-[#001a33]/95 backdrop-blur-md shadow-xl border-b border-white/10"
+          : "backdrop-blur-md bg-gradient-to-b from-black/30 via-black/10 to-transparent border-b border-white/10 shadow-lg"
+      }`}
+    >
       <nav className="container mx-auto relative flex items-center justify-between py-3 px-4 md:py-4 md:px-6">
         {/* Logo */}
         <Link href="/" className="flex-shrink-0 hover:opacity-80 transition-opacity">
@@ -70,15 +81,15 @@ export default function Header() {
           onClick={() => setIsOpen(!isOpen)}
           className="lg:hidden relative w-8 h-8 flex flex-col justify-center items-center gap-1 hover:opacity-70 transition-opacity"
         >
-          <span className={`w-6 h-0.5 bg-black rounded-full transition-all duration-300 ${isOpen ? 'rotate-45 translate-y-2' : ''}`}></span>
-          <span className={`w-6 h-0.5 bg-black rounded-full transition-all duration-300 ${isOpen ? 'opacity-0' : ''}`}></span>
-          <span className={`w-6 h-0.5 bg-black rounded-full transition-all duration-300 ${isOpen ? '-rotate-45 -translate-y-2' : ''}`}></span>
+          <span className={`w-6 h-0.5 bg-white rounded-full transition-all duration-300 ${isOpen ? 'rotate-45 translate-y-2' : ''}`}></span>
+          <span className={`w-6 h-0.5 bg-white rounded-full transition-all duration-300 ${isOpen ? 'opacity-0' : ''}`}></span>
+          <span className={`w-6 h-0.5 bg-white rounded-full transition-all duration-300 ${isOpen ? '-rotate-45 -translate-y-2' : ''}`}></span>
         </button>
       </nav>
 
       {/* Mobile Navigation */}
-      {isOpen && (
-        <div className="lg:hidden bg-white/30 backdrop-blur-lg border-t border-white/10">
+      <div className={`lg:hidden overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
+        <div className="bg-[#001a33]/95 backdrop-blur-lg border-t border-white/10">
           <ul className="container mx-auto flex flex-col gap-2 py-4 px-4">
             <li>
               <Link href="/" onClick={() => setIsOpen(false)} className="block bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black px-4 py-3 rounded-full transition-all duration-300 text-center font-medium">
@@ -117,7 +128,7 @@ export default function Header() {
             </li>
           </ul>
         </div>
-      )}
+      </div>
     </header>
   );
 }

@@ -86,21 +86,42 @@ export default function FooterSection() {
             </div>
           </div>
 
-          {/* Facebook Page Preview */}
+          {/* Quick Info & Hours */}
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#ffba5a] to-[#ff9800]">Stay Connected</h2>
-            <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-              <iframe 
-                src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2FKalaiSafari&tabs=timeline&width=340&height=250&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=true&appId" 
-                width="100%" 
-                height="250" 
-                style={{ border: 'none', overflow: 'hidden' }} 
-                scrolling="no" 
-                frameBorder="0" 
-                allowFullScreen 
-                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                title="Kalai Safari Facebook Page"
-              />
+            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#ffba5a] to-[#ff9800]">Cruise Hours</h2>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
+                <span className="text-[#ffba5a] text-lg">🌅</span>
+                <div>
+                  <p className="font-semibold text-white/90">Sunrise Cruise</p>
+                  <p className="text-sm text-white/60">06:00 AM — 08:00 AM</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
+                <span className="text-[#ffba5a] text-lg">☀️</span>
+                <div>
+                  <p className="font-semibold text-white/90">Lunch Cruise</p>
+                  <p className="text-sm text-white/60">12:00 PM — 02:00 PM</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
+                <span className="text-[#ffba5a] text-lg">🌇</span>
+                <div>
+                  <p className="font-semibold text-white/90">Sunset Cruise</p>
+                  <p className="text-sm text-white/60">04:00 PM — After Sunset</p>
+                </div>
+              </div>
+            </div>
+            <div className="pt-4">
+              <a 
+                href="/booking" 
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
+              >
+                Book a Cruise
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </a>
             </div>
           </div>
         </div>

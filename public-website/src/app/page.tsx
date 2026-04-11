@@ -2,6 +2,7 @@ import HeroSection from "@/components/HeroSection";
 import BookingCTA from "@/components/BookingCTA";
 import IntroSection from "@/components/IntroSection";
 import CruiseTypesSection from "@/components/CruiseTypesSection";
+import AdvantagesSection from "@/components/AdvantagesSection";
 import PricingSection from "@/components/PricingSection";
 import ReservationCTA from "@/components/ReservationCTA";
 import FooterSection from "@/components/FooterSection";
@@ -13,6 +14,7 @@ export default function Home() {
       <BookingCTA />
       <IntroSection />
       <CruiseTypesSection />
+      <AdvantagesSection />
       <PricingSection />
       <ReservationCTA />
       <FooterSection />
