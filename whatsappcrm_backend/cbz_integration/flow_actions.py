@@ -70,15 +70,6 @@ def initiate_cbz_ecocash_payment_action(
     currency = params.get('currency', 'USD')
     payment_phone = params.get('msisdn') or flow_context.get('payment_phone', contact.whatsapp_id)
 
-    # Send "processing" message first
-    processing_msg = (
-        f"💳 *Processing EcoCash Payment*\n\n"
-        f"Booking: {booking.booking_reference}\n"
-        f"Amount: {currency} {amount}\n\n"
-        f"📱 Please check your phone for an EcoCash prompt.\n"
-        f"Enter your EcoCash PIN to complete the payment."
-    )
-
     # Initiate the payment (this triggers the STK Push)
     handler = get_cbz_payment_handler()
     try:
@@ -94,34 +85,33 @@ def initiate_cbz_ecocash_payment_action(
             "initiate_cbz_ecocash action exception | contact=%s booking_ref=%s error=%s",
             contact.id, booking_ref, exc, exc_info=True,
         )
-        return [{'type': 'send_text', 'text': f'❌ Payment service error: {str(exc)}\nPlease try again or contact support.'}]
+        flow_context['cbz_payment_status'] = 'failed'
+        flow_context['cbz_payment_error_message'] = f'Payment service error: {str(exc)}'
+        return []
 
     if result['success']:
-        auth_code = result.get('authorisation_code', 'N/A')
         ref = result.get('reference', 'N/A')
+        status = result.get('status', 'approved')
 
-        logger.info(
-            "initiate_cbz_ecocash action SUCCESS | contact=%s booking_ref=%s ref=%s auth=%s",
-            contact.id, booking_ref, ref, auth_code,
-        )
-
-        # Set success flag for flow transitions
-        flow_context['cbz_payment_success'] = True
         flow_context['cbz_payment_reference'] = ref
+        flow_context['cbz_payment_status'] = status
 
-        success_msg = (
-            f"✅ *Payment Successful!*\n\n"
-            f"Booking: {booking.booking_reference}\n"
-            f"Amount: {currency} {amount}\n"
-            f"Reference: {ref}\n"
-            f"Status: {booking.get_payment_status_display()}\n\n"
-            f"Thank you for your payment! 🎉"
-        )
+        if result.get('is_pending'):
+            flow_context.pop('cbz_payment_success', None)
+            logger.info(
+                "initiate_cbz_ecocash action PENDING | contact=%s booking_ref=%s ref=%s",
+                contact.id, booking_ref, ref,
+            )
+        else:
+            logger.info(
+                "initiate_cbz_ecocash action SUCCESS | contact=%s booking_ref=%s ref=%s",
+                contact.id, booking_ref, ref,
+            )
+            flow_context['cbz_payment_success'] = True
 
-        return [
-            {'type': 'send_text', 'text': processing_msg},
-            {'type': 'send_text', 'text': success_msg},
-        ]
+        flow_context.pop('cbz_payment_error_message', None)
+        flow_context.pop('cbz_payment_result_code', None)
+        return []
     else:
         error_msg = result.get('message', 'Payment failed')
         result_code = result.get('result_code', '')
@@ -130,19 +120,13 @@ def initiate_cbz_ecocash_payment_action(
             "initiate_cbz_ecocash action FAILED | contact=%s booking_ref=%s code=%s msg=%s",
             contact.id, booking_ref, result_code, error_msg,
         )
-
-        fail_msg = (
-            f"❌ *Payment Failed*\n\n"
-            f"{error_msg}\n"
-        )
-        if result_code:
-            fail_msg += f"Error Code: {result_code}\n"
-        fail_msg += "\nPlease try again or choose another payment method."
-
-        return [
-            {'type': 'send_text', 'text': processing_msg},
-            {'type': 'send_text', 'text': fail_msg},
-        ]
+        flow_context['cbz_payment_status'] = result.get('status', 'failed')
+        flow_context['cbz_payment_error_message'] = error_msg
+        flow_context['cbz_payment_result_code'] = result_code
+        if result.get('reference'):
+            flow_context['cbz_payment_reference'] = result['reference']
+        flow_context.pop('cbz_payment_success', None)
+        return []
 
 
 def check_cbz_payment_status_action(
@@ -167,6 +151,9 @@ def check_cbz_payment_status_action(
     if result.get('is_approved'):
         flow_context['cbz_payment_status'] = 'approved'
         return [{'type': 'send_text', 'text': f'✅ Payment {reference} has been approved!'}]
+    if result.get('is_pending'):
+        flow_context['cbz_payment_status'] = 'pending'
+        return [{'type': 'send_text', 'text': f'⏳ Payment {reference} is still awaiting confirmation.'}]
     else:
         status = result.get('data', {}).get('status', 'Unknown')
         flow_context['cbz_payment_status'] = status.lower()

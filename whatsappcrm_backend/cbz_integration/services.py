@@ -29,6 +29,7 @@ from .constants import (
     COMMAND_VOID,
     ECI_ECOMMERCE,
     RESULT_CODE_SUCCESS,
+    STATUS_PENDING,
     STATUS_APPROVED,
 )
 
@@ -448,6 +449,16 @@ class IVeriClient:
         return (
             txn.get('ResultCode') == RESULT_CODE_SUCCESS
             and txn.get('Status') == STATUS_APPROVED
+        )
+
+    @staticmethod
+    def is_pending(response: Dict[str, Any]) -> bool:
+        """Check if the iVeri response indicates the transaction is still pending."""
+        txn = response.get('Transaction', {})
+        status = (txn.get('Status') or '').strip()
+        return (
+            txn.get('ResultCode') == RESULT_CODE_SUCCESS
+            and status not in {'', STATUS_APPROVED}
         )
 
     @staticmethod

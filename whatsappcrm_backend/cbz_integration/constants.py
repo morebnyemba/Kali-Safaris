@@ -35,4 +35,5 @@ ECI_ECOMMERCE = '7'  # Secure e-commerce with SSL
 
 # Result codes
 RESULT_CODE_SUCCESS = '0'
+STATUS_PENDING = 'Pending'
 STATUS_APPROVED = 'Approved'

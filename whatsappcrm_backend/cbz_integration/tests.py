@@ -1,13 +1,20 @@
 """
 Tests for CBZ/iVeri payment integration.
 """
+import json
+
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
 from django.test import TestCase, RequestFactory
+from django.utils import timezone
+
+from conversations.models import Contact
+from customer_data.models import Booking, CustomerProfile
 
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriConfig
+from .views import cbz_ecocash_debit_view
 from .constants import (
     ECOCASH_PAN_PREFIX, ECOCASH_DEFAULT_EXPIRY,
     RESULT_CODE_SUCCESS, STATUS_APPROVED,
@@ -111,6 +118,16 @@ class IVeriClientResponseTest(TestCase):
                 'Status': 'Declined',
             }
         }
+        self.assertFalse(IVeriClient.is_approved(response))
+
+    def test_is_pending_successful_non_approved_response(self):
+        response = {
+            'Transaction': {
+                'ResultCode': RESULT_CODE_SUCCESS,
+                'Status': 'Pending',
+            }
+        }
+        self.assertTrue(IVeriClient.is_pending(response))
         self.assertFalse(IVeriClient.is_approved(response))
 
     def test_get_result_extracts_fields(self):
@@ -220,3 +237,136 @@ class CBZTransactionModelTest(TestCase):
             status=CBZTransaction.TransactionStatus.APPROVED,
         )
         self.assertTrue(txn.is_successful)
+
+
+class CBZFlowActionTests(TestCase):
+    def setUp(self):
+        today = timezone.now().date()
+        self.contact = Contact.objects.create(
+            whatsapp_id='263771234567',
+            name='CBZ Tester',
+        )
+        self.customer = CustomerProfile.objects.create(contact=self.contact)
+        self.booking = Booking.objects.create(
+            customer=self.customer,
+            booking_reference='CBZ-BOOKING-001',
+            total_amount=Decimal('150.00'),
+            amount_paid=Decimal('0.00'),
+            payment_status='pending',
+            start_date=today,
+            end_date=today,
+        )
+
+    @patch('cbz_integration.flow_actions.get_cbz_payment_handler')
+    def test_initiate_payment_sets_approved_context(self, mock_get_handler):
+        from cbz_integration.flow_actions import initiate_cbz_ecocash_payment_action
+
+        mock_handler = MagicMock()
+        mock_handler.initiate_ecocash_payment.return_value = {
+            'success': True,
+            'reference': 'CBZ-REF-123',
+            'status': 'approved',
+        }
+        mock_get_handler.return_value = mock_handler
+
+        flow_context = {'payment_phone': '263771234567'}
+        params = {
+            'booking_reference': 'CBZ-BOOKING-001',
+            'amount': '150.00',
+            'currency': 'USD',
+            'msisdn': '263771234567',
+        }
+
+        result = initiate_cbz_ecocash_payment_action(self.contact, flow_context, params)
+
+        self.assertEqual(result, [])
+        self.assertEqual(flow_context['cbz_payment_status'], 'approved')
+        self.assertTrue(flow_context['cbz_payment_success'])
+        self.assertEqual(flow_context['cbz_payment_reference'], 'CBZ-REF-123')
+
+    @patch('cbz_integration.flow_actions.get_cbz_payment_handler')
+    def test_initiate_payment_sets_pending_context(self, mock_get_handler):
+        from cbz_integration.flow_actions import initiate_cbz_ecocash_payment_action
+
+        mock_handler = MagicMock()
+        mock_handler.initiate_ecocash_payment.return_value = {
+            'success': True,
+            'reference': 'CBZ-REF-PENDING',
+            'status': 'pending',
+            'is_pending': True,
+            'message': 'Awaiting customer confirmation',
+        }
+        mock_get_handler.return_value = mock_handler
+
+        flow_context = {'payment_phone': '263771234567'}
+        params = {
+            'booking_reference': 'CBZ-BOOKING-001',
+            'amount': '150.00',
+            'currency': 'USD',
+            'msisdn': '263771234567',
+        }
+
+        result = initiate_cbz_ecocash_payment_action(self.contact, flow_context, params)
+
+        self.assertEqual(result, [])
+        self.assertEqual(flow_context['cbz_payment_status'], 'pending')
+        self.assertNotIn('cbz_payment_success', flow_context)
+        self.assertEqual(flow_context['cbz_payment_reference'], 'CBZ-REF-PENDING')
+
+    def test_booking_flow_routes_ecocash_to_cbz_action(self):
+        from flows.definitions.booking_flow import BOOKING_FLOW
+
+        process_step = next(
+            step for step in BOOKING_FLOW['steps']
+            if step['name'] == 'process_payment_flow_response'
+        )
+        cbz_step = next(
+            step for step in BOOKING_FLOW['steps']
+            if step['name'] == 'initiate_cbz_payment_api'
+        )
+
+        self.assertEqual(
+            process_step['transitions'][0]['to_step'],
+            'initiate_cbz_payment_api',
+        )
+        self.assertEqual(
+            process_step['transitions'][0]['condition_config']['value'],
+            'ecocash',
+        )
+        self.assertEqual(
+            cbz_step['config']['actions_to_run'][0]['action_type'],
+            'initiate_cbz_ecocash_payment',
+        )
+
+
+class CBZEcoCashViewTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @patch('cbz_integration.views._build_client')
+    def test_ecocash_debit_view_marks_pending_transactions(self, mock_build_client):
+        mock_client = MagicMock()
+        mock_client.debit_ecocash.return_value = {
+            'Transaction': {
+                'ResultCode': RESULT_CODE_SUCCESS,
+                'Status': 'Pending',
+                'ResultDescription': 'Awaiting customer confirmation',
+                'MerchantReference': 'KS-PENDING-001',
+            }
+        }
+        mock_build_client.return_value = mock_client
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/ecocash/debit/',
+            data='{"msisdn": "263771234567", "amount": "10.50", "currency": "USD"}',
+            content_type='application/json',
+        )
+
+        response = cbz_ecocash_debit_view(request)
+        payload = json.loads(response.content.decode('utf-8'))
+        txn = CBZTransaction.objects.get(merchant_reference=payload['merchant_reference'])
+
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(payload['success'])
+        self.assertTrue(payload['pending'])
+        self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)

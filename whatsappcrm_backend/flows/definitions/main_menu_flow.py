@@ -34,7 +34,7 @@ MAIN_MENU_FLOW = {
                                     "title": "📋 My Account",
                                     "rows": [
                                         {"id": "my_bookings", "title": "📖 My Bookings", "description": "View or manage your existing bookings"},
-                                        {"id": "payment_options", "title": "💳 Make a Payment", "description": "Pay for your booking via Omari, Ecocash, or bank"}
+                                        {"id": "payment_options", "title": "💳 Make a Payment", "description": "Pay via Omari, CBZ EcoCash, Paynow, or bank transfer"}
                                     ]
                                 },
                                 {
@@ -187,7 +187,7 @@ MAIN_MENU_FLOW = {
                         "action": {
                             "buttons": [
                                 {"type": "reply", "reply": {"id": "omari_payment", "title": "💳 Omari"}},
-                                {"type": "reply", "reply": {"id": "paynow_payment", "title": "📱 Ecocash/Innbucks"}},
+                                {"type": "reply", "reply": {"id": "paynow_payment", "title": "📱 CBZ EcoCash / Paynow"}},
                                 {"type": "reply", "reply": {"id": "manual_payment", "title": "🏦 Bank Transfer"}}
                             ]
                         }

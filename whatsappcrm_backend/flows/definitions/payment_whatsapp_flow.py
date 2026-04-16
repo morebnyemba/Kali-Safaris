@@ -1,8 +1,9 @@
 # whatsappcrm_backend/flows/definitions/payment_whatsapp_flow.py
 
 """
-WhatsApp Flow JSON definition for Paynow Payment Processing.
-This flow collects payment method and details, then initiates Paynow payment.
+WhatsApp Flow JSON definition for mobile money payment processing.
+This flow collects payment method and details, then routes EcoCash to CBZ and
+other wallets through Paynow.
 """
 
 PAYMENT_WHATSAPP_FLOW = {
@@ -82,7 +83,7 @@ PAYMENT_WHATSAPP_FLOW = {
                         "label": "Email",
                         "required": True,
                         "input-type": "email",
-                        "helper-text": "Required for your payment receipt and Paynow authorization"
+                        "helper-text": "Required for your receipt and payment authorization"
                     },
                     {
                         "type": "Footer",
@@ -198,8 +199,8 @@ PAYMENT_WHATSAPP_FLOW = {
 # Metadata for the flow
 PAYMENT_FLOW_METADATA = {
     "name": "payment_whatsapp_flow",
-    "friendly_name": "Paynow Payment Processing",
-    "description": "Interactive WhatsApp flow for processing Paynow payments",
+    "friendly_name": "Mobile Money Payment Processing",
+    "description": "Interactive WhatsApp flow for processing CBZ EcoCash and Paynow payments",
     "trigger_keywords": [],
     "is_active": True,
     "category": "payment"

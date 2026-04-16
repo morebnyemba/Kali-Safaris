@@ -22,7 +22,6 @@ from conversations.models import Contact
 from customer_data.models import Booking, Payment
 from .models import CBZTransaction
 from .services import IVeriClient, IVeriConfig
-from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED
 from django.conf import settings
 
 
@@ -122,6 +121,7 @@ class WhatsAppCBZPaymentHandler:
 
             result = IVeriClient.get_result(response)
             is_approved = IVeriClient.is_approved(response)
+            is_pending = IVeriClient.is_pending(response)
 
             # Update transaction with response
             txn.result_code = result.get('result_code')
@@ -159,11 +159,60 @@ class WhatsAppCBZPaymentHandler:
                     'reference': merchant_ref,
                     'transaction': txn,
                     'authorisation_code': result.get('authorisation_code'),
+                    'status': 'approved',
+                }
+            elif is_pending:
+                txn.status = CBZTransaction.TransactionStatus.PENDING
+                txn.save(update_fields=[
+                    'status',
+                    'result_code',
+                    'result_description',
+                    'transaction_index',
+                    'authorisation_code',
+                    'request_id',
+                    'updated_at',
+                ])
+
+                self._set_payment_state(contact, {
+                    'reference': merchant_ref,
+                    'status': 'pending',
+                    'completed': False,
+                })
+
+                pending_desc = result.get(
+                    'result_description',
+                    'Payment initiated and awaiting final confirmation.',
+                )
+                logger.info(
+                    "CBZ EcoCash payment PENDING | contact=%s booking=%s ref=%s status=%s code=%s",
+                    contact.id,
+                    booking.booking_reference,
+                    merchant_ref,
+                    result.get('status'),
+                    result.get('result_code'),
+                )
+
+                return {
+                    'success': True,
+                    'message': pending_desc,
+                    'reference': merchant_ref,
+                    'transaction': txn,
+                    'is_pending': True,
+                    'status': 'pending',
+                    'result_code': result.get('result_code'),
                 }
             else:
                 # Payment was not approved
                 txn.status = CBZTransaction.TransactionStatus.DECLINED
-                txn.save()
+                txn.save(update_fields=[
+                    'status',
+                    'result_code',
+                    'result_description',
+                    'transaction_index',
+                    'authorisation_code',
+                    'request_id',
+                    'updated_at',
+                ])
 
                 error_desc = result.get('result_description', 'Payment was not approved')
                 logger.warning(
@@ -180,6 +229,7 @@ class WhatsAppCBZPaymentHandler:
                     'message': error_desc,
                     'reference': merchant_ref,
                     'result_code': result.get('result_code'),
+                    'status': 'declined',
                 }
 
         except Exception as e:
@@ -215,6 +265,7 @@ class WhatsAppCBZPaymentHandler:
             response = self.client.query_transaction(merchant_reference)
             result = IVeriClient.get_result(response)
             is_approved = IVeriClient.is_approved(response)
+            is_pending = IVeriClient.is_pending(response)
 
             # Update local transaction record if found
             txn = CBZTransaction.objects.filter(merchant_reference=merchant_reference).first()
@@ -228,11 +279,19 @@ class WhatsAppCBZPaymentHandler:
                     # Record payment if not already done
                     if txn.booking:
                         self._record_successful_payment(txn, txn.booking)
+                elif is_pending and txn.status != CBZTransaction.TransactionStatus.PENDING:
+                    txn.status = CBZTransaction.TransactionStatus.PENDING
+                elif txn.status in {
+                    CBZTransaction.TransactionStatus.INITIATED,
+                    CBZTransaction.TransactionStatus.PENDING,
+                }:
+                    txn.status = CBZTransaction.TransactionStatus.DECLINED
                 txn.save()
 
             return {
                 'success': True,
                 'is_approved': is_approved,
+                'is_pending': is_pending,
                 'status': result.get('status'),
                 'data': result,
             }

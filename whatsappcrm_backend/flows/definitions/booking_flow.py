@@ -1041,9 +1041,60 @@ BOOKING_FLOW = {
                 ]
             },
             "transitions": [
+                {"to_step": "initiate_cbz_payment_api", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "payment_method", "value": "ecocash"}},
                 {"to_step": "initiate_paynow_payment_api", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "payment_method"}},
                 {"to_step": "payment_flow_data_missing", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
+        },
+        {
+            "name": "initiate_cbz_payment_api",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "initiate_cbz_ecocash_payment",
+                    "params_template": {
+                        "booking_reference": "{{ created_booking.booking_reference }}",
+                        "amount": "{{ amount_to_pay }}",
+                        "currency": "USD",
+                        "msisdn": "{{ payment_phone }}"
+                    }
+                }]
+            },
+            "transitions": [
+                {"to_step": "cbz_payment_success_message", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "cbz_payment_status", "value": "approved"}},
+                {"to_step": "cbz_payment_pending_message", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "cbz_payment_status", "value": "pending"}},
+                {"to_step": "cbz_payment_failed_message", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "cbz_payment_success_message",
+            "type": "end_flow",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "🎉 Payment confirmed successfully!\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* CBZ EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nYour booking has been updated and your payment is fully recorded."}
+                }
+            }
+        },
+        {
+            "name": "cbz_payment_pending_message",
+            "type": "end_flow",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "⏳ Payment initiated.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* CBZ EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nPlease complete the EcoCash prompt sent to *{{ payment_phone }}*. We will confirm the booking once CBZ sends the final result."}
+                }
+            }
+        },
+        {
+            "name": "cbz_payment_failed_message",
+            "type": "end_flow",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "⚠️ CBZ EcoCash payment could not be completed.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Reason:* {{ cbz_payment_error_message or 'Payment was not approved.' }}{% if cbz_payment_result_code %}\n*Error Code:* {{ cbz_payment_result_code }}{% endif %}\n\nYour booking has been saved. You can try again or choose another payment method."}
+                }
+            }
         },
         {
             "name": "initiate_paynow_payment_api",

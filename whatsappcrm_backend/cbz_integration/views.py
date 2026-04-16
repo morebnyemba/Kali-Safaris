@@ -51,13 +51,21 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
         "booking_reference": "KS-ABC123"  // optional
     }
 
-    Response (success):
+    Response (approved):
     {
         "success": true,
         "message": "Payment approved",
         "merchant_reference": "KS-XXXXXXXXXXXX",
         "transaction_index": "...",
         "authorisation_code": "..."
+    }
+
+    Response (pending):
+    {
+        "success": true,
+        "pending": true,
+        "message": "Payment initiated and awaiting final confirmation",
+        "merchant_reference": "KS-XXXXXXXXXXXX"
     }
 
     Response (failure):
@@ -129,6 +137,7 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
 
         result = IVeriClient.get_result(response)
         is_approved = IVeriClient.is_approved(response)
+        is_pending = IVeriClient.is_pending(response)
 
         # Update transaction
         txn.result_code = result.get('result_code')
@@ -153,6 +162,19 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
                 "transaction_index": result.get('transaction_index'),
                 "authorisation_code": result.get('authorisation_code'),
             })
+        elif is_pending:
+            txn.status = CBZTransaction.TransactionStatus.PENDING
+            txn.save()
+            return JsonResponse({
+                "success": True,
+                "pending": True,
+                "message": result.get(
+                    'result_description',
+                    'Payment initiated and awaiting final confirmation',
+                ),
+                "merchant_reference": merchant_ref,
+                "result_code": result.get('result_code'),
+            }, status=202)
         else:
             txn.status = CBZTransaction.TransactionStatus.DECLINED
             txn.save()
@@ -331,6 +353,7 @@ def cbz_query_view(request: HttpRequest, reference: str) -> JsonResponse:
         return JsonResponse({
             "success": True,
             "is_approved": IVeriClient.is_approved(response),
+            "is_pending": IVeriClient.is_pending(response),
             "data": result,
         })
     except Exception as e:
@@ -395,7 +418,10 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
             txn.save()
             logger.info(f"CBZ callback: transaction {merchant_ref} already approved, skipping")
     else:
-        if txn.status == CBZTransaction.TransactionStatus.INITIATED:
+        if txn.status in {
+            CBZTransaction.TransactionStatus.INITIATED,
+            CBZTransaction.TransactionStatus.PENDING,
+        }:
             txn.status = CBZTransaction.TransactionStatus.DECLINED
         txn.save()
         logger.info(f"CBZ callback: transaction {merchant_ref} status={status_text} code={result_code}")
