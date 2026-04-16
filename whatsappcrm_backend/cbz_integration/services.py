@@ -458,7 +458,7 @@ class IVeriClient:
         status = (txn.get('Status') or '').strip()
         return (
             txn.get('ResultCode') == RESULT_CODE_SUCCESS
-            and status not in {'', STATUS_APPROVED}
+            and status == STATUS_PENDING
         )
 
     @staticmethod
