@@ -97,6 +97,22 @@ class IVeriCertificateConfig:
     timeout: int = IVERI_SOAP_TIMEOUT
 
 
+def build_certificate_client_from_settings(config_model: Optional[Any] = None) -> 'IVeriCertificateClient':
+    """Build the SOAP certificate lifecycle client from Django settings and optional DB config."""
+    return IVeriCertificateClient(IVeriCertificateConfig(
+        soap_url=getattr(settings, 'CBZ_CERTIFICATE_SOAP_URL', ''),
+        soap_namespace=getattr(settings, 'CBZ_CERTIFICATE_SOAP_NAMESPACE', ''),
+        soap_action_base=getattr(settings, 'CBZ_CERTIFICATE_SOAP_ACTION_BASE', ''),
+        soap_username=getattr(settings, 'CBZ_CERTIFICATE_SOAP_USERNAME', ''),
+        soap_password=getattr(settings, 'CBZ_CERTIFICATE_SOAP_PASSWORD', ''),
+        merchant_id=getattr(settings, 'CBZ_CERTIFICATE_MERCHANT_ID', ''),
+        terminal_id=getattr(settings, 'CBZ_CERTIFICATE_TERMINAL_ID', ''),
+        application_id=(config_model.application_id if config_model else getattr(settings, 'CBZ_APPLICATION_ID', '')),
+        certificate_id=(config_model.certificate_id if config_model and config_model.certificate_id else getattr(settings, 'CBZ_CERTIFICATE_ID', '')),
+        mode=(config_model.mode if config_model else getattr(settings, 'CBZ_MODE', 'Test')),
+    ))
+
+
 class IVeriClient:
     """
     Client for the iVeri Enterprise REST API.

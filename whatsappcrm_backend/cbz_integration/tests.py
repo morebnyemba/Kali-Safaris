@@ -6,12 +6,14 @@ import json
 from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
+from django.contrib.admin.sites import AdminSite
 from django.test import TestCase, RequestFactory
 from django.utils import timezone
 
 from conversations.models import Contact
 from customer_data.models import Booking, CustomerProfile
 
+from .admin import CBZConfigAdmin, CBZConfigAdminForm
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriConfig, IVeriCertificateClient, IVeriCertificateConfig
 from .views import cbz_ecocash_debit_view, cbz_certificate_generate_view, cbz_certificate_renew_view
@@ -216,6 +218,100 @@ class CBZConfigModelTest(TestCase):
         active = CBZConfig.get_active_config()
         self.assertIsNotNone(active)
         self.assertEqual(active.name, 'Active Config')
+
+
+class CBZConfigAdminLifecycleTests(TestCase):
+    def setUp(self):
+        self.site = AdminSite()
+        self.admin = CBZConfigAdmin(CBZConfig, self.site)
+        self.factory = RequestFactory()
+
+    @patch.object(CBZConfigAdmin, 'message_user')
+    @patch('cbz_integration.admin.build_certificate_client_from_settings')
+    def test_admin_can_generate_certificate_on_save(self, mock_build_client, mock_message_user):
+        mock_client = MagicMock()
+        mock_client.generate_certificate_id.return_value = {
+            'certificate_id': 'cert-generated',
+            'raw': {},
+        }
+        mock_build_client.return_value = mock_client
+
+        form = CBZConfigAdminForm(data={
+            'name': 'Generated Config',
+            'portal_url': 'https://portal.host.iveri.com',
+            'certificate_id': '',
+            'application_id': 'test-app-id',
+            'mode': 'Test',
+            'is_active': 'on',
+            'callback_url': '',
+            'auto_generate_certificate': 'on',
+        })
+        self.assertTrue(form.is_valid(), form.errors)
+
+        obj = form.save(commit=False)
+        request = self.factory.post('/admin/cbz_integration/cbzconfig/add/')
+        self.admin.save_model(request, obj, form, change=False)
+
+        obj.refresh_from_db()
+        self.assertEqual(obj.certificate_id, 'cert-generated')
+        mock_client.generate_certificate_id.assert_called_once_with()
+        mock_message_user.assert_called_once()
+
+    @patch.object(CBZConfigAdmin, 'message_user')
+    @patch('cbz_integration.admin.build_certificate_client_from_settings')
+    def test_admin_can_renew_certificate_on_save(self, mock_build_client, mock_message_user):
+        mock_client = MagicMock()
+        mock_client.renew_certificate_id.return_value = {
+            'certificate_id': 'cert-renewed',
+            'previous_certificate_id': 'cert-old',
+            'raw': {},
+        }
+        mock_build_client.return_value = mock_client
+
+        config = CBZConfig.objects.create(
+            name='Renew Config',
+            portal_url='https://portal.host.iveri.com',
+            certificate_id='cert-old',
+            application_id='test-app-id',
+            mode='Test',
+            is_active=True,
+        )
+
+        form = CBZConfigAdminForm(data={
+            'name': 'Renew Config',
+            'portal_url': 'https://portal.host.iveri.com',
+            'certificate_id': 'cert-old',
+            'application_id': 'test-app-id',
+            'mode': 'Test',
+            'is_active': 'on',
+            'callback_url': '',
+            'auto_renew_certificate': 'on',
+        }, instance=config)
+        self.assertTrue(form.is_valid(), form.errors)
+
+        obj = form.save(commit=False)
+        request = self.factory.post(f'/admin/cbz_integration/cbzconfig/{config.pk}/change/')
+        self.admin.save_model(request, obj, form, change=True)
+
+        config.refresh_from_db()
+        self.assertEqual(config.certificate_id, 'cert-renewed')
+        mock_client.renew_certificate_id.assert_called_once_with(certificate_id='cert-old')
+        mock_message_user.assert_called_once()
+
+    def test_admin_form_disallows_generate_and_renew_together(self):
+        form = CBZConfigAdminForm(data={
+            'name': 'Invalid Config',
+            'portal_url': 'https://portal.host.iveri.com',
+            'certificate_id': 'cert-old',
+            'application_id': 'test-app-id',
+            'mode': 'Test',
+            'is_active': 'on',
+            'callback_url': '',
+            'auto_generate_certificate': 'on',
+            'auto_renew_certificate': 'on',
+        })
+        self.assertFalse(form.is_valid())
+        self.assertIn('Select only one certificate action per save.', form.non_field_errors())
 
 
 class CBZTransactionModelTest(TestCase):

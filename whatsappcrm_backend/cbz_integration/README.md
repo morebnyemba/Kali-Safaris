@@ -12,6 +12,14 @@ Certificate lifecycle endpoints
 - `POST /crm-api/payments/cbz/certificates/submit/` submits a device certificate or CSR.
 - `POST /crm-api/payments/cbz/certificates/renew/` renews the active `CertificateID` and stores the new value on the active `CBZConfig`.
 
+Admin workflow
+
+- In Django Admin, the CBZ config form now exposes `Generate certificate on save` and `Renew certificate on save` checkboxes.
+- Use generate when saving a new configuration that does not yet have a `CertificateID`.
+- Use renew when editing an existing configuration whose `CertificateID` must be rotated.
+- The config record is saved first, then the SOAP lifecycle action runs and updates `certificate_id` if successful.
+- Normal edits do not auto-generate or auto-renew unless one of those checkboxes is explicitly selected.
+
 SOAP lifecycle configuration
 
 - Configure `CBZ_CERTIFICATE_SOAP_URL`, `CBZ_CERTIFICATE_SOAP_NAMESPACE`, `CBZ_CERTIFICATE_SOAP_ACTION_BASE`, `CBZ_CERTIFICATE_SOAP_USERNAME`, `CBZ_CERTIFICATE_SOAP_PASSWORD`, `CBZ_CERTIFICATE_MERCHANT_ID`, and `CBZ_CERTIFICATE_TERMINAL_ID` in the Django environment before using the lifecycle endpoints.

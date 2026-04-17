@@ -22,7 +22,7 @@ from django.db import transaction as db_transaction
 
 from customer_data.models import Booking, Payment
 from .models import CBZConfig, CBZTransaction
-from .services import IVeriClient, IVeriCertificateClient, IVeriCertificateConfig
+from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
 from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED
 
 
@@ -39,19 +39,7 @@ def _get_active_config() -> Optional[CBZConfig]:
 
 
 def _build_certificate_client(config_model: Optional[CBZConfig] = None) -> IVeriCertificateClient:
-    active_config = config_model or _get_active_config()
-    return IVeriCertificateClient(IVeriCertificateConfig(
-        soap_url=getattr(settings, 'CBZ_CERTIFICATE_SOAP_URL', ''),
-        soap_namespace=getattr(settings, 'CBZ_CERTIFICATE_SOAP_NAMESPACE', ''),
-        soap_action_base=getattr(settings, 'CBZ_CERTIFICATE_SOAP_ACTION_BASE', ''),
-        soap_username=getattr(settings, 'CBZ_CERTIFICATE_SOAP_USERNAME', ''),
-        soap_password=getattr(settings, 'CBZ_CERTIFICATE_SOAP_PASSWORD', ''),
-        merchant_id=getattr(settings, 'CBZ_CERTIFICATE_MERCHANT_ID', ''),
-        terminal_id=getattr(settings, 'CBZ_CERTIFICATE_TERMINAL_ID', ''),
-        application_id=(active_config.application_id if active_config else getattr(settings, 'CBZ_APPLICATION_ID', '')),
-        certificate_id=(active_config.certificate_id if active_config and active_config.certificate_id else getattr(settings, 'CBZ_CERTIFICATE_ID', '')),
-        mode=(active_config.mode if active_config else getattr(settings, 'CBZ_MODE', 'Test')),
-    ))
+    return build_certificate_client_from_settings(config_model or _get_active_config())
 
 
 # ─── EcoCash API Endpoint ────────────────────────────────────────────
