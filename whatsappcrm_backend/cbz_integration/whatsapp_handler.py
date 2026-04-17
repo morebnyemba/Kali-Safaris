@@ -50,6 +50,7 @@ class WhatsAppCBZPaymentHandler:
             # Fallback to environment-based settings
             fallback_config = IVeriConfig(
                 portal_url=getattr(settings, 'CBZ_PORTAL_URL', 'https://portal.host.iveri.com'),
+                certificate_id=getattr(settings, 'CBZ_CERTIFICATE_ID', ''),
                 application_id=getattr(settings, 'CBZ_APPLICATION_ID', ''),
                 mode=getattr(settings, 'CBZ_MODE', 'Test'),
             )

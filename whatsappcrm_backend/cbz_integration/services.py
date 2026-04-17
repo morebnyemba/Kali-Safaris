@@ -12,6 +12,7 @@ import logging
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, Optional
+from xml.etree import ElementTree as ET
 
 import requests
 from django.conf import settings
@@ -21,6 +22,7 @@ from .constants import (
     ECOCASH_PAN_PREFIX,
     IVERI_API_VERSION,
     IVERI_REST_TRANSACTIONS,
+    IVERI_SOAP_TIMEOUT,
     COMMAND_DEBIT,
     COMMAND_AUTHORISATION,
     COMMAND_CREDIT,
@@ -43,13 +45,56 @@ def _mask_value(value: str, visible_chars: int = 6) -> str:
     return f"***{value[-visible_chars:]}" if len(value) > visible_chars else "***"
 
 
+def _local_name(tag: str) -> str:
+    """Return an XML tag without its namespace."""
+    return tag.split('}', 1)[-1] if '}' in tag else tag
+
+
+def _flatten_xml(element: ET.Element) -> Dict[str, Any]:
+    """Flatten a SOAP XML subtree into a simple dict keyed by local tag names."""
+    flattened: Dict[str, Any] = {}
+    for child in element:
+        key = _local_name(child.tag)
+        if list(child):
+            value = _flatten_xml(child)
+        else:
+            value = (child.text or '').strip()
+
+        if key in flattened:
+            existing = flattened[key]
+            if isinstance(existing, list):
+                existing.append(value)
+            else:
+                flattened[key] = [existing, value]
+        else:
+            flattened[key] = value
+    return flattened
+
+
 @dataclass
 class IVeriConfig:
     """Configuration for the iVeri REST API."""
     portal_url: str          # e.g., https://portal.host.iveri.com
+    certificate_id: str      # CertificateID GUID
     application_id: str      # ApplicationID GUID
     mode: str = 'Test'       # 'Test' or 'LIVE'
     callback_url: str = ''   # Optional out-of-band notification URL
+
+
+@dataclass
+class IVeriCertificateConfig:
+    """Configuration for the iVeri SOAP certificate lifecycle API."""
+    soap_url: str
+    application_id: str
+    soap_username: str = ''
+    soap_password: str = ''
+    soap_namespace: str = ''
+    soap_action_base: str = ''
+    merchant_id: str = ''
+    terminal_id: str = ''
+    certificate_id: str = ''
+    mode: str = 'Test'
+    timeout: int = IVERI_SOAP_TIMEOUT
 
 
 class IVeriClient:
@@ -100,6 +145,8 @@ class IVeriClient:
         missing_fields = []
         if not (self.config.portal_url or '').strip():
             missing_fields.append('portal_url')
+        if not (self.config.certificate_id or '').strip():
+            missing_fields.append('certificate_id')
         if not (self.config.application_id or '').strip():
             missing_fields.append('application_id')
 
@@ -132,6 +179,7 @@ class IVeriClient:
             if config_model:
                 return IVeriConfig(
                     portal_url=config_model.portal_url,
+                    certificate_id=config_model.certificate_id or '',
                     application_id=config_model.application_id,
                     mode=config_model.mode,
                     callback_url=config_model.callback_url or '',
@@ -171,6 +219,7 @@ class IVeriClient:
 
         payload = {
             'Version': IVERI_API_VERSION,
+            'CertificateID': self.config.certificate_id,
             'Direction': 'Request',
             'Transaction': transaction,
         }
@@ -529,4 +578,205 @@ class IVeriClient:
             'amount': txn.get('Amount'),
             'currency': txn.get('Currency'),
             'request_id': txn.get('RequestID'),
+        }
+
+
+class IVeriCertificateClient:
+    """SOAP client for the iVeri certificate lifecycle operations."""
+
+    SOAP_ENV_NS = 'http://schemas.xmlsoap.org/soap/envelope/'
+
+    def __init__(self, config: IVeriCertificateConfig):
+        self.config = config
+        self._validate_config()
+        self.session = requests.Session()
+        self.session.headers.update({
+            'Content-Type': 'text/xml; charset=utf-8',
+            'Accept': 'text/xml',
+        })
+        logger.info(
+            "IVeriCertificateClient initialized | url=%s app=%s terminal=%s mode=%s",
+            self.config.soap_url,
+            _mask_value(self.config.application_id),
+            _mask_value(self.config.terminal_id),
+            self.config.mode,
+        )
+
+    def _validate_config(self) -> None:
+        missing = []
+        if not (self.config.soap_url or '').strip():
+            missing.append('soap_url')
+        if not (self.config.application_id or '').strip():
+            missing.append('application_id')
+        if not (self.config.soap_username or '').strip():
+            missing.append('soap_username')
+        if not (self.config.soap_password or '').strip():
+            missing.append('soap_password')
+
+        if missing:
+            logger.error(
+                "IVeriCertificateClient invalid configuration | missing=%s app=%s",
+                ','.join(missing),
+                _mask_value(self.config.application_id),
+            )
+            raise ValueError(
+                "Incomplete iVeri certificate lifecycle configuration. Missing: "
+                f"{', '.join(missing)}"
+            )
+
+    def _qualify(self, tag: str) -> str:
+        if self.config.soap_namespace:
+            return f"{{{self.config.soap_namespace}}}{tag}"
+        return tag
+
+    def _build_envelope(self, operation: str, params: Dict[str, Any]) -> bytes:
+        envelope = ET.Element(f"{{{self.SOAP_ENV_NS}}}Envelope")
+        body = ET.SubElement(envelope, f"{{{self.SOAP_ENV_NS}}}Body")
+        operation_element = ET.SubElement(body, self._qualify(operation))
+
+        merged_params: Dict[str, Any] = {
+            'Username': self.config.soap_username,
+            'Password': self.config.soap_password,
+            'MerchantID': self.config.merchant_id,
+            'ApplicationID': self.config.application_id,
+            'TerminalID': self.config.terminal_id,
+            'CertificateID': self.config.certificate_id,
+            'Mode': self.config.mode,
+        }
+        merged_params.update(params)
+
+        for key, value in merged_params.items():
+            if value is None or value == '':
+                continue
+            child = ET.SubElement(operation_element, self._qualify(key))
+            child.text = str(value)
+
+        return ET.tostring(envelope, encoding='utf-8', xml_declaration=True)
+
+    def _parse_response(self, response_text: str, operation: str) -> Dict[str, Any]:
+        root = ET.fromstring(response_text)
+        body = root.find(f"{{{self.SOAP_ENV_NS}}}Body")
+        if body is None:
+            raise ValueError('SOAP response did not contain a Body element')
+
+        fault = body.find(f"{{{self.SOAP_ENV_NS}}}Fault")
+        if fault is not None:
+            fault_data = _flatten_xml(fault)
+            raise ValueError(fault_data.get('faultstring') or fault_data.get('Reason') or 'SOAP fault returned')
+
+        payload = next(iter(body), None)
+        if payload is None:
+            raise ValueError(f'SOAP {operation} response did not contain a payload')
+
+        return _flatten_xml(payload)
+
+    def _execute(self, operation: str, params: Dict[str, Any]) -> Dict[str, Any]:
+        envelope = self._build_envelope(operation, params)
+        soap_action = self.config.soap_action_base.rstrip('/') if self.config.soap_action_base else ''
+        headers = {
+            'SOAPAction': f"{soap_action}/{operation}" if soap_action else operation,
+        }
+
+        logger.info(
+            "iVeri certificate SOAP request | operation=%s app=%s terminal=%s has_cert=%s",
+            operation,
+            _mask_value(self.config.application_id),
+            _mask_value(params.get('TerminalID') or self.config.terminal_id),
+            bool(params.get('CertificateID') or self.config.certificate_id),
+        )
+
+        try:
+            response = self.session.post(
+                self.config.soap_url,
+                data=envelope,
+                headers=headers,
+                timeout=self.config.timeout,
+            )
+            response.raise_for_status()
+            parsed = self._parse_response(response.text, operation)
+            logger.info("iVeri certificate SOAP response | operation=%s keys=%s", operation, sorted(parsed.keys()))
+            return parsed
+        except requests.exceptions.HTTPError as exc:
+            body = exc.response.text[:500] if exc.response is not None else 'No response'
+            status = exc.response.status_code if exc.response is not None else 'No status'
+            logger.error(
+                "iVeri certificate SOAP HTTP error | operation=%s status=%s body=%s",
+                operation,
+                status,
+                body,
+            )
+            raise
+        except requests.exceptions.Timeout:
+            logger.error("iVeri certificate SOAP timeout | operation=%s timeout=%ss", operation, self.config.timeout)
+            raise
+
+    @staticmethod
+    def _find_value(payload: Dict[str, Any], *keys: str) -> Optional[str]:
+        for key in keys:
+            value = payload.get(key)
+            if isinstance(value, dict):
+                for nested_key in keys:
+                    nested_value = value.get(nested_key)
+                    if nested_value:
+                        return nested_value
+            if value:
+                return value
+        return None
+
+    def generate_certificate_id(self, terminal_id: str = '') -> Dict[str, Any]:
+        response = self._execute('GenerateCertificateID', {
+            'TerminalID': terminal_id or self.config.terminal_id,
+        })
+        certificate_id = self._find_value(response, 'CertificateID', 'GenerateCertificateIDResult')
+        if not certificate_id:
+            raise ValueError('GenerateCertificateID did not return a CertificateID')
+        return {
+            'certificate_id': certificate_id,
+            'raw': response,
+        }
+
+    def get_certificate(self, certificate_id: str = '') -> Dict[str, Any]:
+        resolved_id = certificate_id or self.config.certificate_id
+        if not resolved_id:
+            raise ValueError('CertificateID is required to retrieve a certificate')
+        response = self._execute('GetCertificate', {
+            'CertificateID': resolved_id,
+        })
+        return {
+            'certificate_id': resolved_id,
+            'certificate': self._find_value(response, 'Certificate', 'PublicKey', 'GetCertificateResult'),
+            'raw': response,
+        }
+
+    def submit_certificate(self, certificate_id: str = '', certificate_data: str = '', csr: str = '') -> Dict[str, Any]:
+        resolved_id = certificate_id or self.config.certificate_id
+        if not resolved_id:
+            raise ValueError('CertificateID is required to submit a certificate')
+        if not certificate_data and not csr:
+            raise ValueError('certificate_data or csr is required to submit a certificate')
+        response = self._execute('SubmitCertificate', {
+            'CertificateID': resolved_id,
+            'Certificate': certificate_data,
+            'CSR': csr,
+        })
+        return {
+            'certificate_id': resolved_id,
+            'accepted': True,
+            'raw': response,
+        }
+
+    def renew_certificate_id(self, certificate_id: str = '') -> Dict[str, Any]:
+        resolved_id = certificate_id or self.config.certificate_id
+        if not resolved_id:
+            raise ValueError('CertificateID is required to renew a certificate')
+        response = self._execute('RenewCertificateID', {
+            'CertificateID': resolved_id,
+        })
+        renewed_id = self._find_value(response, 'CertificateID', 'RenewCertificateIDResult')
+        if not renewed_id:
+            raise ValueError('RenewCertificateID did not return a CertificateID')
+        return {
+            'certificate_id': renewed_id,
+            'previous_certificate_id': resolved_id,
+            'raw': response,
         }

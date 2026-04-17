@@ -474,8 +474,19 @@ OMARI_MERCHANT_KEY = os.getenv('OMARI_MERCHANT_KEY', '')  # X-Merchant-Key heade
 # --- CBZ/iVeri Payments Configuration ---
 # Portal URL is the same for test and live; the Mode field in each request controls which environment is used.
 # ApplicationID is generated from the iVeri backoffice portal.
+# CertificateID is required for REST transactions and may be created through the SOAP lifecycle.
 # Prefer configuring these via Django Admin (CBZConfig model) rather than environment variables.
 CBZ_PORTAL_URL = os.getenv('CBZ_PORTAL_URL', 'https://portal.host.iveri.com')
+CBZ_CERTIFICATE_ID = os.getenv('CBZ_CERTIFICATE_ID', '')  # GUID used in REST transaction payloads
 CBZ_APPLICATION_ID = os.getenv('CBZ_APPLICATION_ID', '')  # GUID from acquiring bank (CBZ)
 CBZ_MODE = os.getenv('CBZ_MODE', 'Test')  # 'Test' or 'LIVE'
+
+# Optional SOAP certificate lifecycle configuration.
+CBZ_CERTIFICATE_SOAP_URL = os.getenv('CBZ_CERTIFICATE_SOAP_URL', '')
+CBZ_CERTIFICATE_SOAP_NAMESPACE = os.getenv('CBZ_CERTIFICATE_SOAP_NAMESPACE', '')
+CBZ_CERTIFICATE_SOAP_ACTION_BASE = os.getenv('CBZ_CERTIFICATE_SOAP_ACTION_BASE', '')
+CBZ_CERTIFICATE_SOAP_USERNAME = os.getenv('CBZ_CERTIFICATE_SOAP_USERNAME', '')
+CBZ_CERTIFICATE_SOAP_PASSWORD = os.getenv('CBZ_CERTIFICATE_SOAP_PASSWORD', '')
+CBZ_CERTIFICATE_MERCHANT_ID = os.getenv('CBZ_CERTIFICATE_MERCHANT_ID', '')
+CBZ_CERTIFICATE_TERMINAL_ID = os.getenv('CBZ_CERTIFICATE_TERMINAL_ID', '')
 

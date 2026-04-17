@@ -4,6 +4,10 @@ from .views import (
     cbz_card_debit_view,
     cbz_query_view,
     cbz_callback_view,
+    cbz_certificate_generate_view,
+    cbz_certificate_get_view,
+    cbz_certificate_submit_view,
+    cbz_certificate_renew_view,
 )
 
 app_name = 'cbz_integration'
@@ -20,4 +24,10 @@ urlpatterns = [
 
     # Out-of-band callback from iVeri
     path('callback/', cbz_callback_view, name='callback'),
+
+    # SOAP certificate lifecycle management
+    path('certificates/generate/', cbz_certificate_generate_view, name='certificate_generate'),
+    path('certificates/current/', cbz_certificate_get_view, name='certificate_get'),
+    path('certificates/submit/', cbz_certificate_submit_view, name='certificate_submit'),
+    path('certificates/renew/', cbz_certificate_renew_view, name='certificate_renew'),
 ]

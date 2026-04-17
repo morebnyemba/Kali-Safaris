@@ -8,6 +8,8 @@ class CBZConfig(models.Model):
     Only one active configuration is allowed at a time.
 
     ApplicationID is obtained from the iVeri backoffice portal.
+    CertificateID is required for REST transactions, but can be generated later
+    through the SOAP certificate lifecycle if it is not yet available.
     """
     name = models.CharField(
         max_length=100, default='Default',
@@ -17,6 +19,12 @@ class CBZConfig(models.Model):
         max_length=500,
         default='https://portal.host.iveri.com',
         help_text="iVeri Gateway Portal URL"
+    )
+    certificate_id = models.CharField(
+        max_length=100,
+        blank=True,
+        null=True,
+        help_text="CertificateID (GUID) used by REST transactions. Can be generated via SOAP lifecycle tools."
     )
     application_id = models.CharField(
         max_length=100,

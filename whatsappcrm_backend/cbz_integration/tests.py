@@ -13,8 +13,8 @@ from conversations.models import Contact
 from customer_data.models import Booking, CustomerProfile
 
 from .models import CBZConfig, CBZTransaction
-from .services import IVeriClient, IVeriConfig
-from .views import cbz_ecocash_debit_view
+from .services import IVeriClient, IVeriConfig, IVeriCertificateClient, IVeriCertificateConfig
+from .views import cbz_ecocash_debit_view, cbz_certificate_generate_view, cbz_certificate_renew_view
 from .constants import (
     ECOCASH_PAN_PREFIX, ECOCASH_DEFAULT_EXPIRY,
     RESULT_CODE_SUCCESS, STATUS_APPROVED,
@@ -47,6 +47,7 @@ class IVeriClientPayloadTest(TestCase):
     def setUp(self):
         self.config = IVeriConfig(
             portal_url='https://portal.host.iveri.com',
+            certificate_id='test-cert-id-1234',
             application_id='test-app-id-5678',
             mode='Test',
         )
@@ -64,6 +65,7 @@ class IVeriClientPayloadTest(TestCase):
         })
 
         self.assertEqual(payload['Version'], IVERI_API_VERSION)
+        self.assertEqual(payload['CertificateID'], 'test-cert-id-1234')
         self.assertEqual(payload['Direction'], 'Request')
         self.assertEqual(payload['Transaction']['ApplicationID'], 'test-app-id-5678')
         self.assertEqual(payload['Transaction']['Command'], COMMAND_DEBIT)
@@ -96,10 +98,20 @@ class IVeriClientPayloadTest(TestCase):
             call_payload = mock_execute.call_args[0][0]
             self.assertEqual(call_payload['Transaction']['Amount'], '1050')
 
+    def test_missing_certificate_id_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            IVeriClient(config=IVeriConfig(
+                portal_url='https://portal.host.iveri.com',
+                certificate_id='',
+                application_id='test-app-id-5678',
+                mode='Test',
+            ))
+
     def test_missing_application_id_raises_value_error(self):
         with self.assertRaises(ValueError):
             IVeriClient(config=IVeriConfig(
                 portal_url='https://portal.host.iveri.com',
+                certificate_id='test-cert-id-1234',
                 application_id='',
                 mode='Test',
             ))
@@ -164,6 +176,7 @@ class CBZConfigModelTest(TestCase):
         config = CBZConfig.objects.create(
             name='Test Config',
             portal_url='https://portal.host.iveri.com',
+            certificate_id='test-cert-id',
             application_id='test-app-id',
             mode='Test',
             is_active=True,
@@ -175,6 +188,7 @@ class CBZConfigModelTest(TestCase):
         CBZConfig.objects.create(
             name='Config 1',
             portal_url='https://portal.host.iveri.com',
+            certificate_id='cert-1',
             application_id='app-1',
             mode='Test',
             is_active=True,
@@ -184,6 +198,7 @@ class CBZConfigModelTest(TestCase):
             CBZConfig.objects.create(
                 name='Config 2',
                 portal_url='https://portal.host.iveri.com',
+                certificate_id='cert-2',
                 application_id='app-2',
                 mode='Test',
                 is_active=True,
@@ -193,6 +208,7 @@ class CBZConfigModelTest(TestCase):
         CBZConfig.objects.create(
             name='Active Config',
             portal_url='https://portal.host.iveri.com',
+            certificate_id='cert-active',
             application_id='app-active',
             mode='Test',
             is_active=True,
@@ -372,3 +388,95 @@ class CBZEcoCashViewTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertTrue(payload['pending'])
         self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)
+
+
+class IVeriCertificateClientTests(TestCase):
+    def setUp(self):
+        self.config = IVeriCertificateConfig(
+            soap_url='https://portal.host.iveri.com/soap/certificates',
+            soap_namespace='http://schemas.iveri.example/certificates',
+            soap_username='merchant-user',
+            soap_password='merchant-pass',
+            application_id='app-123',
+            terminal_id='terminal-456',
+            certificate_id='cert-789',
+            mode='Test',
+        )
+
+    def test_generate_certificate_envelope_contains_operation_and_credentials(self):
+        client = IVeriCertificateClient(self.config)
+        envelope = client._build_envelope('GenerateCertificateID', {})
+        xml = envelope.decode('utf-8')
+
+        self.assertIn('GenerateCertificateID', xml)
+        self.assertIn('merchant-user', xml)
+        self.assertIn('app-123', xml)
+        self.assertIn('terminal-456', xml)
+
+    def test_generate_certificate_parses_certificate_id(self):
+        client = IVeriCertificateClient(self.config)
+        with patch.object(client, '_execute', return_value={'CertificateID': 'cert-new-001'}) as mock_execute:
+            result = client.generate_certificate_id()
+
+        self.assertEqual(result['certificate_id'], 'cert-new-001')
+        mock_execute.assert_called_once()
+
+
+class CBZCertificateLifecycleViewTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+        self.config = CBZConfig.objects.create(
+            name='Active Config',
+            portal_url='https://portal.host.iveri.com',
+            certificate_id='cert-old',
+            application_id='app-active',
+            mode='Test',
+            is_active=True,
+        )
+
+    @patch('cbz_integration.views._build_certificate_client')
+    def test_generate_view_updates_active_config_certificate_id(self, mock_build_client):
+        mock_client = MagicMock()
+        mock_client.generate_certificate_id.return_value = {
+            'certificate_id': 'cert-new',
+            'raw': {'CertificateID': 'cert-new'},
+        }
+        mock_build_client.return_value = mock_client
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/certificates/generate/',
+            data='{}',
+            content_type='application/json',
+        )
+
+        response = cbz_certificate_generate_view(request)
+        self.config.refresh_from_db()
+        payload = json.loads(response.content.decode('utf-8'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['certificate_id'], 'cert-new')
+        self.assertEqual(self.config.certificate_id, 'cert-new')
+
+    @patch('cbz_integration.views._build_certificate_client')
+    def test_renew_view_updates_active_config_certificate_id(self, mock_build_client):
+        mock_client = MagicMock()
+        mock_client.renew_certificate_id.return_value = {
+            'certificate_id': 'cert-renewed',
+            'previous_certificate_id': 'cert-old',
+            'raw': {'CertificateID': 'cert-renewed'},
+        }
+        mock_build_client.return_value = mock_client
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/certificates/renew/',
+            data='{}',
+            content_type='application/json',
+        )
+
+        response = cbz_certificate_renew_view(request)
+        self.config.refresh_from_db()
+        payload = json.loads(response.content.decode('utf-8'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payload['certificate_id'], 'cert-renewed')
+        self.assertEqual(self.config.certificate_id, 'cert-renewed')

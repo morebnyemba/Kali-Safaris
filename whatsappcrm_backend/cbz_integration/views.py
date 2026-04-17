@@ -12,6 +12,8 @@ import logging
 import uuid
 
 from decimal import Decimal, InvalidOperation
+from typing import Optional
+from django.conf import settings
 from django.http import JsonResponse, HttpRequest
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -20,7 +22,7 @@ from django.db import transaction as db_transaction
 
 from customer_data.models import Booking, Payment
 from .models import CBZConfig, CBZTransaction
-from .services import IVeriClient
+from .services import IVeriClient, IVeriCertificateClient, IVeriCertificateConfig
 from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED
 
 
@@ -30,6 +32,26 @@ logger = logging.getLogger(__name__)
 def _build_client() -> IVeriClient:
     """Build iVeri client from database configuration."""
     return IVeriClient()
+
+
+def _get_active_config() -> Optional[CBZConfig]:
+    return CBZConfig.get_active_config()
+
+
+def _build_certificate_client(config_model: Optional[CBZConfig] = None) -> IVeriCertificateClient:
+    active_config = config_model or _get_active_config()
+    return IVeriCertificateClient(IVeriCertificateConfig(
+        soap_url=getattr(settings, 'CBZ_CERTIFICATE_SOAP_URL', ''),
+        soap_namespace=getattr(settings, 'CBZ_CERTIFICATE_SOAP_NAMESPACE', ''),
+        soap_action_base=getattr(settings, 'CBZ_CERTIFICATE_SOAP_ACTION_BASE', ''),
+        soap_username=getattr(settings, 'CBZ_CERTIFICATE_SOAP_USERNAME', ''),
+        soap_password=getattr(settings, 'CBZ_CERTIFICATE_SOAP_PASSWORD', ''),
+        merchant_id=getattr(settings, 'CBZ_CERTIFICATE_MERCHANT_ID', ''),
+        terminal_id=getattr(settings, 'CBZ_CERTIFICATE_TERMINAL_ID', ''),
+        application_id=(active_config.application_id if active_config else getattr(settings, 'CBZ_APPLICATION_ID', '')),
+        certificate_id=(active_config.certificate_id if active_config and active_config.certificate_id else getattr(settings, 'CBZ_CERTIFICATE_ID', '')),
+        mode=(active_config.mode if active_config else getattr(settings, 'CBZ_MODE', 'Test')),
+    ))
 
 
 # ─── EcoCash API Endpoint ────────────────────────────────────────────
@@ -427,6 +449,112 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
         logger.info(f"CBZ callback: transaction {merchant_ref} status={status_text} code={result_code}")
 
     return JsonResponse({"message": "OK"})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cbz_certificate_generate_view(request: HttpRequest) -> JsonResponse:
+    """Generate a new CertificateID through the iVeri SOAP lifecycle."""
+    try:
+        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except Exception:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    config_model = _get_active_config()
+    client = _build_certificate_client(config_model)
+    try:
+        result = client.generate_certificate_id(terminal_id=payload.get('terminal_id', ''))
+        if config_model:
+            config_model.certificate_id = result['certificate_id']
+            config_model.save(update_fields=['certificate_id', 'updated_at'])
+        logger.info("CBZ certificate generated | cert=%s", result['certificate_id'])
+        return JsonResponse({
+            "success": True,
+            "certificate_id": result['certificate_id'],
+            "data": result['raw'],
+        })
+    except Exception as exc:
+        logger.exception("CBZ certificate generation failed")
+        return JsonResponse({"success": False, "message": str(exc)}, status=502)
+
+
+@require_http_methods(["GET"])
+def cbz_certificate_get_view(request: HttpRequest) -> JsonResponse:
+    """Retrieve the current certificate content from the iVeri SOAP lifecycle."""
+    config_model = _get_active_config()
+    certificate_id = request.GET.get('certificate_id') or (config_model.certificate_id if config_model else '')
+    client = _build_certificate_client(config_model)
+    try:
+        result = client.get_certificate(certificate_id=certificate_id)
+        return JsonResponse({
+            "success": True,
+            "certificate_id": result['certificate_id'],
+            "certificate": result['certificate'],
+            "data": result['raw'],
+        })
+    except Exception as exc:
+        logger.exception("CBZ certificate retrieval failed")
+        return JsonResponse({"success": False, "message": str(exc)}, status=502)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cbz_certificate_submit_view(request: HttpRequest) -> JsonResponse:
+    """Submit a device certificate or CSR back to iVeri."""
+    try:
+        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except Exception:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    config_model = _get_active_config()
+    client = _build_certificate_client(config_model)
+    try:
+        result = client.submit_certificate(
+            certificate_id=payload.get('certificate_id', ''),
+            certificate_data=payload.get('certificate', ''),
+            csr=payload.get('csr', ''),
+        )
+        logger.info("CBZ certificate submitted | cert=%s", result['certificate_id'])
+        return JsonResponse({
+            "success": True,
+            "certificate_id": result['certificate_id'],
+            "data": result['raw'],
+        })
+    except Exception as exc:
+        logger.exception("CBZ certificate submission failed")
+        return JsonResponse({"success": False, "message": str(exc)}, status=502)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cbz_certificate_renew_view(request: HttpRequest) -> JsonResponse:
+    """Renew the current CertificateID through the iVeri SOAP lifecycle."""
+    try:
+        payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except Exception:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    config_model = _get_active_config()
+    client = _build_certificate_client(config_model)
+    try:
+        result = client.renew_certificate_id(certificate_id=payload.get('certificate_id', ''))
+        if config_model:
+            config_model.certificate_id = result['certificate_id']
+            config_model.save(update_fields=['certificate_id', 'updated_at'])
+        logger.info(
+            "CBZ certificate renewed | previous=%s current=%s",
+            result['previous_certificate_id'],
+            result['certificate_id'],
+        )
+        return JsonResponse({
+            "success": True,
+            "certificate_id": result['certificate_id'],
+            "previous_certificate_id": result['previous_certificate_id'],
+            "data": result['raw'],
+        })
+    except Exception as exc:
+        logger.exception("CBZ certificate renewal failed")
+        return JsonResponse({"success": False, "message": str(exc)}, status=502)
 
 
 # ─── Helper Functions ────────────────────────────────────────────────

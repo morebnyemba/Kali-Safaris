@@ -2,8 +2,25 @@
 
 REST credential note
 
-- This integration uses the iVeri REST transactions endpoint with `ApplicationID`, portal URL, and mode.
-- It does not send `CertificateID` in REST payloads.
+- This integration uses the iVeri REST transactions endpoint with `CertificateID`, `ApplicationID`, portal URL, and mode.
+- `CertificateID` can be generated and rotated through the SOAP certificate lifecycle endpoints added under `/crm-api/payments/cbz/certificates/`.
+
+Certificate lifecycle endpoints
+
+- `POST /crm-api/payments/cbz/certificates/generate/` generates a new `CertificateID` and stores it on the active `CBZConfig`.
+- `GET /crm-api/payments/cbz/certificates/current/` fetches the current certificate content from the SOAP API.
+- `POST /crm-api/payments/cbz/certificates/submit/` submits a device certificate or CSR.
+- `POST /crm-api/payments/cbz/certificates/renew/` renews the active `CertificateID` and stores the new value on the active `CBZConfig`.
+
+SOAP lifecycle configuration
+
+- Configure `CBZ_CERTIFICATE_SOAP_URL`, `CBZ_CERTIFICATE_SOAP_NAMESPACE`, `CBZ_CERTIFICATE_SOAP_ACTION_BASE`, `CBZ_CERTIFICATE_SOAP_USERNAME`, `CBZ_CERTIFICATE_SOAP_PASSWORD`, `CBZ_CERTIFICATE_MERCHANT_ID`, and `CBZ_CERTIFICATE_TERMINAL_ID` in the Django environment before using the lifecycle endpoints.
+- The SOAP request body uses the documented lifecycle method names: `GenerateCertificateID`, `GetCertificate`, `SubmitCertificate`, and `RenewCertificateID`.
+
+Test command
+
+- Run the CBZ test suite without Postgres or Redis by using the dedicated test settings module:
+  `powershell -Command "$env:DJANGO_SETTINGS_MODULE='whatsappcrm_backend.settings_test'; python manage.py test cbz_integration.tests"`
 
 Status mapping
 

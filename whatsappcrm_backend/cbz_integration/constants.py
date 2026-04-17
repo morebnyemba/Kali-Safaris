@@ -10,6 +10,9 @@ IVERI_PORTAL_URL_TEST = 'https://portal.host.iveri.com'  # Same host, Mode field
 # REST API endpoints (relative to portal URL)
 IVERI_REST_TRANSACTIONS = '/api/transactions'
 
+# SOAP certificate lifecycle defaults
+IVERI_SOAP_TIMEOUT = 60
+
 # API Version
 IVERI_API_VERSION = '2.0'
 
