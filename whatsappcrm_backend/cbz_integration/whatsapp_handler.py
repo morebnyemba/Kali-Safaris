@@ -48,13 +48,17 @@ class WhatsAppCBZPaymentHandler:
             logger.info("iVeri client configured from DB active config")
         except ValueError:
             # Fallback to environment-based settings
-            self.client = IVeriClient(IVeriConfig(
+            fallback_config = IVeriConfig(
                 portal_url=getattr(settings, 'CBZ_PORTAL_URL', 'https://portal.host.iveri.com'),
-                certificate_id=getattr(settings, 'CBZ_CERTIFICATE_ID', ''),
                 application_id=getattr(settings, 'CBZ_APPLICATION_ID', ''),
                 mode=getattr(settings, 'CBZ_MODE', 'Test'),
-            ))
-            logger.warning("iVeri client configured from settings (no active DB config found)")
+            )
+            self.client = IVeriClient(fallback_config)
+            logger.warning(
+                "iVeri client configured from settings | has_app=%s mode=%s",
+                bool(fallback_config.application_id),
+                fallback_config.mode,
+            )
 
     def initiate_ecocash_payment(
         self,
@@ -261,6 +265,7 @@ class WhatsAppCBZPaymentHandler:
         Returns:
             dict with transaction status details
         """
+        logger.info("CBZ payment status check start | ref=%s", merchant_reference)
         try:
             response = self.client.query_transaction(merchant_reference)
             result = IVeriClient.get_result(response)
@@ -288,6 +293,15 @@ class WhatsAppCBZPaymentHandler:
                     txn.status = CBZTransaction.TransactionStatus.DECLINED
                 txn.save()
 
+            logger.info(
+                "CBZ payment status check result | ref=%s approved=%s pending=%s status=%s code=%s",
+                merchant_reference,
+                is_approved,
+                is_pending,
+                result.get('status'),
+                result.get('result_code'),
+            )
+
             return {
                 'success': True,
                 'is_approved': is_approved,
@@ -305,6 +319,11 @@ class WhatsAppCBZPaymentHandler:
     def cancel_payment(self, contact: Contact) -> bool:
         """Cancel pending payment for contact."""
         payment_state = self._get_payment_state(contact)
+        logger.info(
+            "CBZ payment cancel requested | contact=%s has_reference=%s",
+            contact.id,
+            bool(payment_state and payment_state.get('reference')),
+        )
         if payment_state and payment_state.get('reference'):
             CBZTransaction.objects.filter(
                 merchant_reference=payment_state['reference']

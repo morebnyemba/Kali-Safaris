@@ -1,4 +1,9 @@
-CBZ/iVeri integration notes
+# CBZ/iVeri integration notes
+
+REST credential note
+
+- This integration uses the iVeri REST transactions endpoint with `ApplicationID`, portal URL, and mode.
+- It does not send `CertificateID` in REST payloads.
 
 Status mapping
 

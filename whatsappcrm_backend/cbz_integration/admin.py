@@ -14,10 +14,10 @@ class CBZConfigAdmin(admin.ModelAdmin):
             'fields': ('name', 'is_active', 'mode')
         }),
         ('iVeri API Credentials', {
-            'fields': ('portal_url', 'certificate_id', 'application_id'),
+            'fields': ('portal_url', 'application_id'),
             'description': (
                 'Enter the iVeri Gateway credentials obtained from the CBZ/iVeri backoffice. '
-                'Keep these secure! CertificateID and ApplicationID are GUIDs.'
+                'Keep these secure! ApplicationID is the REST credential used by this integration.'
             ),
         }),
         ('Callback Configuration', {

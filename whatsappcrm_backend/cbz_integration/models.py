@@ -6,8 +6,8 @@ class CBZConfig(models.Model):
     """
     Stores iVeri/CBZ API configuration credentials in the database.
     Only one active configuration is allowed at a time.
-    
-    CertificateID and ApplicationID are obtained from the iVeri backoffice portal.
+
+    ApplicationID is obtained from the iVeri backoffice portal.
     """
     name = models.CharField(
         max_length=100, default='Default',
@@ -17,10 +17,6 @@ class CBZConfig(models.Model):
         max_length=500,
         default='https://portal.host.iveri.com',
         help_text="iVeri Gateway Portal URL"
-    )
-    certificate_id = models.CharField(
-        max_length=100,
-        help_text="CertificateID (GUID) generated from iVeri backoffice"
     )
     application_id = models.CharField(
         max_length=100,

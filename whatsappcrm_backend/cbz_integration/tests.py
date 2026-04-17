@@ -47,7 +47,6 @@ class IVeriClientPayloadTest(TestCase):
     def setUp(self):
         self.config = IVeriConfig(
             portal_url='https://portal.host.iveri.com',
-            certificate_id='test-cert-id-1234',
             application_id='test-app-id-5678',
             mode='Test',
         )
@@ -65,7 +64,6 @@ class IVeriClientPayloadTest(TestCase):
         })
 
         self.assertEqual(payload['Version'], IVERI_API_VERSION)
-        self.assertEqual(payload['CertificateID'], 'test-cert-id-1234')
         self.assertEqual(payload['Direction'], 'Request')
         self.assertEqual(payload['Transaction']['ApplicationID'], 'test-app-id-5678')
         self.assertEqual(payload['Transaction']['Command'], COMMAND_DEBIT)
@@ -97,6 +95,14 @@ class IVeriClientPayloadTest(TestCase):
             # Check the payload passed to _execute
             call_payload = mock_execute.call_args[0][0]
             self.assertEqual(call_payload['Transaction']['Amount'], '1050')
+
+    def test_missing_application_id_raises_value_error(self):
+        with self.assertRaises(ValueError):
+            IVeriClient(config=IVeriConfig(
+                portal_url='https://portal.host.iveri.com',
+                application_id='',
+                mode='Test',
+            ))
 
 
 class IVeriClientResponseTest(TestCase):
@@ -158,7 +164,6 @@ class CBZConfigModelTest(TestCase):
         config = CBZConfig.objects.create(
             name='Test Config',
             portal_url='https://portal.host.iveri.com',
-            certificate_id='test-cert-id',
             application_id='test-app-id',
             mode='Test',
             is_active=True,
@@ -170,7 +175,6 @@ class CBZConfigModelTest(TestCase):
         CBZConfig.objects.create(
             name='Config 1',
             portal_url='https://portal.host.iveri.com',
-            certificate_id='cert-1',
             application_id='app-1',
             mode='Test',
             is_active=True,
@@ -180,7 +184,6 @@ class CBZConfigModelTest(TestCase):
             CBZConfig.objects.create(
                 name='Config 2',
                 portal_url='https://portal.host.iveri.com',
-                certificate_id='cert-2',
                 application_id='app-2',
                 mode='Test',
                 is_active=True,
@@ -190,7 +193,6 @@ class CBZConfigModelTest(TestCase):
         CBZConfig.objects.create(
             name='Active Config',
             portal_url='https://portal.host.iveri.com',
-            certificate_id='cert-active',
             application_id='app-active',
             mode='Test',
             is_active=True,

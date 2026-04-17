@@ -473,10 +473,9 @@ OMARI_MERCHANT_KEY = os.getenv('OMARI_MERCHANT_KEY', '')  # X-Merchant-Key heade
 
 # --- CBZ/iVeri Payments Configuration ---
 # Portal URL is the same for test and live; the Mode field in each request controls which environment is used.
-# CertificateID and ApplicationID are GUIDs generated from the iVeri backoffice portal.
+# ApplicationID is generated from the iVeri backoffice portal.
 # Prefer configuring these via Django Admin (CBZConfig model) rather than environment variables.
 CBZ_PORTAL_URL = os.getenv('CBZ_PORTAL_URL', 'https://portal.host.iveri.com')
-CBZ_CERTIFICATE_ID = os.getenv('CBZ_CERTIFICATE_ID', '')  # GUID from iVeri backoffice
 CBZ_APPLICATION_ID = os.getenv('CBZ_APPLICATION_ID', '')  # GUID from acquiring bank (CBZ)
 CBZ_MODE = os.getenv('CBZ_MODE', 'Test')  # 'Test' or 'LIVE'
 

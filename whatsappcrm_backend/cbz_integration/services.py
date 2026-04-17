@@ -9,7 +9,6 @@ Flow:
   Card:    debit_card() → immediate response (or 3DS redirect data for website)
 """
 import logging
-import os
 from dataclasses import dataclass
 from decimal import Decimal
 from typing import Any, Dict, Optional
@@ -37,11 +36,17 @@ from .constants import (
 logger = logging.getLogger(__name__)
 
 
+def _mask_value(value: str, visible_chars: int = 6) -> str:
+    """Mask a sensitive identifier while leaving a short suffix for correlation."""
+    if not value:
+        return "<empty>"
+    return f"***{value[-visible_chars:]}" if len(value) > visible_chars else "***"
+
+
 @dataclass
 class IVeriConfig:
     """Configuration for the iVeri REST API."""
     portal_url: str          # e.g., https://portal.host.iveri.com
-    certificate_id: str      # CertificateID GUID
     application_id: str      # ApplicationID GUID
     mode: str = 'Test'       # 'Test' or 'LIVE'
     callback_url: str = ''   # Optional out-of-band notification URL
@@ -73,6 +78,7 @@ class IVeriClient:
             )
 
         self.config = config
+        self._validate_config()
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
@@ -81,12 +87,40 @@ class IVeriClient:
         self.api_url = f"{self.config.portal_url.rstrip('/')}{IVERI_REST_TRANSACTIONS}"
 
         # Log initialization (masked credentials)
-        cert_masked = f"***{self.config.certificate_id[-6:]}" if self.config.certificate_id else "<empty>"
-        app_masked = f"***{self.config.application_id[-6:]}" if self.config.application_id else "<empty>"
         logger.info(
-            "IVeriClient initialized | url=%s cert=%s app=%s mode=%s",
-            self.api_url, cert_masked, app_masked, self.config.mode,
+            "IVeriClient initialized | url=%s app=%s mode=%s callback=%s",
+            self.api_url,
+            _mask_value(self.config.application_id),
+            self.config.mode,
+            bool(self.config.callback_url),
         )
+
+    def _validate_config(self) -> None:
+        """Validate required REST configuration before attempting requests."""
+        missing_fields = []
+        if not (self.config.portal_url or '').strip():
+            missing_fields.append('portal_url')
+        if not (self.config.application_id or '').strip():
+            missing_fields.append('application_id')
+
+        if missing_fields:
+            logger.error(
+                "IVeriClient invalid configuration | missing=%s mode=%s callback=%s",
+                ','.join(missing_fields),
+                self.config.mode,
+                bool(self.config.callback_url),
+            )
+            raise ValueError(
+                "Incomplete CBZ/iVeri configuration. Missing: "
+                f"{', '.join(missing_fields)}"
+            )
+
+        if self.config.mode not in {'Test', 'LIVE'}:
+            logger.warning(
+                "IVeriClient unusual mode configured | mode=%s app=%s",
+                self.config.mode,
+                _mask_value(self.config.application_id),
+            )
 
     @staticmethod
     def _load_config_from_db() -> Optional[IVeriConfig]:
@@ -98,7 +132,6 @@ class IVeriClient:
             if config_model:
                 return IVeriConfig(
                     portal_url=config_model.portal_url,
-                    certificate_id=config_model.certificate_id,
                     application_id=config_model.application_id,
                     mode=config_model.mode,
                     callback_url=config_model.callback_url or '',
@@ -121,6 +154,14 @@ class IVeriClient:
         Returns:
             Complete JSON payload for the iVeri REST API
         """
+        merchant_reference = transaction_data.get('MerchantReference')
+        if not merchant_reference:
+            logger.warning(
+                "iVeri payload missing merchant reference | command=%s mode=%s",
+                command,
+                self.config.mode,
+            )
+
         transaction = {
             'ApplicationID': self.config.application_id,
             'Command': command,
@@ -130,7 +171,6 @@ class IVeriClient:
 
         payload = {
             'Version': IVERI_API_VERSION,
-            'CertificateID': self.config.certificate_id,
             'Direction': 'Request',
             'Transaction': transaction,
         }
@@ -164,6 +204,7 @@ class IVeriClient:
             'Amount': payload.get('Transaction', {}).get('Amount'),
             'Currency': payload.get('Transaction', {}).get('Currency'),
             'MerchantReference': payload.get('Transaction', {}).get('MerchantReference'),
+            'HasNotificationURL': bool(payload.get('Transaction', {}).get('NotificationURL')),
         }
         logger.info("iVeri request | %s", safe_log)
 
@@ -187,15 +228,28 @@ class IVeriClient:
             error_body = e.response.text[:500] if e.response else "No response"
             error_status = e.response.status_code if e.response else "No status"
             logger.error(
-                "iVeri HTTP error | status=%s body=%s",
-                error_status, error_body,
+                "iVeri HTTP error | status=%s command=%s ref=%s body=%s",
+                error_status,
+                payload.get('Transaction', {}).get('Command'),
+                payload.get('Transaction', {}).get('MerchantReference'),
+                error_body,
             )
             raise
         except requests.exceptions.Timeout:
-            logger.error("iVeri request timeout (60s)")
+            logger.error(
+                "iVeri request timeout | command=%s ref=%s timeout=60s",
+                payload.get('Transaction', {}).get('Command'),
+                payload.get('Transaction', {}).get('MerchantReference'),
+            )
             raise
         except Exception as e:
-            logger.error("iVeri unexpected error: %s", str(e), exc_info=True)
+            logger.error(
+                "iVeri unexpected error | command=%s ref=%s error=%s",
+                payload.get('Transaction', {}).get('Command'),
+                payload.get('Transaction', {}).get('MerchantReference'),
+                str(e),
+                exc_info=True,
+            )
             raise
 
     # ─── EcoCash Payments ────────────────────────────────────────────
