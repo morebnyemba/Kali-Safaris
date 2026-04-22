@@ -16,7 +16,13 @@ from customer_data.models import Booking, CustomerProfile
 from .admin import CBZConfigAdmin, CBZConfigAdminForm
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriConfig, IVeriCertificateClient, IVeriCertificateConfig
-from .views import cbz_ecocash_debit_view, cbz_certificate_generate_view, cbz_certificate_renew_view
+from .views import (
+    cbz_ecocash_debit_view,
+    cbz_card_debit_view,
+    cbz_card_3ds_complete_view,
+    cbz_certificate_generate_view,
+    cbz_certificate_renew_view,
+)
 from .constants import (
     ECOCASH_PAN_PREFIX, ECOCASH_DEFAULT_EXPIRY,
     RESULT_CODE_SUCCESS, STATUS_APPROVED,
@@ -169,6 +175,21 @@ class IVeriClientResponseTest(TestCase):
         self.assertEqual(result['transaction_index'], 'TXN-INDEX-123')
         self.assertEqual(result['authorisation_code'], 'AUTH-456')
         self.assertEqual(result['merchant_reference'], 'REF-789')
+
+    def test_is_3ds_required_detects_common_challenge_fields(self):
+        response = {
+            'Transaction': {
+                'ResultCode': RESULT_CODE_SUCCESS,
+                'Status': 'Pending',
+                'ACSURL': 'https://acs.example/challenge',
+                'PaReq': 'pareq-data',
+            }
+        }
+
+        self.assertTrue(IVeriClient.is_3ds_required(response))
+        challenge = IVeriClient.get_3ds_challenge_data(response)
+        self.assertEqual(challenge['ACSURL'], 'https://acs.example/challenge')
+        self.assertEqual(challenge['PaReq'], 'pareq-data')
 
 
 class CBZConfigModelTest(TestCase):
@@ -484,6 +505,88 @@ class CBZEcoCashViewTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertTrue(payload['pending'])
         self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)
+
+
+class CBZCard3DSViewTests(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    @patch('cbz_integration.views._build_client')
+    def test_card_debit_returns_3ds_challenge_payload(self, mock_build_client):
+        mock_client = MagicMock()
+        mock_client.debit_card.return_value = {
+            'Transaction': {
+                'ResultCode': RESULT_CODE_SUCCESS,
+                'Status': 'Pending',
+                'ResultDescription': '3DS authentication required',
+                'MerchantReference': 'IGNORED-IN-TEST',
+                'ACSURL': 'https://acs.iveri.example/challenge',
+                'PaReq': 'pareq-token',
+                'MD': 'merchant-session',
+            }
+        }
+        mock_build_client.return_value = mock_client
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/card/debit/',
+            data=json.dumps({
+                'pan': '5413330089020020',
+                'expiry_date': '0228',
+                'cvv': '123',
+                'amount': '150.00',
+                'currency': 'USD',
+            }),
+            content_type='application/json',
+        )
+
+        response = cbz_card_debit_view(request)
+        payload = json.loads(response.content.decode('utf-8'))
+        txn = CBZTransaction.objects.get(merchant_reference=payload['merchant_reference'])
+
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(payload['success'])
+        self.assertTrue(payload['requires_3ds'])
+        self.assertEqual(payload['challenge']['ACSURL'], 'https://acs.iveri.example/challenge')
+        self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)
+
+    @patch('cbz_integration.views._build_client')
+    def test_card_3ds_complete_marks_approved_transaction(self, mock_build_client):
+        txn = CBZTransaction.objects.create(
+            merchant_reference='KS-3DS-COMPLETE-001',
+            payment_type=CBZTransaction.PaymentType.CARD,
+            masked_pan='5413****0020',
+            amount=Decimal('150.00'),
+            currency='USD',
+            command='Debit',
+            status=CBZTransaction.TransactionStatus.PENDING,
+        )
+
+        mock_client = MagicMock()
+        mock_client.query_transaction.return_value = {
+            'Transaction': {
+                'ResultCode': RESULT_CODE_SUCCESS,
+                'Status': STATUS_APPROVED,
+                'MerchantReference': txn.merchant_reference,
+                'TransactionIndex': 'TXN-3DS-001',
+                'AuthorisationCode': 'AUTH-3DS-001',
+            }
+        }
+        mock_build_client.return_value = mock_client
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/card/3ds/complete/',
+            data=json.dumps({'merchant_reference': txn.merchant_reference}),
+            content_type='application/json',
+        )
+
+        response = cbz_card_3ds_complete_view(request)
+        payload = json.loads(response.content.decode('utf-8'))
+        txn.refresh_from_db()
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['success'])
+        self.assertEqual(txn.status, CBZTransaction.TransactionStatus.APPROVED)
+        self.assertEqual(txn.transaction_index, 'TXN-3DS-001')
 
 
 class IVeriCertificateClientTests(TestCase):

@@ -581,6 +581,60 @@ class IVeriClient:
         )
 
     @staticmethod
+    def is_3ds_required(response: Dict[str, Any]) -> bool:
+        """Detect whether the response expects a 3DS browser challenge/redirect step."""
+        txn = response.get('Transaction', {})
+        three_ds = txn.get('ThreeDSecure') if isinstance(txn.get('ThreeDSecure'), dict) else {}
+
+        # Gateways differ in naming; support common iVeri/3DS field variants.
+        challenge_markers = (
+            'ACSURL', 'ACSUrl', 'AcsUrl',
+            'PaReq', 'PAREQ',
+            'TermUrl', 'TermURL',
+            'MD',
+            'RedirectURL', 'RedirectUrl',
+            'AuthenticationURL', 'AuthenticationUrl',
+        )
+
+        if any((txn.get(key) or '').strip() for key in challenge_markers):
+            return True
+        if any((three_ds.get(key) or '').strip() for key in challenge_markers):
+            return True
+
+        status = (txn.get('Status') or '').strip().lower()
+        return status in {'3dsrequired', 'requires3ds', 'redirectshopper', 'challengerequired'}
+
+    @staticmethod
+    def get_3ds_challenge_data(response: Dict[str, Any]) -> Dict[str, Any]:
+        """Extract browser challenge data that should be returned to the frontend."""
+        txn = response.get('Transaction', {})
+        three_ds = txn.get('ThreeDSecure') if isinstance(txn.get('ThreeDSecure'), dict) else {}
+
+        fields = (
+            'ACSURL', 'ACSUrl', 'AcsUrl',
+            'PaReq', 'PAREQ',
+            'TermUrl', 'TermURL',
+            'MD',
+            'RedirectURL', 'RedirectUrl',
+            'AuthenticationURL', 'AuthenticationUrl',
+        )
+
+        data: Dict[str, Any] = {}
+        for key in fields:
+            value = txn.get(key)
+            if value:
+                data[key] = value
+        for key in fields:
+            value = three_ds.get(key)
+            if value and key not in data:
+                data[key] = value
+
+        if three_ds:
+            data['ThreeDSecure'] = three_ds
+
+        return data
+
+    @staticmethod
     def get_result(response: Dict[str, Any]) -> Dict[str, Any]:
         """Extract key result fields from the iVeri response."""
         txn = response.get('Transaction', {})

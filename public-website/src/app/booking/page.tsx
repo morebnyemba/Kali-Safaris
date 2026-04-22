@@ -10,6 +10,7 @@ const cruises = [
   {
     title: "Sunrise Cruise",
     time: "06:00 AM — 08:00 AM",
+    amountUsd: 20,
     price: "From $20",
     image: "/images/sunrise.jpeg",
     description: "Start your day with the peaceful sounds of the Zambezi as hippos yawn and fish eagles call.",
@@ -18,6 +19,7 @@ const cruises = [
   {
     title: "Lunch Cruise",
     time: "12:00 PM — 02:00 PM",
+    amountUsd: 20,
     price: "From $20",
     image: "/images/work_no_play.jpeg",
     description: "A relaxing midday cruise along the river with stunning views and refreshing breezes.",
@@ -26,6 +28,7 @@ const cruises = [
   {
     title: "Sunset Cruise",
     time: "04:00 PM — After Sunset",
+    amountUsd: 20,
     price: "From $20",
     image: "/images/sunset.jpeg",
     description: "The most popular cruise — watch the African sun set over the Zambezi in golden splendour.",
@@ -34,6 +37,7 @@ const cruises = [
   {
     title: "Dinner Cruise",
     time: "Evening (by arrangement)",
+    amountUsd: 70,
     price: "From $70",
     image: "/images/Kalai Sunset background shot.jpeg",
     description: "An exclusive evening on the river, complete with a gourmet dinner under the stars.",
@@ -42,6 +46,7 @@ const cruises = [
   {
     title: "Jetty Venue Hire",
     time: "Flexible",
+    amountUsd: 70,
     price: "Contact us",
     image: "/images/jetty_venue.jpg",
     description: "Host your wedding, conference, or cocktail event at our beautiful riverside jetty.",
@@ -52,9 +57,11 @@ const cruises = [
 export default function BookingPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCruise, setSelectedCruise] = useState("");
+  const [selectedAmountUsd, setSelectedAmountUsd] = useState(20);
 
-  const handleBookClick = (cruiseTitle: string) => {
+  const handleBookClick = (cruiseTitle: string, amountUsd: number) => {
     setSelectedCruise(cruiseTitle);
+    setSelectedAmountUsd(amountUsd);
     setIsModalOpen(true);
   };
 
@@ -131,7 +138,7 @@ export default function BookingPage() {
                   <p className="text-sm text-[#ff9800] font-medium mb-3">{cruise.time}</p>
                   <p className="text-gray-600 text-sm leading-relaxed mb-4">{cruise.description}</p>
                   <button
-                    onClick={() => handleBookClick(cruise.title)}
+                    onClick={() => handleBookClick(cruise.title, cruise.amountUsd)}
                     className="w-full rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5"
                   >
                     Book This Cruise
@@ -183,6 +190,7 @@ export default function BookingPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         cruiseType={selectedCruise}
+        amountUsd={selectedAmountUsd}
       />
 
       <FooterSection />

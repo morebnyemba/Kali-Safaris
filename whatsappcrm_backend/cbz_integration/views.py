@@ -12,7 +12,7 @@ import logging
 import uuid
 
 from decimal import Decimal, InvalidOperation
-from typing import Optional
+from typing import Any, Dict, Optional
 from django.conf import settings
 from django.http import JsonResponse, HttpRequest
 from django.utils import timezone
@@ -40,6 +40,31 @@ def _get_active_config() -> Optional[CBZConfig]:
 
 def _build_certificate_client(config_model: Optional[CBZConfig] = None) -> IVeriCertificateClient:
     return build_certificate_client_from_settings(config_model or _get_active_config())
+
+
+def _apply_gateway_result_to_transaction(
+    txn: CBZTransaction,
+    result: Dict[str, Any],
+    *,
+    approved: bool,
+    pending: bool,
+) -> None:
+    """Persist gateway result fields and normalize local transaction status."""
+    txn.result_code = result.get('result_code')
+    txn.result_description = result.get('result_description')
+    txn.transaction_index = result.get('transaction_index') or txn.transaction_index
+    txn.authorisation_code = result.get('authorisation_code') or txn.authorisation_code
+    txn.request_id = result.get('request_id') or txn.request_id
+
+    if approved:
+        txn.status = CBZTransaction.TransactionStatus.APPROVED
+        txn.completed_at = timezone.now()
+    elif pending:
+        txn.status = CBZTransaction.TransactionStatus.PENDING
+    elif txn.status != CBZTransaction.TransactionStatus.APPROVED:
+        txn.status = CBZTransaction.TransactionStatus.DECLINED
+
+    txn.save()
 
 
 # ─── EcoCash API Endpoint ────────────────────────────────────────────
@@ -302,18 +327,17 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
 
         result = IVeriClient.get_result(response)
         is_approved = IVeriClient.is_approved(response)
+        is_pending = IVeriClient.is_pending(response)
+        is_3ds_required = IVeriClient.is_3ds_required(response)
 
-        # Update transaction
-        txn.result_code = result.get('result_code')
-        txn.result_description = result.get('result_description')
-        txn.transaction_index = result.get('transaction_index')
-        txn.authorisation_code = result.get('authorisation_code')
-        txn.request_id = result.get('request_id')
+        _apply_gateway_result_to_transaction(
+            txn,
+            result,
+            approved=is_approved,
+            pending=is_pending or is_3ds_required,
+        )
 
         if is_approved:
-            txn.status = CBZTransaction.TransactionStatus.APPROVED
-            txn.completed_at = timezone.now()
-            txn.save()
 
             if booking:
                 _record_payment(txn, booking)
@@ -325,9 +349,31 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 "transaction_index": result.get('transaction_index'),
                 "authorisation_code": result.get('authorisation_code'),
             })
+        elif is_3ds_required:
+            return JsonResponse({
+                "success": True,
+                "requires_3ds": True,
+                "pending": True,
+                "message": result.get('result_description', '3DS authentication required'),
+                "merchant_reference": merchant_ref,
+                "result_code": result.get('result_code'),
+                "transaction_index": result.get('transaction_index'),
+                "challenge": IVeriClient.get_3ds_challenge_data(response),
+                "next_step": {
+                    "complete_url": "/crm-api/payments/cbz/card/3ds/complete/",
+                    "query_url": f"/crm-api/payments/cbz/query/{merchant_ref}/",
+                },
+            }, status=202)
+        elif is_pending:
+            return JsonResponse({
+                "success": True,
+                "pending": True,
+                "message": result.get('result_description', 'Payment initiated and awaiting final confirmation'),
+                "merchant_reference": merchant_ref,
+                "result_code": result.get('result_code'),
+                "transaction_index": result.get('transaction_index'),
+            }, status=202)
         else:
-            txn.status = CBZTransaction.TransactionStatus.DECLINED
-            txn.save()
             return JsonResponse({
                 "success": False,
                 "message": result.get('result_description', 'Payment declined'),
@@ -344,6 +390,87 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
             {"success": False, "message": str(e), "merchant_reference": merchant_ref},
             status=502,
         )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
+    """
+    POST /crm-api/payments/cbz/card/3ds/complete/
+
+    Finalizes a card payment after 3DS browser flow by reconciling the
+    transaction status from iVeri using merchant reference.
+
+    Request JSON:
+    {
+        "merchant_reference": "KS-XXXXXXXXXXXX"
+    }
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    merchant_reference = (payload.get('merchant_reference') or '').strip()
+    if not merchant_reference:
+        return JsonResponse({"success": False, "message": "Missing field: merchant_reference"}, status=400)
+
+    txn = CBZTransaction.objects.filter(
+        merchant_reference=merchant_reference,
+        payment_type=CBZTransaction.PaymentType.CARD,
+    ).first()
+    if not txn:
+        return JsonResponse({"success": False, "message": "Transaction not found"}, status=404)
+
+    client = _build_client()
+    try:
+        response = client.query_transaction(merchant_reference=merchant_reference)
+        result = IVeriClient.get_result(response)
+        is_approved = IVeriClient.is_approved(response)
+        is_pending = IVeriClient.is_pending(response)
+
+        _apply_gateway_result_to_transaction(
+            txn,
+            result,
+            approved=is_approved,
+            pending=is_pending,
+        )
+
+        if is_approved and txn.booking:
+            existing_payment = Payment.objects.filter(
+                booking=txn.booking,
+                transaction_reference=txn.merchant_reference,
+            ).exists()
+            if not existing_payment:
+                _record_payment(txn, txn.booking)
+
+        if is_approved:
+            return JsonResponse({
+                "success": True,
+                "message": "Payment approved",
+                "merchant_reference": merchant_reference,
+                "transaction_index": result.get('transaction_index'),
+                "authorisation_code": result.get('authorisation_code'),
+            })
+
+        if is_pending:
+            return JsonResponse({
+                "success": True,
+                "pending": True,
+                "message": result.get('result_description', 'Payment still pending'),
+                "merchant_reference": merchant_reference,
+                "result_code": result.get('result_code'),
+            }, status=202)
+
+        return JsonResponse({
+            "success": False,
+            "message": result.get('result_description', 'Payment declined'),
+            "merchant_reference": merchant_reference,
+            "result_code": result.get('result_code'),
+        })
+    except Exception as e:
+        logger.exception("CBZ card 3DS completion failed")
+        return JsonResponse({"success": False, "message": str(e)}, status=502)
 
 
 # ─── Transaction Query ──────────────────────────────────────────────
