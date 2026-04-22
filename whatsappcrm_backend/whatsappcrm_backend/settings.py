@@ -424,25 +424,28 @@ if DEBUG:
         'ws://localhost:5173',   # Vite HMR WebSocket
     ])
 
-# New format for django-csp >= 4.0
+# django-csp 3.x directives (active with installed django-csp==3.8)
+CSP_DEFAULT_SRC = ("'self'",)
+CSP_CONNECT_SRC = tuple(connect_src_list)
+# Allow inline admin scripts/styles used by Django admin and Jazzmin.
+CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "'unsafe-eval'")
+CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com")
+CSP_IMG_SRC = ("'self'", "data:", "blob:", f"https://{BACKEND_DOMAIN_FOR_CSP}")
+CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
+CSP_OBJECT_SRC = ("'none'",)
+CSP_FRAME_ANCESTORS = ("'none'",)
+
+# Keep v4-style config for forward compatibility; ignored by django-csp 3.x.
 CONTENT_SECURITY_POLICY = {
     'DIRECTIVES': {
-        'default-src': ("'self'",), # Default to only allow from the same origin
-        'connect-src': tuple(connect_src_list),
-        # Allow scripts from self, and 'unsafe-inline'/'unsafe-eval' for admin/some libraries.
-        # Be cautious and try to remove 'unsafe-inline' and 'unsafe-eval' if possible.
-        'script-src': ("'self'", "'unsafe-inline'", "'unsafe-eval'"),
-        # Allow styles from self, inline styles, and Google Fonts.
-        'style-src': ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com"),
-        # Allow images from self, data URIs, blob URIs, and your media storage.
-        # The media URL needs to be added for images to load correctly.
-        'img-src': ("'self'", "data:", "blob:", f"https://{BACKEND_DOMAIN_FOR_CSP}"),
-        # Allow fonts from self and Google Fonts.
-        'font-src': ("'self'", "https://fonts.gstatic.com"),
-        # object-src 'none' is a good security practice.
-        'object-src': ("'none'",),
-        # frame-ancestors 'none' prevents clickjacking.
-        'frame-ancestors': ("'none'",),
+        'default-src': CSP_DEFAULT_SRC,
+        'connect-src': CSP_CONNECT_SRC,
+        'script-src': CSP_SCRIPT_SRC,
+        'style-src': CSP_STYLE_SRC,
+        'img-src': CSP_IMG_SRC,
+        'font-src': CSP_FONT_SRC,
+        'object-src': CSP_OBJECT_SRC,
+        'frame-ancestors': CSP_FRAME_ANCESTORS,
     }
 }
 
