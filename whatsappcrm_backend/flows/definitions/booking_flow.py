@@ -681,6 +681,13 @@ BOOKING_FLOW = {
                                     ]
                                 },
                                 {
+                                    "title": "Mobile Money (CBZ EcoCash)",
+                                    "rows": [
+                                        {"id": "cbz_full", "title": "Pay Full via CBZ EcoCash"},
+                                        {"id": "cbz_deposit", "title": "Pay 50% Deposit CBZ EcoCash"}
+                                    ]
+                                },
+                                {
                                     "title": "Other Online Payment",
                                     "rows": [
                                         {"id": "manual_omari", "title": "Pay with Omari"}
@@ -702,9 +709,11 @@ BOOKING_FLOW = {
             "transitions": [
                 {"to_step": "set_payment_amount_full_paynow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "paynow_full"}},
                 {"to_step": "set_payment_amount_deposit_paynow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "paynow_deposit"}},
-                {"to_step": "prepare_omari_payment", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
-                {"to_step": "create_booking_for_manual_payment", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
-                {"to_step": "create_inquiry_record_only", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
+                {"to_step": "set_payment_amount_full_cbz", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_full"}},
+                {"to_step": "set_payment_amount_deposit_cbz", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_deposit"}},
+                {"to_step": "prepare_omari_payment", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
+                {"to_step": "create_booking_for_manual_payment", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
+                {"to_step": "create_inquiry_record_only", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
             ]
         },
         # New step to prepare booking for Omari payment
@@ -944,6 +953,88 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost|float * 0.5 }}"}]},
             "transitions": [{"to_step": "create_booking_for_paynow", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_payment_amount_full_cbz",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost }}"}]},
+            "transitions": [{"to_step": "create_booking_for_cbz", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_payment_amount_deposit_cbz",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost|float * 0.5 }}"}]},
+            "transitions": [{"to_step": "create_booking_for_cbz", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "create_booking_for_cbz",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "create_model_instance",
+                    "app_label": "customer_data",
+                    "model_name": "Booking",
+                    "fields_template": {
+                        "customer_id": "{{ contact.customer_profile.contact_id }}",
+                        "tour_id": "{{ tour_id }}",
+                        "tour_name": "{{ tour_name }}",
+                        "start_date": "{{ selected_start_date }}",
+                        "end_date": "{{ selected_end_date }}",
+                        "number_of_adults": "{{ num_adults }}",
+                        "number_of_children": "{{ num_children }}",
+                        "total_amount": "{{ total_cost }}",
+                        "payment_status": "pending",
+                        "source": "whatsapp",
+                        "notes": "Booking via WhatsApp. CBZ EcoCash payment selected. Travelers: {{ num_adults }} adults, {{ num_children }} children."
+                    },
+                    "save_to_variable": "created_booking"
+                }]
+            },
+            "transitions": [
+                {"to_step": "save_travelers_for_cbz", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "created_booking.id"}},
+                {"to_step": "booking_creation_failed", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "save_travelers_for_cbz",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "create_travelers_from_list",
+                    "params_template": {
+                        "booking_id": "{{ created_booking.id }}",
+                        "travelers_list": "{{ travelers_details }}"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "ask_cbz_payment_phone", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "ask_cbz_payment_phone",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {"body": "Enter the EcoCash number to charge (format 2637XXXXXXXX)."}
+                },
+                "reply_config": {"expected_type": "text", "save_to_variable": "payment_phone", "validation_regex": "^2637[0-9]{8}$"},
+                "fallback_config": {
+                    "action": "re_prompt",
+                    "max_retries": 2,
+                    "re_prompt_message_text": "Please enter a valid Zimbabwe mobile number starting with 2637 (e.g., 263771234567)."
+                }
+            },
+            "transitions": [{"to_step": "set_direct_cbz_payment_method", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_direct_cbz_payment_method",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "payment_method", "value_template": "ecocash"}
+                ]
+            },
+            "transitions": [{"to_step": "initiate_cbz_payment_api", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "create_booking_for_paynow",
