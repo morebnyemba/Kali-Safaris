@@ -681,10 +681,10 @@ BOOKING_FLOW = {
                                     ]
                                 },
                                 {
-                                    "title": "Mobile Money (CBZ EcoCash)",
+                                    "title": "CBZ EcoCash",
                                     "rows": [
-                                        {"id": "cbz_full", "title": "Pay Full via CBZ EcoCash"},
-                                        {"id": "cbz_deposit", "title": "Pay 50% Deposit CBZ EcoCash"}
+                                        {"id": "cbz_full", "title": "CBZ Full Payment"},
+                                        {"id": "cbz_deposit", "title": "CBZ 50% Deposit"}
                                     ]
                                 },
                                 {
