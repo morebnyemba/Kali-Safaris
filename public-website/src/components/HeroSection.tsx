@@ -60,6 +60,7 @@ export default function HeroSection() {
   const [isPaused, setIsPaused] = useState(false);
   const [key, setKey] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedAmountUsd] = useState(20);
 
   useEffect(() => {
     if (isPaused) return;
@@ -199,6 +200,7 @@ export default function HeroSection() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         cruiseType="Zambezi River Cruise"
+        amountUsd={selectedAmountUsd}
       />
     </section>
   );

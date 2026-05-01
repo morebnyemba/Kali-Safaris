@@ -6,18 +6,21 @@ import BookingModal from "./BookingModal";
 const pricingOptions = [
   {
     price: "$15.00",
+    amountUsd: 15,
     description: "Per person",
     subtitle: "School Children/Learners Special Cruise package",
     tag: "Best for Learners",
   },
   {
     price: "$20.00",
+    amountUsd: 20,
     description: "Per person with cash bar",
     subtitle: "",
     tag: "Value",
   },
   {
     price: "$50.00",
+    amountUsd: 50,
     description:
       "Per person including beverages and food depending on Breakfast, lunch or sunset",
     subtitle: "",
@@ -25,6 +28,7 @@ const pricingOptions = [
   },
   {
     price: "$70.00",
+    amountUsd: 70,
     description: "Per person for dinner cruise",
     subtitle: "",
     tag: "Evening Luxury",
@@ -34,9 +38,11 @@ const pricingOptions = [
 export default function PricingSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState("");
+  const [selectedAmountUsd, setSelectedAmountUsd] = useState(20);
 
-  const handleBookClick = (packageName: string) => {
+  const handleBookClick = (packageName: string, amountUsd: number) => {
     setSelectedPackage(packageName);
+    setSelectedAmountUsd(amountUsd);
     setIsModalOpen(true);
   };
 
@@ -94,7 +100,7 @@ export default function PricingSection() {
 
               <div className="relative flex justify-center mt-auto">
                 <button 
-                  onClick={() => handleBookClick(`${option.tag} Package - ${option.price}`)}
+                  onClick={() => handleBookClick(`${option.tag} Package - ${option.price}`, option.amountUsd)}
                   className="w-full rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5">
                   Book this cruise
                 </button>
@@ -116,6 +122,7 @@ export default function PricingSection() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         cruiseType={selectedPackage}
+        amountUsd={selectedAmountUsd}
       />
     </section>
   );

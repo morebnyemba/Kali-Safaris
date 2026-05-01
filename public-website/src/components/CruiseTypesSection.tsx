@@ -8,6 +8,7 @@ const cruises = [
   {
     id: "sunrise",
     title: "Sunrise Cruise",
+    amountUsd: 20,
     description:
       "Get to experience the early blessings of what the mighty Zambezi river can offer while you take a relaxing and most comforting safari cruise. Experience how nature and wild animals starts their beautiful day.",
     time: "Our cruise is a 2 hour early morning cruise starting at 06:00 am to 08:00 am",
@@ -18,6 +19,7 @@ const cruises = [
   {
     id: "lunch",
     title: "Lunch Cruise",
+    amountUsd: 20,
     description:
       "Have a relaxing and most comforting experience on mighty zambezi river lunch time safari cruise.",
     time: "A 2 hour cruise starting at 12:00pm to 02:00pm",
@@ -29,6 +31,7 @@ const cruises = [
   {
     id: "sunset",
     title: "Sunset Cruise",
+    amountUsd: 20,
     description:
       "Kalai Safaris will give you an unforgettable experience along the Zambezi, as you may have an opportunity to spot a wide range of wild animals and birds interacting. Our cruise is a 2 hour late afternoon cruise starting at 16:00hrs and it ends soon after sunset",
     image: "/images/sunset.jpeg",
@@ -39,6 +42,7 @@ const cruises = [
   {
     id: "jetty",
     title: "Jetty Venue",
+    amountUsd: 70,
     description:
       "We can offer events hosting on our riverside jetty, conference, weddings, cocktails or any outdoor function which needs a beautiful backdrop of the mighty Zambezi River",
     image: "/images/jetty_venue.jpg",
@@ -51,9 +55,11 @@ const cruises = [
 export default function CruiseTypesSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCruise, setSelectedCruise] = useState("");
+  const [selectedAmountUsd, setSelectedAmountUsd] = useState(20);
 
-  const handleBookClick = (cruiseTitle: string) => {
+  const handleBookClick = (cruiseTitle: string, amountUsd: number) => {
     setSelectedCruise(cruiseTitle);
+    setSelectedAmountUsd(amountUsd);
     setIsModalOpen(true);
   };
 
@@ -106,7 +112,7 @@ export default function CruiseTypesSection() {
 
               <div className="relative flex flex-wrap gap-3">
                 <button 
-                  onClick={() => handleBookClick(cruise.title)}
+                  onClick={() => handleBookClick(cruise.title, cruise.amountUsd)}
                   className="rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black font-semibold px-6 py-3 shadow-lg transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-xl">
                   Book this cruise
                 </button>
@@ -154,6 +160,7 @@ export default function CruiseTypesSection() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         cruiseType={selectedCruise}
+        amountUsd={selectedAmountUsd}
       />
     </div>
   );
