@@ -1000,10 +1000,10 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [{
-                    "action_type": "create_travelers_from_list",
+                    "action_type": "save_travelers_to_booking",
                     "params_template": {
-                        "booking_id": "{{ created_booking.id }}",
-                        "travelers_list": "{{ travelers_details }}"
+                        "booking_context_var": "created_booking",
+                        "travelers_context_var": "travelers_details"
                     }
                 }]
             },
@@ -1048,8 +1048,8 @@ BOOKING_FLOW = {
                         "customer_id": "{{ contact.customer_profile.contact_id }}",
                         "tour_id": "{{ tour_id }}",
                         "tour_name": "{{ tour_name }}",
-                        "start_date": "{{ selected_start_date }}",
-                        "end_date": "{{ selected_end_date }}",
+                        "start_date": "{{ start_date | parse_date }}",
+                        "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
                         "total_amount": "{{ total_cost }}",
@@ -1070,10 +1070,10 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {
                 "actions_to_run": [{
-                    "action_type": "create_travelers_from_list",
+                    "action_type": "save_travelers_to_booking",
                     "params_template": {
-                        "booking_id": "{{ created_booking.id }}",
-                        "travelers_list": "{{ travelers_details }}"
+                        "booking_context_var": "created_booking",
+                        "travelers_context_var": "travelers_details"
                     }
                 }]
             },

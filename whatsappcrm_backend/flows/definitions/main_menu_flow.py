@@ -187,7 +187,7 @@ MAIN_MENU_FLOW = {
                         "action": {
                             "buttons": [
                                 {"type": "reply", "reply": {"id": "omari_payment", "title": "💳 Omari"}},
-                                {"type": "reply", "reply": {"id": "paynow_payment", "title": "📱 CBZ EcoCash / Paynow"}},
+                                {"type": "reply", "reply": {"id": "paynow_payment", "title": "CBZ & Paynow"}},
                                 {"type": "reply", "reply": {"id": "manual_payment", "title": "🏦 Bank Transfer"}}
                             ]
                         }
