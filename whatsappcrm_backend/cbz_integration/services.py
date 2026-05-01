@@ -574,11 +574,23 @@ class IVeriClient:
     def is_pending(response: Dict[str, Any]) -> bool:
         """Check if the iVeri response indicates the transaction is still pending."""
         txn = response.get('Transaction', {})
+        result_code = (txn.get('ResultCode') or '').strip()
         status = (txn.get('Status') or '').strip()
-        return (
-            txn.get('ResultCode') == RESULT_CODE_SUCCESS
-            and status == STATUS_PENDING
-        )
+
+        # Standard explicit pending response.
+        if result_code == RESULT_CODE_SUCCESS and status == STATUS_PENDING:
+            return True
+
+        # Some EcoCash debit responses return only TransactionIndex initially,
+        # then require an out-of-band update/query for final status.
+        if txn.get('TransactionIndex') and not status:
+            return True
+
+        # Defensive handling for alternative non-final status strings.
+        if txn.get('TransactionIndex') and status.lower() in {'initiated', 'submitted', 'queued', 'processing'}:
+            return True
+
+        return False
 
     @staticmethod
     def is_3ds_required(response: Dict[str, Any]) -> bool:

@@ -156,6 +156,17 @@ class IVeriClientResponseTest(TestCase):
         self.assertTrue(IVeriClient.is_pending(response))
         self.assertFalse(IVeriClient.is_approved(response))
 
+    def test_is_pending_when_transaction_index_present_without_status(self):
+        response = {
+            'Transaction': {
+                'TransactionIndex': '6A00B3A1-1B5F-4221-81BF-6BD700548AD1',
+                'ResultCode': None,
+                'Status': None,
+            }
+        }
+        self.assertTrue(IVeriClient.is_pending(response))
+        self.assertFalse(IVeriClient.is_approved(response))
+
     def test_get_result_extracts_fields(self):
         response = {
             'Transaction': {

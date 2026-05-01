@@ -113,7 +113,7 @@ def initiate_cbz_ecocash_payment_action(
         flow_context.pop('cbz_payment_result_code', None)
         return []
     else:
-        error_msg = result.get('message', 'Payment failed')
+        error_msg = result.get('message') or 'Payment was not approved.'
         result_code = result.get('result_code', '')
 
         logger.warning(
