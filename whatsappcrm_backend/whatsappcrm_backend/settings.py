@@ -6,6 +6,11 @@ from datetime import timedelta
 import dotenv # For loading .env file
 from celery.schedules import crontab
 
+try:
+    import csp as csp_package
+except Exception:
+    csp_package = None
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -424,30 +429,46 @@ if DEBUG:
         'ws://localhost:5173',   # Vite HMR WebSocket
     ])
 
-# django-csp 3.x directives (active with installed django-csp==3.8)
-CSP_DEFAULT_SRC = ("'self'",)
-CSP_CONNECT_SRC = tuple(connect_src_list)
+CSP_DEFAULT_SRC_VALUE = ("'self'",)
+CSP_CONNECT_SRC_VALUE = tuple(connect_src_list)
 # Allow inline admin scripts/styles used by Django admin and Jazzmin.
-CSP_SCRIPT_SRC = ("'self'", "'unsafe-inline'", "'unsafe-eval'")
-CSP_STYLE_SRC = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com")
-CSP_IMG_SRC = ("'self'", "data:", "blob:", f"https://{BACKEND_DOMAIN_FOR_CSP}")
-CSP_FONT_SRC = ("'self'", "https://fonts.gstatic.com")
-CSP_OBJECT_SRC = ("'none'",)
-CSP_FRAME_ANCESTORS = ("'none'",)
+CSP_SCRIPT_SRC_VALUE = ("'self'", "'unsafe-inline'", "'unsafe-eval'")
+CSP_STYLE_SRC_VALUE = ("'self'", "'unsafe-inline'", "https://fonts.googleapis.com")
+CSP_IMG_SRC_VALUE = ("'self'", "data:", "blob:", f"https://{BACKEND_DOMAIN_FOR_CSP}")
+CSP_FONT_SRC_VALUE = ("'self'", "https://fonts.gstatic.com")
+CSP_OBJECT_SRC_VALUE = ("'none'",)
+CSP_FRAME_ANCESTORS_VALUE = ("'none'",)
 
-# Keep v4-style config for forward compatibility; ignored by django-csp 3.x.
 CONTENT_SECURITY_POLICY = {
     'DIRECTIVES': {
-        'default-src': CSP_DEFAULT_SRC,
-        'connect-src': CSP_CONNECT_SRC,
-        'script-src': CSP_SCRIPT_SRC,
-        'style-src': CSP_STYLE_SRC,
-        'img-src': CSP_IMG_SRC,
-        'font-src': CSP_FONT_SRC,
-        'object-src': CSP_OBJECT_SRC,
-        'frame-ancestors': CSP_FRAME_ANCESTORS,
+        'default-src': CSP_DEFAULT_SRC_VALUE,
+        'connect-src': CSP_CONNECT_SRC_VALUE,
+        'script-src': CSP_SCRIPT_SRC_VALUE,
+        'style-src': CSP_STYLE_SRC_VALUE,
+        'img-src': CSP_IMG_SRC_VALUE,
+        'font-src': CSP_FONT_SRC_VALUE,
+        'object-src': CSP_OBJECT_SRC_VALUE,
+        'frame-ancestors': CSP_FRAME_ANCESTORS_VALUE,
     }
 }
+
+# django-csp v4 rejects CSP_* settings; only define them for v3 compatibility.
+_csp_major_version = 4
+if csp_package is not None:
+    _version_value = str(getattr(csp_package, '__version__', '4'))
+    _major_token = ''.join(ch for ch in _version_value.split('.')[0] if ch.isdigit())
+    if _major_token:
+        _csp_major_version = int(_major_token)
+
+if _csp_major_version < 4:
+    CSP_DEFAULT_SRC = CSP_DEFAULT_SRC_VALUE
+    CSP_CONNECT_SRC = CSP_CONNECT_SRC_VALUE
+    CSP_SCRIPT_SRC = CSP_SCRIPT_SRC_VALUE
+    CSP_STYLE_SRC = CSP_STYLE_SRC_VALUE
+    CSP_IMG_SRC = CSP_IMG_SRC_VALUE
+    CSP_FONT_SRC = CSP_FONT_SRC_VALUE
+    CSP_OBJECT_SRC = CSP_OBJECT_SRC_VALUE
+    CSP_FRAME_ANCESTORS = CSP_FRAME_ANCESTORS_VALUE
 
 # --- Custom Application Settings ---
 INVOICE_PROCESSED_NOTIFICATION_GROUPS = os.getenv('INVOICE_PROCESSED_NOTIFICATION_GROUPS', 'System Admins,Sales Team').split(',')
