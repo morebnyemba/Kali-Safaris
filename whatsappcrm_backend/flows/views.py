@@ -254,17 +254,26 @@ def paynow_payment_webhook(request):
                 }
             })
         
-        # Get the booking
+        # Get the booking (use latest if multiple exist for same reference)
         from customer_data.models import Booking
         try:
-            booking = Booking.objects.get(booking_reference=booking_reference)
-        except Booking.DoesNotExist:
-            logger.error(f"Booking not found: {booking_reference}")
+            booking = Booking.objects.filter(booking_reference=booking_reference).order_by('-created_at').first()
+            if not booking:
+                logger.error(f"Booking not found: {booking_reference}")
+                return JsonResponse({
+                    "version": "3.0",
+                    "screen": "PAYMENT_ERROR",
+                    "data": {
+                        "error_message": f"Booking {booking_reference} not found. Please contact support."
+                    }
+                })
+        except Exception as e:
+            logger.error(f"Error looking up booking {booking_reference}: {e}")
             return JsonResponse({
                 "version": "3.0",
                 "screen": "PAYMENT_ERROR",
                 "data": {
-                    "error_message": f"Booking {booking_reference} not found. Please contact support."
+                    "error_message": "Payment system error. Please try again."
                 }
             })
         

@@ -49,14 +49,20 @@ def initiate_omari_payment_action(contact: Contact, flow_context: dict, params: 
         params.get('channel'),
     )
 
-    # Get booking
+    # Get booking (scoped to customer to handle multiple bookings with same reference)
     try:
-        booking = Booking.objects.get(booking_reference=booking_ref)
+        booking = Booking.objects.get(booking_reference=booking_ref, customer=contact.customer_profile)
     except Booking.DoesNotExist:
-        logger.error(f"Booking {booking_ref} not found for payment initiation")
+        logger.error(f"Booking {booking_ref} not found for payment initiation | contact={contact.id}")
         return [{
             'type': 'send_text',
             'text': f'❌ Booking {booking_ref} not found. Please verify your booking reference.'
+        }]
+    except Booking.MultipleObjectsReturned:
+        logger.error(f"Multiple bookings found for {booking_ref} and customer {contact.customer_profile.id}")
+        return [{
+            'type': 'send_text',
+            'text': f'❌ Payment system error. Please contact support.'
         }]
     
     # Determine amount

@@ -140,14 +140,16 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
     currency = payload['currency']
     msisdn = payload['msisdn']
 
-    # Optionally link to booking
+    # Optionally link to booking (use latest if multiple exist for same reference)
     booking = None
     booking_ref = payload.get('booking_reference')
     if booking_ref:
         try:
-            booking = Booking.objects.get(booking_reference=booking_ref)
-        except Booking.DoesNotExist:
-            logger.warning(f"Booking {booking_ref} not found for CBZ payment")
+            booking = Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at').first()
+            if not booking:
+                logger.warning(f"Booking {booking_ref} not found for CBZ payment")
+        except Exception as e:
+            logger.warning(f"Error looking up booking {booking_ref}: {e}")
 
     # Create transaction record
     txn = CBZTransaction.objects.create(
@@ -292,14 +294,16 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
     pan = payload['pan']
     masked_pan = f"{pan[:4]}****{pan[-4:]}" if len(pan) >= 8 else "****"
 
-    # Link to booking if provided
+    # Link to booking if provided (use latest if multiple exist for same reference)
     booking = None
     booking_ref = payload.get('booking_reference')
     if booking_ref:
         try:
-            booking = Booking.objects.get(booking_reference=booking_ref)
-        except Booking.DoesNotExist:
-            logger.warning(f"Booking {booking_ref} not found for CBZ card payment")
+            booking = Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at').first()
+            if not booking:
+                logger.warning(f"Booking {booking_ref} not found for CBZ card payment")
+        except Exception as e:
+            logger.warning(f"Error looking up booking {booking_ref}: {e}")
 
     # Create transaction record (never store raw card number)
     txn = CBZTransaction.objects.create(

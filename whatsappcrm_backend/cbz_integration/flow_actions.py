@@ -47,12 +47,15 @@ def initiate_cbz_ecocash_payment_action(
         contact.id, booking_ref, params.get('amount'), params.get('currency'),
     )
 
-    # Get booking
+    # Get booking (scoped to customer to handle multiple bookings with same reference)
     try:
-        booking = Booking.objects.get(booking_reference=booking_ref)
+        booking = Booking.objects.get(booking_reference=booking_ref, customer=contact.customer_profile)
     except Booking.DoesNotExist:
-        logger.error(f"Booking {booking_ref} not found for CBZ payment")
+        logger.error(f"Booking {booking_ref} not found for CBZ payment | contact={contact.id}")
         return [{'type': 'send_text', 'text': f'❌ Booking {booking_ref} not found. Please verify your reference.'}]
+    except Booking.MultipleObjectsReturned:
+        logger.error(f"Multiple bookings found for {booking_ref} and customer {contact.customer_profile.id}")
+        return [{'type': 'send_text', 'text': f'❌ Payment system error. Please contact support.'}]
 
     # Determine amount
     amount_str = params.get('amount')
