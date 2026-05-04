@@ -674,17 +674,10 @@ BOOKING_FLOW = {
                             "button": "Payment Options",
                             "sections": [
                                 {
-                                    "title": "Mobile Money (Paynow)",
+                                    "title": "EcoCash",
                                     "rows": [
-                                        {"id": "paynow_full", "title": "Pay Full via Paynow"},
-                                        {"id": "paynow_deposit", "title": "Pay 50% Deposit Paynow"}
-                                    ]
-                                },
-                                {
-                                    "title": "CBZ EcoCash",
-                                    "rows": [
-                                        {"id": "cbz_full", "title": "CBZ Full Payment"},
-                                        {"id": "cbz_deposit", "title": "CBZ 50% Deposit"}
+                                        {"id": "cbz_full", "title": "EcoCash Full Payment"},
+                                        {"id": "cbz_deposit", "title": "EcoCash 50% Deposit"}
                                     ]
                                 },
                                 {
@@ -707,13 +700,11 @@ BOOKING_FLOW = {
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "payment_choice"}
             },
             "transitions": [
-                {"to_step": "set_payment_amount_full_paynow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "paynow_full"}},
-                {"to_step": "set_payment_amount_deposit_paynow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "paynow_deposit"}},
-                {"to_step": "set_payment_amount_full_cbz", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_full"}},
-                {"to_step": "set_payment_amount_deposit_cbz", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_deposit"}},
-                {"to_step": "prepare_omari_payment", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
-                {"to_step": "create_booking_for_manual_payment", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
-                {"to_step": "create_inquiry_record_only", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
+                {"to_step": "set_payment_amount_full_cbz", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_full"}},
+                {"to_step": "set_payment_amount_deposit_cbz", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_deposit"}},
+                {"to_step": "prepare_omari_payment", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
+                {"to_step": "create_booking_for_manual_payment", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
+                {"to_step": "create_inquiry_record_only", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
             ]
         },
         # New step to prepare booking for Omari payment
@@ -941,19 +932,6 @@ BOOKING_FLOW = {
                 "type": "end_flow",
                 "config": {"message_config": {"message_type": "text", "text": {"body": "We couldn't start the Omari payment. Please try again later or choose another payment method."}}}
             },
-        # Paynow Payment Flow Steps
-        {
-            "name": "set_payment_amount_full_paynow",
-            "type": "action",
-            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost }}"}]},
-            "transitions": [{"to_step": "create_booking_for_paynow", "condition_config": {"type": "always_true"}}]
-        },
-        {
-            "name": "set_payment_amount_deposit_paynow",
-            "type": "action",
-            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost|float * 0.5 }}"}]},
-            "transitions": [{"to_step": "create_booking_for_paynow", "condition_config": {"type": "always_true"}}]
-        },
         {
             "name": "set_payment_amount_full_cbz",
             "type": "action",
@@ -985,7 +963,7 @@ BOOKING_FLOW = {
                         "total_amount": "{{ total_cost }}",
                         "payment_status": "pending",
                         "source": "whatsapp",
-                        "notes": "Booking via WhatsApp. CBZ EcoCash payment selected. Travelers: {{ num_adults }} adults, {{ num_children }} children."
+                        "notes": "Booking via WhatsApp. EcoCash payment selected. Travelers: {{ num_adults }} adults, {{ num_children }} children."
                     },
                     "save_to_variable": "created_booking"
                 }]
@@ -1037,107 +1015,6 @@ BOOKING_FLOW = {
             "transitions": [{"to_step": "initiate_cbz_payment_api", "condition_config": {"type": "always_true"}}]
         },
         {
-            "name": "create_booking_for_paynow",
-            "type": "action",
-            "config": {
-                "actions_to_run": [{
-                    "action_type": "create_model_instance",
-                    "app_label": "customer_data",
-                    "model_name": "Booking",
-                    "fields_template": {
-                        "customer_id": "{{ contact.customer_profile.contact_id }}",
-                        "tour_id": "{{ tour_id }}",
-                        "tour_name": "{{ tour_name }}",
-                        "start_date": "{{ start_date | parse_date }}",
-                        "end_date": "{{ end_date | parse_date }}",
-                        "number_of_adults": "{{ num_adults }}",
-                        "number_of_children": "{{ num_children }}",
-                        "total_amount": "{{ total_cost }}",
-                        "payment_status": "pending",
-                        "source": "whatsapp",
-                        "notes": "Booking via WhatsApp. Paynow payment selected. Travelers: {{ num_adults }} adults, {{ num_children }} children."
-                    },
-                    "save_to_variable": "created_booking"
-                }]
-            },
-            "transitions": [
-                {"to_step": "save_travelers_for_paynow", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "created_booking.id"}},
-                {"to_step": "booking_creation_failed", "priority": 2, "condition_config": {"type": "always_true"}}
-            ]
-        },
-        {
-            "name": "save_travelers_for_paynow",
-            "type": "action",
-            "config": {
-                "actions_to_run": [{
-                    "action_type": "save_travelers_to_booking",
-                    "params_template": {
-                        "booking_context_var": "created_booking",
-                        "travelers_context_var": "travelers_details"
-                    }
-                }]
-            },
-            "transitions": [{"to_step": "query_payment_whatsapp_flow", "condition_config": {"type": "always_true"}}]
-        },
-        {
-            "name": "query_payment_whatsapp_flow",
-            "type": "action",
-            "config": {
-                "actions_to_run": [{
-                    "action_type": "query_model",
-                    "app_label": "flows",
-                    "model_name": "WhatsAppFlow",
-                    "variable_name": "payment_whatsapp_flow",
-                    "filters_template": {
-                        "name": "payment_whatsapp_flow",
-                        "sync_status": "published"
-                    },
-                    "fields_to_return": ["id", "flow_id", "name"],
-                    "limit": 1
-                }]
-            },
-            "transitions": [
-                {"to_step": "launch_payment_whatsapp_flow", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "payment_whatsapp_flow.0.flow_id"}},
-                {"to_step": "paynow_flow_not_found", "priority": 2, "condition_config": {"type": "always_true"}}
-            ]
-        },
-        {
-            "name": "launch_payment_whatsapp_flow",
-            "type": "send_whatsapp_flow",
-            "config": {
-                "flow_id": "{{ payment_whatsapp_flow.0.flow_id }}",
-                "flow_token": "PAYMENT_{{ created_booking.id }}_{{ now().timestamp() }}",
-                "flow_action_type": "navigate",
-                "screen_id": "PAYMENT",
-                "data": {
-                    "booking_reference": "{{ created_booking.booking_reference }}",
-                    "amount": "{{ amount_to_pay }}",
-                    "currency": "USD"
-                },
-                "save_response_to": "payment_flow_response"
-            },
-            "transitions": [
-                {"to_step": "process_payment_flow_response", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "payment_flow_response"}},
-                {"to_step": "payment_flow_failed", "priority": 2, "condition_config": {"type": "always_true"}}
-            ]
-        },
-        {
-            "name": "process_payment_flow_response",
-            "type": "action",
-            "config": {
-                "actions_to_run": [
-                    {"action_type": "set_context_variable", "variable_name": "payment_method", "value_template": "{{ payment_flow_response.payment_method }}"},
-                    {"action_type": "set_context_variable", "variable_name": "payment_phone", "value_template": "{{ payment_flow_response.phone_number }}"},
-                    {"action_type": "set_context_variable", "variable_name": "payment_email", "value_template": "{{ payment_flow_response.email }}"}
-                ]
-            },
-            "transitions": [
-                {"to_step": "initiate_cbz_payment_api", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "payment_method", "value": "ecocash"}},
-                {"to_step": "initiate_paynow_payment_api", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "payment_method"}},
-                {"to_step": "payment_flow_data_missing", "priority": 2, "condition_config": {"type": "always_true"}}
-            ]
-        },
-        {
             "name": "initiate_cbz_payment_api",
             "type": "action",
             "config": {
@@ -1163,7 +1040,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "🎉 Payment confirmed successfully!\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* CBZ EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nYour booking has been updated and your payment is fully recorded."}
+                    "text": {"body": "🎉 Payment confirmed successfully!\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nYour booking has been updated and your payment is fully recorded."}
                 }
             }
         },
@@ -1173,7 +1050,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "⏳ Payment initiated.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* CBZ EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nPlease complete the EcoCash prompt sent to *{{ payment_phone }}*. We will confirm the booking once CBZ sends the final result."}
+                    "text": {"body": "⏳ Payment initiated.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nPlease complete the EcoCash prompt sent to *{{ payment_phone }}*. We will confirm the booking once CBZ sends the final result."}
                 }
             }
         },
@@ -1183,82 +1060,10 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "⚠️ CBZ EcoCash payment could not be completed.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Reason:* {{ cbz_payment_error_message or 'Payment was not approved.' }}{% if cbz_payment_result_code %}\n*Error Code:* {{ cbz_payment_result_code }}{% endif %}\n\nYour booking has been saved. You can try again or choose another payment method."}
+                    "text": {"body": "⚠️ EcoCash payment could not be completed.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Reason:* {{ cbz_payment_error_message or 'Payment was not approved.' }}{% if cbz_payment_result_code %}\n*Error Code:* {{ cbz_payment_result_code }}{% endif %}\n\nYour booking has been saved. You can try again or choose another payment method."}
                 }
             }
         },
-        {
-            "name": "initiate_paynow_payment_api",
-            "type": "action",
-            "config": {
-                "actions_to_run": [{
-                    "action_type": "initiate_paynow_payment",
-                    "params_template": {
-                        "booking_id": "{{ created_booking.id }}",
-                        "amount": "{{ amount_to_pay }}",
-                        "phone_number": "{{ payment_phone }}",
-                        "email": "{{ payment_email }}",
-                        "payment_method": "{{ payment_method }}"
-                    },
-                    "save_to_variable": "paynow_payment_result"
-                }]
-            },
-            "transitions": [
-                {"to_step": "paynow_payment_success", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "paynow_payment_result.success", "value": True}},
-                {"to_step": "paynow_payment_failed_message", "priority": 2, "condition_config": {"type": "always_true"}}
-            ]
-        },
-        {
-            "name": "paynow_payment_success",
-            "type": "end_flow",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "🎉 Payment initiated successfully!\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* {{ payment_method|title }}\n\n{{ paynow_payment_result.instructions }}\n\nYou will receive a confirmation message once payment is complete. Please save your booking reference for your records."}
-                }
-            }
-        },
-        {
-            "name": "paynow_payment_failed_message",
-            "type": "end_flow",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "⚠️ Payment could not be initiated.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Reason:* {{ paynow_payment_result.message }}\n\nYour booking has been saved. You can try again later or contact our support team for assistance."}
-                }
-            }
-        },
-        {
-            "name": "paynow_flow_not_found",
-            "type": "end_flow",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "We're experiencing technical difficulties with the payment system. Your booking (Ref: #{{ created_booking.booking_reference }}) has been saved.\n\nOur team will contact you shortly to complete the payment. Thank you for your patience."}
-                }
-            }
-        },
-        {
-            "name": "payment_flow_failed",
-            "type": "end_flow",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "The payment flow encountered an error. Your booking (Ref: #{{ created_booking.booking_reference }}) has been saved.\n\nPlease contact our support team to complete your payment."}
-                }
-            }
-        },
-        {
-            "name": "payment_flow_data_missing",
-            "type": "end_flow",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "Payment information was incomplete. Your booking (Ref: #{{ created_booking.booking_reference }}) has been saved.\n\nPlease try again or contact our support team for assistance."}
-                }
-            }
-        },
-        # End of Paynow Payment Flow Steps
         {
             "name": "set_payment_amount_full",
             "type": "action",

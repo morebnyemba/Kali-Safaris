@@ -34,7 +34,7 @@ MAIN_MENU_FLOW = {
                                     "title": "📋 My Account",
                                     "rows": [
                                         {"id": "my_bookings", "title": "📖 My Bookings", "description": "View or manage your existing bookings"},
-                                        {"id": "payment_options", "title": "💳 Make a Payment", "description": "Pay via Omari, CBZ EcoCash, Paynow, or bank transfer"}
+                                        {"id": "payment_options", "title": "💳 Make a Payment", "description": "Pay via Omari, EcoCash, or bank transfer"}
                                     ]
                                 },
                                 {
@@ -162,9 +162,9 @@ MAIN_MENU_FLOW = {
             "transitions": []
         },
         {
-            "name": "switch_to_paynow_payment_flow",
+            "name": "switch_to_ecocash_payment_flow",
             "type": "switch_flow",
-            "config": {"target_flow_name": "paynow_payment_flow", "initial_context_template": {"source_flow": "main_menu", "payment_target": "{{ payment_target }}"}},
+            "config": {"target_flow_name": "ecocash_payment_flow", "initial_context_template": {"source_flow": "main_menu", "payment_target": "{{ payment_target }}"}},
             "transitions": []
         },
         {
@@ -187,7 +187,7 @@ MAIN_MENU_FLOW = {
                         "action": {
                             "buttons": [
                                 {"type": "reply", "reply": {"id": "omari_payment", "title": "💳 Omari"}},
-                                {"type": "reply", "reply": {"id": "paynow_payment", "title": "CBZ & Paynow"}},
+                                {"type": "reply", "reply": {"id": "ecocash_payment", "title": "EcoCash"}},
                                 {"type": "reply", "reply": {"id": "manual_payment", "title": "🏦 Bank Transfer"}}
                             ]
                         }
@@ -197,7 +197,7 @@ MAIN_MENU_FLOW = {
             },
             "transitions": [
                 {"to_step": "switch_to_omari_payment_flow", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "omari_payment"}},
-                {"to_step": "switch_to_paynow_payment_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "paynow_payment"}},
+                {"to_step": "switch_to_ecocash_payment_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "ecocash_payment"}},
                 {"to_step": "switch_to_manual_payment_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_payment"}},
                 {"to_step": "show_main_menu", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "back_to_main"}}
             ]

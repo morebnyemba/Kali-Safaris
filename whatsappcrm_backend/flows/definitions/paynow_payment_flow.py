@@ -1,8 +1,8 @@
 PAYNOW_PAYMENT_FLOW = {
-    "name": "paynow_payment_flow",
-    "friendly_name": "Mobile Money Payment",
-    "description": "Booking payment flow for CBZ EcoCash and Paynow wallets.",
-    "trigger_keywords": ["paynow payment", "ecocash payment", "mobile money payment"],
+    "name": "ecocash_payment_flow",
+    "friendly_name": "EcoCash Payment",
+    "description": "Booking payment flow for EcoCash.",
+    "trigger_keywords": ["ecocash payment", "mobile money payment"],
     "is_active": True,
     "steps": [
         {
@@ -25,7 +25,7 @@ PAYNOW_PAYMENT_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Inquiry payments are not enabled yet for CBZ EcoCash or Paynow. Please contact our team and we will send you the correct payment instructions manually."}
+                    "text": {"body": "Inquiry payments are not enabled yet for EcoCash. Please contact our team and we will send you the correct payment instructions manually."}
                 }
             }
         },
@@ -35,7 +35,7 @@ PAYNOW_PAYMENT_FLOW = {
             "config": {
                 "message_type": "text",
                 "text": {
-                    "body": "Welcome to Mobile Money Payment!\n\nYou can pay your booking using:\n• CBZ EcoCash\n• Paynow OneMoney\n• Paynow Innbucks\n\nPlease enter your booking reference to continue."
+                    "body": "Welcome to EcoCash Payment!\n\nYou can pay your booking using EcoCash.\n\nPlease enter your booking reference to continue."
                 }
             },
             "transitions": [{"to_step": "ask_booking_reference", "condition_config": {"type": "always_true"}}]
@@ -121,13 +121,11 @@ PAYNOW_PAYMENT_FLOW = {
                     "message_type": "interactive",
                     "interactive": {
                         "type": "button",
-                        "header": {"type": "text", "text": "Choose Mobile Money Method"},
-                        "body": {"text": "Select the wallet you want to use for *${{ '%.2f'|format(payment_amount|float) }}*."},
+                        "header": {"type": "text", "text": "Choose EcoCash Number"},
+                        "body": {"text": "Select EcoCash to pay *${{ '%.2f'|format(payment_amount|float) }}*."},
                         "action": {
                             "buttons": [
-                                {"type": "reply", "reply": {"id": "ecocash", "title": "💚 CBZ EcoCash"}},
-                                {"type": "reply", "reply": {"id": "onemoney", "title": "💙 OneMoney"}},
-                                {"type": "reply", "reply": {"id": "innbucks", "title": "🟣 Innbucks"}}
+                                {"type": "reply", "reply": {"id": "ecocash", "title": "💵 EcoCash"}}
                             ]
                         }
                     }
@@ -161,8 +159,7 @@ PAYNOW_PAYMENT_FLOW = {
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid email address."}
             },
             "transitions": [
-                {"to_step": "initiate_cbz_payment_api", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "payment_method", "value": "ecocash"}},
-                {"to_step": "initiate_paynow_payment_api", "priority": 1, "condition_config": {"type": "always_true"}}
+                {"to_step": "initiate_cbz_payment_api", "priority": 0, "condition_config": {"type": "always_true"}}
             ]
         },
         {
@@ -191,7 +188,7 @@ PAYNOW_PAYMENT_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "🎉 Payment confirmed successfully!\n\n*Booking Reference:* #{{ found_booking.0.booking_reference }}\n*Amount:* ${{ '%.2f'|format(payment_amount|float) }}\n*Payment Method:* CBZ EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}"}
+                    "text": {"body": "🎉 Payment confirmed successfully!\n\n*Booking Reference:* #{{ found_booking.0.booking_reference }}\n*Amount:* ${{ '%.2f'|format(payment_amount|float) }}\n*Payment Method:* EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}"}
                 }
             }
         },
@@ -201,7 +198,7 @@ PAYNOW_PAYMENT_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "⏳ Payment initiated.\n\n*Booking Reference:* #{{ found_booking.0.booking_reference }}\n*Amount:* ${{ '%.2f'|format(payment_amount|float) }}\n*Payment Method:* CBZ EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nPlease complete the EcoCash prompt sent to *{{ payment_phone }}*."}
+                    "text": {"body": "⏳ Payment initiated.\n\n*Booking Reference:* #{{ found_booking.0.booking_reference }}\n*Amount:* ${{ '%.2f'|format(payment_amount|float) }}\n*Payment Method:* EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nPlease complete the EcoCash prompt sent to *{{ payment_phone }}*."}
                 }
             }
         },
@@ -211,47 +208,7 @@ PAYNOW_PAYMENT_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "⚠️ CBZ EcoCash payment could not be completed.\n\n*Booking Reference:* #{{ found_booking.0.booking_reference }}\n*Reason:* {{ cbz_payment_error_message or 'Payment was not approved.' }}{% if cbz_payment_result_code %}\n*Error Code:* {{ cbz_payment_result_code }}{% endif %}"}
-                }
-            }
-        },
-        {
-            "name": "initiate_paynow_payment_api",
-            "type": "action",
-            "config": {
-                "actions_to_run": [{
-                    "action_type": "initiate_paynow_payment",
-                    "params_template": {
-                        "booking_id": "{{ found_booking.0.id }}",
-                        "amount": "{{ payment_amount }}",
-                        "phone_number": "{{ payment_phone }}",
-                        "email": "{{ payment_email }}",
-                        "payment_method": "{{ payment_method }}"
-                    }
-                }]
-            },
-            "transitions": [
-                {"to_step": "paynow_payment_success_message", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "paynow_payment_result.success", "value": True}},
-                {"to_step": "paynow_payment_failed_message", "priority": 1, "condition_config": {"type": "always_true"}}
-            ]
-        },
-        {
-            "name": "paynow_payment_success_message",
-            "type": "end_flow",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "🎉 Payment initiated successfully!\n\n*Booking Reference:* #{{ found_booking.0.booking_reference }}\n*Amount:* ${{ '%.2f'|format(payment_amount|float) }}\n*Payment Method:* {{ payment_method|title }}\n\n{{ paynow_payment_result.instructions }}"}
-                }
-            }
-        },
-        {
-            "name": "paynow_payment_failed_message",
-            "type": "end_flow",
-            "config": {
-                "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "⚠️ Payment could not be initiated.\n\n*Booking Reference:* #{{ found_booking.0.booking_reference }}\n*Reason:* {{ paynow_payment_result.message }}"}
+                    "text": {"body": "⚠️ EcoCash payment could not be completed.\n\n*Booking Reference:* #{{ found_booking.0.booking_reference }}\n*Reason:* {{ cbz_payment_error_message or 'Payment was not approved.' }}{% if cbz_payment_result_code %}\n*Error Code:* {{ cbz_payment_result_code }}{% endif %}"}
                 }
             }
         }
