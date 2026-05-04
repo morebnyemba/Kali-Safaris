@@ -278,15 +278,11 @@ class IVeriClient:
             resp.raise_for_status()
             data = resp.json()
 
-            # Log response (safe fields only)
+            # Log full response (exclude raw card/account data)
             txn_resp = data.get('Transaction', {})
-            logger.info(
-                "iVeri response | ResultCode=%s Status=%s Description=%s TransactionIndex=%s",
-                txn_resp.get('ResultCode'),
-                txn_resp.get('Status'),
-                txn_resp.get('ResultDescription', '')[:100],
-                txn_resp.get('TransactionIndex'),
-            )
+            _SENSITIVE_RESP_FIELDS = {'Pan', 'Cvc', 'Pin', 'CardNumber', 'AccountNumber'}
+            safe_resp = {k: v for k, v in txn_resp.items() if k not in _SENSITIVE_RESP_FIELDS}
+            logger.info("iVeri response | %s", safe_resp)
             return data
 
         except requests.exceptions.HTTPError as e:

@@ -185,6 +185,8 @@ class ActionItem(BaseModel):
     # Used by 'create_model_instance'
     fields_template: Optional[Dict[str, Any]] = None
     save_to_variable: Optional[str] = None
+    # Used by 'update_model_instance'
+    instance_id: Optional[Any] = None
     # Used by custom actions
     params_template: Optional[Dict[str, Any]] = None
 

@@ -22,6 +22,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('', include(flows_steps_router.urls)),
     path('', include(steps_transitions_router.urls)),
-    # Webhook for Paynow payment flow data exchange
+    # Webhook aliases for EcoCash payment flow data exchange
+    path('ecocash-payment-webhook/', views.paynow_payment_webhook, name='ecocash-payment-webhook'),
     path('paynow-payment-webhook/', views.paynow_payment_webhook, name='paynow-payment-webhook'),
 ]

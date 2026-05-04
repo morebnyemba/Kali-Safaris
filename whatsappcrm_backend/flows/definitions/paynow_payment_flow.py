@@ -1,4 +1,4 @@
-PAYNOW_PAYMENT_FLOW = {
+ECOCASH_PAYMENT_FLOW = {
     "name": "ecocash_payment_flow",
     "friendly_name": "EcoCash Payment",
     "description": "Booking payment flow for EcoCash.",

@@ -321,6 +321,8 @@ LOGGING = {
         'conversations': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
         'flows': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
         'customer_data': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+        'cbz_integration': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+        'omari_integration': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
     },
 }
 

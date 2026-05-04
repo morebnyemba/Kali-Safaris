@@ -884,6 +884,58 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                         logger.error(f"Contact {contact.id}: 'create_model_instance' action failed. Model '{app_label}.{model_name}' not found.")
                     except Exception as e:
                         logger.error(f"Contact {contact.id}: 'create_model_instance' action failed with error: {e}", exc_info=True)
+                elif action_type == 'update_model_instance':
+                    app_label = action_item_conf.app_label
+                    model_name = action_item_conf.model_name
+                    instance_id_template = action_item_conf.instance_id
+                    fields_to_update = action_item_conf.fields_to_update
+                    save_to_variable = action_item_conf.save_to_variable
+
+                    if not app_label or not model_name or not instance_id_template or not fields_to_update:
+                        logger.error(f"Contact {contact.id}: 'update_model_instance' action in step {step.id} is missing required fields. Skipping.")
+                        continue
+
+                    try:
+                        Model = apps.get_model(app_label, model_name)
+                        resolved_id = _resolve_value(instance_id_template, current_step_context, contact)
+                        resolved_fields = _resolve_value(fields_to_update, current_step_context, contact)
+
+                        # Coerce *_id keys to integers when possible
+                        for key, val in list(resolved_fields.items()):
+                            if key.endswith('_id') and isinstance(val, str) and val.isdigit():
+                                resolved_fields[key] = int(val)
+
+                        # Coerce resolved values to expected model field types
+                        for model_field in Model._meta.fields:
+                            field_name = model_field.name
+                            if field_name in resolved_fields:
+                                resolved_fields[field_name] = _coerce_model_field_value(model_field, resolved_fields[field_name])
+
+                        instance = Model.objects.get(pk=resolved_id)
+                        for field, value in resolved_fields.items():
+                            setattr(instance, field, value)
+                        instance.save()
+                        logger.info(f"Contact {contact.id}: Updated {model_name} instance ID {resolved_id} with fields: {list(resolved_fields.keys())}.")
+
+                        if save_to_variable:
+                            instance_dict = model_to_dict(instance)
+                            for key, value in instance_dict.items():
+                                if isinstance(value, Decimal):
+                                    instance_dict[key] = str(value)
+                                elif isinstance(value, (datetime, date)):
+                                    instance_dict[key] = value.isoformat()
+                            if isinstance(instance.pk, uuid.UUID):
+                                instance_dict['id'] = str(instance.pk)
+                            else:
+                                instance_dict['id'] = instance.pk
+                            current_step_context[save_to_variable] = instance_dict
+                            logger.info(f"Contact {contact.id}: Saved updated instance to context variable '{save_to_variable}'.")
+                    except Model.DoesNotExist:
+                        logger.error(f"Contact {contact.id}: 'update_model_instance' — {model_name} with pk={resolved_id} not found.")
+                    except LookupError:
+                        logger.error(f"Contact {contact.id}: 'update_model_instance' action failed. Model '{app_label}.{model_name}' not found.")
+                    except Exception as e:
+                        logger.error(f"Contact {contact.id}: 'update_model_instance' action failed with error: {e}", exc_info=True)
                 else:
                     logger.warning(f"Contact {contact.id}: Unknown or misconfigured action_type '{action_type}' in step '{step.name}' (ID: {step.id}).")
         except ValidationError as e:

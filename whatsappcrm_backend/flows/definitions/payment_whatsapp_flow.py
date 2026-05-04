@@ -2,14 +2,13 @@
 
 """
 WhatsApp Flow JSON definition for mobile money payment processing.
-This flow collects payment method and details, then routes EcoCash to CBZ and
-other wallets through Paynow.
+This flow collects payment method and details for EcoCash processing.
 """
 
 PAYMENT_WHATSAPP_FLOW = {
     "version": "7.3",
     "data_api_version": "3.0",
-    "data_channel_uri": "https://backend.kalaisafaris.com/crm-api/flows/paynow-payment-webhook/",
+    "data_channel_uri": "https://backend.kalaisafaris.com/crm-api/flows/ecocash-payment-webhook/",
     "routing_model": {
         "PAYMENT": ["PAYMENT_PROCESSING", "PAYMENT_ERROR"]
     },
@@ -118,7 +117,7 @@ PAYMENT_WHATSAPP_FLOW = {
                 },
                 "poll_url": {
                     "type": "string",
-                    "__example__": "https://api.paynow.co.zw/poll/..."
+                    "__example__": "https://backend.kalaisafaris.com/payment-status/..."
                 }
             },
             "layout": {
@@ -200,7 +199,7 @@ PAYMENT_WHATSAPP_FLOW = {
 PAYMENT_FLOW_METADATA = {
     "name": "payment_whatsapp_flow",
     "friendly_name": "Mobile Money Payment Processing",
-    "description": "Interactive WhatsApp flow for processing CBZ EcoCash and Paynow payments",
+    "description": "Interactive WhatsApp flow for processing EcoCash payments",
     "trigger_keywords": [],
     "is_active": True,
     "category": "payment"

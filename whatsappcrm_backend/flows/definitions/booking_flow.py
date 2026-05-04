@@ -962,6 +962,7 @@ BOOKING_FLOW = {
                         "number_of_children": "{{ num_children }}",
                         "total_amount": "{{ total_cost }}",
                         "payment_status": "pending",
+                        "booking_reference": "PENDING-{{ contact.id }}-{{ now().timestamp()|int }}",
                         "source": "whatsapp",
                         "notes": "Booking via WhatsApp. EcoCash payment selected. Travelers: {{ num_adults }} adults, {{ num_children }} children."
                     },
@@ -1029,10 +1030,49 @@ BOOKING_FLOW = {
                 }]
             },
             "transitions": [
-                {"to_step": "cbz_payment_success_message", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "cbz_payment_status", "value": "approved"}},
-                {"to_step": "cbz_payment_pending_message", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "cbz_payment_status", "value": "pending"}},
+                {"to_step": "cbz_finalize_booking_approved", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "cbz_payment_status", "value": "approved"}},
+                {"to_step": "cbz_finalize_booking_pending", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "cbz_payment_status", "value": "pending"}},
                 {"to_step": "cbz_payment_failed_message", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
+        },
+        {
+            "name": "cbz_finalize_booking_approved",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "update_model_instance",
+                    "app_label": "customer_data",
+                    "model_name": "Booking",
+                    "instance_id": "{{ created_booking.id }}",
+                    "fields_to_update": {
+                        "booking_reference": "",
+                        "payment_status": "partially_paid",
+                        "amount_paid": "{{ amount_to_pay }}"
+                    },
+                    "save_to_variable": "finalized_booking",
+                    "comment": "Empty booking_reference triggers auto-generation in Booking.save()"
+                }]
+            },
+            "transitions": [{"to_step": "cbz_payment_success_message", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "cbz_finalize_booking_pending",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "update_model_instance",
+                    "app_label": "customer_data",
+                    "model_name": "Booking",
+                    "instance_id": "{{ created_booking.id }}",
+                    "fields_to_update": {
+                        "booking_reference": "",
+                        "payment_status": "pending"
+                    },
+                    "save_to_variable": "finalized_booking",
+                    "comment": "Empty booking_reference triggers auto-generation in Booking.save()"
+                }]
+            },
+            "transitions": [{"to_step": "cbz_payment_pending_message", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "cbz_payment_success_message",
@@ -1040,7 +1080,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "🎉 Payment confirmed successfully!\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nYour booking has been updated and your payment is fully recorded."}
+                    "text": {"body": "🎉 Payment confirmed successfully!\n\n*Booking Reference:* #{{ finalized_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nYour booking has been confirmed and your payment is fully recorded."}
                 }
             }
         },
@@ -1050,7 +1090,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "⏳ Payment initiated.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nPlease complete the EcoCash prompt sent to *{{ payment_phone }}*. We will confirm the booking once CBZ sends the final result."}
+                    "text": {"body": "⏳ Payment initiated.\n\n*Booking Reference:* #{{ finalized_booking.booking_reference }}\n*Amount:* ${{ '%.2f'|format(amount_to_pay|float) }}\n*Payment Method:* EcoCash\n*Payment Ref:* {{ cbz_payment_reference }}\n\nPlease complete the EcoCash prompt sent to *{{ payment_phone }}*. We will confirm the booking once EcoCash sends the final result."}
                 }
             }
         },
@@ -1060,7 +1100,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "⚠️ EcoCash payment could not be completed.\n\n*Booking Reference:* #{{ created_booking.booking_reference }}\n*Reason:* {{ cbz_payment_error_message or 'Payment was not approved.' }}{% if cbz_payment_result_code %}\n*Error Code:* {{ cbz_payment_result_code }}{% endif %}\n\nYour booking has been saved. You can try again or choose another payment method."}
+                    "text": {"body": "⚠️ EcoCash payment could not be completed.\n\n*Reason:* {{ cbz_payment_error_message or 'Payment was not approved.' }}{% if cbz_payment_result_code %}\n*Error Code:* {{ cbz_payment_result_code }}{% endif %}\n\nNo booking has been confirmed. Please try again or choose another payment method."}
                 }
             }
         },
