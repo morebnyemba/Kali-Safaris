@@ -1,7 +1,8 @@
 'use client';
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import FooterSection from "@/components/FooterSection";
 import BookingModal from "@/components/BookingModal";
 import { FaWhatsapp, FaPhone, FaEnvelope } from "react-icons/fa";
@@ -55,9 +56,42 @@ const cruises = [
 ];
 
 export default function BookingPage() {
+  const searchParams = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCruise, setSelectedCruise] = useState("");
   const [selectedAmountUsd, setSelectedAmountUsd] = useState(20);
+
+  const queryBookingReference = useMemo(() => searchParams.get('booking_reference') ?? '', [searchParams]);
+  const queryPaymentMode = useMemo(() => (searchParams.get('payment_mode') ?? '').toLowerCase(), [searchParams]);
+  const querySource = useMemo(() => (searchParams.get('source') ?? '').toLowerCase(), [searchParams]);
+  const queryTourName = useMemo(() => searchParams.get('tour_name') ?? '', [searchParams]);
+  const queryAmountUsd = useMemo(() => {
+    const raw = searchParams.get('amount') ?? '';
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!queryBookingReference && queryPaymentMode !== 'card') {
+      return;
+    }
+
+    const id = window.setTimeout(() => {
+      if (queryTourName) {
+        setSelectedCruise(queryTourName);
+      } else if (querySource === 'whatsapp') {
+        setSelectedCruise('WhatsApp Booking');
+      }
+
+      if (queryAmountUsd !== null) {
+        setSelectedAmountUsd(queryAmountUsd);
+      }
+
+      setIsModalOpen(true);
+    }, 0);
+
+    return () => window.clearTimeout(id);
+  }, [queryAmountUsd, queryBookingReference, queryPaymentMode, querySource, queryTourName]);
 
   const handleBookClick = (cruiseTitle: string, amountUsd: number) => {
     setSelectedCruise(cruiseTitle);
@@ -191,6 +225,10 @@ export default function BookingPage() {
         onClose={() => setIsModalOpen(false)}
         cruiseType={selectedCruise}
         amountUsd={selectedAmountUsd}
+        initialPaymentMode={queryPaymentMode === 'card' ? 'card' : undefined}
+        initialBookingReference={queryBookingReference || undefined}
+        fixedAmountUsd={queryAmountUsd ?? undefined}
+        launchedFromWhatsApp={querySource === 'whatsapp'}
       />
 
       <FooterSection />

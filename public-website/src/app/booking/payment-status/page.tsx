@@ -7,6 +7,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_BASE ?? '';
 const PENDING_3DS_REF_KEY = 'kalai_pending_3ds_reference';
 const PENDING_PAYMENT_CHANNEL_KEY = 'kalai_pending_payment_channel';
+const PENDING_BOOKING_REFERENCE_KEY = 'kalai_pending_booking_reference';
+const RETURN_TO_WHATSAPP_KEY = 'kalai_return_to_whatsapp';
+const WHATSAPP_NUMBER = '263712629336';
 const REFRESH_SECONDS = 30;
 
 type PaymentChannel = 'card' | 'ecocash';
@@ -18,6 +21,7 @@ interface GatewayResult {
   pending?: boolean;
   message?: string;
   merchant_reference?: string;
+  booking_reference?: string;
   result_code?: string;
 }
 
@@ -26,6 +30,7 @@ export default function PaymentStatusPage() {
   const [status, setStatus] = useState<StatusState>('idle');
   const [message, setMessage] = useState('Preparing payment verification...');
   const [countdown, setCountdown] = useState(0);
+  const [bookingReference, setBookingReference] = useState('');
 
   const channel = useMemo<PaymentChannel>(() => {
     const queryChannel = (searchParams.get('channel') ?? '').toLowerCase();
@@ -53,6 +58,33 @@ export default function PaymentStatusPage() {
     return window.sessionStorage.getItem(PENDING_3DS_REF_KEY) ?? '';
   }, [searchParams]);
 
+  const shouldReturnToWhatsApp = useMemo(() => {
+    const querySource = (searchParams.get('source') ?? '').toLowerCase();
+    if (querySource === 'whatsapp') {
+      return true;
+    }
+    if (typeof window === 'undefined') {
+      return false;
+    }
+    return window.sessionStorage.getItem(RETURN_TO_WHATSAPP_KEY) === '1';
+  }, [searchParams]);
+
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      const queryBookingReference = searchParams.get('booking_reference') ?? '';
+      if (queryBookingReference) {
+        setBookingReference(queryBookingReference);
+        return;
+      }
+      const storedBookingReference = window.sessionStorage.getItem(PENDING_BOOKING_REFERENCE_KEY) ?? '';
+      if (storedBookingReference) {
+        setBookingReference(storedBookingReference);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(id);
+  }, [searchParams]);
+
   const verifyPayment = useCallback(async () => {
     const reference = effectiveReference;
     if (!reference) {
@@ -76,6 +108,10 @@ export default function PaymentStatusPage() {
         : await fetch(`${API_BASE}/crm-api/payments/cbz/query/${reference}/`);
 
       const result = (await response.json()) as GatewayResult;
+      if (result.booking_reference) {
+        setBookingReference(result.booking_reference);
+        window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
+      }
 
       if (channel === 'ecocash') {
         if (result.success && (result as GatewayResult & { is_approved?: boolean }).is_approved) {
@@ -165,6 +201,20 @@ export default function PaymentStatusPage() {
     'no-reference': 'No Reference',
   }[status];
 
+  const returnToWhatsAppHref = useMemo(() => {
+    if (!shouldReturnToWhatsApp) {
+      return '';
+    }
+    const parts = [
+      'Hi Kalai Safaris, I have completed my website card payment.',
+      bookingReference ? `Booking reference: ${bookingReference}.` : '',
+      effectiveReference ? `Merchant reference: ${effectiveReference}.` : '',
+      'Please continue with my WhatsApp booking.',
+    ].filter(Boolean);
+
+    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(parts.join(' '))}`;
+  }, [bookingReference, effectiveReference, shouldReturnToWhatsApp]);
+
   return (
     <main className="min-h-screen bg-linear-to-b from-[#001a33] via-[#002b4d] to-[#001a33] py-16 px-6">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl p-8 md:p-10">
@@ -210,6 +260,17 @@ export default function PaymentStatusPage() {
             Back to Booking
           </Link>
         </div>
+
+        {returnToWhatsAppHref && (
+          <a
+            href={returnToWhatsAppHref}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 block rounded-full border border-green-500 bg-green-50 px-5 py-3 text-center font-semibold text-green-700 transition hover:bg-green-100"
+          >
+            Return to WhatsApp
+          </a>
+        )}
       </div>
     </main>
   );

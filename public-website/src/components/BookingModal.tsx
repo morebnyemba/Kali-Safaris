@@ -7,6 +7,10 @@ interface BookingModalProps {
   onClose: () => void;
   cruiseType: string;
   amountUsd: number;
+  initialPaymentMode?: PaymentMode;
+  initialBookingReference?: string;
+  fixedAmountUsd?: number;
+  launchedFromWhatsApp?: boolean;
 }
 
 type PaymentMode = 'ecocash' | 'card';
@@ -38,12 +42,19 @@ interface PaymentConfig {
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_BASE ?? '';
 const PENDING_3DS_REF_KEY = 'kalai_pending_3ds_reference';
 const PENDING_PAYMENT_CHANNEL_KEY = 'kalai_pending_payment_channel';
+const PENDING_BOOKING_REFERENCE_KEY = 'kalai_pending_booking_reference';
+const RETURN_TO_WHATSAPP_KEY = 'kalai_return_to_whatsapp';
+const WHATSAPP_NUMBER = '263712629336';
 
 export default function BookingModal({
   isOpen,
   onClose,
   cruiseType,
   amountUsd,
+  initialPaymentMode,
+  initialBookingReference,
+  fixedAmountUsd,
+  launchedFromWhatsApp = false,
 }: BookingModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
   const [numberOfPeople, setNumberOfPeople] = useState('1');
@@ -55,10 +66,25 @@ export default function BookingModal({
   const [lastMerchantReference, setLastMerchantReference] = useState('');
   const [lastPaymentChannel, setLastPaymentChannel] = useState<PaymentChannel>('card');
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null);
+  const [activeBookingReference, setActiveBookingReference] = useState(initialBookingReference ?? '');
+  const [canReturnToWhatsApp, setCanReturnToWhatsApp] = useState(false);
 
   useEffect(() => {
     if (!isOpen) {
       return;
+    }
+
+    setPaymentMode(initialPaymentMode ?? 'ecocash');
+    setActiveBookingReference(initialBookingReference ?? '');
+    setCanReturnToWhatsApp(launchedFromWhatsApp && Boolean(initialBookingReference));
+
+    if (launchedFromWhatsApp) {
+      window.sessionStorage.setItem(RETURN_TO_WHATSAPP_KEY, '1');
+      if (initialBookingReference) {
+        window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, initialBookingReference);
+      }
+    } else {
+      window.sessionStorage.removeItem(RETURN_TO_WHATSAPP_KEY);
     }
 
     let isCancelled = false;
@@ -104,7 +130,7 @@ export default function BookingModal({
     return () => {
       isCancelled = true;
     };
-  }, [isOpen]);
+  }, [initialBookingReference, initialPaymentMode, isOpen, launchedFromWhatsApp]);
 
   if (!isOpen) return null;
 
@@ -138,7 +164,18 @@ export default function BookingModal({
 
   const toIveriExpiry = (raw: string) => raw.replace(/\D/g, '').slice(0, 4);
 
-  const totalAmount = Number(numberOfPeople || '1') * amountUsd;
+  const totalAmount = fixedAmountUsd ?? (Number(numberOfPeople || '1') * amountUsd);
+
+  const buildReturnToWhatsAppHref = (bookingReference: string, merchantReference: string) => {
+    const parts = [
+      'Hi Kalai Safaris, I have completed my website card payment.',
+      bookingReference ? `Booking reference: ${bookingReference}.` : '',
+      merchantReference ? `Merchant reference: ${merchantReference}.` : '',
+      'Please continue with my WhatsApp booking.',
+    ].filter(Boolean);
+
+    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(parts.join(' '))}`;
+  };
 
   const submit3DSChallenge = (challenge: Record<string, string>, merchantReference: string) => {
     const acsUrl = challenge.ACSURL || challenge.ACSUrl || challenge.AcsUrl || challenge.RedirectURL || challenge.RedirectUrl || challenge.AuthenticationURL || challenge.AuthenticationUrl;
@@ -149,9 +186,12 @@ export default function BookingModal({
 
     const paReq = challenge.PaReq || challenge.PAREQ || '';
     const md = challenge.MD || merchantReference;
-    const termUrl = challenge.TermUrl || challenge.TermURL || `${window.location.origin}/booking/payment-status`;
+    const termUrl = challenge.TermUrl || challenge.TermURL || `${window.location.origin}/booking/payment-status?channel=card${launchedFromWhatsApp ? `&source=whatsapp${activeBookingReference ? `&booking_reference=${encodeURIComponent(activeBookingReference)}` : ''}` : ''}`;
 
     window.sessionStorage.setItem(PENDING_3DS_REF_KEY, merchantReference);
+    if (activeBookingReference) {
+      window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, activeBookingReference);
+    }
     setLastMerchantReference(merchantReference);
 
     const form = document.createElement('form');
@@ -201,12 +241,18 @@ export default function BookingModal({
 
       const result = await response.json();
       if (result.success && !result.pending) {
+        if (result.booking_reference) {
+          setActiveBookingReference(result.booking_reference);
+          window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
+        }
+        setCanReturnToWhatsApp(launchedFromWhatsApp);
         setPaymentMessage(`Payment approved. Ref: ${result.merchant_reference}`);
         window.sessionStorage.removeItem(PENDING_3DS_REF_KEY);
         return;
       }
 
       if (result.pending) {
+        setCanReturnToWhatsApp(launchedFromWhatsApp);
         setPaymentMessage('Payment is still pending final confirmation from the gateway.');
         return;
       }
@@ -336,13 +382,25 @@ export default function BookingModal({
           pan,
           expiry_date: expiryDate,
           cvv,
-          amount: Number(numberOfPeople) * amountUsd,
+          amount: totalAmount,
           currency: 'USD',
+          booking_reference: initialBookingReference,
+          booking_details: initialBookingReference ? undefined : {
+            tour_name: cruiseType,
+            selected_date: selectedDate,
+            number_of_people: Number(numberOfPeople || '1'),
+          },
         }),
       });
 
       const result = await response.json();
+      const resolvedBookingReference = result.booking_reference || initialBookingReference || '';
+      if (resolvedBookingReference) {
+        setActiveBookingReference(resolvedBookingReference);
+        window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, resolvedBookingReference);
+      }
       if (result.success && result.requires_3ds) {
+        setCanReturnToWhatsApp(launchedFromWhatsApp);
         setPaymentMessage('3DS verification required. Redirecting to your bank authentication page...');
         submit3DSChallenge(result.challenge || {}, result.merchant_reference);
         return;
@@ -351,6 +409,7 @@ export default function BookingModal({
       if (result.success && !result.pending) {
         setLastPaymentChannel('card');
         window.sessionStorage.removeItem(PENDING_PAYMENT_CHANNEL_KEY);
+        setCanReturnToWhatsApp(launchedFromWhatsApp);
         setPaymentMessage(`Payment approved. Ref: ${result.merchant_reference}`);
         return;
       }
@@ -358,6 +417,7 @@ export default function BookingModal({
       if (result.pending) {
         setLastMerchantReference(result.merchant_reference || '');
         setLastPaymentChannel('card');
+        setCanReturnToWhatsApp(launchedFromWhatsApp);
         if (result.merchant_reference) {
           window.sessionStorage.setItem(PENDING_3DS_REF_KEY, result.merchant_reference);
           window.sessionStorage.setItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
@@ -616,6 +676,17 @@ export default function BookingModal({
               <div className="rounded-lg border border-[#ffba5a]/40 bg-[#fff9ef] p-3 text-sm text-gray-700">
                 {paymentMessage}
               </div>
+            )}
+
+            {launchedFromWhatsApp && canReturnToWhatsApp && (
+              <a
+                href={buildReturnToWhatsAppHref(activeBookingReference, lastMerchantReference)}
+                target="_blank"
+                rel="noreferrer"
+                className="block rounded-full border border-green-500 bg-green-50 px-4 py-3 text-center text-sm font-semibold text-green-700 transition hover:bg-green-100"
+              >
+                Return to WhatsApp
+              </a>
             )}
 
             <div className="flex gap-3 pt-2">

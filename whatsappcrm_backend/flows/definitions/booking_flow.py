@@ -681,6 +681,13 @@ BOOKING_FLOW = {
                                     ]
                                 },
                                 {
+                                    "title": "Card (Web Checkout)",
+                                    "rows": [
+                                        {"id": "card_web_full", "title": "Card Full Payment"},
+                                        {"id": "card_web_deposit", "title": "Card 50% Deposit"}
+                                    ]
+                                },
+                                {
                                     "title": "Other Online Payment",
                                     "rows": [
                                         {"id": "manual_omari", "title": "Pay with Omari"}
@@ -702,9 +709,11 @@ BOOKING_FLOW = {
             "transitions": [
                 {"to_step": "set_payment_amount_full_cbz", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_full"}},
                 {"to_step": "set_payment_amount_deposit_cbz", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_deposit"}},
-                {"to_step": "prepare_omari_payment", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
-                {"to_step": "create_booking_for_manual_payment", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
-                {"to_step": "create_inquiry_record_only", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
+                {"to_step": "set_payment_amount_full_card_web", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "card_web_full"}},
+                {"to_step": "set_payment_amount_deposit_card_web", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "card_web_deposit"}},
+                {"to_step": "prepare_omari_payment", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
+                {"to_step": "create_booking_for_manual_payment", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
+                {"to_step": "create_inquiry_record_only", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
             ]
         },
         # New step to prepare booking for Omari payment
@@ -943,6 +952,88 @@ BOOKING_FLOW = {
             "type": "action",
             "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost|float * 0.5 }}"}]},
             "transitions": [{"to_step": "create_booking_for_cbz", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_payment_amount_full_card_web",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost }}"}]},
+            "transitions": [{"to_step": "create_booking_for_card_web", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_payment_amount_deposit_card_web",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "amount_to_pay", "value_template": "{{ total_cost|float * 0.5 }}"}]},
+            "transitions": [{"to_step": "create_booking_for_card_web", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "create_booking_for_card_web",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "create_model_instance",
+                    "app_label": "customer_data",
+                    "model_name": "Booking",
+                    "fields_template": {
+                        "customer_id": "{{ contact.customer_profile.contact_id }}",
+                        "tour_id": "{{ tour_id }}",
+                        "tour_name": "{{ tour_name }}",
+                        "start_date": "{{ start_date | parse_date }}",
+                        "end_date": "{{ end_date | parse_date }}",
+                        "number_of_adults": "{{ num_adults }}",
+                        "number_of_children": "{{ num_children }}",
+                        "total_amount": "{{ total_cost }}",
+                        "payment_status": "pending",
+                        "booking_reference": "PENDING-{{ contact.id }}-{{ now().timestamp()|int }}",
+                        "source": "whatsapp",
+                        "notes": "Booking via WhatsApp. Card payment selected for web checkout. Travelers: {{ num_adults }} adults, {{ num_children }} children."
+                    },
+                    "save_to_variable": "created_booking"
+                }]
+            },
+            "transitions": [
+                {"to_step": "save_travelers_for_card_web", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "created_booking.id"}},
+                {"to_step": "booking_creation_failed", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "save_travelers_for_card_web",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "save_travelers_to_booking",
+                    "params_template": {
+                        "booking_context_var": "created_booking",
+                        "travelers_context_var": "travelers_details"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "prepare_card_web_checkout", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "prepare_card_web_checkout",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "card_web_checkout_url",
+                        "value_template": "https://kalaisafaris.com/booking?payment_mode=card&source=whatsapp&booking_reference={{ created_booking.booking_reference }}&amount={{ '%.2f'|format(amount_to_pay|float) }}"
+                    }
+                ]
+            },
+            "transitions": [{"to_step": "send_card_web_checkout_link", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "send_card_web_checkout_link",
+            "type": "end_flow",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {
+                        "body": "To pay by card, complete the secure checkout on the website using the link below:\n\n{{ card_web_checkout_url }}\n\nAmount due now: *${{ '%.2f'|format(amount_to_pay|float) }}*\nTemporary booking ref: *{{ created_booking.booking_reference }}*\n\nAfter you finish the card payment on the web page, tap the Return to WhatsApp button there or come back to this chat with your booking reference so we can continue."
+                    }
+                }
+            }
         },
         {
             "name": "create_booking_for_cbz",
