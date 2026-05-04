@@ -994,13 +994,13 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Enter the EcoCash number to charge (format 2637XXXXXXXX)."}
+                    "text": {"body": "Enter the EcoCash number to charge (format 2637XXXXXXXX or 07XXXXXXXX)."}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "payment_phone", "validation_regex": "^2637[0-9]{8}$"},
+                "reply_config": {"expected_type": "text", "save_to_variable": "payment_phone", "validation_regex": "^(2637[0-9]{8}|07[0-9]{8})$"},
                 "fallback_config": {
                     "action": "re_prompt",
                     "max_retries": 2,
-                    "re_prompt_message_text": "Please enter a valid Zimbabwe mobile number starting with 2637 (e.g., 263771234567)."
+                    "re_prompt_message_text": "Please enter a valid Zimbabwe mobile number (e.g., 263771234567 or 0771234567)."
                 }
             },
             "transitions": [{"to_step": "set_direct_cbz_payment_method", "condition_config": {"type": "always_true"}}]

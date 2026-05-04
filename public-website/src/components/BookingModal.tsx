@@ -9,7 +9,9 @@ interface BookingModalProps {
   amountUsd: number;
 }
 
-type PaymentMode = 'whatsapp' | 'card';
+type PaymentMode = 'ecocash' | 'card';
+
+type PaymentChannel = 'ecocash' | 'card';
 
 interface CardPaymentState {
   cardNumber: string;
@@ -17,8 +19,25 @@ interface CardPaymentState {
   cvv: string;
 }
 
+interface EcoCashPaymentState {
+  msisdn: string;
+}
+
+interface PaymentConfig {
+  mode: string;
+  ecocash: {
+    accepted_formats: string[];
+    test_msisdns: string[];
+  };
+  card: {
+    supports_3ds: boolean;
+    test_pans: string[];
+  };
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_BASE ?? '';
 const PENDING_3DS_REF_KEY = 'kalai_pending_3ds_reference';
+const PENDING_PAYMENT_CHANNEL_KEY = 'kalai_pending_payment_channel';
 
 export default function BookingModal({
   isOpen,
@@ -28,27 +47,86 @@ export default function BookingModal({
 }: BookingModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
   const [numberOfPeople, setNumberOfPeople] = useState('1');
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('whatsapp');
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('ecocash');
+  const [ecocash, setEcocash] = useState<EcoCashPaymentState>({ msisdn: '' });
   const [card, setCard] = useState<CardPaymentState>({ cardNumber: '', expiry: '', cvv: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
   const [lastMerchantReference, setLastMerchantReference] = useState('');
+  const [lastPaymentChannel, setLastPaymentChannel] = useState<PaymentChannel>('card');
+  const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
       return;
     }
+
+    let isCancelled = false;
+
+    const loadPaymentConfig = async () => {
+      if (!API_BASE) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/crm-api/payments/cbz/config/`, {
+          cache: 'no-store',
+        });
+        const result = await response.json();
+
+        if (!isCancelled && result.success && result.config) {
+          setPaymentConfig(result.config);
+          if (result.config.mode === 'Test' && result.config.ecocash.test_msisdns.length > 0) {
+            setEcocash((current) => (
+              current.msisdn
+                ? current
+                : { msisdn: result.config.ecocash.test_msisdns[0] }
+            ));
+          }
+        }
+      } catch {
+        if (!isCancelled) {
+          setPaymentConfig(null);
+        }
+      }
+    };
+
+    void loadPaymentConfig();
+
     const pendingRef = window.sessionStorage.getItem(PENDING_3DS_REF_KEY) ?? '';
     if (pendingRef) {
       setLastMerchantReference(pendingRef);
       setPaymentMode('card');
+      setLastPaymentChannel('card');
       setPaymentMessage('3DS authentication may still be pending. Use Complete 3DS Payment to confirm final status.');
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   const sanitizePan = (raw: string) => raw.replace(/\D/g, '');
+
+  const sanitizeMsisdn = (raw: string) => raw.replace(/\D/g, '').slice(0, 12);
+
+  const normalizeEcoCashMsisdn = (raw: string) => {
+    const digits = sanitizeMsisdn(raw);
+    if (digits.startsWith('263') && digits.length === 12) {
+      return digits;
+    }
+    if (digits.startsWith('0') && digits.length === 10) {
+      return `263${digits.slice(1)}`;
+    }
+    if (digits.length === 9 && digits.startsWith('7')) {
+      return `263${digits}`;
+    }
+    return digits;
+  };
+
+  const isValidEcoCashMsisdn = (raw: string) => /^(2637\d{8}|07\d{8}|7\d{8})$/.test(raw.replace(/\D/g, ''));
 
   const toExpiryMMyy = (raw: string) => {
     const digits = raw.replace(/\D/g, '');
@@ -59,6 +137,8 @@ export default function BookingModal({
   };
 
   const toIveriExpiry = (raw: string) => raw.replace(/\D/g, '').slice(0, 4);
+
+  const totalAmount = Number(numberOfPeople || '1') * amountUsd;
 
   const submit3DSChallenge = (challenge: Record<string, string>, merchantReference: string) => {
     const acsUrl = challenge.ACSURL || challenge.ACSUrl || challenge.AcsUrl || challenge.RedirectURL || challenge.RedirectUrl || challenge.AuthenticationURL || challenge.AuthenticationUrl;
@@ -139,6 +219,92 @@ export default function BookingModal({
     }
   };
 
+  const checkEcoCashPaymentStatus = async () => {
+    const merchantReference = lastMerchantReference;
+    if (!merchantReference) {
+      setPaymentMessage('No pending EcoCash payment reference found.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setPaymentMessage('Checking EcoCash payment status...');
+
+      const response = await fetch(`${API_BASE}/crm-api/payments/cbz/query/${merchantReference}/`, {
+        cache: 'no-store',
+      });
+      const result = await response.json();
+
+      if (result.success && result.is_approved) {
+        setPaymentMessage(`EcoCash payment approved. Ref: ${merchantReference}`);
+        return;
+      }
+
+      if (result.success && result.is_pending) {
+        setPaymentMessage(result.data?.result_description || 'EcoCash payment is still pending confirmation.');
+        return;
+      }
+
+      setPaymentMessage(result.data?.result_description || result.message || 'EcoCash payment was not approved.');
+    } catch {
+      setPaymentMessage('Unable to check EcoCash payment status right now. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitEcocashPayment = async () => {
+    const msisdn = normalizeEcoCashMsisdn(ecocash.msisdn);
+
+    if (!isValidEcoCashMsisdn(ecocash.msisdn)) {
+      setPaymentMessage('Enter a valid EcoCash number in 2637XXXXXXXX or 07XXXXXXXX format.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setPaymentMessage('Initiating EcoCash payment...');
+
+      const response = await fetch(`${API_BASE}/crm-api/payments/cbz/ecocash/debit/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          msisdn,
+          amount: totalAmount,
+          currency: 'USD',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.pending) {
+        setLastMerchantReference(result.merchant_reference || '');
+        setLastPaymentChannel('ecocash');
+        if (result.merchant_reference) {
+          window.sessionStorage.setItem(PENDING_3DS_REF_KEY, result.merchant_reference);
+          window.sessionStorage.setItem(PENDING_PAYMENT_CHANNEL_KEY, 'ecocash');
+        }
+        setPaymentMessage(result.message || 'EcoCash prompt sent. Complete the approval on your phone, then check status here.');
+        return;
+      }
+
+      if (result.success) {
+        setLastMerchantReference(result.merchant_reference || '');
+        setLastPaymentChannel('ecocash');
+        setPaymentMessage(`EcoCash payment approved. Ref: ${result.merchant_reference}`);
+        return;
+      }
+
+      setPaymentMessage(result.message || 'EcoCash payment failed.');
+    } catch {
+      setPaymentMessage('EcoCash initiation failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const submitCardPayment = async () => {
     const pan = sanitizePan(card.cardNumber);
     const expiryDate = toIveriExpiry(card.expiry);
@@ -183,14 +349,18 @@ export default function BookingModal({
       }
 
       if (result.success && !result.pending) {
+        setLastPaymentChannel('card');
+        window.sessionStorage.removeItem(PENDING_PAYMENT_CHANNEL_KEY);
         setPaymentMessage(`Payment approved. Ref: ${result.merchant_reference}`);
         return;
       }
 
       if (result.pending) {
         setLastMerchantReference(result.merchant_reference || '');
+        setLastPaymentChannel('card');
         if (result.merchant_reference) {
           window.sessionStorage.setItem(PENDING_3DS_REF_KEY, result.merchant_reference);
+          window.sessionStorage.setItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
         }
         setPaymentMessage('Payment is pending. If this was a 3DS flow, click Complete 3DS Payment after authentication.');
         return;
@@ -211,13 +381,8 @@ export default function BookingModal({
       void submitCardPayment();
       return;
     }
-    
-    const message = `*[Message from Kalai Safaris Website]*\n\nHi, I would like to book a ${cruiseType} for ${numberOfPeople} ${numberOfPeople === '1' ? 'person' : 'people'} on ${new Date(selectedDate).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.`;
-    
-    const whatsappUrl = `https://wa.me/263712629336?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-    
-    onClose();
+
+    void submitEcocashPayment();
   };
 
   return (
@@ -283,19 +448,26 @@ export default function BookingModal({
 
             <div className="bg-gradient-to-r from-[#fff7ec] to-[#ffe8cc] border border-[#ffba5a]/30 rounded-lg p-4">
               <p className="text-sm text-gray-700">
-                <strong className="text-gray-900">Estimated total:</strong> USD {(Number(numberOfPeople || '1') * amountUsd).toFixed(2)}
+                <strong className="text-gray-900">Estimated total:</strong> USD {totalAmount.toFixed(2)}
               </p>
             </div>
+
+            {paymentConfig?.mode === 'Test' && (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                <p className="font-semibold">CBZ test mode is active.</p>
+                <p className="mt-1">Use configured test EcoCash numbers or your approved test cards. The checkout will not pick test values randomly.</p>
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-2 p-1 rounded-lg bg-gray-100">
               <button
                 type="button"
-                onClick={() => setPaymentMode('whatsapp')}
+                onClick={() => setPaymentMode('ecocash')}
                 className={`rounded-md py-2 text-sm font-semibold transition ${
-                  paymentMode === 'whatsapp' ? 'bg-white shadow text-gray-900' : 'text-gray-600'
+                  paymentMode === 'ecocash' ? 'bg-white shadow text-gray-900' : 'text-gray-600'
                 }`}
               >
-                WhatsApp Booking
+                EcoCash
               </button>
               <button
                 type="button"
@@ -308,8 +480,80 @@ export default function BookingModal({
               </button>
             </div>
 
+            {paymentMode === 'ecocash' && (
+              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                <div>
+                  <label htmlFor="ecocashNumber" className="block text-sm font-semibold text-gray-700 mb-2">
+                    EcoCash Number
+                  </label>
+                  <input
+                    type="text"
+                    id="ecocashNumber"
+                    value={ecocash.msisdn}
+                    onChange={(e) => setEcocash({ msisdn: sanitizeMsisdn(e.target.value) })}
+                    inputMode="numeric"
+                    placeholder="263771234567 or 0771234567"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    Accepted formats: {(paymentConfig?.ecocash.accepted_formats || ['2637XXXXXXXX', '07XXXXXXXX']).join(' or ')}
+                  </p>
+                </div>
+                {paymentConfig?.mode === 'Test' && paymentConfig.ecocash.test_msisdns.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Configured test numbers</p>
+                    <div className="flex flex-wrap gap-2">
+                      {paymentConfig.ecocash.test_msisdns.map((testMsisdn) => (
+                        <button
+                          key={testMsisdn}
+                          type="button"
+                          onClick={() => setEcocash({ msisdn: testMsisdn })}
+                          className="rounded-full border border-[#ff9800] px-3 py-1 text-xs font-semibold text-[#ff9800] transition hover:bg-[#fff2e0]"
+                        >
+                          {testMsisdn}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <button
+                  type="button"
+                  onClick={checkEcoCashPaymentStatus}
+                  disabled={isSubmitting || !lastMerchantReference || lastPaymentChannel !== 'ecocash'}
+                  className="w-full rounded-full border border-[#ff9800] text-[#ff9800] font-semibold py-2.5 hover:bg-[#fff2e0] transition disabled:opacity-50"
+                >
+                  Check EcoCash Status
+                </button>
+                {lastMerchantReference && lastPaymentChannel === 'ecocash' && (
+                  <a
+                    href={`/booking/payment-status?channel=ecocash&ref=${encodeURIComponent(lastMerchantReference)}`}
+                    className="block w-full rounded-full border border-gray-300 text-gray-700 text-center font-semibold py-2.5 hover:bg-gray-50 transition"
+                  >
+                    Open Full Status Page
+                  </a>
+                )}
+              </div>
+            )}
+
             {paymentMode === 'card' && (
               <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                {paymentConfig?.mode === 'Test' && (paymentConfig.card.test_pans ?? []).length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Test cards (iVeri)</p>
+                    <div className="flex flex-wrap gap-2">
+                      {(paymentConfig.card.test_pans ?? []).map((testPan) => (
+                        <button
+                          key={testPan}
+                          type="button"
+                          onClick={() => setCard((prev) => ({ ...prev, cardNumber: testPan, expiry: '02/28', cvv: '123' }))}
+                          className="rounded-full border border-[#ff9800] px-3 py-1 text-xs font-semibold text-[#ff9800] transition hover:bg-[#fff2e0]"
+                        >
+                          {`${testPan.slice(0, 4)} **** **** ${testPan.slice(-4)}`}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div>
                   <label htmlFor="cardNumber" className="block text-sm font-semibold text-gray-700 mb-2">
                     Card Number
@@ -387,7 +631,7 @@ export default function BookingModal({
                 disabled={isSubmitting}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                {isSubmitting ? 'Processing...' : paymentMode === 'card' ? 'Pay Securely' : 'Continue to WhatsApp'}
+                {isSubmitting ? 'Processing...' : paymentMode === 'card' ? 'Pay Securely' : 'Start EcoCash Payment'}
               </button>
             </div>
           </form>

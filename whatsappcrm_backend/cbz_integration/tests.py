@@ -17,6 +17,7 @@ from .admin import CBZConfigAdmin, CBZConfigAdminForm
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriConfig, IVeriCertificateClient, IVeriCertificateConfig
 from .views import (
+    cbz_public_config_view,
     cbz_ecocash_debit_view,
     cbz_card_debit_view,
     cbz_card_3ds_complete_view,
@@ -459,6 +460,36 @@ class CBZFlowActionTests(TestCase):
         self.assertNotIn('cbz_payment_success', flow_context)
         self.assertEqual(flow_context['cbz_payment_reference'], 'CBZ-REF-PENDING')
 
+    @patch('cbz_integration.flow_actions.CBZConfig.get_active_config')
+    @patch('cbz_integration.flow_actions.get_cbz_payment_handler')
+    def test_initiate_payment_test_mode_uses_configured_msisdn(self, mock_get_handler, mock_get_active_config):
+        from cbz_integration.flow_actions import initiate_cbz_ecocash_payment_action
+
+        mock_get_active_config.return_value = CBZConfig(mode='Test', application_id='app-id')
+        mock_handler = MagicMock()
+        mock_handler.initiate_ecocash_payment.return_value = {
+            'success': True,
+            'reference': 'CBZ-REF-TEST-001',
+            'status': 'pending',
+            'is_pending': True,
+        }
+        mock_get_handler.return_value = mock_handler
+
+        flow_context = {'payment_phone': '263799999999'}
+        params = {
+            'booking_reference': 'CBZ-BOOKING-001',
+            'amount': '150.00',
+            'currency': 'USD',
+            'msisdn': '263799999999',
+        }
+
+        with self.settings(CBZ_TEST_ECOCASH_MSISDNS='263771234567,0773501244'):
+            initiate_cbz_ecocash_payment_action(self.contact, flow_context, params)
+
+        called_kwargs = mock_handler.initiate_ecocash_payment.call_args.kwargs
+        self.assertEqual(called_kwargs['msisdn'], '263771234567')
+        self.assertEqual(flow_context['cbz_test_msisdn_used'], '263771234567')
+
     def test_booking_flow_routes_ecocash_to_cbz_action(self):
         from flows.definitions.booking_flow import BOOKING_FLOW
 
@@ -489,6 +520,22 @@ class CBZEcoCashViewTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
 
+    @patch('cbz_integration.views._get_active_config')
+    def test_public_config_view_exposes_mode_and_test_msisdns(self, mock_get_active_config):
+        mock_get_active_config.return_value = CBZConfig(mode='Test', application_id='app-id')
+
+        with self.settings(CBZ_TEST_ECOCASH_MSISDNS='263771234567,0773501244'):
+            request = self.factory.get('/crm-api/payments/cbz/config/')
+            response = cbz_public_config_view(request)
+
+        payload = json.loads(response.content.decode('utf-8'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['config']['mode'], 'Test')
+        self.assertEqual(payload['config']['ecocash']['accepted_formats'], ['2637XXXXXXXX', '07XXXXXXXX'])
+        self.assertEqual(payload['config']['ecocash']['test_msisdns'], ['263771234567', '0773501244'])
+
     @patch('cbz_integration.views._build_client')
     def test_ecocash_debit_view_marks_pending_transactions(self, mock_build_client):
         mock_client = MagicMock()
@@ -516,6 +563,44 @@ class CBZEcoCashViewTests(TestCase):
         self.assertTrue(payload['success'])
         self.assertTrue(payload['pending'])
         self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)
+
+    @patch('cbz_integration.views._build_client')
+    def test_ecocash_debit_creates_and_links_website_booking(self, mock_build_client):
+        mock_client = MagicMock()
+        mock_client.debit_ecocash.return_value = {
+            'Transaction': {
+                'ResultCode': RESULT_CODE_SUCCESS,
+                'Status': 'Pending',
+                'ResultDescription': 'Awaiting customer confirmation',
+                'MerchantReference': 'KS-PENDING-WEB-001',
+            }
+        }
+        mock_build_client.return_value = mock_client
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/ecocash/debit/',
+            data=json.dumps({
+                'msisdn': '263771234567',
+                'amount': '10.50',
+                'currency': 'USD',
+                'booking_details': {
+                    'tour_name': 'Jetty Usage',
+                    'selected_date': '2026-05-05',
+                    'number_of_people': 2,
+                },
+            }),
+            content_type='application/json',
+        )
+
+        response = cbz_ecocash_debit_view(request)
+        payload = json.loads(response.content.decode('utf-8'))
+        txn = CBZTransaction.objects.get(merchant_reference=payload['merchant_reference'])
+
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(payload['success'])
+        self.assertIsNotNone(payload.get('booking_reference'))
+        self.assertIsNotNone(txn.booking)
+        self.assertEqual(txn.booking.tour_name, 'Jetty Usage')
 
 
 class CBZCard3DSViewTests(TestCase):

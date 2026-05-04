@@ -1,11 +1,15 @@
 'use client';
 
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_BASE ?? '';
 const PENDING_3DS_REF_KEY = 'kalai_pending_3ds_reference';
+const PENDING_PAYMENT_CHANNEL_KEY = 'kalai_pending_payment_channel';
 const REFRESH_SECONDS = 30;
+
+type PaymentChannel = 'card' | 'ecocash';
 
 type StatusState = 'idle' | 'checking' | 'approved' | 'pending' | 'failed' | 'no-reference';
 
@@ -18,20 +22,36 @@ interface GatewayResult {
 }
 
 export default function PaymentStatusPage() {
+  const searchParams = useSearchParams();
   const [status, setStatus] = useState<StatusState>('idle');
   const [message, setMessage] = useState('Preparing payment verification...');
-  const [merchantReference, setMerchantReference] = useState('');
   const [countdown, setCountdown] = useState(0);
 
+  const channel = useMemo<PaymentChannel>(() => {
+    const queryChannel = (searchParams.get('channel') ?? '').toLowerCase();
+    if (queryChannel === 'ecocash' || queryChannel === 'card') {
+      return queryChannel as PaymentChannel;
+    }
+    if (typeof window === 'undefined') {
+      return 'card';
+    }
+    const storedChannel = (window.sessionStorage.getItem(PENDING_PAYMENT_CHANNEL_KEY) ?? '').toLowerCase();
+    if (storedChannel === 'ecocash' || storedChannel === 'card') {
+      return storedChannel as PaymentChannel;
+    }
+    return 'card';
+  }, [searchParams]);
+
   const effectiveReference = useMemo(() => {
-    if (merchantReference) {
-      return merchantReference;
+    const queryRef = searchParams.get('ref') ?? '';
+    if (queryRef) {
+      return queryRef;
     }
     if (typeof window === 'undefined') {
       return '';
     }
     return window.sessionStorage.getItem(PENDING_3DS_REF_KEY) ?? '';
-  }, [merchantReference]);
+  }, [searchParams]);
 
   const verifyPayment = useCallback(async () => {
     const reference = effectiveReference;
@@ -45,20 +65,43 @@ export default function PaymentStatusPage() {
     setMessage('Checking your payment status with the gateway...');
 
     try {
-      const response = await fetch(`${API_BASE}/crm-api/payments/cbz/card/3ds/complete/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ merchant_reference: reference }),
-      });
+      const response = channel === 'card'
+        ? await fetch(`${API_BASE}/crm-api/payments/cbz/card/3ds/complete/`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ merchant_reference: reference }),
+          })
+        : await fetch(`${API_BASE}/crm-api/payments/cbz/query/${reference}/`);
 
       const result = (await response.json()) as GatewayResult;
+
+      if (channel === 'ecocash') {
+        if (result.success && (result as GatewayResult & { is_approved?: boolean }).is_approved) {
+          setStatus('approved');
+          setMessage(result.message || `Payment approved. Reference: ${reference}`);
+          window.sessionStorage.removeItem(PENDING_3DS_REF_KEY);
+          window.sessionStorage.removeItem(PENDING_PAYMENT_CHANNEL_KEY);
+          return;
+        }
+
+        if (result.success && (result as GatewayResult & { is_pending?: boolean }).is_pending) {
+          setStatus('pending');
+          setMessage(result.message || 'Payment is still pending final confirmation.');
+          return;
+        }
+
+        setStatus('failed');
+        setMessage(result.message || 'Payment could not be confirmed.');
+        return;
+      }
 
       if (result.success && !result.pending) {
         setStatus('approved');
         setMessage(result.message || `Payment approved. Reference: ${result.merchant_reference || reference}`);
         window.sessionStorage.removeItem(PENDING_3DS_REF_KEY);
+        window.sessionStorage.removeItem(PENDING_PAYMENT_CHANNEL_KEY);
         return;
       }
 
@@ -74,25 +117,17 @@ export default function PaymentStatusPage() {
       setStatus('failed');
       setMessage('Unable to reach payment services right now. Please try again.');
     }
-  }, [effectiveReference]);
+  }, [effectiveReference, channel]);
 
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (!effectiveReference) {
       return;
     }
-
-    const ref = window.sessionStorage.getItem(PENDING_3DS_REF_KEY) ?? '';
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMerchantReference(ref);
-  }, []);
-
-  useEffect(() => {
-    if (!merchantReference) {
-      return;
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void verifyPayment();
-  }, [merchantReference, verifyPayment]);
+    const id = window.setTimeout(() => {
+      void verifyPayment();
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [effectiveReference, verifyPayment]);
 
   useEffect(() => {
     if (status !== 'pending') {
@@ -134,13 +169,17 @@ export default function PaymentStatusPage() {
     <main className="min-h-screen bg-linear-to-b from-[#001a33] via-[#002b4d] to-[#001a33] py-16 px-6">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl p-8 md:p-10">
         <div className="flex items-center justify-between gap-3 mb-6">
-          <h1 className="text-2xl md:text-3xl font-black text-gray-900">Card Payment Status</h1>
+          <h1 className="text-2xl md:text-3xl font-black text-gray-900">{channel === 'ecocash' ? 'EcoCash Payment Status' : 'Card Payment Status'}</h1>
           <span className={`px-3 py-1 rounded-full border text-xs font-bold ${statusBadge}`}>
             {statusLabel}
           </span>
         </div>
 
         <p className="text-gray-700 leading-relaxed mb-4">{message}</p>
+
+        <p className="text-sm text-gray-500 mb-2">
+          Channel: <span className="font-semibold text-gray-700 uppercase">{channel}</span>
+        </p>
 
         {status === 'pending' && countdown > 0 && (
           <p className="text-sm text-amber-700 mb-2">

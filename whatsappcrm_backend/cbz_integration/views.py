@@ -10,6 +10,8 @@ Provides REST endpoints for:
 import json
 import logging
 import uuid
+import os
+from datetime import date
 
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
@@ -21,6 +23,7 @@ from django.views.decorators.http import require_http_methods
 from django.db import transaction as db_transaction
 
 from customer_data.models import Booking, Payment
+from products_and_services.models import Tour
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
 from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED
@@ -36,6 +39,33 @@ def _build_client() -> IVeriClient:
 
 def _get_active_config() -> Optional[CBZConfig]:
     return CBZConfig.get_active_config()
+
+
+def _get_public_payment_config() -> Dict[str, Any]:
+    """Return non-sensitive payment config for frontend checkout flows."""
+    config = _get_active_config()
+    mode = config.mode if config else 'Test'
+
+    raw_test_msisdns = getattr(settings, 'CBZ_TEST_ECOCASH_MSISDNS', '') or os.getenv('CBZ_TEST_ECOCASH_MSISDNS', '')
+    test_msisdns = [item.strip() for item in raw_test_msisdns.split(',') if item.strip()]
+
+    raw_test_card_pans = getattr(settings, 'CBZ_TEST_CARD_PANS', '') or os.getenv('CBZ_TEST_CARD_PANS', '')
+    test_card_pans = [item.strip() for item in raw_test_card_pans.split(',') if item.strip()]
+    # Fall back to the iVeri-documented test PAN when in Test mode and none configured
+    if not test_card_pans and mode == 'Test':
+        test_card_pans = ['5413330089020020']
+
+    return {
+        'mode': mode,
+        'ecocash': {
+            'accepted_formats': ['2637XXXXXXXX', '07XXXXXXXX'],
+            'test_msisdns': test_msisdns,
+        },
+        'card': {
+            'supports_3ds': True,
+            'test_pans': test_card_pans,
+        },
+    }
 
 
 def _build_certificate_client(config_model: Optional[CBZConfig] = None) -> IVeriCertificateClient:
@@ -65,6 +95,77 @@ def _apply_gateway_result_to_transaction(
         txn.status = CBZTransaction.TransactionStatus.DECLINED
 
     txn.save()
+
+
+def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Optional[Booking]:
+    """
+    Resolve a booking by reference, or create a website draft booking when
+    booking details are supplied without a booking reference.
+    """
+    booking_ref = payload.get('booking_reference')
+    if booking_ref:
+        booking = Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at').first()
+        if booking:
+            return booking
+        logger.warning("Booking %s not found for CBZ payment", booking_ref)
+        return None
+
+    details = payload.get('booking_details') if isinstance(payload.get('booking_details'), dict) else {}
+    tour_name = details.get('tour_name') or payload.get('tour_name')
+    selected_date = details.get('selected_date') or payload.get('selected_date')
+    number_of_people = details.get('number_of_people') or payload.get('number_of_people') or 1
+
+    if not tour_name or not selected_date:
+        return None
+
+    try:
+        start_date = date.fromisoformat(str(selected_date))
+    except (TypeError, ValueError):
+        logger.warning("Invalid selected_date in website payment payload: %s", selected_date)
+        return None
+
+    try:
+        adults = max(int(number_of_people), 1)
+    except (TypeError, ValueError):
+        adults = 1
+
+    tour = Tour.objects.filter(name__iexact=str(tour_name).strip()).first()
+    return Booking.objects.create(
+        booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
+        tour=tour,
+        tour_name=str(tour_name).strip(),
+        start_date=start_date,
+        end_date=start_date,
+        number_of_adults=adults,
+        number_of_children=0,
+        total_amount=amount,
+        payment_status=Booking.PaymentStatus.PENDING,
+        source=Booking.BookingSource.MANUAL_ENTRY,
+        notes=f"Website checkout draft booking. People: {adults}.",
+    )
+
+
+def _finalize_booking_reference_if_temporary(booking: Optional[Booking]) -> Optional[Booking]:
+    """Replace temporary website references with canonical booking references."""
+    if not booking:
+        return None
+
+    if not str(booking.booking_reference or '').startswith('PENDING-'):
+        return booking
+
+    booking.booking_reference = ''
+    booking.save(update_fields=['booking_reference', 'updated_at'])
+    booking.refresh_from_db(fields=['booking_reference', 'updated_at'])
+    return booking
+
+
+@require_http_methods(["GET"])
+def cbz_public_config_view(request: HttpRequest) -> JsonResponse:
+    """Expose non-sensitive CBZ payment config for frontend checkout UX."""
+    return JsonResponse({
+        'success': True,
+        'config': _get_public_payment_config(),
+    })
 
 
 # ─── EcoCash API Endpoint ────────────────────────────────────────────
@@ -140,16 +241,12 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
     currency = payload['currency']
     msisdn = payload['msisdn']
 
-    # Optionally link to booking (use latest if multiple exist for same reference)
-    booking = None
-    booking_ref = payload.get('booking_reference')
-    if booking_ref:
-        try:
-            booking = Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at').first()
-            if not booking:
-                logger.warning(f"Booking {booking_ref} not found for CBZ payment")
-        except Exception as e:
-            logger.warning(f"Error looking up booking {booking_ref}: {e}")
+    # Resolve existing booking reference, or create a website draft booking.
+    try:
+        booking = _resolve_or_create_booking(payload, amount)
+    except Exception as e:
+        logger.warning("Error resolving/creating booking for EcoCash payment: %s", e)
+        booking = None
 
     # Create transaction record
     txn = CBZTransaction.objects.create(
@@ -188,6 +285,8 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
             txn.completed_at = timezone.now()
             txn.save()
 
+            booking = _finalize_booking_reference_if_temporary(booking)
+
             # Record payment on booking
             if booking:
                 _record_payment(txn, booking)
@@ -196,12 +295,14 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
                 "success": True,
                 "message": "Payment approved",
                 "merchant_reference": merchant_ref,
+                "booking_reference": booking.booking_reference if booking else None,
                 "transaction_index": result.get('transaction_index'),
                 "authorisation_code": result.get('authorisation_code'),
             })
         elif is_pending:
             txn.status = CBZTransaction.TransactionStatus.PENDING
             txn.save()
+            booking = _finalize_booking_reference_if_temporary(booking)
             return JsonResponse({
                 "success": True,
                 "pending": True,
@@ -210,6 +311,7 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
                     'Payment initiated and awaiting final confirmation',
                 ),
                 "merchant_reference": merchant_ref,
+                "booking_reference": booking.booking_reference if booking else None,
                 "result_code": result.get('result_code'),
             }, status=202)
         else:
@@ -294,16 +396,12 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
     pan = payload['pan']
     masked_pan = f"{pan[:4]}****{pan[-4:]}" if len(pan) >= 8 else "****"
 
-    # Link to booking if provided (use latest if multiple exist for same reference)
-    booking = None
-    booking_ref = payload.get('booking_reference')
-    if booking_ref:
-        try:
-            booking = Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at').first()
-            if not booking:
-                logger.warning(f"Booking {booking_ref} not found for CBZ card payment")
-        except Exception as e:
-            logger.warning(f"Error looking up booking {booking_ref}: {e}")
+    # Resolve existing booking reference, or create a website draft booking.
+    try:
+        booking = _resolve_or_create_booking(payload, amount)
+    except Exception as e:
+        logger.warning("Error resolving/creating booking for card payment: %s", e)
+        booking = None
 
     # Create transaction record (never store raw card number)
     txn = CBZTransaction.objects.create(
@@ -343,6 +441,8 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
 
         if is_approved:
 
+            booking = _finalize_booking_reference_if_temporary(booking)
+
             if booking:
                 _record_payment(txn, booking)
 
@@ -350,16 +450,19 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 "success": True,
                 "message": "Payment approved",
                 "merchant_reference": merchant_ref,
+                "booking_reference": booking.booking_reference if booking else None,
                 "transaction_index": result.get('transaction_index'),
                 "authorisation_code": result.get('authorisation_code'),
             })
         elif is_3ds_required:
+            booking = _finalize_booking_reference_if_temporary(booking)
             return JsonResponse({
                 "success": True,
                 "requires_3ds": True,
                 "pending": True,
                 "message": result.get('result_description', '3DS authentication required'),
                 "merchant_reference": merchant_ref,
+                "booking_reference": booking.booking_reference if booking else None,
                 "result_code": result.get('result_code'),
                 "transaction_index": result.get('transaction_index'),
                 "challenge": IVeriClient.get_3ds_challenge_data(response),
@@ -369,11 +472,13 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 },
             }, status=202)
         elif is_pending:
+            booking = _finalize_booking_reference_if_temporary(booking)
             return JsonResponse({
                 "success": True,
                 "pending": True,
                 "message": result.get('result_description', 'Payment initiated and awaiting final confirmation'),
                 "merchant_reference": merchant_ref,
+                "booking_reference": booking.booking_reference if booking else None,
                 "result_code": result.get('result_code'),
                 "transaction_index": result.get('transaction_index'),
             }, status=202)

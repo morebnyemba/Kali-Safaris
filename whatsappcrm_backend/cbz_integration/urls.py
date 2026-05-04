@@ -1,5 +1,6 @@
 from django.urls import path
 from .views import (
+    cbz_public_config_view,
     cbz_ecocash_debit_view,
     cbz_card_debit_view,
     cbz_card_3ds_complete_view,
@@ -14,6 +15,8 @@ from .views import (
 app_name = 'cbz_integration'
 
 urlpatterns = [
+    path('config/', cbz_public_config_view, name='public_config'),
+
     # EcoCash payment (WhatsApp bot or direct API)
     path('ecocash/debit/', cbz_ecocash_debit_view, name='ecocash_debit'),
 

@@ -5,15 +5,32 @@ Register with: from cbz_integration.flow_actions import register_cbz_payment_act
 Then call: register_cbz_payment_actions()
 """
 import logging
+import os
 from decimal import Decimal, InvalidOperation
 from typing import List, Dict, Any
 
 from conversations.models import Contact
 from customer_data.models import Booking
+from django.conf import settings
+from .models import CBZConfig
 from .whatsapp_handler import get_cbz_payment_handler
 
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_msisdn(msisdn: str) -> str:
+    digits = ''.join(c for c in (msisdn or '') if c.isdigit())
+    if digits.startswith('0') and len(digits) == 10:
+        return f"263{digits[1:]}"
+    if len(digits) == 9 and digits.startswith('7'):
+        return f"263{digits}"
+    return digits
+
+
+def _configured_test_msisdns() -> List[str]:
+    raw = getattr(settings, 'CBZ_TEST_ECOCASH_MSISDNS', '') or os.getenv('CBZ_TEST_ECOCASH_MSISDNS', '')
+    return [item.strip() for item in raw.split(',') if item.strip()]
 
 
 def initiate_cbz_ecocash_payment_action(
@@ -72,6 +89,25 @@ def initiate_cbz_ecocash_payment_action(
 
     currency = params.get('currency', 'USD')
     payment_phone = params.get('msisdn') or flow_context.get('payment_phone', contact.whatsapp_id)
+
+    # In Test mode, use deterministic configured MSISDNs only (never random).
+    active_config = CBZConfig.get_active_config()
+    if active_config and active_config.mode == 'Test':
+        configured_msisdns = _configured_test_msisdns()
+        if configured_msisdns:
+            provided = _normalize_msisdn(str(payment_phone))
+            allowed = {_normalize_msisdn(item) for item in configured_msisdns}
+            if provided not in allowed:
+                payment_phone = configured_msisdns[0]
+                flow_context['cbz_test_msisdn_used'] = payment_phone
+                logger.info(
+                    "initiate_cbz_ecocash action test-mode override | contact=%s provided=%s selected=%s",
+                    contact.id,
+                    provided,
+                    _normalize_msisdn(payment_phone),
+                )
+        else:
+            flow_context.pop('cbz_test_msisdn_used', None)
 
     # Initiate the payment (this triggers the STK Push)
     handler = get_cbz_payment_handler()
