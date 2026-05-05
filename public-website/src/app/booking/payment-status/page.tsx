@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_BASE ?? '';
 const PENDING_3DS_REF_KEY = 'kalai_pending_3ds_reference';
@@ -25,7 +25,7 @@ interface GatewayResult {
   result_code?: string;
 }
 
-export default function PaymentStatusPage() {
+function PaymentStatusPageContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<StatusState>('idle');
   const [message, setMessage] = useState('Preparing payment verification...');
@@ -273,5 +273,13 @@ export default function PaymentStatusPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function PaymentStatusPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentStatusPageContent />
+    </Suspense>
   );
 }

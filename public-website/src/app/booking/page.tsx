@@ -1,7 +1,7 @@
 'use client';
 
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import FooterSection from "@/components/FooterSection";
 import BookingModal from "@/components/BookingModal";
@@ -55,7 +55,7 @@ const cruises = [
   },
 ];
 
-export default function BookingPage() {
+function BookingPageContent() {
   const searchParams = useSearchParams();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCruise, setSelectedCruise] = useState("");
@@ -233,5 +233,13 @@ export default function BookingPage() {
 
       <FooterSection />
     </div>
+  );
+}
+
+export default function BookingPage() {
+  return (
+    <Suspense fallback={null}>
+      <BookingPageContent />
+    </Suspense>
   );
 }
