@@ -554,10 +554,16 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
                 _record_payment(txn, txn.booking)
 
         if is_approved:
+            resolved_booking_reference = None
+            if txn.booking_id:
+                txn.booking = _finalize_booking_reference_if_temporary(txn.booking)
+                resolved_booking_reference = txn.booking.booking_reference if txn.booking else None
+
             return JsonResponse({
                 "success": True,
                 "message": "Payment approved",
                 "merchant_reference": merchant_reference,
+                "booking_reference": resolved_booking_reference,
                 "transaction_index": result.get('transaction_index'),
                 "authorisation_code": result.get('authorisation_code'),
             })
