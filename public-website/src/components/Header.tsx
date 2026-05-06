@@ -27,13 +27,13 @@ export default function Header() {
     >
       <nav className="container mx-auto relative flex items-center justify-between py-3 px-4 md:py-4 md:px-6">
         {/* Logo */}
-        <Link href="/" className="flex-shrink-0 hover:opacity-80 transition-opacity">
+        <Link href="/" className="m-0 p-0 leading-none flex-shrink-0 hover:opacity-80 transition-opacity">
           <Image 
             src="/images/logok.png" 
             alt="Kalai Safari Logo" 
-            width={80} 
-            height={80}
-            className="rounded-2xl md:w-[100px] md:h-[100px] w-[80px] h-[80px]"
+            width={180} 
+            height={59}
+            className="m-0 p-0 block h-auto w-[140px] md:w-[180px]"
           />
         </Link>
 
