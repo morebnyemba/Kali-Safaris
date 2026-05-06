@@ -1,4 +1,5 @@
-import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaWhatsapp, FaFacebook, FaInstagram, FaTwitter } from "react-icons/fa";
+import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaWhatsapp, FaFacebook, FaInstagram, FaTwitter, FaSun } from "react-icons/fa";
+import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
 
 export default function FooterSection() {
   const currentYear = new Date().getFullYear();
@@ -91,21 +92,21 @@ export default function FooterSection() {
             <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#ffba5a] to-[#ff9800]">Cruise Hours</h2>
             <div className="space-y-3">
               <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <span className="text-[#ffba5a] text-lg">🌅</span>
+                <BsSunriseFill className="text-[#ffba5a] text-lg" />
                 <div>
                   <p className="font-semibold text-white/90">Sunrise Cruise</p>
                   <p className="text-sm text-white/60">06:00 AM — 08:00 AM</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <span className="text-[#ffba5a] text-lg">☀️</span>
+                <FaSun className="text-[#ffba5a] text-lg" />
                 <div>
                   <p className="font-semibold text-white/90">Lunch Cruise</p>
                   <p className="text-sm text-white/60">12:00 PM — 02:00 PM</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <span className="text-[#ffba5a] text-lg">🌇</span>
+                <BsSunsetFill className="text-[#ffba5a] text-lg" />
                 <div>
                   <p className="font-semibold text-white/90">Sunset Cruise</p>
                   <p className="text-sm text-white/60">04:00 PM — After Sunset</p>

@@ -2,6 +2,9 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import type { IconType } from "react-icons";
+import { FaShip, FaAnchor, FaTimes } from "react-icons/fa";
+import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
 import FooterSection from "@/components/FooterSection";
 
 const galleryImages = [
@@ -23,12 +26,12 @@ const galleryImages = [
   { src: "/images/boat entry.jpg", alt: "Boarding the Boat", category: "boat" },
 ];
 
-const categories = [
+const categories: { key: string; label: string; icon?: IconType }[] = [
   { key: "all", label: "All" },
-  { key: "boat", label: "🚢 Boats & Cruises" },
-  { key: "sunset", label: "🌇 Sunset" },
-  { key: "sunrise", label: "🌅 Sunrise" },
-  { key: "jetty", label: "🏗️ Jetty Venue" },
+  { key: "boat", label: "Boats & Cruises", icon: FaShip },
+  { key: "sunset", label: "Sunset", icon: BsSunsetFill },
+  { key: "sunrise", label: "Sunrise", icon: BsSunriseFill },
+  { key: "jetty", label: "Jetty Venue", icon: FaAnchor },
 ];
 
 export default function GalleryPage() {
@@ -81,7 +84,7 @@ export default function GalleryPage() {
                     : "bg-white/60 backdrop-blur-md border border-white/50 text-gray-700 hover:border-[#ff9800]/50"
                 }`}
               >
-                {cat.label}
+                {cat.icon && <cat.icon size={14} className="inline mr-1" />}{cat.label}
               </button>
             ))}
           </div>
@@ -125,7 +128,7 @@ export default function GalleryPage() {
             onClick={() => setLightboxImage(null)}
             aria-label="Close lightbox"
           >
-            ✕
+            <FaTimes size={24} />
           </button>
           <div className="relative max-w-5xl max-h-[85vh] w-full" onClick={(e) => e.stopPropagation()}>
             <Image

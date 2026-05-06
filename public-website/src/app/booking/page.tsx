@@ -5,7 +5,9 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import FooterSection from "@/components/FooterSection";
 import BookingModal from "@/components/BookingModal";
-import { FaWhatsapp, FaPhone, FaEnvelope } from "react-icons/fa";
+import { FaWhatsapp, FaPhone, FaEnvelope, FaSun, FaMoon, FaShip, FaAnchor } from "react-icons/fa";
+import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
+import { MdCelebration } from "react-icons/md";
 
 const cruises = [
   {
@@ -15,7 +17,7 @@ const cruises = [
     price: "From $20",
     image: "/images/sunrise.jpeg",
     description: "Start your day with the peaceful sounds of the Zambezi as hippos yawn and fish eagles call.",
-    emoji: "🌅",
+    Icon: BsSunriseFill,
   },
   {
     title: "Lunch Cruise",
@@ -24,7 +26,7 @@ const cruises = [
     price: "From $20",
     image: "/images/work_no_play.jpeg",
     description: "A relaxing midday cruise along the river with stunning views and refreshing breezes.",
-    emoji: "☀️",
+    Icon: FaSun,
   },
   {
     title: "Sunset Cruise",
@@ -33,7 +35,7 @@ const cruises = [
     price: "From $20",
     image: "/images/sunset.jpeg",
     description: "The most popular cruise — watch the African sun set over the Zambezi in golden splendour.",
-    emoji: "🌇",
+    Icon: BsSunsetFill,
   },
   {
     title: "Dinner Cruise",
@@ -42,7 +44,7 @@ const cruises = [
     price: "From $70",
     image: "/images/Kalai Sunset background shot.jpeg",
     description: "An exclusive evening on the river, complete with a gourmet dinner under the stars.",
-    emoji: "🌙",
+    Icon: FaMoon,
   },
   {
     title: "Jetty Venue Hire",
@@ -51,7 +53,7 @@ const cruises = [
     price: "Contact us",
     image: "/images/jetty_venue.jpg",
     description: "Host your wedding, conference, or cocktail event at our beautiful riverside jetty.",
-    emoji: "🎉",
+    Icon: MdCelebration,
   },
 ];
 
@@ -161,7 +163,7 @@ function BookingPageContent() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                   <div className="absolute bottom-3 left-3">
                     <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black shadow-sm">
-                      {cruise.emoji} {cruise.price}
+                      <cruise.Icon size={12} /> {cruise.price}
                     </span>
                   </div>
                 </div>

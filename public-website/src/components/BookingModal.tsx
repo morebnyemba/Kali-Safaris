@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { FaArrowRight } from 'react-icons/fa';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -214,13 +215,24 @@ export default function BookingModal({
 
     void loadPaymentConfig();
 
-    const pendingRef = getSessionItem(PENDING_3DS_REF_KEY);
-    if (pendingRef) {
-      setLastMerchantReference(pendingRef);
-      setPaymentMode('card');
-      setLastPaymentChannel('card');
-      setPaymentMessage('3DS authentication may still be pending. Use Complete 3DS Payment to confirm final status.');
-      setCheckoutStep('payment');
+    // Only restore a pending 3DS state when the modal is opened with an existing
+    // booking reference (i.e. the user returned from ACS/bank). A fresh "Book Now"
+    // click must always start at step 1 — clear any stale keys so they don't
+    // silently skip the details form.
+    if (initialBookingReference) {
+      const pendingRef = getSessionItem(PENDING_3DS_REF_KEY);
+      if (pendingRef) {
+        setLastMerchantReference(pendingRef);
+        setPaymentMode('card');
+        setLastPaymentChannel('card');
+        setPaymentMessage('3DS authentication may still be pending. Use Complete 3DS Payment to confirm final status.');
+        setCheckoutStep('payment');
+      }
+    } else {
+      removeSessionItem(PENDING_3DS_REF_KEY);
+      removeSessionItem(PENDING_PAYMENT_CHANNEL_KEY);
+      setLastMerchantReference('');
+      setPaymentMessage('');
     }
 
     return () => {
@@ -757,7 +769,7 @@ export default function BookingModal({
             <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#ff9800] text-black' : 'bg-gray-100 text-gray-600'}`}>
               1. Booking Details
             </span>
-            <span className="text-gray-400">→</span>
+            <span className="text-gray-400"><FaArrowRight size={12} /></span>
             <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#ff9800] text-black' : 'bg-gray-100 text-gray-600'}`}>
               2. Secure Payment
             </span>
