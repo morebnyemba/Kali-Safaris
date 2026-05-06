@@ -25,15 +25,17 @@ export default function Header() {
           : "backdrop-blur-md bg-gradient-to-b from-black/30 via-black/10 to-transparent border-b border-white/10 shadow-lg"
       }`}
     >
-      <nav className="container mx-auto relative flex items-center justify-between py-3 px-4 md:py-4 md:px-6">
+      <nav className="container mx-auto relative flex items-center justify-between py-1.5 px-4 md:py-2 md:px-6">
         {/* Logo */}
-        <Link href="/" className="m-0 p-0 leading-none flex-shrink-0 hover:opacity-80 transition-opacity">
+        <Link href="/" className="leading-none flex-shrink-0 hover:opacity-80 transition-opacity">
           <Image 
             src="/images/logok.png" 
             alt="Kalai Safari Logo" 
-            width={180} 
-            height={59}
-            className="m-0 p-0 block h-auto w-[140px] md:w-[180px]"
+            width={160} 
+            height={53}
+            className="block h-auto w-[120px] md:w-[160px]"
+            priority
+            style={{ imageRendering: 'crisp-edges' }}
           />
         </Link>
 
