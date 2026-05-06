@@ -29,7 +29,7 @@ export default function Header() {
         {/* Logo */}
         <Link href="/" className="flex-shrink-0 hover:opacity-80 transition-opacity">
           <Image 
-            src="/images/kalai_safari_logo.PNG" 
+            src="/images/logok.png" 
             alt="Kalai Safari Logo" 
             width={80} 
             height={80}
