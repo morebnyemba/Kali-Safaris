@@ -38,6 +38,12 @@ ALLOWED_HOSTS_STRING = os.getenv(
 )
 ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_STRING.split(',') if host.strip()]
 
+# Internal service-to-service requests (e.g., Next.js proxy -> Django in Docker)
+# may use container DNS names rather than public domains.
+for internal_host in ('backend',):
+    if internal_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(internal_host)
+
 # --- CSRF Trusted Origins ---
 # Add your frontend domains that will make state-changing requests (POST, PUT, etc.).
 # This is crucial for your React frontend to be able to log in and submit data.
