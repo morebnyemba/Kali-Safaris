@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,6 +23,12 @@
             border-radius: 8px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
+        .logo {
+            width: min(360px, 80vw);
+            height: auto;
+            margin: 0 auto 1rem auto;
+            display: block;
+        }
         h1 {
             color: #28a745;
         }
@@ -33,6 +40,7 @@
 </head>
 <body>
     <div class="container">
+        <img class="logo" src="{% static 'branding/logok.png' %}" alt="Kalai Safaris logo">
         <h1>Welcome to the Kalai Safaris Backend</h1>
         <p>This is the API and backend service for Kalai Safaris.</p>
         <p>API services are running.</p>
