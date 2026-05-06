@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FaArrowRight } from 'react-icons/fa';
 
 interface BookingModalProps {
@@ -162,6 +162,8 @@ export default function BookingModal({
     agreeToTerms: false,
   });
   const [travelers, setTravelers] = useState<TravelerEntry[]>([createEmptyTraveler()]);
+  const detailsFormAnchorRef = useRef<HTMLDivElement | null>(null);
+  const detailsDateInputRef = useRef<HTMLInputElement | null>(null);
   const isPagePresentation = presentation === 'page';
   const isTestMode = useMemo(() => paymentConfig?.mode === 'Test', [paymentConfig]);
   const paymentEnvironmentLabel = useMemo(() => {
@@ -179,6 +181,19 @@ export default function BookingModal({
     }
     onCheckoutStepChange?.(checkoutStep);
   }, [checkoutStep, isOpen, onCheckoutStepChange]);
+
+  useEffect(() => {
+    if (!isOpen || checkoutStep !== 'details') {
+      return;
+    }
+
+    const id = window.setTimeout(() => {
+      detailsFormAnchorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      detailsDateInputRef.current?.focus();
+    }, 0);
+
+    return () => window.clearTimeout(id);
+  }, [checkoutStep, cruiseType, isOpen]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -902,6 +917,7 @@ export default function BookingModal({
           <form onSubmit={handleSubmit} className="space-y-5">
             {checkoutStep === 'details' && (
               <>
+                <div ref={detailsFormAnchorRef} />
                 <div>
                   <label htmlFor="date" className="block text-sm font-semibold text-gray-700 mb-2">
                     Preferred Date
@@ -909,6 +925,7 @@ export default function BookingModal({
                   <input
                     type="date"
                     id="date"
+                    ref={detailsDateInputRef}
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     min={new Date().toISOString().split('T')[0]}
