@@ -13,6 +13,7 @@ interface BookingModalProps {
   fixedAmountUsd?: number;
   launchedFromWhatsApp?: boolean;
   presentation?: 'modal' | 'page';
+  onCheckoutStepChange?: (step: CheckoutStep) => void;
 }
 
 type PaymentMode = 'ecocash' | 'card';
@@ -52,6 +53,7 @@ interface TravelerEntry {
 }
 
 type CheckoutStep = 'details' | 'payment';
+type CardBrand = 'visa' | 'mastercard' | 'amex' | 'discover' | 'diners' | 'jcb' | 'unknown';
 
 const createEmptyTraveler = (): TravelerEntry => ({
   name: '',
@@ -134,6 +136,7 @@ export default function BookingModal({
   fixedAmountUsd,
   launchedFromWhatsApp = false,
   presentation = 'modal',
+  onCheckoutStepChange,
 }: BookingModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
   const [numberOfPeople, setNumberOfPeople] = useState('1');
@@ -169,6 +172,13 @@ export default function BookingModal({
       ? 'Payment Environment: TEST (Sandbox)'
       : `Payment Environment: ${paymentConfig.mode}`;
   }, [paymentConfig?.mode]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    onCheckoutStepChange?.(checkoutStep);
+  }, [checkoutStep, isOpen, onCheckoutStepChange]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -253,6 +263,34 @@ export default function BookingModal({
   }, [initialBookingReference, initialPaymentMode, isOpen, launchedFromWhatsApp, numberOfPeople]);
 
   const sanitizePan = (raw: string) => raw.replace(/\D/g, '');
+
+  const detectCardBrand = (pan: string): CardBrand => {
+    if (!pan) {
+      return 'unknown';
+    }
+
+    if (/^4/.test(pan)) {
+      return 'visa';
+    }
+    if (/^(5[1-5]|2(?:2[2-9]|[3-6][0-9]|7[01]|720))/.test(pan)) {
+      return 'mastercard';
+    }
+    if (/^3[47]/.test(pan)) {
+      return 'amex';
+    }
+    if (/^6(?:011|5)/.test(pan)) {
+      return 'discover';
+    }
+    if (/^3(?:0[0-5]|[68])/.test(pan)) {
+      return 'diners';
+    }
+    if (/^35/.test(pan)) {
+      return 'jcb';
+    }
+    return 'unknown';
+  };
+
+  const cardBrand = useMemo(() => detectCardBrand(sanitizePan(card.cardNumber)), [card.cardNumber]);
 
   const isLuhnValid = (pan: string) => {
     let sum = 0;
@@ -700,6 +738,7 @@ export default function BookingModal({
     const pan = sanitizePan(card.cardNumber);
     const expiryDate = toIveriExpiry(card.expiry);
     const cvv = card.cvv.replace(/\D/g, '');
+    const brand = detectCardBrand(pan);
 
     if (pan.length < 13 || pan.length > 19) {
       setPaymentMessage('Enter a valid card number.');
@@ -707,6 +746,10 @@ export default function BookingModal({
     }
     if (!isLuhnValid(pan)) {
       setPaymentMessage('Card number failed validation. Please check and try again.');
+      return;
+    }
+    if (brand !== 'visa' && brand !== 'mastercard') {
+      setPaymentMessage('Only Visa and Mastercard are currently accepted on this checkout.');
       return;
     }
     if (expiryDate.length !== 4) {
@@ -1033,6 +1076,13 @@ export default function BookingModal({
             )}
 
             {checkoutStep === 'payment' && (
+              <div className="rounded-lg border border-[#dbeafe] bg-[#eff6ff] p-4 text-sm text-[#1e3a8a]">
+                <p className="font-semibold">256-bit TLS Encryption + Fraud Detection</p>
+                <p className="mt-1">Your payment data is encrypted in transit and monitored with fraud-risk checks before gateway authorisation.</p>
+              </div>
+            )}
+
+            {checkoutStep === 'payment' && (
               <div className={`rounded-lg border p-4 text-sm ${isTestMode ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-slate-300 bg-slate-50 text-slate-700'}`}>
                 <p className="font-semibold">{paymentEnvironmentLabel}</p>
                 <p className="mt-1">
@@ -1161,6 +1211,11 @@ export default function BookingModal({
                     placeholder="5413330089020020"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
                   />
+                  {sanitizePan(card.cardNumber).length >= 4 && (
+                    <p className={`mt-2 text-xs font-semibold uppercase tracking-[0.15em] ${cardBrand === 'visa' || cardBrand === 'mastercard' ? 'text-emerald-700' : 'text-amber-700'}`}>
+                      Detected card type: {cardBrand === 'unknown' ? 'Unknown' : cardBrand}
+                    </p>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

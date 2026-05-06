@@ -61,6 +61,7 @@ function BookingPageContent() {
   const searchParams = useSearchParams();
   const [selectedCruise, setSelectedCruise] = useState(cruises[0].title);
   const [selectedAmountUsd, setSelectedAmountUsd] = useState(cruises[0].amountUsd);
+  const [isPaymentScreen, setIsPaymentScreen] = useState(false);
 
   const queryBookingReference = useMemo(() => searchParams.get('booking_reference') ?? '', [searchParams]);
   const queryPaymentMode = useMemo(() => (searchParams.get('payment_mode') ?? '').toLowerCase(), [searchParams]);
@@ -104,6 +105,8 @@ function BookingPageContent() {
 
   return (
     <div className="min-h-screen">
+      {!isPaymentScreen && (
+      <>
       {/* Hero Banner */}
       <section className="relative h-[40vh] md:h-[50vh] flex items-center justify-center overflow-hidden">
         <Image
@@ -221,14 +224,17 @@ function BookingPageContent() {
           </div>
         </div>
       </section>
+      </>
+      )}
 
-      <section id="booking-flow" className="py-20 bg-gradient-to-b from-[#fff7ec] via-white to-[#fff7ec] relative overflow-hidden">
+      <section id="booking-flow" className={`${isPaymentScreen ? 'fixed inset-0 z-[120] overflow-y-auto bg-white py-6' : 'py-20 bg-gradient-to-b from-[#fff7ec] via-white to-[#fff7ec] relative overflow-hidden'}`}>
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-16 left-10 h-56 w-56 rounded-full bg-[#ffba5a]/15 blur-3xl" />
           <div className="absolute bottom-10 right-10 h-64 w-64 rounded-full bg-[#001a33]/10 blur-3xl" />
         </div>
 
         <div className="container mx-auto px-6 relative">
+          {!isPaymentScreen && (
           <div className="max-w-4xl mx-auto text-center mb-10">
             <p className="text-sm uppercase tracking-[0.3em] text-[#ff9800] font-semibold mb-3">
               Booking Flow
@@ -240,14 +246,24 @@ function BookingPageContent() {
               The selected package stays visible here so customers can finish traveler details and payment without a popup interrupting the flow.
             </p>
           </div>
+          )}
 
-          <div className="max-w-5xl mx-auto mb-6 rounded-2xl border border-[#ffba5a]/30 bg-white/80 backdrop-blur-lg px-5 py-4 shadow-lg">
+          <div className={`max-w-5xl mx-auto mb-6 rounded-2xl border border-[#ffba5a]/30 bg-white/80 backdrop-blur-lg px-5 py-4 shadow-lg ${isPaymentScreen ? 'hidden' : ''}`}>
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#ff9800] mb-1">Selected Cruise</p>
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <h3 className="text-2xl font-bold text-gray-900">{selectedCruise}</h3>
               <p className="text-sm font-semibold text-gray-700">Starting from ${selectedAmountUsd.toFixed(2)}</p>
             </div>
           </div>
+
+          {isPaymentScreen && (
+            <div className="max-w-5xl mx-auto mb-6 flex items-center justify-between rounded-2xl border border-[#dbeafe] bg-[#eff6ff] px-5 py-4">
+              <div>
+                <p className="text-sm font-bold text-[#1e3a8a]">Secure Payment Screen</p>
+                <p className="text-xs text-[#1e3a8a]">Header and booking marketing sections are hidden while you complete payment.</p>
+              </div>
+            </div>
+          )}
 
           <BookingModal
             key={`${selectedCruise}-${selectedAmountUsd}-${queryBookingReference}-${queryPaymentMode}`}
@@ -260,11 +276,12 @@ function BookingPageContent() {
             fixedAmountUsd={queryAmountUsd ?? undefined}
             launchedFromWhatsApp={querySource === 'whatsapp'}
             presentation="page"
+            onCheckoutStepChange={(step) => setIsPaymentScreen(step === 'payment')}
           />
         </div>
       </section>
 
-      <FooterSection />
+      {!isPaymentScreen && <FooterSection />}
     </div>
   );
 }

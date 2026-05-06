@@ -395,19 +395,6 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
             status=400,
         )
 
-    pan = re.sub(r'\D', '', str(payload.get('pan', '')))
-    expiry_date = re.sub(r'\D', '', str(payload.get('expiry_date', '')))
-    cvv = re.sub(r'\D', '', str(payload.get('cvv', '')))
-
-    if len(pan) < 13 or len(pan) > 19:
-        return JsonResponse({"success": False, "message": "Invalid card number length"}, status=400)
-    if not _is_luhn_valid(pan):
-        return JsonResponse({"success": False, "message": "Card number failed validation"}, status=400)
-    if not _is_valid_expiry_mm_yy(expiry_date):
-        return JsonResponse({"success": False, "message": "Invalid or expired card expiry date"}, status=400)
-    if len(cvv) < 3 or len(cvv) > 4:
-        return JsonResponse({"success": False, "message": "Invalid CVV"}, status=400)
-
     merchant_ref = f"KS-{uuid.uuid4().hex[:12].upper()}"
     currency = payload['currency']
     msisdn = payload['msisdn']
@@ -565,6 +552,19 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
             {"success": False, "message": f"Invalid amount: {str(e)}"},
             status=400,
         )
+
+    pan = re.sub(r'\D', '', str(payload.get('pan', '')))
+    expiry_date = re.sub(r'\D', '', str(payload.get('expiry_date', '')))
+    cvv = re.sub(r'\D', '', str(payload.get('cvv', '')))
+
+    if len(pan) < 13 or len(pan) > 19:
+        return JsonResponse({"success": False, "message": "Invalid card number length"}, status=400)
+    if not _is_luhn_valid(pan):
+        return JsonResponse({"success": False, "message": "Card number failed validation"}, status=400)
+    if not _is_valid_expiry_mm_yy(expiry_date):
+        return JsonResponse({"success": False, "message": "Invalid or expired card expiry date"}, status=400)
+    if len(cvv) < 3 or len(cvv) > 4:
+        return JsonResponse({"success": False, "message": "Invalid CVV"}, status=400)
 
     merchant_ref = f"KS-{uuid.uuid4().hex[:12].upper()}"
     masked_pan = f"{pan[:4]}****{pan[-4:]}" if len(pan) >= 8 else "****"
