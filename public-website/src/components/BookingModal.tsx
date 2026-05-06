@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FaArrowRight } from 'react-icons/fa';
+import { FaCcAmex, FaCcDinersClub, FaCcDiscover, FaCcJcb, FaCcMastercard, FaCcVisa, FaCreditCard } from 'react-icons/fa';
+import type { IconType } from 'react-icons';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -166,13 +168,24 @@ export default function BookingModal({
   const detailsDateInputRef = useRef<HTMLInputElement | null>(null);
   const isPagePresentation = presentation === 'page';
   const isTestMode = useMemo(() => paymentConfig?.mode === 'Test', [paymentConfig]);
-  const paymentEnvironmentLabel = useMemo(() => {
-    if (!paymentConfig?.mode) {
-      return 'Detecting payment environment...';
+  const paymentModePill = useMemo(() => {
+    const mode = (paymentConfig?.mode || '').toUpperCase();
+    if (mode === 'LIVE') {
+      return {
+        label: 'CBZ Mode: LIVE',
+        className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+      };
     }
-    return paymentConfig.mode === 'Test'
-      ? 'Payment Environment: TEST (Sandbox)'
-      : `Payment Environment: ${paymentConfig.mode}`;
+    if (mode === 'TEST') {
+      return {
+        label: 'CBZ Mode: TEST',
+        className: 'border-amber-200 bg-amber-50 text-amber-800',
+      };
+    }
+    return {
+      label: 'CBZ Mode: UNKNOWN',
+      className: 'border-slate-200 bg-slate-50 text-slate-700',
+    };
   }, [paymentConfig?.mode]);
 
   useEffect(() => {
@@ -306,6 +319,27 @@ export default function BookingModal({
   };
 
   const cardBrand = useMemo(() => detectCardBrand(sanitizePan(card.cardNumber)), [card.cardNumber]);
+  const cardBrandMeta = useMemo((): { label: string; icon?: IconType } => {
+    if (cardBrand === 'visa') {
+      return { label: 'Visa', icon: FaCcVisa };
+    }
+    if (cardBrand === 'mastercard') {
+      return { label: 'Mastercard', icon: FaCcMastercard };
+    }
+    if (cardBrand === 'amex') {
+      return { label: 'Amex', icon: FaCcAmex };
+    }
+    if (cardBrand === 'discover') {
+      return { label: 'Discover', icon: FaCcDiscover };
+    }
+    if (cardBrand === 'diners') {
+      return { label: 'Diners Club', icon: FaCcDinersClub };
+    }
+    if (cardBrand === 'jcb') {
+      return { label: 'JCB', icon: FaCcJcb };
+    }
+    return { label: 'Unknown' };
+  }, [cardBrand]);
 
   const isLuhnValid = (pan: string) => {
     let sum = 0;
@@ -1100,20 +1134,10 @@ export default function BookingModal({
             )}
 
             {checkoutStep === 'payment' && (
-              <div className={`rounded-lg border p-4 text-sm ${isTestMode ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-slate-300 bg-slate-50 text-slate-700'}`}>
-                <p className="font-semibold">{paymentEnvironmentLabel}</p>
-                <p className="mt-1">
-                  {isTestMode
-                    ? 'This checkout is still in test mode. Payments are simulated and no real customer charge is processed.'
-                    : 'Payments are being processed in live mode.'}
-                </p>
-              </div>
-            )}
-
-            {checkoutStep === 'payment' && paymentConfig?.mode === 'Test' && (
-              <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-                <p className="font-semibold">CBZ test mode is active.</p>
-                <p className="mt-1">Use configured test EcoCash numbers or your approved test cards. The checkout will not pick test values randomly.</p>
+              <div className="rounded-lg border border-gray-200 bg-white p-3">
+                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${paymentModePill.className}`}>
+                  {paymentModePill.label}
+                </span>
               </div>
             )}
 
@@ -1218,20 +1242,29 @@ export default function BookingModal({
                   <label htmlFor="cardNumber" className="block text-sm font-semibold text-gray-700 mb-2">
                     Card Number
                   </label>
-                  <input
-                    type="text"
-                    id="cardNumber"
-                    value={card.cardNumber}
-                    onChange={(e) => setCard((prev) => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 19) }))}
-                    inputMode="numeric"
-                    autoComplete="cc-number"
-                    placeholder="5413330089020020"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="cardNumber"
+                      value={card.cardNumber}
+                      onChange={(e) => setCard((prev) => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 19) }))}
+                      inputMode="numeric"
+                      autoComplete="cc-number"
+                      placeholder="5413330089020020"
+                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    />
+                    {sanitizePan(card.cardNumber).length >= 4 && (
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl text-gray-500" aria-hidden="true">
+                        {cardBrandMeta.icon ? <cardBrandMeta.icon /> : <FaCreditCard />}
+                      </span>
+                    )}
+                  </div>
                   {sanitizePan(card.cardNumber).length >= 4 && (
-                    <p className={`mt-2 text-xs font-semibold uppercase tracking-[0.15em] ${cardBrand === 'visa' || cardBrand === 'mastercard' ? 'text-emerald-700' : 'text-amber-700'}`}>
-                      Detected card type: {cardBrand === 'unknown' ? 'Unknown' : cardBrand}
-                    </p>
+                    !cardBrandMeta.icon ? (
+                      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.15em] text-amber-700">
+                        Detected card type: {cardBrandMeta.label}
+                      </p>
+                    ) : null
                   )}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
