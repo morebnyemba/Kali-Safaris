@@ -531,6 +531,20 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
     if not txn:
         return JsonResponse({"success": False, "message": "Transaction not found"}, status=404)
 
+    if txn.status == CBZTransaction.TransactionStatus.APPROVED:
+        resolved_booking_reference = None
+        if txn.booking_id:
+            txn.booking = _finalize_booking_reference_if_temporary(txn.booking)
+            resolved_booking_reference = txn.booking.booking_reference if txn.booking else None
+        return JsonResponse({
+            "success": True,
+            "message": "Payment approved",
+            "merchant_reference": merchant_reference,
+            "booking_reference": resolved_booking_reference,
+            "transaction_index": txn.transaction_index,
+            "authorisation_code": txn.authorisation_code,
+        })
+
     client = _build_client()
     try:
         response = client.query_transaction(merchant_reference=merchant_reference)

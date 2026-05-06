@@ -558,32 +558,69 @@ class IVeriClient:
     # ─── Response Helpers ────────────────────────────────────────────
 
     @staticmethod
+    def _extract_result_fields(txn: Dict[str, Any]) -> Dict[str, str]:
+        """Extract normalized result fields from top-level and nested iVeri formats."""
+        result_obj = txn.get('Result') if isinstance(txn.get('Result'), dict) else {}
+        result_code = (txn.get('ResultCode') or result_obj.get('Code') or '').strip()
+        result_status = (txn.get('Status') or result_obj.get('Status') or '').strip()
+        result_description = (
+            txn.get('ResultDescription')
+            or result_obj.get('Description')
+            or ''
+        ).strip()
+        return {
+            'code': result_code,
+            'status': result_status,
+            'description': result_description,
+            'has_nested_result': '1' if result_obj else '0',
+        }
+
+    @staticmethod
     def is_approved(response: Dict[str, Any]) -> bool:
         """Check if the iVeri response indicates an approved transaction."""
         txn = response.get('Transaction', {})
-        return (
-            txn.get('ResultCode') == RESULT_CODE_SUCCESS
-            and txn.get('Status') == STATUS_APPROVED
-        )
+        fields = IVeriClient._extract_result_fields(txn)
+        code = fields['code']
+        status = fields['status'].lower()
+        return code == RESULT_CODE_SUCCESS and status in {STATUS_APPROVED.lower(), '0'}
 
     @staticmethod
     def is_pending(response: Dict[str, Any]) -> bool:
         """Check if the iVeri response indicates the transaction is still pending."""
         txn = response.get('Transaction', {})
-        result_code = (txn.get('ResultCode') or '').strip()
-        status = (txn.get('Status') or '').strip()
+        fields = IVeriClient._extract_result_fields(txn)
+        result_code = fields['code']
+        status = fields['status']
+        status_lc = status.lower()
+        has_nested_result = fields['has_nested_result'] == '1'
+
+        # Explicit approvals should never be treated as pending.
+        if result_code == RESULT_CODE_SUCCESS and status_lc in {STATUS_APPROVED.lower(), '0'}:
+            return False
 
         # Standard explicit pending response.
-        if result_code == RESULT_CODE_SUCCESS and status == STATUS_PENDING:
+        if result_code == RESULT_CODE_SUCCESS and status_lc in {
+            STATUS_PENDING.lower(),
+            '1',
+            'initiated',
+            'submitted',
+            'queued',
+            'processing',
+        }:
             return True
+
+        # If the gateway returned a structured Result block with a non-success code,
+        # this is not a pending transaction.
+        if has_nested_result and result_code and result_code != RESULT_CODE_SUCCESS:
+            return False
 
         # Some EcoCash debit responses return only TransactionIndex initially,
         # then require an out-of-band update/query for final status.
-        if txn.get('TransactionIndex') and not status:
+        if txn.get('TransactionIndex') and not status and not has_nested_result:
             return True
 
         # Defensive handling for alternative non-final status strings.
-        if txn.get('TransactionIndex') and status.lower() in {'initiated', 'submitted', 'queued', 'processing'}:
+        if txn.get('TransactionIndex') and status_lc in {'initiated', 'submitted', 'queued', 'processing'}:
             return True
 
         return False
@@ -646,10 +683,11 @@ class IVeriClient:
     def get_result(response: Dict[str, Any]) -> Dict[str, Any]:
         """Extract key result fields from the iVeri response."""
         txn = response.get('Transaction', {})
+        fields = IVeriClient._extract_result_fields(txn)
         return {
-            'result_code': txn.get('ResultCode'),
-            'result_description': txn.get('ResultDescription', ''),
-            'status': txn.get('Status'),
+            'result_code': fields['code'] or None,
+            'result_description': fields['description'],
+            'status': fields['status'] or None,
             'transaction_index': txn.get('TransactionIndex'),
             'authorisation_code': txn.get('AuthorisationCode'),
             'merchant_reference': txn.get('MerchantReference'),
