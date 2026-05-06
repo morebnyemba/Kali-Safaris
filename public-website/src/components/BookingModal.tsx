@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -86,6 +86,42 @@ const PENDING_BOOKING_REFERENCE_KEY = 'kalai_pending_booking_reference';
 const RETURN_TO_WHATSAPP_KEY = 'kalai_return_to_whatsapp';
 const WHATSAPP_NUMBER = '263712629336';
 
+const getSessionItem = (key: string) => {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  try {
+    return window.sessionStorage.getItem(key) ?? '';
+  } catch {
+    return '';
+  }
+};
+
+const setSessionItem = (key: string, value: string) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(key, value);
+  } catch {
+    // Ignore storage failures (e.g. strict privacy mode).
+  }
+};
+
+const removeSessionItem = (key: string) => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  try {
+    window.sessionStorage.removeItem(key);
+  } catch {
+    // Ignore storage failures (e.g. strict privacy mode).
+  }
+};
+
 export default function BookingModal({
   isOpen,
   onClose,
@@ -110,6 +146,7 @@ export default function BookingModal({
   const [canReturnToWhatsApp, setCanReturnToWhatsApp] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('details');
   const [detailsMessage, setDetailsMessage] = useState('');
+  const [auto3DSCheckedReference, setAuto3DSCheckedReference] = useState('');
   const [traveler, setTraveler] = useState<TravelerDetails>({
     fullName: '',
     email: '',
@@ -130,18 +167,19 @@ export default function BookingModal({
     setCanReturnToWhatsApp(launchedFromWhatsApp && Boolean(initialBookingReference));
     setCheckoutStep(initialBookingReference ? 'payment' : 'details');
     setDetailsMessage('');
+    setAuto3DSCheckedReference('');
     if (!initialBookingReference) {
       const count = Math.max(Number(numberOfPeople || '1') || 1, 1);
       setTravelers(Array.from({ length: count }, () => createEmptyTraveler()));
     }
 
     if (launchedFromWhatsApp) {
-      window.sessionStorage.setItem(RETURN_TO_WHATSAPP_KEY, '1');
+      setSessionItem(RETURN_TO_WHATSAPP_KEY, '1');
       if (initialBookingReference) {
-        window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, initialBookingReference);
+        setSessionItem(PENDING_BOOKING_REFERENCE_KEY, initialBookingReference);
       }
     } else {
-      window.sessionStorage.removeItem(RETURN_TO_WHATSAPP_KEY);
+      removeSessionItem(RETURN_TO_WHATSAPP_KEY);
     }
 
     let isCancelled = false;
@@ -176,7 +214,7 @@ export default function BookingModal({
 
     void loadPaymentConfig();
 
-    const pendingRef = window.sessionStorage.getItem(PENDING_3DS_REF_KEY) ?? '';
+    const pendingRef = getSessionItem(PENDING_3DS_REF_KEY);
     if (pendingRef) {
       setLastMerchantReference(pendingRef);
       setPaymentMode('card');
@@ -400,9 +438,9 @@ export default function BookingModal({
     const md = challenge.MD || merchantReference;
     const termUrl = challenge.TermUrl || challenge.TermURL || `${window.location.origin}/booking/payment-status?channel=card${launchedFromWhatsApp ? `&source=whatsapp${activeBookingReference ? `&booking_reference=${encodeURIComponent(activeBookingReference)}` : ''}` : ''}`;
 
-    window.sessionStorage.setItem(PENDING_3DS_REF_KEY, merchantReference);
+    setSessionItem(PENDING_3DS_REF_KEY, merchantReference);
     if (activeBookingReference) {
-      window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, activeBookingReference);
+      setSessionItem(PENDING_BOOKING_REFERENCE_KEY, activeBookingReference);
     }
     setLastMerchantReference(merchantReference);
 
@@ -432,16 +470,19 @@ export default function BookingModal({
     form.submit();
   };
 
-  const complete3DSPayment = async () => {
-    const merchantReference = lastMerchantReference || window.sessionStorage.getItem(PENDING_3DS_REF_KEY) || '';
+  const complete3DSPayment = useCallback(async (options?: { silent?: boolean }) => {
+    const silent = Boolean(options?.silent);
+    const merchantReference = lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY);
     if (!merchantReference) {
-      setPaymentMessage('No pending 3DS payment reference found.');
+      if (!silent) {
+        setPaymentMessage('No pending 3DS payment reference found.');
+      }
       return;
     }
 
     try {
       setIsSubmitting(true);
-      setPaymentMessage('Checking final payment status...');
+      setPaymentMessage(silent ? 'Verifying your 3DS payment status...' : 'Checking final payment status...');
 
       const response = await fetch(`${API_BASE}/crm-api/payments/cbz/card/3ds/complete/`, {
         method: 'POST',
@@ -455,11 +496,11 @@ export default function BookingModal({
       if (result.success && !result.pending) {
         if (result.booking_reference) {
           setActiveBookingReference(result.booking_reference);
-          window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
+          setSessionItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
         }
         setCanReturnToWhatsApp(launchedFromWhatsApp);
         setPaymentMessage(`Payment approved. Ref: ${result.merchant_reference}`);
-        window.sessionStorage.removeItem(PENDING_3DS_REF_KEY);
+        removeSessionItem(PENDING_3DS_REF_KEY);
         return;
       }
 
@@ -475,7 +516,21 @@ export default function BookingModal({
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [lastMerchantReference, launchedFromWhatsApp]);
+
+  useEffect(() => {
+    if (!isOpen || checkoutStep !== 'payment' || paymentMode !== 'card') {
+      return;
+    }
+
+    const pendingReference = lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY);
+    if (!pendingReference || pendingReference === auto3DSCheckedReference || isSubmitting) {
+      return;
+    }
+
+    setAuto3DSCheckedReference(pendingReference);
+    void complete3DSPayment({ silent: true });
+  }, [auto3DSCheckedReference, checkoutStep, complete3DSPayment, isOpen, isSubmitting, lastMerchantReference, paymentMode]);
 
   const checkEcoCashPaymentStatus = async () => {
     const merchantReference = lastMerchantReference;
@@ -543,8 +598,8 @@ export default function BookingModal({
         setLastMerchantReference(result.merchant_reference || '');
         setLastPaymentChannel('ecocash');
         if (result.merchant_reference) {
-          window.sessionStorage.setItem(PENDING_3DS_REF_KEY, result.merchant_reference);
-          window.sessionStorage.setItem(PENDING_PAYMENT_CHANNEL_KEY, 'ecocash');
+          setSessionItem(PENDING_3DS_REF_KEY, result.merchant_reference);
+          setSessionItem(PENDING_PAYMENT_CHANNEL_KEY, 'ecocash');
         }
         setPaymentMessage(result.message || 'EcoCash prompt sent. Complete the approval on your phone, then check status here.');
         return;
@@ -607,7 +662,7 @@ export default function BookingModal({
       const resolvedBookingReference = result.booking_reference || initialBookingReference || '';
       if (resolvedBookingReference) {
         setActiveBookingReference(resolvedBookingReference);
-        window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, resolvedBookingReference);
+        setSessionItem(PENDING_BOOKING_REFERENCE_KEY, resolvedBookingReference);
       }
       if (result.success && result.requires_3ds) {
         setCanReturnToWhatsApp(launchedFromWhatsApp);
@@ -618,7 +673,7 @@ export default function BookingModal({
 
       if (result.success && !result.pending) {
         setLastPaymentChannel('card');
-        window.sessionStorage.removeItem(PENDING_PAYMENT_CHANNEL_KEY);
+        removeSessionItem(PENDING_PAYMENT_CHANNEL_KEY);
         setCanReturnToWhatsApp(launchedFromWhatsApp);
         setPaymentMessage(`Payment approved. Ref: ${result.merchant_reference}`);
         return;
@@ -629,8 +684,8 @@ export default function BookingModal({
         setLastPaymentChannel('card');
         setCanReturnToWhatsApp(launchedFromWhatsApp);
         if (result.merchant_reference) {
-          window.sessionStorage.setItem(PENDING_3DS_REF_KEY, result.merchant_reference);
-          window.sessionStorage.setItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
+          setSessionItem(PENDING_3DS_REF_KEY, result.merchant_reference);
+          setSessionItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
         }
         setPaymentMessage('Payment is pending. If this was a 3DS flow, click Complete 3DS Payment after authentication.');
         return;
@@ -1033,14 +1088,16 @@ export default function BookingModal({
                     />
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={complete3DSPayment}
-                  disabled={isSubmitting}
-                  className="w-full rounded-full border border-[#ff9800] text-[#ff9800] font-semibold py-2.5 hover:bg-[#fff2e0] transition disabled:opacity-50"
-                >
-                  Complete 3DS Payment
-                </button>
+                {(lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY)) && (
+                  <button
+                    type="button"
+                    onClick={() => void complete3DSPayment()}
+                    disabled={isSubmitting}
+                    className="w-full rounded-full border border-[#ff9800] text-[#ff9800] font-semibold py-2.5 hover:bg-[#fff2e0] transition disabled:opacity-50"
+                  >
+                    Retry 3DS Status Check
+                  </button>
+                )}
               </div>
             )}
 
