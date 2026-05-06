@@ -228,8 +228,6 @@ export default function BookingModal({
     };
   }, [initialBookingReference, initialPaymentMode, isOpen, launchedFromWhatsApp]);
 
-  if (!isOpen) return null;
-
   const sanitizePan = (raw: string) => raw.replace(/\D/g, '');
 
   const sanitizeMsisdn = (raw: string) => raw.replace(/\D/g, '').slice(0, 12);
@@ -720,6 +718,10 @@ export default function BookingModal({
 
     void submitEcocashPayment();
   };
+
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
