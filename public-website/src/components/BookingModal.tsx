@@ -161,6 +161,14 @@ export default function BookingModal({
   const [travelers, setTravelers] = useState<TravelerEntry[]>([createEmptyTraveler()]);
   const isPagePresentation = presentation === 'page';
   const isTestMode = useMemo(() => paymentConfig?.mode === 'Test', [paymentConfig]);
+  const paymentEnvironmentLabel = useMemo(() => {
+    if (!paymentConfig?.mode) {
+      return 'Detecting payment environment...';
+    }
+    return paymentConfig.mode === 'Test'
+      ? 'Payment Environment: TEST (Sandbox)'
+      : `Payment Environment: ${paymentConfig.mode}`;
+  }, [paymentConfig?.mode]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -245,6 +253,52 @@ export default function BookingModal({
   }, [initialBookingReference, initialPaymentMode, isOpen, launchedFromWhatsApp, numberOfPeople]);
 
   const sanitizePan = (raw: string) => raw.replace(/\D/g, '');
+
+  const isLuhnValid = (pan: string) => {
+    let sum = 0;
+    let shouldDouble = false;
+
+    for (let i = pan.length - 1; i >= 0; i -= 1) {
+      let digit = Number(pan[i]);
+      if (Number.isNaN(digit)) {
+        return false;
+      }
+      if (shouldDouble) {
+        digit *= 2;
+        if (digit > 9) {
+          digit -= 9;
+        }
+      }
+      sum += digit;
+      shouldDouble = !shouldDouble;
+    }
+
+    return sum % 10 === 0;
+  };
+
+  const isCardExpiryValid = (expiryMMyy: string) => {
+    if (!/^\d{4}$/.test(expiryMMyy)) {
+      return false;
+    }
+
+    const month = Number(expiryMMyy.slice(0, 2));
+    const year = Number(expiryMMyy.slice(2, 4));
+    if (!Number.isFinite(month) || month < 1 || month > 12) {
+      return false;
+    }
+
+    const now = new Date();
+    const currentYear = now.getFullYear() % 100;
+    const currentMonth = now.getMonth() + 1;
+
+    if (year < currentYear) {
+      return false;
+    }
+    if (year === currentYear && month < currentMonth) {
+      return false;
+    }
+    return true;
+  };
 
   const sanitizeMsisdn = (raw: string) => raw.replace(/\D/g, '').slice(0, 12);
 
@@ -651,8 +705,16 @@ export default function BookingModal({
       setPaymentMessage('Enter a valid card number.');
       return;
     }
+    if (!isLuhnValid(pan)) {
+      setPaymentMessage('Card number failed validation. Please check and try again.');
+      return;
+    }
     if (expiryDate.length !== 4) {
       setPaymentMessage('Enter expiry date in MM/YY format.');
+      return;
+    }
+    if (!isCardExpiryValid(expiryDate)) {
+      setPaymentMessage('Card expiry date is invalid or already expired.');
       return;
     }
     if (cvv.length < 3 || cvv.length > 4) {
@@ -970,6 +1032,17 @@ export default function BookingModal({
               </div>
             )}
 
+            {checkoutStep === 'payment' && (
+              <div className={`rounded-lg border p-4 text-sm ${isTestMode ? 'border-amber-300 bg-amber-50 text-amber-900' : 'border-slate-300 bg-slate-50 text-slate-700'}`}>
+                <p className="font-semibold">{paymentEnvironmentLabel}</p>
+                <p className="mt-1">
+                  {isTestMode
+                    ? 'This checkout is still in test mode. Payments are simulated and no real customer charge is processed.'
+                    : 'Payments are being processed in live mode.'}
+                </p>
+              </div>
+            )}
+
             {checkoutStep === 'payment' && paymentConfig?.mode === 'Test' && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
                 <p className="font-semibold">CBZ test mode is active.</p>
@@ -1178,8 +1251,8 @@ export default function BookingModal({
                   : checkoutStep === 'details'
                     ? 'Continue to Secure Payment'
                     : paymentMode === 'card'
-                      ? 'Pay Securely'
-                      : 'Start EcoCash Payment'}
+                      ? (isTestMode ? 'Pay Securely (Test Mode)' : 'Pay Securely')
+                      : (isTestMode ? 'Start EcoCash Payment (Test Mode)' : 'Start EcoCash Payment')}
               </button>
             </div>
           </form>

@@ -11,6 +11,7 @@ import json
 import logging
 import uuid
 import os
+import re
 import base64
 import binascii
 import mimetypes
@@ -125,6 +126,43 @@ def _resolve_gateway_mode(result: Optional[Dict[str, Any]] = None) -> str:
         return mode
     config = _get_active_config()
     return config.mode if config else 'Test'
+
+
+def _is_luhn_valid(pan: str) -> bool:
+    total = 0
+    should_double = False
+    for ch in reversed(pan):
+        if not ch.isdigit():
+            return False
+        digit = int(ch)
+        if should_double:
+            digit *= 2
+            if digit > 9:
+                digit -= 9
+        total += digit
+        should_double = not should_double
+    return total % 10 == 0
+
+
+def _is_valid_expiry_mm_yy(expiry: str) -> bool:
+    if not re.fullmatch(r'\d{4}', expiry or ''):
+        return False
+
+    month = int(expiry[:2])
+    year = int(expiry[2:])
+    if month < 1 or month > 12:
+        return False
+
+    today = date.today()
+    current_year = today.year % 100
+    current_month = today.month
+
+    if year < current_year:
+        return False
+    if year == current_year and month < current_month:
+        return False
+
+    return True
 
 
 def _apply_gateway_result_to_transaction(
@@ -357,6 +395,19 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
             status=400,
         )
 
+    pan = re.sub(r'\D', '', str(payload.get('pan', '')))
+    expiry_date = re.sub(r'\D', '', str(payload.get('expiry_date', '')))
+    cvv = re.sub(r'\D', '', str(payload.get('cvv', '')))
+
+    if len(pan) < 13 or len(pan) > 19:
+        return JsonResponse({"success": False, "message": "Invalid card number length"}, status=400)
+    if not _is_luhn_valid(pan):
+        return JsonResponse({"success": False, "message": "Card number failed validation"}, status=400)
+    if not _is_valid_expiry_mm_yy(expiry_date):
+        return JsonResponse({"success": False, "message": "Invalid or expired card expiry date"}, status=400)
+    if len(cvv) < 3 or len(cvv) > 4:
+        return JsonResponse({"success": False, "message": "Invalid CVV"}, status=400)
+
     merchant_ref = f"KS-{uuid.uuid4().hex[:12].upper()}"
     currency = payload['currency']
     msisdn = payload['msisdn']
@@ -516,7 +567,6 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
         )
 
     merchant_ref = f"KS-{uuid.uuid4().hex[:12].upper()}"
-    pan = payload['pan']
     masked_pan = f"{pan[:4]}****{pan[-4:]}" if len(pan) >= 8 else "****"
 
     # Resolve existing booking reference, or create a website draft booking.
@@ -542,8 +592,8 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
     try:
         response = client.debit_card(
             pan=pan,
-            expiry_date=payload['expiry_date'],
-            cvv=payload['cvv'],
+            expiry_date=expiry_date,
+            cvv=cvv,
             amount=amount,
             currency=payload['currency'],
             merchant_reference=merchant_ref,
