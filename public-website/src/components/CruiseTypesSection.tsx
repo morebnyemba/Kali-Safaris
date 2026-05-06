@@ -25,7 +25,7 @@ const cruises = [
     time: "A 2 hour cruise starting at 12:00pm to 02:00pm",
     image: "/images/work_no_play.jpeg",
     accent: "from-[#001a33] via-[#01294d] to-[#0a4d79]",
-    pill: "bg-[#6bb5ff]/20 text-[#e2f2ff]",
+    pill: "bg-[#001a33]/10 text-[#01294d]",
     imageFirst: true,
   },
   {
@@ -47,7 +47,7 @@ const cruises = [
       "We can offer events hosting on our riverside jetty, conference, weddings, cocktails or any outdoor function which needs a beautiful backdrop of the mighty Zambezi River",
     image: "/images/jetty_venue.jpg",
     accent: "from-[#001a33] via-[#032b44] to-[#0e3f5c]",
-    pill: "bg-[#8ce0ff]/15 text-[#e6f7ff]",
+    pill: "bg-[#032b44]/10 text-[#032b44]",
     imageFirst: true,
   },
 ];
