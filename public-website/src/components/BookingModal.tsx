@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { FaArrowRight } from 'react-icons/fa';
 import { FaCcAmex, FaCcDinersClub, FaCcDiscover, FaCcJcb, FaCcMastercard, FaCcVisa, FaCreditCard } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
@@ -338,25 +339,41 @@ export default function BookingModal({
   }, [cardBrand]);
   const cardBrandColorClass = useMemo(() => {
     if (cardBrand === 'visa') {
-      return 'text-[#1a1f71]';
+      return 'text-[#1434CB]';
     }
     if (cardBrand === 'mastercard') {
-      return 'text-[#eb001b]';
+      return 'text-[#EB001B]';
     }
     if (cardBrand === 'amex') {
-      return 'text-[#2e77bc]';
+      return 'text-[#006FCF]';
     }
     if (cardBrand === 'discover') {
-      return 'text-[#ff6000]';
+      return 'text-[#FF6000]';
     }
     if (cardBrand === 'diners') {
-      return 'text-[#0069aa]';
+      return 'text-[#0079BE]';
     }
     if (cardBrand === 'jcb') {
-      return 'text-[#0a8f3d]';
+      return 'text-[#0F4C81]';
     }
     return 'text-gray-500';
   }, [cardBrand]);
+  const cardBrandVisual = useMemo<ReactNode>(() => {
+    if (cardBrand === 'mastercard') {
+      return (
+        <span className="inline-flex items-center" aria-label="Mastercard" title="Mastercard">
+          <span className="h-5 w-5 rounded-full bg-[#EB001B] opacity-95" />
+          <span className="-ml-2 h-5 w-5 rounded-full bg-[#F79E1B] opacity-95" />
+        </span>
+      );
+    }
+
+    if (cardBrandMeta.icon) {
+      return <cardBrandMeta.icon className={cardBrandColorClass} />;
+    }
+
+    return <FaCreditCard className="text-gray-500" />;
+  }, [cardBrand, cardBrandColorClass, cardBrandMeta]);
 
   const isLuhnValid = (pan: string) => {
     let sum = 0;
@@ -1271,8 +1288,8 @@ export default function BookingModal({
                       className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
                     />
                     {sanitizePan(card.cardNumber).length >= 4 && (
-                      <span className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl ${cardBrandColorClass}`} aria-hidden="true">
-                        {cardBrandMeta.icon ? <cardBrandMeta.icon /> : <FaCreditCard />}
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl" aria-hidden="true">
+                        {cardBrandVisual}
                       </span>
                     )}
                   </div>
