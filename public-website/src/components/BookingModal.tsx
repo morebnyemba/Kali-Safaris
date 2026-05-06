@@ -36,7 +36,36 @@ interface TravelerDetails {
   agreeToTerms: boolean;
 }
 
+interface TravelerEntry {
+  name: string;
+  age: string;
+  nationality: string;
+  gender: string;
+  idNumber: string;
+  medicalDietaryRequirements: string;
+  travelerType: 'adult' | 'child';
+  idDocumentDataUrl: string;
+  idDocumentName: string;
+  idDocumentMimeType: string;
+}
+
 type CheckoutStep = 'details' | 'payment';
+
+const createEmptyTraveler = (): TravelerEntry => ({
+  name: '',
+  age: '',
+  nationality: '',
+  gender: '',
+  idNumber: '',
+  medicalDietaryRequirements: '',
+  travelerType: 'adult',
+  idDocumentDataUrl: '',
+  idDocumentName: '',
+  idDocumentMimeType: '',
+});
+
+const MAX_ID_DOCUMENT_SIZE_BYTES = 5 * 1024 * 1024;
+const ALLOWED_ID_DOCUMENT_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 
 interface PaymentConfig {
   mode: string;
@@ -89,6 +118,7 @@ export default function BookingModal({
     specialRequests: '',
     agreeToTerms: false,
   });
+  const [travelers, setTravelers] = useState<TravelerEntry[]>([createEmptyTraveler()]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -100,6 +130,10 @@ export default function BookingModal({
     setCanReturnToWhatsApp(launchedFromWhatsApp && Boolean(initialBookingReference));
     setCheckoutStep(initialBookingReference ? 'payment' : 'details');
     setDetailsMessage('');
+    if (!initialBookingReference) {
+      const count = Math.max(Number(numberOfPeople || '1') || 1, 1);
+      setTravelers(Array.from({ length: count }, () => createEmptyTraveler()));
+    }
 
     if (launchedFromWhatsApp) {
       window.sessionStorage.setItem(RETURN_TO_WHATSAPP_KEY, '1');
@@ -190,6 +224,24 @@ export default function BookingModal({
 
   const hasExistingBooking = Boolean(initialBookingReference);
 
+  useEffect(() => {
+    if (hasExistingBooking || !isOpen) {
+      return;
+    }
+
+    const count = Math.max(Number(numberOfPeople || '1') || 1, 1);
+    setTravelers((current) => {
+      if (current.length === count) {
+        return current;
+      }
+      const next = [...current];
+      while (next.length < count) {
+        next.push(createEmptyTraveler());
+      }
+      return next.slice(0, count);
+    });
+  }, [hasExistingBooking, isOpen, numberOfPeople]);
+
   const totalAmount = fixedAmountUsd ?? (Number(numberOfPeople || '1') * amountUsd);
 
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
@@ -218,6 +270,29 @@ export default function BookingModal({
     if (!traveler.agreeToTerms) {
       return 'Please accept the booking and payment terms to continue.';
     }
+
+    for (let i = 0; i < travelers.length; i += 1) {
+      const item = travelers[i];
+      const label = `Traveler ${i + 1}`;
+      const ageNum = Number(item.age || '0');
+
+      if (!item.name.trim()) {
+        return `${label}: full name is required.`;
+      }
+      if (!Number.isFinite(ageNum) || ageNum <= 0) {
+        return `${label}: valid age is required.`;
+      }
+      if (!item.nationality.trim()) {
+        return `${label}: nationality is required.`;
+      }
+      if (!item.gender.trim()) {
+        return `${label}: gender is required.`;
+      }
+      if (!item.idNumber.trim()) {
+        return `${label}: ID/Passport number is required.`;
+      }
+    }
+
     return '';
   };
 
@@ -241,7 +316,66 @@ export default function BookingModal({
         terms_accepted: traveler.agreeToTerms,
         accepted_at: new Date().toISOString(),
       },
+      travelers: travelers.map((item) => ({
+        name: item.name.trim(),
+        age: Number(item.age || '0'),
+        nationality: item.nationality.trim(),
+        gender: item.gender.trim(),
+        id_number: item.idNumber.trim(),
+        medical: item.medicalDietaryRequirements.trim(),
+        type: item.travelerType,
+        id_document_data_url: item.idDocumentDataUrl,
+        id_document_name: item.idDocumentName,
+        id_document_mime_type: item.idDocumentMimeType,
+      })),
     };
+  };
+
+  const handleTravelerDocumentChange = (index: number, file: File | null) => {
+    if (!file) {
+      setTravelers((prev) => prev.map((row, i) => (i === index
+        ? {
+            ...row,
+            idDocumentDataUrl: '',
+            idDocumentName: '',
+            idDocumentMimeType: '',
+          }
+        : row)));
+      return;
+    }
+
+    if (!ALLOWED_ID_DOCUMENT_MIME_TYPES.includes(file.type)) {
+      setDetailsMessage('ID document must be a JPG, PNG, or PDF file.');
+      return;
+    }
+
+    if (file.size > MAX_ID_DOCUMENT_SIZE_BYTES) {
+      setDetailsMessage('ID document must be 5MB or smaller.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
+      if (!dataUrl) {
+        setDetailsMessage('Failed to read the selected ID document.');
+        return;
+      }
+
+      setDetailsMessage('');
+      setTravelers((prev) => prev.map((row, i) => (i === index
+        ? {
+            ...row,
+            idDocumentDataUrl: dataUrl,
+            idDocumentName: file.name,
+            idDocumentMimeType: file.type,
+          }
+        : row)));
+    };
+    reader.onerror = () => {
+      setDetailsMessage('Failed to process the selected ID document.');
+    };
+    reader.readAsDataURL(file);
   };
 
   const buildReturnToWhatsAppHref = (bookingReference: string, merchantReference: string) => {
@@ -649,6 +783,82 @@ export default function BookingModal({
                     />
                     <span>I confirm these details are accurate and I authorize secure payment processing for this booking.</span>
                   </label>
+                </div>
+
+                <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-gray-800">Traveler Details</p>
+                  {travelers.map((item, index) => (
+                    <div key={index} className="rounded-lg border border-gray-200 p-3 space-y-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-500">Traveler {index + 1}</p>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <input
+                          type="text"
+                          placeholder="Full name"
+                          value={item.name}
+                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, name: e.target.value } : row)))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        />
+                        <input
+                          type="number"
+                          placeholder="Age"
+                          min="1"
+                          value={item.age}
+                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, age: e.target.value } : row)))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Nationality"
+                          value={item.nationality}
+                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Gender"
+                          value={item.gender}
+                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, gender: e.target.value } : row)))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        />
+                        <input
+                          type="text"
+                          placeholder="ID / Passport number"
+                          value={item.idNumber}
+                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, idNumber: e.target.value } : row)))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition sm:col-span-2"
+                        />
+                        <select
+                          value={item.travelerType}
+                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, travelerType: e.target.value as 'adult' | 'child' } : row)))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        >
+                          <option value="adult">Adult</option>
+                          <option value="child">Child</option>
+                        </select>
+                        <input
+                          type="text"
+                          placeholder="Medical / Dietary requirements (optional)"
+                          value={item.medicalDietaryRequirements}
+                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, medicalDietaryRequirements: e.target.value } : row)))}
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        />
+                        <div className="sm:col-span-2">
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">
+                            ID / Passport Document (optional, JPG/PNG/PDF, max 5MB)
+                          </label>
+                          <input
+                            type="file"
+                            accept=".jpg,.jpeg,.png,.pdf"
+                            onChange={(e) => handleTravelerDocumentChange(index, e.target.files?.[0] || null)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          />
+                          {item.idDocumentName && (
+                            <p className="mt-2 text-xs text-gray-500">Attached: {item.idDocumentName}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 {detailsMessage && (

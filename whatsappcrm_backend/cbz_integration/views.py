@@ -11,6 +11,9 @@ import json
 import logging
 import uuid
 import os
+import base64
+import binascii
+import mimetypes
 from datetime import date
 
 from decimal import Decimal, InvalidOperation
@@ -21,8 +24,9 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.db import transaction as db_transaction
+from django.core.files.base import ContentFile
 
-from customer_data.models import Booking, Payment
+from customer_data.models import Booking, Payment, Traveler
 from products_and_services.models import Tour
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
@@ -30,6 +34,49 @@ from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED
 
 
 logger = logging.getLogger(__name__)
+
+
+def _save_traveler_document_from_data_url(
+    traveler_obj: Traveler,
+    data_url: str,
+    fallback_name: str = '',
+    declared_mime: str = '',
+) -> None:
+    """Decode a data URL and attach it to traveler.id_document if valid."""
+    if not data_url or not isinstance(data_url, str):
+        return
+    if not data_url.startswith('data:') or ';base64,' not in data_url:
+        return
+
+    header, encoded = data_url.split(';base64,', 1)
+    mime_type = header.replace('data:', '').strip().lower()
+    if declared_mime:
+        mime_type = str(declared_mime).strip().lower() or mime_type
+
+    allowed_mimes = {'image/jpeg', 'image/png', 'application/pdf'}
+    if mime_type not in allowed_mimes:
+        return
+
+    try:
+        raw = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError):
+        return
+
+    if not raw or len(raw) > 5 * 1024 * 1024:
+        return
+
+    extension = mimetypes.guess_extension(mime_type) or ''
+    if extension == '.jpe':
+        extension = '.jpg'
+
+    base_name = str(fallback_name or '').strip()
+    if '.' in base_name:
+        base_name = base_name.rsplit('.', 1)[0]
+    if not base_name:
+        base_name = f"traveler-{traveler_obj.id}"
+
+    file_name = f"{base_name[:80]}{extension}"
+    traveler_obj.id_document.save(file_name, ContentFile(raw), save=False)
 
 
 def _build_client() -> IVeriClient:
@@ -146,7 +193,7 @@ def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Opti
     ]
 
     tour = Tour.objects.filter(name__iexact=str(tour_name).strip()).first()
-    return Booking.objects.create(
+    booking = Booking.objects.create(
         booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
         tour=tour,
         tour_name=str(tour_name).strip(),
@@ -160,6 +207,54 @@ def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Opti
         notes='\n'.join(part for part in note_parts if part),
         booking_details_payload=details or None,
     )
+
+    travelers_payload = details.get('travelers') if isinstance(details.get('travelers'), list) else []
+    for traveler in travelers_payload:
+        if not isinstance(traveler, dict):
+            continue
+
+        name = str(traveler.get('name') or '').strip()
+        nationality = str(traveler.get('nationality') or '').strip()
+        gender = str(traveler.get('gender') or '').strip()
+        id_number = str(traveler.get('id_number') or '').strip()
+        traveler_type = str(traveler.get('type') or Traveler.TravelerType.ADULT).strip().lower()
+        medical = str(traveler.get('medical') or '').strip()
+        id_document_data_url = str(traveler.get('id_document_data_url') or '').strip()
+        id_document_name = str(traveler.get('id_document_name') or '').strip()
+        id_document_mime_type = str(traveler.get('id_document_mime_type') or '').strip()
+
+        try:
+            age = int(traveler.get('age') or 0)
+        except (TypeError, ValueError):
+            age = 0
+
+        if not name or age <= 0 or not nationality or not gender or not id_number:
+            continue
+
+        if traveler_type not in {Traveler.TravelerType.ADULT, Traveler.TravelerType.CHILD}:
+            traveler_type = Traveler.TravelerType.ADULT
+
+        traveler_obj = Traveler.objects.create(
+            booking=booking,
+            name=name,
+            age=age,
+            nationality=nationality,
+            gender=gender,
+            id_number=id_number,
+            traveler_type=traveler_type,
+            medical_dietary_requirements=medical or None,
+        )
+
+        if id_document_data_url:
+            _save_traveler_document_from_data_url(
+                traveler_obj,
+                id_document_data_url,
+                fallback_name=id_document_name,
+                declared_mime=id_document_mime_type,
+            )
+            traveler_obj.save(update_fields=['id_document', 'updated_at'])
+
+    return booking
 
 
 def _finalize_booking_reference_if_temporary(booking: Optional[Booking]) -> Optional[Booking]:
