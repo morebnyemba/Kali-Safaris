@@ -7,17 +7,20 @@ const BACKEND_TARGET = (
 ).replace(/\/$/, '');
 
 function buildTargetUrl(pathSegments: string[], request: NextRequest): string {
-  const path = pathSegments.join('/');
+  let path = pathSegments.join('/');
+  // Django routes in this project use trailing slashes; avoid POST 301 redirects.
+  if (path && !path.endsWith('/')) {
+    path = `${path}/`;
+  }
   const query = request.nextUrl.search;
   return `${BACKEND_TARGET}/crm-api/${path}${query}`;
 }
 
 function forwardHeaders(request: NextRequest): Headers {
   const headers = new Headers(request.headers);
-  const incomingHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
-  if (incomingHost) {
-    headers.set('host', incomingHost);
-  }
+  // Set host to match the backend domain so Django's ALLOWED_HOSTS check passes.
+  const backendHost = new URL(BACKEND_TARGET).host;
+  headers.set('host', backendHost);
   return headers;
 }
 
