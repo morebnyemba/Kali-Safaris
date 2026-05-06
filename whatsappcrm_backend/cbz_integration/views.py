@@ -119,6 +119,14 @@ def _build_certificate_client(config_model: Optional[CBZConfig] = None) -> IVeri
     return build_certificate_client_from_settings(config_model or _get_active_config())
 
 
+def _resolve_gateway_mode(result: Optional[Dict[str, Any]] = None) -> str:
+    mode = (result or {}).get('mode') or ''
+    if mode:
+        return mode
+    config = _get_active_config()
+    return config.mode if config else 'Test'
+
+
 def _apply_gateway_result_to_transaction(
     txn: CBZTransaction,
     result: Dict[str, Any],
@@ -408,6 +416,7 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
                 "message": "Payment approved",
                 "merchant_reference": merchant_ref,
                 "booking_reference": booking.booking_reference if booking else None,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "transaction_index": result.get('transaction_index'),
                 "authorisation_code": result.get('authorisation_code'),
             })
@@ -424,6 +433,7 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
                 ),
                 "merchant_reference": merchant_ref,
                 "booking_reference": booking.booking_reference if booking else None,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
             }, status=202)
         else:
@@ -433,6 +443,7 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
                 "success": False,
                 "message": result.get('result_description', 'Payment declined'),
                 "merchant_reference": merchant_ref,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
             })
 
@@ -563,6 +574,7 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 "message": "Payment approved",
                 "merchant_reference": merchant_ref,
                 "booking_reference": booking.booking_reference if booking else None,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "transaction_index": result.get('transaction_index'),
                 "authorisation_code": result.get('authorisation_code'),
             })
@@ -575,6 +587,7 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 "message": result.get('result_description', '3DS authentication required'),
                 "merchant_reference": merchant_ref,
                 "booking_reference": booking.booking_reference if booking else None,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
                 "transaction_index": result.get('transaction_index'),
                 "challenge": IVeriClient.get_3ds_challenge_data(response),
@@ -591,6 +604,7 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 "message": result.get('result_description', 'Payment initiated and awaiting final confirmation'),
                 "merchant_reference": merchant_ref,
                 "booking_reference": booking.booking_reference if booking else None,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
                 "transaction_index": result.get('transaction_index'),
             }, status=202)
@@ -599,6 +613,7 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 "success": False,
                 "message": result.get('result_description', 'Payment declined'),
                 "merchant_reference": merchant_ref,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
             })
 
@@ -653,6 +668,7 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
             "message": "Payment approved",
             "merchant_reference": merchant_reference,
             "booking_reference": resolved_booking_reference,
+            "gateway_mode": _resolve_gateway_mode(),
             "transaction_index": txn.transaction_index,
             "authorisation_code": txn.authorisation_code,
         })
@@ -690,6 +706,7 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
                 "message": "Payment approved",
                 "merchant_reference": merchant_reference,
                 "booking_reference": resolved_booking_reference,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "transaction_index": result.get('transaction_index'),
                 "authorisation_code": result.get('authorisation_code'),
             })
@@ -700,6 +717,7 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
                 "pending": True,
                 "message": result.get('result_description', 'Payment still pending'),
                 "merchant_reference": merchant_reference,
+                "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
             }, status=202)
 
@@ -707,6 +725,7 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
             "success": False,
             "message": result.get('result_description', 'Payment declined'),
             "merchant_reference": merchant_reference,
+            "gateway_mode": _resolve_gateway_mode(result),
             "result_code": result.get('result_code'),
         })
     except Exception as e:
@@ -732,6 +751,7 @@ def cbz_query_view(request: HttpRequest, reference: str) -> JsonResponse:
             "success": True,
             "is_approved": IVeriClient.is_approved(response),
             "is_pending": IVeriClient.is_pending(response),
+            "gateway_mode": _resolve_gateway_mode(result),
             "data": result,
         })
     except Exception as e:

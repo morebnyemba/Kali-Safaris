@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FaArrowRight } from 'react-icons/fa';
 
 interface BookingModalProps {
@@ -12,6 +12,7 @@ interface BookingModalProps {
   initialBookingReference?: string;
   fixedAmountUsd?: number;
   launchedFromWhatsApp?: boolean;
+  presentation?: 'modal' | 'page';
 }
 
 type PaymentMode = 'ecocash' | 'card';
@@ -132,6 +133,7 @@ export default function BookingModal({
   initialBookingReference,
   fixedAmountUsd,
   launchedFromWhatsApp = false,
+  presentation = 'modal',
 }: BookingModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
   const [numberOfPeople, setNumberOfPeople] = useState('1');
@@ -157,6 +159,8 @@ export default function BookingModal({
     agreeToTerms: false,
   });
   const [travelers, setTravelers] = useState<TravelerEntry[]>([createEmptyTraveler()]);
+  const isPagePresentation = presentation === 'page';
+  const isTestMode = useMemo(() => paymentConfig?.mode === 'Test', [paymentConfig]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -238,7 +242,7 @@ export default function BookingModal({
     return () => {
       isCancelled = true;
     };
-  }, [initialBookingReference, initialPaymentMode, isOpen, launchedFromWhatsApp]);
+  }, [initialBookingReference, initialPaymentMode, isOpen, launchedFromWhatsApp, numberOfPeople]);
 
   const sanitizePan = (raw: string) => raw.replace(/\D/g, '');
 
@@ -437,6 +441,14 @@ export default function BookingModal({
     return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(parts.join(' '))}`;
   };
 
+  const buildApprovalMessage = useCallback((merchantReference: string, gatewayMode?: string) => {
+    const mode = gatewayMode || paymentConfig?.mode || '';
+    if (mode === 'Test') {
+      return `Sandbox approval only. iVeri is running in Test mode, so no real customer charge was made. Ref: ${merchantReference}`;
+    }
+    return `Payment approved. Ref: ${merchantReference}`;
+  }, [paymentConfig?.mode]);
+
   const submit3DSChallenge = (challenge: Record<string, string>, merchantReference: string) => {
     const acsUrl = challenge.ACSURL || challenge.ACSUrl || challenge.AcsUrl || challenge.RedirectURL || challenge.RedirectUrl || challenge.AuthenticationURL || challenge.AuthenticationUrl;
     if (!acsUrl) {
@@ -509,7 +521,7 @@ export default function BookingModal({
           setSessionItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
         }
         setCanReturnToWhatsApp(launchedFromWhatsApp);
-        setPaymentMessage(`Payment approved. Ref: ${result.merchant_reference}`);
+        setPaymentMessage(buildApprovalMessage(result.merchant_reference, result.gateway_mode));
         removeSessionItem(PENDING_3DS_REF_KEY);
         return;
       }
@@ -526,7 +538,7 @@ export default function BookingModal({
     } finally {
       setIsSubmitting(false);
     }
-  }, [lastMerchantReference, launchedFromWhatsApp]);
+  }, [buildApprovalMessage, lastMerchantReference, launchedFromWhatsApp]);
 
   useEffect(() => {
     if (!isOpen || checkoutStep !== 'payment' || paymentMode !== 'card') {
@@ -618,7 +630,7 @@ export default function BookingModal({
       if (result.success) {
         setLastMerchantReference(result.merchant_reference || '');
         setLastPaymentChannel('ecocash');
-        setPaymentMessage(`EcoCash payment approved. Ref: ${result.merchant_reference}`);
+        setPaymentMessage(buildApprovalMessage(result.merchant_reference, result.gateway_mode));
         return;
       }
 
@@ -685,7 +697,7 @@ export default function BookingModal({
         setLastPaymentChannel('card');
         removeSessionItem(PENDING_PAYMENT_CHANNEL_KEY);
         setCanReturnToWhatsApp(launchedFromWhatsApp);
-        setPaymentMessage(`Payment approved. Ref: ${result.merchant_reference}`);
+        setPaymentMessage(buildApprovalMessage(result.merchant_reference, result.gateway_mode));
         return;
       }
 
@@ -736,21 +748,22 @@ export default function BookingModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
-      <div className="relative bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-        {/* Close button */}
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
-          aria-label="Close modal"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+    <div className={isPagePresentation ? 'w-full' : 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in'}>
+      <div className={`relative bg-white rounded-2xl shadow-2xl w-full overflow-y-auto ${isPagePresentation ? 'max-w-5xl mx-auto min-h-[70vh]' : 'max-w-md max-h-[90vh]'}`}>
+        {!isPagePresentation && (
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
+            aria-label="Close modal"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
 
         {/* Modal content */}
-        <div className="p-6 md:p-8">
+        <div className="p-6 md:p-8 lg:p-10">
           <div className="text-center mb-6">
             <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] mb-4">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -774,6 +787,12 @@ export default function BookingModal({
               2. Secure Payment
             </span>
           </div>
+
+          {isTestMode && (
+            <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              Payments are currently running in iVeri Test mode. Any approval shown here is sandbox-only and does not charge a real customer card or wallet.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             {checkoutStep === 'details' && (

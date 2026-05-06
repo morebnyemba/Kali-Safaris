@@ -5,7 +5,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import FooterSection from "@/components/FooterSection";
 import BookingModal from "@/components/BookingModal";
-import { FaWhatsapp, FaPhone, FaEnvelope, FaSun, FaMoon, FaShip, FaAnchor } from "react-icons/fa";
+import { FaWhatsapp, FaPhone, FaEnvelope, FaSun, FaMoon } from "react-icons/fa";
 import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
 import { MdCelebration } from "react-icons/md";
 
@@ -59,9 +59,8 @@ const cruises = [
 
 function BookingPageContent() {
   const searchParams = useSearchParams();
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCruise, setSelectedCruise] = useState("");
-  const [selectedAmountUsd, setSelectedAmountUsd] = useState(20);
+  const [selectedCruise, setSelectedCruise] = useState(cruises[0].title);
+  const [selectedAmountUsd, setSelectedAmountUsd] = useState(cruises[0].amountUsd);
 
   const queryBookingReference = useMemo(() => searchParams.get('booking_reference') ?? '', [searchParams]);
   const queryPaymentMode = useMemo(() => (searchParams.get('payment_mode') ?? '').toLowerCase(), [searchParams]);
@@ -89,7 +88,6 @@ function BookingPageContent() {
         setSelectedAmountUsd(queryAmountUsd);
       }
 
-      setIsModalOpen(true);
     }, 0);
 
     return () => window.clearTimeout(id);
@@ -98,7 +96,10 @@ function BookingPageContent() {
   const handleBookClick = (cruiseTitle: string, amountUsd: number) => {
     setSelectedCruise(cruiseTitle);
     setSelectedAmountUsd(amountUsd);
-    setIsModalOpen(true);
+
+    window.setTimeout(() => {
+      document.getElementById('booking-flow')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 0);
   };
 
   return (
@@ -221,17 +222,47 @@ function BookingPageContent() {
         </div>
       </section>
 
-      {/* Booking Modal */}
-      <BookingModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        cruiseType={selectedCruise}
-        amountUsd={selectedAmountUsd}
-        initialPaymentMode={queryPaymentMode === 'card' ? 'card' : undefined}
-        initialBookingReference={queryBookingReference || undefined}
-        fixedAmountUsd={queryAmountUsd ?? undefined}
-        launchedFromWhatsApp={querySource === 'whatsapp'}
-      />
+      <section id="booking-flow" className="py-20 bg-gradient-to-b from-[#fff7ec] via-white to-[#fff7ec] relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none">
+          <div className="absolute top-16 left-10 h-56 w-56 rounded-full bg-[#ffba5a]/15 blur-3xl" />
+          <div className="absolute bottom-10 right-10 h-64 w-64 rounded-full bg-[#001a33]/10 blur-3xl" />
+        </div>
+
+        <div className="container mx-auto px-6 relative">
+          <div className="max-w-4xl mx-auto text-center mb-10">
+            <p className="text-sm uppercase tracking-[0.3em] text-[#ff9800] font-semibold mb-3">
+              Booking Flow
+            </p>
+            <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
+              Complete Your Booking On This Page
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              The selected package stays visible here so customers can finish traveler details and payment without a popup interrupting the flow.
+            </p>
+          </div>
+
+          <div className="max-w-5xl mx-auto mb-6 rounded-2xl border border-[#ffba5a]/30 bg-white/80 backdrop-blur-lg px-5 py-4 shadow-lg">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#ff9800] mb-1">Selected Cruise</p>
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <h3 className="text-2xl font-bold text-gray-900">{selectedCruise}</h3>
+              <p className="text-sm font-semibold text-gray-700">Starting from ${selectedAmountUsd.toFixed(2)}</p>
+            </div>
+          </div>
+
+          <BookingModal
+            key={`${selectedCruise}-${selectedAmountUsd}-${queryBookingReference}-${queryPaymentMode}`}
+            isOpen={true}
+            onClose={() => {}}
+            cruiseType={selectedCruise}
+            amountUsd={selectedAmountUsd}
+            initialPaymentMode={queryPaymentMode === 'card' ? 'card' : undefined}
+            initialBookingReference={queryBookingReference || undefined}
+            fixedAmountUsd={queryAmountUsd ?? undefined}
+            launchedFromWhatsApp={querySource === 'whatsapp'}
+            presentation="page"
+          />
+        </div>
+      </section>
 
       <FooterSection />
     </div>

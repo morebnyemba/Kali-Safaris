@@ -23,6 +23,7 @@ interface GatewayResult {
   merchant_reference?: string;
   booking_reference?: string;
   result_code?: string;
+  gateway_mode?: string;
 }
 
 function PaymentStatusPageContent() {
@@ -31,6 +32,7 @@ function PaymentStatusPageContent() {
   const [message, setMessage] = useState('Preparing payment verification...');
   const [countdown, setCountdown] = useState(0);
   const [bookingReference, setBookingReference] = useState('');
+  const [gatewayMode, setGatewayMode] = useState('');
 
   const channel = useMemo<PaymentChannel>(() => {
     const queryChannel = (searchParams.get('channel') ?? '').toLowerCase();
@@ -108,6 +110,7 @@ function PaymentStatusPageContent() {
         : await fetch(`${API_BASE}/crm-api/payments/cbz/query/${reference}/`);
 
       const result = (await response.json()) as GatewayResult;
+      setGatewayMode(result.gateway_mode ?? '');
       if (result.booking_reference) {
         setBookingReference(result.booking_reference);
         window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
@@ -116,7 +119,11 @@ function PaymentStatusPageContent() {
       if (channel === 'ecocash') {
         if (result.success && (result as GatewayResult & { is_approved?: boolean }).is_approved) {
           setStatus('approved');
-          setMessage(result.message || `Payment approved. Reference: ${reference}`);
+          setMessage(
+            result.gateway_mode === 'Test'
+              ? `Sandbox approval only. iVeri is in Test mode, so no real customer charge was made. Reference: ${reference}`
+              : (result.message || `Payment approved. Reference: ${reference}`)
+          );
           window.sessionStorage.removeItem(PENDING_3DS_REF_KEY);
           window.sessionStorage.removeItem(PENDING_PAYMENT_CHANNEL_KEY);
           return;
@@ -135,7 +142,11 @@ function PaymentStatusPageContent() {
 
       if (result.success && !result.pending) {
         setStatus('approved');
-        setMessage(result.message || `Payment approved. Reference: ${result.merchant_reference || reference}`);
+        setMessage(
+          result.gateway_mode === 'Test'
+            ? `Sandbox approval only. iVeri is in Test mode, so no real customer charge was made. Reference: ${result.merchant_reference || reference}`
+            : (result.message || `Payment approved. Reference: ${result.merchant_reference || reference}`)
+        );
         window.sessionStorage.removeItem(PENDING_3DS_REF_KEY);
         window.sessionStorage.removeItem(PENDING_PAYMENT_CHANNEL_KEY);
         return;
@@ -226,6 +237,12 @@ function PaymentStatusPageContent() {
         </div>
 
         <p className="text-gray-700 leading-relaxed mb-4">{message}</p>
+
+        {gatewayMode === 'Test' && (
+          <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            This transaction was processed against the iVeri sandbox. Use a LIVE application ID and `CBZ_MODE=LIVE` before treating approvals as real payments.
+          </div>
+        )}
 
         <p className="text-sm text-gray-500 mb-2">
           Channel: <span className="font-semibold text-gray-700 uppercase">{channel}</span>

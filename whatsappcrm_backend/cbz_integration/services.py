@@ -688,6 +688,7 @@ class IVeriClient:
             'result_code': fields['code'] or None,
             'result_description': fields['description'],
             'status': fields['status'] or None,
+            'mode': txn.get('Mode') or None,
             'transaction_index': txn.get('TransactionIndex'),
             'authorisation_code': txn.get('AuthorisationCode'),
             'merchant_reference': txn.get('MerchantReference'),
