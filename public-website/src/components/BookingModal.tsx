@@ -27,6 +27,17 @@ interface EcoCashPaymentState {
   msisdn: string;
 }
 
+interface TravelerDetails {
+  fullName: string;
+  email: string;
+  phone: string;
+  country: string;
+  specialRequests: string;
+  agreeToTerms: boolean;
+}
+
+type CheckoutStep = 'details' | 'payment';
+
 interface PaymentConfig {
   mode: string;
   ecocash: {
@@ -68,6 +79,16 @@ export default function BookingModal({
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null);
   const [activeBookingReference, setActiveBookingReference] = useState(initialBookingReference ?? '');
   const [canReturnToWhatsApp, setCanReturnToWhatsApp] = useState(false);
+  const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('details');
+  const [detailsMessage, setDetailsMessage] = useState('');
+  const [traveler, setTraveler] = useState<TravelerDetails>({
+    fullName: '',
+    email: '',
+    phone: '',
+    country: '',
+    specialRequests: '',
+    agreeToTerms: false,
+  });
 
   useEffect(() => {
     if (!isOpen) {
@@ -77,6 +98,8 @@ export default function BookingModal({
     setPaymentMode(initialPaymentMode ?? 'ecocash');
     setActiveBookingReference(initialBookingReference ?? '');
     setCanReturnToWhatsApp(launchedFromWhatsApp && Boolean(initialBookingReference));
+    setCheckoutStep(initialBookingReference ? 'payment' : 'details');
+    setDetailsMessage('');
 
     if (launchedFromWhatsApp) {
       window.sessionStorage.setItem(RETURN_TO_WHATSAPP_KEY, '1');
@@ -125,6 +148,7 @@ export default function BookingModal({
       setPaymentMode('card');
       setLastPaymentChannel('card');
       setPaymentMessage('3DS authentication may still be pending. Use Complete 3DS Payment to confirm final status.');
+      setCheckoutStep('payment');
     }
 
     return () => {
@@ -164,7 +188,61 @@ export default function BookingModal({
 
   const toIveriExpiry = (raw: string) => raw.replace(/\D/g, '').slice(0, 4);
 
+  const hasExistingBooking = Boolean(initialBookingReference);
+
   const totalAmount = fixedAmountUsd ?? (Number(numberOfPeople || '1') * amountUsd);
+
+  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+
+  const validateBookingDetails = () => {
+    if (hasExistingBooking) {
+      return '';
+    }
+    if (!selectedDate) {
+      return 'Select your preferred date.';
+    }
+
+    const people = Number(numberOfPeople || '0');
+    if (!Number.isFinite(people) || people < 1) {
+      return 'Enter a valid number of travelers.';
+    }
+    if (!traveler.fullName.trim()) {
+      return 'Enter traveler full name.';
+    }
+    if (!isValidEmail(traveler.email)) {
+      return 'Enter a valid email address.';
+    }
+    if (!traveler.phone.trim()) {
+      return 'Enter a contact phone number.';
+    }
+    if (!traveler.agreeToTerms) {
+      return 'Please accept the booking and payment terms to continue.';
+    }
+    return '';
+  };
+
+  const buildBookingDetailsPayload = () => {
+    if (hasExistingBooking) {
+      return undefined;
+    }
+
+    return {
+      tour_name: cruiseType,
+      selected_date: selectedDate,
+      number_of_people: Number(numberOfPeople || '1'),
+      customer: {
+        full_name: traveler.fullName.trim(),
+        email: traveler.email.trim(),
+        phone: traveler.phone.trim(),
+        country: traveler.country.trim(),
+        special_requests: traveler.specialRequests.trim(),
+      },
+      consent: {
+        terms_accepted: traveler.agreeToTerms,
+        accepted_at: new Date().toISOString(),
+      },
+    };
+  };
 
   const buildReturnToWhatsAppHref = (bookingReference: string, merchantReference: string) => {
     const parts = [
@@ -320,6 +398,8 @@ export default function BookingModal({
           msisdn,
           amount: totalAmount,
           currency: 'USD',
+          booking_reference: initialBookingReference,
+          booking_details: buildBookingDetailsPayload(),
         }),
       });
 
@@ -385,11 +465,7 @@ export default function BookingModal({
           amount: totalAmount,
           currency: 'USD',
           booking_reference: initialBookingReference,
-          booking_details: initialBookingReference ? undefined : {
-            tour_name: cruiseType,
-            selected_date: selectedDate,
-            number_of_people: Number(numberOfPeople || '1'),
-          },
+          booking_details: buildBookingDetailsPayload(),
         }),
       });
 
@@ -437,6 +513,17 @@ export default function BookingModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (checkoutStep === 'details') {
+      const error = validateBookingDetails();
+      if (error) {
+        setDetailsMessage(error);
+        return;
+      }
+      setDetailsMessage('');
+      setCheckoutStep('payment');
+      return;
+    }
+
     if (paymentMode === 'card') {
       void submitCardPayment();
       return;
@@ -475,36 +562,102 @@ export default function BookingModal({
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label htmlFor="date" className="block text-sm font-semibold text-gray-700 mb-2">
-                Preferred Date
-              </label>
-              <input
-                type="date"
-                id="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
-              />
-            </div>
+          <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
+            <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#ff9800] text-black' : 'bg-gray-100 text-gray-600'}`}>
+              1. Booking Details
+            </span>
+            <span className="text-gray-400">→</span>
+            <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#ff9800] text-black' : 'bg-gray-100 text-gray-600'}`}>
+              2. Secure Payment
+            </span>
+          </div>
 
-            <div>
-              <label htmlFor="people" className="block text-sm font-semibold text-gray-700 mb-2">
-                Number of People
-              </label>
-              <input
-                type="number"
-                id="people"
-                value={numberOfPeople}
-                onChange={(e) => setNumberOfPeople(e.target.value)}
-                min="1"
-                required
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
-              />
-            </div>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {checkoutStep === 'details' && (
+              <>
+                <div>
+                  <label htmlFor="date" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Preferred Date
+                  </label>
+                  <input
+                    type="date"
+                    id="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="people" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Number of People
+                  </label>
+                  <input
+                    type="number"
+                    id="people"
+                    value={numberOfPeople}
+                    onChange={(e) => setNumberOfPeople(e.target.value)}
+                    min="1"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 p-4">
+                  <p className="text-sm font-semibold text-gray-800">Traveler & Contact Details</p>
+                  <input
+                    type="text"
+                    placeholder="Full name"
+                    value={traveler.fullName}
+                    onChange={(e) => setTraveler((prev) => ({ ...prev, fullName: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                  />
+                  <input
+                    type="email"
+                    placeholder="Email address"
+                    value={traveler.email}
+                    onChange={(e) => setTraveler((prev) => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Phone / WhatsApp number"
+                    value={traveler.phone}
+                    onChange={(e) => setTraveler((prev) => ({ ...prev, phone: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Country (optional)"
+                    value={traveler.country}
+                    onChange={(e) => setTraveler((prev) => ({ ...prev, country: e.target.value }))}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                  />
+                  <textarea
+                    placeholder="Special requests (dietary, accessibility, occasion, pickup details)"
+                    value={traveler.specialRequests}
+                    onChange={(e) => setTraveler((prev) => ({ ...prev, specialRequests: e.target.value }))}
+                    rows={3}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                  />
+                  <label className="flex items-start gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={traveler.agreeToTerms}
+                      onChange={(e) => setTraveler((prev) => ({ ...prev, agreeToTerms: e.target.checked }))}
+                      className="mt-1"
+                    />
+                    <span>I confirm these details are accurate and I authorize secure payment processing for this booking.</span>
+                  </label>
+                </div>
+
+                {detailsMessage && (
+                  <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+                    {detailsMessage}
+                  </div>
+                )}
+              </>
+            )}
 
             <div className="bg-gradient-to-r from-[#fff7ec] to-[#ffe8cc] border border-[#ffba5a]/30 rounded-lg p-4">
               <p className="text-sm text-gray-700">
@@ -512,13 +665,21 @@ export default function BookingModal({
               </p>
             </div>
 
-            {paymentConfig?.mode === 'Test' && (
+            {checkoutStep === 'payment' && (
+              <div className="rounded-lg border border-[#c8e6c9] bg-[#f2fff3] p-4 text-sm text-[#1b5e20]">
+                <p className="font-semibold">Secure checkout enabled</p>
+                <p className="mt-1">Card entry supports 3DS challenge flow when required by your bank. Booking details are attached to your payment reference for support and reconciliation.</p>
+              </div>
+            )}
+
+            {checkoutStep === 'payment' && paymentConfig?.mode === 'Test' && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
                 <p className="font-semibold">CBZ test mode is active.</p>
                 <p className="mt-1">Use configured test EcoCash numbers or your approved test cards. The checkout will not pick test values randomly.</p>
               </div>
             )}
 
+            {checkoutStep === 'payment' && (
             <div className="grid grid-cols-2 gap-2 p-1 rounded-lg bg-gray-100">
               <button
                 type="button"
@@ -539,8 +700,9 @@ export default function BookingModal({
                 Pay by Card
               </button>
             </div>
+            )}
 
-            {paymentMode === 'ecocash' && (
+            {checkoutStep === 'payment' && paymentMode === 'ecocash' && (
               <div className="space-y-3 rounded-lg border border-gray-200 p-4">
                 <div>
                   <label htmlFor="ecocashNumber" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -595,7 +757,7 @@ export default function BookingModal({
               </div>
             )}
 
-            {paymentMode === 'card' && (
+            {checkoutStep === 'payment' && paymentMode === 'card' && (
               <div className="space-y-3 rounded-lg border border-gray-200 p-4">
                 {paymentConfig?.mode === 'Test' && (paymentConfig.card.test_pans ?? []).length > 0 && (
                   <div>
@@ -697,12 +859,27 @@ export default function BookingModal({
               >
                 Cancel
               </button>
+              {checkoutStep === 'payment' && !hasExistingBooking && (
+                <button
+                  type="button"
+                  onClick={() => setCheckoutStep('details')}
+                  className="flex-1 px-6 py-3 border border-[#ff9800] text-[#ff9800] font-semibold rounded-full hover:bg-[#fff2e0] transition"
+                >
+                  Back to Details
+                </button>
+              )}
               <button
                 type="submit"
                 disabled={isSubmitting}
                 className="flex-1 px-6 py-3 bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
               >
-                {isSubmitting ? 'Processing...' : paymentMode === 'card' ? 'Pay Securely' : 'Start EcoCash Payment'}
+                {isSubmitting
+                  ? 'Processing...'
+                  : checkoutStep === 'details'
+                    ? 'Continue to Secure Payment'
+                    : paymentMode === 'card'
+                      ? 'Pay Securely'
+                      : 'Start EcoCash Payment'}
               </button>
             </div>
           </form>

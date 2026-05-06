@@ -129,6 +129,22 @@ def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Opti
     except (TypeError, ValueError):
         adults = 1
 
+    customer_details = details.get('customer') if isinstance(details.get('customer'), dict) else {}
+    customer_name = str(customer_details.get('full_name') or '').strip()
+    customer_email = str(customer_details.get('email') or '').strip()
+    customer_phone = str(customer_details.get('phone') or '').strip()
+    customer_country = str(customer_details.get('country') or '').strip()
+    customer_requests = str(customer_details.get('special_requests') or '').strip()
+
+    note_parts = [
+        f"Website checkout draft booking. People: {adults}.",
+        f"Traveler: {customer_name}" if customer_name else '',
+        f"Email: {customer_email}" if customer_email else '',
+        f"Phone: {customer_phone}" if customer_phone else '',
+        f"Country: {customer_country}" if customer_country else '',
+        f"Special requests: {customer_requests}" if customer_requests else '',
+    ]
+
     tour = Tour.objects.filter(name__iexact=str(tour_name).strip()).first()
     return Booking.objects.create(
         booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
@@ -141,7 +157,8 @@ def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Opti
         total_amount=amount,
         payment_status=Booking.PaymentStatus.PENDING,
         source=Booking.BookingSource.MANUAL_ENTRY,
-        notes=f"Website checkout draft booking. People: {adults}.",
+        notes='\n'.join(part for part in note_parts if part),
+        booking_details_payload=details or None,
     )
 
 
