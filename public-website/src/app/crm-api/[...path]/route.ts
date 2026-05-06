@@ -14,7 +14,10 @@ function buildTargetUrl(pathSegments: string[], request: NextRequest): string {
 
 function forwardHeaders(request: NextRequest): Headers {
   const headers = new Headers(request.headers);
-  headers.delete('host');
+  const incomingHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+  if (incomingHost) {
+    headers.set('host', incomingHost);
+  }
   return headers;
 }
 
