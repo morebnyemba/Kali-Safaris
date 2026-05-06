@@ -236,10 +236,6 @@ export default function BookingModal({
     let isCancelled = false;
 
     const loadPaymentConfig = async () => {
-      if (!API_BASE) {
-        return;
-      }
-
       try {
         const response = await fetch(`${API_BASE}/crm-api/payments/cbz/config/`, {
           cache: 'no-store',
@@ -339,6 +335,27 @@ export default function BookingModal({
       return { label: 'JCB', icon: FaCcJcb };
     }
     return { label: 'Unknown' };
+  }, [cardBrand]);
+  const cardBrandColorClass = useMemo(() => {
+    if (cardBrand === 'visa') {
+      return 'text-[#1a1f71]';
+    }
+    if (cardBrand === 'mastercard') {
+      return 'text-[#eb001b]';
+    }
+    if (cardBrand === 'amex') {
+      return 'text-[#2e77bc]';
+    }
+    if (cardBrand === 'discover') {
+      return 'text-[#ff6000]';
+    }
+    if (cardBrand === 'diners') {
+      return 'text-[#0069aa]';
+    }
+    if (cardBrand === 'jcb') {
+      return 'text-[#0a8f3d]';
+    }
+    return 'text-gray-500';
   }, [cardBrand]);
 
   const isLuhnValid = (pan: string) => {
@@ -1254,7 +1271,7 @@ export default function BookingModal({
                       className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
                     />
                     {sanitizePan(card.cardNumber).length >= 4 && (
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl text-gray-500" aria-hidden="true">
+                      <span className={`pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl ${cardBrandColorClass}`} aria-hidden="true">
                         {cardBrandMeta.icon ? <cardBrandMeta.icon /> : <FaCreditCard />}
                       </span>
                     )}
