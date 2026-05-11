@@ -29,10 +29,10 @@ export default function Header() {
         {/* Logo */}
         <Link href="/" className="leading-none flex-shrink-0 hover:opacity-80 transition-opacity">
           <Image 
-            src="/images/logok.png" 
+            src="/images/kalailogo.png" 
             alt="Kalai Safari Logo" 
-            width={160} 
-            height={53}
+            width={1513} 
+            height={1024}
             className="block h-auto w-[120px] md:w-[160px]"
             priority
             style={{ imageRendering: 'crisp-edges' }}
