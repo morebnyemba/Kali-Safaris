@@ -31,8 +31,8 @@ export default function Header() {
           <Image 
             src="/images/kalailogo.png" 
             alt="Kalai Safari Logo" 
-            width={1513} 
-            height={1024}
+            width={1176} 
+            height={307}
             className="block h-auto w-[120px] md:w-[160px]"
             priority
             style={{ imageRendering: 'crisp-edges' }}
