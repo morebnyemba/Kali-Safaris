@@ -568,7 +568,7 @@ $inv=$_SESSION['reg'];?>
             <div class="media media-custom d-block mb-4 h-100">
               <div class="media-body" style="text-align:center">
                 
-                <h2 class="mt-0 mb-3"  ><a href="#" class="heading" style="color:#ffba5a">$20.00 </a></h2>
+                <h2 class="mt-0 mb-3"  ><a href="#" class="heading" style="color:#ffba5a">$25.00 </a></h2>
                Per person with cash bar<br/>
                
               </div>
@@ -579,7 +579,7 @@ $inv=$_SESSION['reg'];?>
             <div class="media media-custom d-block mb-4 h-100">
               <div class="media-body" style="text-align:center">
                
-             <h2 class="mt-0 mb-3"><a href="#" class="heading" style="color:#ffba5a">$50.00 </a></h2>
+             <h2 class="mt-0 mb-3"><a href="#" class="heading" style="color:#ffba5a">$55.00 </a></h2>
                Per person including beverages and food depending on Breakfast, lunch or sunset 
               </div>
             </div>
@@ -588,7 +588,7 @@ $inv=$_SESSION['reg'];?>
             <div class="media media-custom d-block mb-4 h-100">
               <div class="media-body" style="text-align:center">
               
-                <h2 class="mt-0 mb-3"><a href="#" class="heading" style="color:#ffba5a">$70.00 </a></h2>
+                <h2 class="mt-0 mb-3"><a href="#" class="heading" style="color:#ffba5a">$75.00 </a></h2>
                 Per person for dinner cruise
               </div>
               
@@ -597,7 +597,7 @@ $inv=$_SESSION['reg'];?>
           
         </div>
       </div>
-             <div class="heading" style="text-align:center" ><em style="font-size:17px"><strong>(Excludes applicable Parks river usage fee)</strong></em></div>
+             <div class="heading" style="text-align:center" ><em style="font-size:17px"><strong>Rates effective 11 May 2026. (Excludes applicable Parks river usage fee)</strong></em></div>
 
     </section>
  

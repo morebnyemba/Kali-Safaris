@@ -12,23 +12,23 @@ const pricingOptions = [
     tag: "Best for Learners",
   },
   {
-    price: "$20.00",
-    amountUsd: 20,
+    price: "$25.00",
+    amountUsd: 25,
     description: "Per person with cash bar",
     subtitle: "",
     tag: "Value",
   },
   {
-    price: "$50.00",
-    amountUsd: 50,
+    price: "$55.00",
+    amountUsd: 55,
     description:
       "Per person including beverages and food depending on Breakfast, lunch or sunset",
     subtitle: "",
     tag: "Popular",
   },
   {
-    price: "$70.00",
-    amountUsd: 70,
+    price: "$75.00",
+    amountUsd: 75,
     description: "Per person for dinner cruise",
     subtitle: "",
     tag: "Evening Luxury",
@@ -38,7 +38,7 @@ const pricingOptions = [
 export default function PricingSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState("");
-  const [selectedAmountUsd, setSelectedAmountUsd] = useState(20);
+  const [selectedAmountUsd, setSelectedAmountUsd] = useState(25);
 
   const handleBookClick = (packageName: string, amountUsd: number) => {
     setSelectedPackage(packageName);
@@ -66,6 +66,9 @@ export default function PricingSection() {
           </h2>
           <p className="text-gray-600 max-w-2xl mx-auto">
             Transparent packages with everything you need for a memorable Zambezi cruise.
+          </p>
+          <p className="text-sm text-gray-500 mt-2 font-medium">
+            Rates effective 11 May 2026.
           </p>
         </div>
         

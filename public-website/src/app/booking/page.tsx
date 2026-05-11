@@ -13,8 +13,8 @@ const cruises = [
   {
     title: "Sunrise Cruise",
     time: "06:00 AM — 08:00 AM",
-    amountUsd: 20,
-    price: "From $20",
+    amountUsd: 25,
+    price: "From $25",
     image: "/images/sunrise.jpeg",
     description: "Start your day with the peaceful sounds of the Zambezi as hippos yawn and fish eagles call.",
     Icon: BsSunriseFill,
@@ -22,8 +22,8 @@ const cruises = [
   {
     title: "Lunch Cruise",
     time: "12:00 PM — 02:00 PM",
-    amountUsd: 20,
-    price: "From $20",
+    amountUsd: 25,
+    price: "From $25",
     image: "/images/work_no_play.jpeg",
     description: "A relaxing midday cruise along the river with stunning views and refreshing breezes.",
     Icon: FaSun,
@@ -31,8 +31,8 @@ const cruises = [
   {
     title: "Sunset Cruise",
     time: "04:00 PM — After Sunset",
-    amountUsd: 20,
-    price: "From $20",
+    amountUsd: 25,
+    price: "From $25",
     image: "/images/sunset.jpeg",
     description: "The most popular cruise — watch the African sun set over the Zambezi in golden splendour.",
     Icon: BsSunsetFill,
@@ -40,8 +40,8 @@ const cruises = [
   {
     title: "Dinner Cruise",
     time: "Evening (by arrangement)",
-    amountUsd: 70,
-    price: "From $70",
+    amountUsd: 75,
+    price: "From $75",
     image: "/images/Kalai Sunset background shot.jpeg",
     description: "An exclusive evening on the river, complete with a gourmet dinner under the stars.",
     Icon: FaMoon,
