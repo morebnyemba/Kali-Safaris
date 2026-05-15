@@ -20,6 +20,7 @@ interface BookingModalProps {
 }
 
 type PaymentMode = 'ecocash' | 'card';
+type CardProvider = 'copyandpay' | 'cbz_direct';
 
 type PaymentChannel = 'ecocash' | 'card';
 
@@ -83,6 +84,16 @@ interface PaymentConfig {
   card: {
     supports_3ds: boolean;
     test_pans: string[];
+    default_provider?: CardProvider;
+    providers?: {
+      copyandpay_enabled?: boolean;
+      cbz_direct_enabled?: boolean;
+    };
+    copyandpay?: {
+      enabled: boolean;
+      base_url: string;
+      brands: string;
+    };
   };
 }
 
@@ -146,6 +157,7 @@ export default function BookingModal({
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('ecocash');
   const [ecocash, setEcocash] = useState<EcoCashPaymentState>({ msisdn: '' });
   const [card, setCard] = useState<CardPaymentState>({ cardNumber: '', expiry: '', cvv: '' });
+  const [cardProvider, setCardProvider] = useState<CardProvider>('copyandpay');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
   const [lastMerchantReference, setLastMerchantReference] = useState('');
@@ -169,6 +181,24 @@ export default function BookingModal({
   const detailsDateInputRef = useRef<HTMLInputElement | null>(null);
   const isPagePresentation = presentation === 'page';
   const isTestMode = useMemo(() => paymentConfig?.mode === 'Test', [paymentConfig]);
+  const isCopyAndPayAvailable = useMemo(() => {
+    if (!paymentConfig) {
+      return true;
+    }
+    if (typeof paymentConfig.card?.providers?.copyandpay_enabled === 'boolean') {
+      return paymentConfig.card.providers.copyandpay_enabled;
+    }
+    return Boolean(paymentConfig.card?.copyandpay?.enabled);
+  }, [paymentConfig]);
+  const isCbzDirectAvailable = useMemo(() => {
+    if (!paymentConfig) {
+      return true;
+    }
+    if (typeof paymentConfig.card?.providers?.cbz_direct_enabled === 'boolean') {
+      return paymentConfig.card.providers.cbz_direct_enabled;
+    }
+    return true;
+  }, [paymentConfig]);
   const paymentModePill = useMemo(() => {
     const mode = (paymentConfig?.mode || '').toUpperCase();
     if (mode === 'LIVE') {
@@ -245,6 +275,13 @@ export default function BookingModal({
 
         if (!isCancelled && result.success && result.config) {
           setPaymentConfig(result.config);
+          if (result.config.card?.default_provider === 'cbz_direct') {
+            setCardProvider('cbz_direct');
+          } else if (result.config.card?.providers?.copyandpay_enabled) {
+            setCardProvider('copyandpay');
+          } else {
+            setCardProvider('cbz_direct');
+          }
           if (result.config.mode === 'Test' && result.config.ecocash.test_msisdns.length > 0) {
             setEcocash((current) => (
               current.msisdn
@@ -286,6 +323,16 @@ export default function BookingModal({
       isCancelled = true;
     };
   }, [initialBookingReference, initialPaymentMode, isOpen, launchedFromWhatsApp, numberOfPeople]);
+
+  useEffect(() => {
+    if (cardProvider === 'copyandpay' && !isCopyAndPayAvailable) {
+      setCardProvider(isCbzDirectAvailable ? 'cbz_direct' : 'copyandpay');
+      return;
+    }
+    if (cardProvider === 'cbz_direct' && !isCbzDirectAvailable) {
+      setCardProvider(isCopyAndPayAvailable ? 'copyandpay' : 'cbz_direct');
+    }
+  }, [cardProvider, isCbzDirectAvailable, isCopyAndPayAvailable]);
 
   const sanitizePan = (raw: string) => raw.replace(/\D/g, '');
 
@@ -375,6 +422,34 @@ export default function BookingModal({
     return <FaCreditCard className="text-gray-500" />;
   }, [cardBrand, cardBrandColorClass, cardBrandMeta]);
 
+  const sanitizeMsisdn = (raw: string) => raw.replace(/\D/g, '').slice(0, 12);
+
+  const normalizeEcoCashMsisdn = (raw: string) => {
+    const digits = sanitizeMsisdn(raw);
+    if (digits.startsWith('263') && digits.length === 12) {
+      return digits;
+    }
+    if (digits.startsWith('0') && digits.length === 10) {
+      return `263${digits.slice(1)}`;
+    }
+    if (digits.length === 9 && digits.startsWith('7')) {
+      return `263${digits}`;
+    }
+    return digits;
+  };
+
+  const isValidEcoCashMsisdn = (raw: string) => /^(2637\d{8}|07\d{8}|7\d{8})$/.test(raw.replace(/\D/g, ''));
+
+  const toExpiryMMyy = (raw: string) => {
+    const digits = raw.replace(/\D/g, '');
+    if (digits.length >= 4) {
+      return `${digits.slice(0, 2)}/${digits.slice(2, 4)}`;
+    }
+    return digits;
+  };
+
+  const toIveriExpiry = (raw: string) => raw.replace(/\D/g, '').slice(0, 4);
+
   const isLuhnValid = (pan: string) => {
     let sum = 0;
     let shouldDouble = false;
@@ -420,34 +495,6 @@ export default function BookingModal({
     }
     return true;
   };
-
-  const sanitizeMsisdn = (raw: string) => raw.replace(/\D/g, '').slice(0, 12);
-
-  const normalizeEcoCashMsisdn = (raw: string) => {
-    const digits = sanitizeMsisdn(raw);
-    if (digits.startsWith('263') && digits.length === 12) {
-      return digits;
-    }
-    if (digits.startsWith('0') && digits.length === 10) {
-      return `263${digits.slice(1)}`;
-    }
-    if (digits.length === 9 && digits.startsWith('7')) {
-      return `263${digits}`;
-    }
-    return digits;
-  };
-
-  const isValidEcoCashMsisdn = (raw: string) => /^(2637\d{8}|07\d{8}|7\d{8})$/.test(raw.replace(/\D/g, ''));
-
-  const toExpiryMMyy = (raw: string) => {
-    const digits = raw.replace(/\D/g, '');
-    if (digits.length >= 4) {
-      return `${digits.slice(0, 2)}/${digits.slice(2, 4)}`;
-    }
-    return digits;
-  };
-
-  const toIveriExpiry = (raw: string) => raw.replace(/\D/g, '').slice(0, 4);
 
   const hasExistingBooking = Boolean(initialBookingReference);
 
@@ -716,7 +763,7 @@ export default function BookingModal({
   }, [buildApprovalMessage, lastMerchantReference, launchedFromWhatsApp]);
 
   useEffect(() => {
-    if (!isOpen || checkoutStep !== 'payment' || paymentMode !== 'card') {
+    if (!isOpen || checkoutStep !== 'payment' || paymentMode !== 'card' || cardProvider !== 'cbz_direct') {
       return;
     }
 
@@ -727,7 +774,7 @@ export default function BookingModal({
 
     setAuto3DSCheckedReference(pendingReference);
     void complete3DSPayment({ silent: true });
-  }, [auto3DSCheckedReference, checkoutStep, complete3DSPayment, isOpen, isSubmitting, lastMerchantReference, paymentMode]);
+  }, [auto3DSCheckedReference, cardProvider, checkoutStep, complete3DSPayment, isOpen, isSubmitting, lastMerchantReference, paymentMode]);
 
   const checkEcoCashPaymentStatus = async () => {
     const merchantReference = lastMerchantReference;
@@ -817,7 +864,77 @@ export default function BookingModal({
     }
   };
 
-  const submitCardPayment = async () => {
+  const submitCardPaymentHosted = async () => {
+    try {
+      setIsSubmitting(true);
+      setPaymentMessage('Preparing secure hosted card checkout...');
+
+      const resultUrl = new URL(`${window.location.origin}/booking/payment-status`);
+      resultUrl.searchParams.set('channel', 'card');
+      resultUrl.searchParams.set('provider', 'copyandpay');
+      if (launchedFromWhatsApp) {
+        resultUrl.searchParams.set('source', 'whatsapp');
+      }
+      if (activeBookingReference) {
+        resultUrl.searchParams.set('booking_reference', activeBookingReference);
+      }
+
+      const response = await fetch(`${API_BASE}/crm-api/payments/cbz/copyandpay/prepare/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          amount: totalAmount,
+          currency: 'USD',
+          booking_reference: initialBookingReference,
+          booking_details: buildBookingDetailsPayload(),
+          shopper_result_url: resultUrl.toString(),
+        }),
+      });
+
+      const result = await response.json();
+      const resolvedBookingReference = result.booking_reference || initialBookingReference || '';
+      if (resolvedBookingReference) {
+        setActiveBookingReference(resolvedBookingReference);
+        setSessionItem(PENDING_BOOKING_REFERENCE_KEY, resolvedBookingReference);
+      }
+
+      if (result.success && result.checkout_id) {
+        const merchantRef = result.merchant_reference || '';
+        if (merchantRef) {
+          setLastMerchantReference(merchantRef);
+          setSessionItem(PENDING_3DS_REF_KEY, merchantRef);
+          setSessionItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
+          resultUrl.searchParams.set('ref', merchantRef);
+        }
+
+        setLastPaymentChannel('card');
+        setCanReturnToWhatsApp(launchedFromWhatsApp);
+
+        const checkoutUrl = new URL(`${window.location.origin}/booking/card-checkout`);
+        checkoutUrl.searchParams.set('checkoutId', String(result.checkout_id));
+        checkoutUrl.searchParams.set('merchantRef', merchantRef);
+        checkoutUrl.searchParams.set('brands', String(result.brands || 'VISA MASTER AMEX'));
+        checkoutUrl.searchParams.set('widget', String(result.widget_script_url || ''));
+        checkoutUrl.searchParams.set('returnUrl', resultUrl.toString());
+        if (result.integrity) {
+          checkoutUrl.searchParams.set('integrity', String(result.integrity));
+        }
+
+        window.location.href = checkoutUrl.toString();
+        return;
+      }
+
+      setPaymentMessage(result.message || 'Payment failed.');
+    } catch {
+      setPaymentMessage('Payment request failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitCardPaymentDirect = async () => {
     const pan = sanitizePan(card.cardNumber);
     const expiryDate = toIveriExpiry(card.expiry);
     const cvv = card.cvv.replace(/\D/g, '');
@@ -909,6 +1026,23 @@ export default function BookingModal({
     }
   };
 
+  const submitCardPayment = async () => {
+    if (cardProvider === 'copyandpay' && !isCopyAndPayAvailable) {
+      setPaymentMessage('COPYandPAY is not configured at the moment. Please use CBZ Direct Card.');
+      return;
+    }
+    if (cardProvider === 'cbz_direct' && !isCbzDirectAvailable) {
+      setPaymentMessage('CBZ Direct Card is not configured at the moment. Please use COPYandPAY.');
+      return;
+    }
+
+    if (cardProvider === 'cbz_direct') {
+      await submitCardPaymentDirect();
+      return;
+    }
+    await submitCardPaymentHosted();
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -936,7 +1070,7 @@ export default function BookingModal({
   }
 
   return (
-    <div className={isPagePresentation ? 'w-full' : 'fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in'}>
+    <div className={isPagePresentation ? 'w-full' : 'fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in'}>
       <div className={`relative bg-white rounded-2xl shadow-2xl w-full overflow-y-auto ${isPagePresentation ? 'max-w-5xl mx-auto min-h-[70vh]' : 'max-w-md max-h-[90vh]'}`}>
         {!isPagePresentation && (
           <button
@@ -953,7 +1087,7 @@ export default function BookingModal({
         {/* Modal content */}
         <div className="p-6 md:p-8 lg:p-10">
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] mb-4">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-linear-to-r from-[#ffba5a] to-[#ff9800] mb-4">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
@@ -1147,7 +1281,7 @@ export default function BookingModal({
               </>
             )}
 
-            <div className="bg-gradient-to-r from-[#fff7ec] to-[#ffe8cc] border border-[#ffba5a]/30 rounded-lg p-4">
+            <div className="bg-linear-to-r from-[#fff7ec] to-[#ffe8cc] border border-[#ffba5a]/30 rounded-lg p-4">
               <p className="text-sm text-gray-700">
                 <strong className="text-gray-900">Estimated total:</strong> USD {totalAmount.toFixed(2)}
               </p>
@@ -1255,6 +1389,38 @@ export default function BookingModal({
 
             {checkoutStep === 'payment' && paymentMode === 'card' && (
               <div className="space-y-3 rounded-lg border border-gray-200 p-4">
+                {(isCopyAndPayAvailable || isCbzDirectAvailable) && (
+                  <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
+                    {isCopyAndPayAvailable && (
+                      <button
+                        type="button"
+                        onClick={() => setCardProvider('copyandpay')}
+                        className={`rounded-md py-2 text-xs font-semibold transition ${cardProvider === 'copyandpay' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+                      >
+                        COPYandPAY (Hosted)
+                      </button>
+                    )}
+                    {isCbzDirectAvailable && (
+                      <button
+                        type="button"
+                        onClick={() => setCardProvider('cbz_direct')}
+                        className={`rounded-md py-2 text-xs font-semibold transition ${cardProvider === 'cbz_direct' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+                      >
+                        CBZ Direct Card
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!isCopyAndPayAvailable && !isCbzDirectAvailable && (
+                  <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+                    Card payments are temporarily unavailable. Please use EcoCash or contact support.
+                  </div>
+                )}
+                {cardProvider === 'copyandpay' && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                    Card details are captured on the next hosted secure page (COPYandPAY). Click <strong>Pay Securely</strong> to continue.
+                  </div>
+                )}
                 {paymentConfig?.mode === 'Test' && (paymentConfig.card.test_pans ?? []).length > 0 && (
                   <div>
                     <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Test cards (iVeri)</p>
@@ -1272,68 +1438,72 @@ export default function BookingModal({
                     </div>
                   </div>
                 )}
-                <div>
-                  <label htmlFor="cardNumber" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Card Number
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      id="cardNumber"
-                      value={card.cardNumber}
-                      onChange={(e) => setCard((prev) => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 19) }))}
-                      inputMode="numeric"
-                      autoComplete="cc-number"
-                      placeholder="5413330089020020"
-                      className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
-                    />
-                    {sanitizePan(card.cardNumber).length >= 4 && (
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl" aria-hidden="true">
-                        {cardBrandVisual}
-                      </span>
-                    )}
-                  </div>
-                  {sanitizePan(card.cardNumber).length >= 4 && (
-                    !cardBrandMeta.icon ? (
-                      <p className="mt-2 text-xs font-semibold uppercase tracking-[0.15em] text-amber-700">
-                        Detected card type: {cardBrandMeta.label}
-                      </p>
-                    ) : null
-                  )}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label htmlFor="expiry" className="block text-sm font-semibold text-gray-700 mb-2">
-                      Expiry (MM/YY)
-                    </label>
-                    <input
-                      type="text"
-                      id="expiry"
-                      value={card.expiry}
-                      onChange={(e) => setCard((prev) => ({ ...prev, expiry: toExpiryMMyy(e.target.value) }))}
-                      inputMode="numeric"
-                      autoComplete="cc-exp"
-                      placeholder="02/28"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="cvv" className="block text-sm font-semibold text-gray-700 mb-2">
-                      CVV
-                    </label>
-                    <input
-                      type="password"
-                      id="cvv"
-                      value={card.cvv}
-                      onChange={(e) => setCard((prev) => ({ ...prev, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                      inputMode="numeric"
-                      autoComplete="cc-csc"
-                      placeholder="123"
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
-                    />
-                  </div>
-                </div>
-                {(lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY)) && (
+                {cardProvider === 'cbz_direct' && (
+                  <>
+                    <div>
+                      <label htmlFor="cardNumber" className="block text-sm font-semibold text-gray-700 mb-2">
+                        Card Number
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          id="cardNumber"
+                          value={card.cardNumber}
+                          onChange={(e) => setCard((prev) => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 19) }))}
+                          inputMode="numeric"
+                          autoComplete="cc-number"
+                          placeholder="5413330089020020"
+                          className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        />
+                        {sanitizePan(card.cardNumber).length >= 4 && (
+                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl" aria-hidden="true">
+                            {cardBrandVisual}
+                          </span>
+                        )}
+                      </div>
+                      {sanitizePan(card.cardNumber).length >= 4 && (
+                        !cardBrandMeta.icon ? (
+                          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.15em] text-amber-700">
+                            Detected card type: {cardBrandMeta.label}
+                          </p>
+                        ) : null
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label htmlFor="expiry" className="block text-sm font-semibold text-gray-700 mb-2">
+                          Expiry (MM/YY)
+                        </label>
+                        <input
+                          type="text"
+                          id="expiry"
+                          value={card.expiry}
+                          onChange={(e) => setCard((prev) => ({ ...prev, expiry: toExpiryMMyy(e.target.value) }))}
+                          inputMode="numeric"
+                          autoComplete="cc-exp"
+                          placeholder="02/28"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="cvv" className="block text-sm font-semibold text-gray-700 mb-2">
+                          CVV
+                        </label>
+                        <input
+                          type="password"
+                          id="cvv"
+                          value={card.cvv}
+                          onChange={(e) => setCard((prev) => ({ ...prev, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                          inputMode="numeric"
+                          autoComplete="cc-csc"
+                          placeholder="123"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
+                {cardProvider === 'cbz_direct' && (lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY)) && (
                   <button
                     type="button"
                     onClick={() => void complete3DSPayment()}
@@ -1383,14 +1553,16 @@ export default function BookingModal({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 px-6 py-3 bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+                className="flex-1 px-6 py-3 bg-linear-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {isSubmitting
                   ? 'Processing...'
                   : checkoutStep === 'details'
                     ? 'Continue to Secure Payment'
                     : paymentMode === 'card'
-                      ? (isTestMode ? 'Pay Securely (Test Mode)' : 'Pay Securely')
+                      ? (cardProvider === 'copyandpay'
+                          ? (isTestMode ? 'Pay with COPYandPAY (Test Mode)' : 'Pay with COPYandPAY')
+                          : (isTestMode ? 'Pay with CBZ Direct (Test Mode)' : 'Pay with CBZ Direct'))
                       : (isTestMode ? 'Start EcoCash Payment (Test Mode)' : 'Start EcoCash Payment')}
               </button>
             </div>

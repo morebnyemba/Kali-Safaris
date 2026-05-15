@@ -3,6 +3,8 @@ from .views import (
     cbz_public_config_view,
     cbz_ecocash_debit_view,
     cbz_card_debit_view,
+    cbz_copyandpay_prepare_view,
+    cbz_copyandpay_status_view,
     cbz_card_3ds_complete_view,
     cbz_query_view,
     cbz_callback_view,
@@ -22,6 +24,8 @@ urlpatterns = [
 
     # Card payment (website checkout only)
     path('card/debit/', cbz_card_debit_view, name='card_debit'),
+    path('copyandpay/prepare/', cbz_copyandpay_prepare_view, name='copyandpay_prepare'),
+    path('copyandpay/status/', cbz_copyandpay_status_view, name='copyandpay_status'),
     path('card/3ds/complete/', cbz_card_3ds_complete_view, name='card_3ds_complete'),
 
     # Transaction status query

@@ -13,6 +13,7 @@ const WHATSAPP_NUMBER = '263712629336';
 const REFRESH_SECONDS = 30;
 
 type PaymentChannel = 'card' | 'ecocash';
+type CardProvider = 'copyandpay' | 'cbz';
 
 type StatusState = 'idle' | 'checking' | 'approved' | 'pending' | 'failed' | 'no-reference';
 
@@ -48,6 +49,16 @@ function PaymentStatusPageContent() {
     }
     return 'card';
   }, [searchParams]);
+
+  const cardProvider = useMemo<CardProvider>(() => {
+    const provider = (searchParams.get('provider') ?? '').toLowerCase();
+    if (provider === 'copyandpay') {
+      return 'copyandpay';
+    }
+    return 'cbz';
+  }, [searchParams]);
+
+  const resourcePath = useMemo(() => searchParams.get('resourcePath') ?? '', [searchParams]);
 
   const effectiveReference = useMemo(() => {
     const queryRef = searchParams.get('ref') ?? '';
@@ -89,7 +100,7 @@ function PaymentStatusPageContent() {
 
   const verifyPayment = useCallback(async () => {
     const reference = effectiveReference;
-    if (!reference) {
+    if (!resourcePath && !reference) {
       setStatus('no-reference');
       setMessage('No pending 3DS payment was found.');
       return;
@@ -100,13 +111,20 @@ function PaymentStatusPageContent() {
 
     try {
       const response = channel === 'card'
-        ? await fetch(`${API_BASE}/crm-api/payments/cbz/card/3ds/complete/`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ merchant_reference: reference }),
-          })
+        ? resourcePath
+          ? await fetch(
+              `${API_BASE}/crm-api/payments/cbz/copyandpay/status/?resourcePath=${encodeURIComponent(resourcePath)}${reference ? `&merchant_reference=${encodeURIComponent(reference)}` : ''}`,
+              {
+                cache: 'no-store',
+              },
+            )
+          : await fetch(`${API_BASE}/crm-api/payments/cbz/card/3ds/complete/`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({ merchant_reference: reference }),
+            })
         : await fetch(`${API_BASE}/crm-api/payments/cbz/query/${reference}/`);
 
       const result = (await response.json()) as GatewayResult;
@@ -144,7 +162,7 @@ function PaymentStatusPageContent() {
         setStatus('approved');
         setMessage(
           result.gateway_mode === 'Test'
-            ? `Sandbox approval only. iVeri is in Test mode, so no real customer charge was made. Reference: ${result.merchant_reference || reference}`
+            ? `Sandbox approval only. ${cardProvider === 'copyandpay' ? 'COPYandPAY' : 'iVeri'} is in Test mode, so no real customer charge was made. Reference: ${result.merchant_reference || reference}`
             : (result.message || `Payment approved. Reference: ${result.merchant_reference || reference}`)
         );
         window.sessionStorage.removeItem(PENDING_3DS_REF_KEY);
@@ -164,17 +182,17 @@ function PaymentStatusPageContent() {
       setStatus('failed');
       setMessage('Unable to reach payment services right now. Please try again.');
     }
-  }, [effectiveReference, channel]);
+  }, [cardProvider, channel, effectiveReference, resourcePath]);
 
   useEffect(() => {
-    if (!effectiveReference) {
+    if (!effectiveReference && !resourcePath) {
       return;
     }
     const id = window.setTimeout(() => {
       void verifyPayment();
     }, 0);
     return () => window.clearTimeout(id);
-  }, [effectiveReference, verifyPayment]);
+  }, [effectiveReference, resourcePath, verifyPayment]);
 
   useEffect(() => {
     if (status !== 'pending') {
@@ -230,7 +248,7 @@ function PaymentStatusPageContent() {
     <main className="min-h-screen bg-linear-to-b from-[#001a33] via-[#002b4d] to-[#001a33] py-16 px-6">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl p-8 md:p-10">
         <div className="flex items-center justify-between gap-3 mb-6">
-          <h1 className="text-2xl md:text-3xl font-black text-gray-900">{channel === 'ecocash' ? 'EcoCash Payment Status' : 'Card Payment Status'}</h1>
+            <h1 className="text-2xl md:text-3xl font-black text-gray-900">{channel === 'ecocash' ? 'EcoCash Payment Status' : 'Card Payment Status'}</h1>
           <span className={`px-3 py-1 rounded-full border text-xs font-bold ${statusBadge}`}>
             {statusLabel}
           </span>
@@ -240,13 +258,19 @@ function PaymentStatusPageContent() {
 
         {gatewayMode === 'Test' && (
           <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            This transaction was processed against the iVeri sandbox. Use a LIVE application ID and `CBZ_MODE=LIVE` before treating approvals as real payments.
+            This transaction was processed against the {cardProvider === 'copyandpay' ? 'COPYandPAY' : 'iVeri'} sandbox. Use live gateway credentials before treating approvals as real payments.
           </div>
         )}
 
         <p className="text-sm text-gray-500 mb-2">
           Channel: <span className="font-semibold text-gray-700 uppercase">{channel}</span>
         </p>
+
+        {channel === 'card' && (
+          <p className="text-sm text-gray-500 mb-2">
+            Provider: <span className="font-semibold text-gray-700 uppercase">{cardProvider}</span>
+          </p>
+        )}
 
         {status === 'pending' && countdown > 0 && (
           <p className="text-sm text-amber-700 mb-2">

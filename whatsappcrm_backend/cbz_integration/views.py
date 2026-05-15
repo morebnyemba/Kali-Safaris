@@ -16,9 +16,11 @@ import base64
 import binascii
 import mimetypes
 from datetime import date
+from urllib.parse import parse_qs, urlparse
 
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
+import requests
 from django.conf import settings
 from django.http import JsonResponse, HttpRequest
 from django.utils import timezone
@@ -103,6 +105,12 @@ def _get_public_payment_config() -> Dict[str, Any]:
     if not test_card_pans and mode == 'Test':
         test_card_pans = ['5413330089020020']
 
+    copyandpay_entity_id = getattr(settings, 'COPYANDPAY_ENTITY_ID', '') or os.getenv('COPYANDPAY_ENTITY_ID', '')
+    copyandpay_base_url = getattr(settings, 'COPYANDPAY_BASE_URL', '') or os.getenv('COPYANDPAY_BASE_URL', '')
+    if not copyandpay_base_url:
+        copyandpay_base_url = 'https://eu-test.oppwa.com' if mode == 'Test' else 'https://eu-prod.oppwa.com'
+    copyandpay_brands = getattr(settings, 'COPYANDPAY_BRANDS', '') or os.getenv('COPYANDPAY_BRANDS', '')
+
     return {
         'mode': mode,
         'ecocash': {
@@ -112,8 +120,75 @@ def _get_public_payment_config() -> Dict[str, Any]:
         'card': {
             'supports_3ds': True,
             'test_pans': test_card_pans,
+            'default_provider': 'copyandpay' if copyandpay_entity_id else 'cbz_direct',
+            'providers': {
+                'copyandpay_enabled': bool(copyandpay_entity_id),
+                'cbz_direct_enabled': True,
+            },
+            'copyandpay': {
+                'enabled': bool(copyandpay_entity_id),
+                'base_url': copyandpay_base_url,
+                'brands': copyandpay_brands or 'VISA MASTER AMEX',
+            },
         },
     }
+
+
+def _get_copyandpay_config() -> Dict[str, str]:
+    config = _get_active_config()
+    mode = config.mode if config else getattr(settings, 'CBZ_MODE', 'Test')
+
+    base_url = (getattr(settings, 'COPYANDPAY_BASE_URL', '') or os.getenv('COPYANDPAY_BASE_URL', '')).strip()
+    if not base_url:
+        base_url = 'https://eu-test.oppwa.com' if mode == 'Test' else 'https://eu-prod.oppwa.com'
+
+    return {
+        'mode': mode,
+        'base_url': base_url.rstrip('/'),
+        'entity_id': (getattr(settings, 'COPYANDPAY_ENTITY_ID', '') or os.getenv('COPYANDPAY_ENTITY_ID', '')).strip(),
+        'bearer_token': (getattr(settings, 'COPYANDPAY_BEARER_TOKEN', '') or os.getenv('COPYANDPAY_BEARER_TOKEN', '')).strip(),
+        'test_mode': (
+            (getattr(settings, 'COPYANDPAY_TEST_MODE', '') or os.getenv('COPYANDPAY_TEST_MODE', '')).strip()
+            or ('EXTERNAL' if mode == 'Test' else '')
+        ),
+        'brands': (getattr(settings, 'COPYANDPAY_BRANDS', '') or os.getenv('COPYANDPAY_BRANDS', '') or 'VISA MASTER AMEX').strip(),
+        'integrity': (getattr(settings, 'COPYANDPAY_WIDGET_INTEGRITY', '') or os.getenv('COPYANDPAY_WIDGET_INTEGRITY', '')).strip(),
+    }
+
+
+def _copyandpay_result_code(payload: Dict[str, Any]) -> str:
+    return str((payload.get('result') or {}).get('code') or '').strip()
+
+
+def _copyandpay_result_description(payload: Dict[str, Any]) -> str:
+    return str((payload.get('result') or {}).get('description') or '').strip()
+
+
+def _copyandpay_is_approved(code: str) -> bool:
+    return bool(re.match(r'^(000\.000\.|000\.100\.1|000\.[36])', code or ''))
+
+
+def _copyandpay_is_pending(code: str) -> bool:
+    return bool(re.match(r'^(000\.200|100\.400\.500|800\.400\.5)', code or ''))
+
+
+def _extract_checkout_id_from_resource_path(resource_path: str) -> str:
+    match = re.search(r'/checkouts/([^/]+)/payment', resource_path or '')
+    return match.group(1).strip() if match else ''
+
+
+def _resolve_resource_path(raw: str) -> str:
+    value = (raw or '').strip()
+    if not value:
+        return ''
+    if value.startswith('http://') or value.startswith('https://'):
+        parsed = urlparse(value)
+        if parsed.netloc:
+            query_value = parse_qs(parsed.query).get('resourcePath', [''])[0]
+            if query_value:
+                return query_value
+        return parsed.path
+    return value
 
 
 def _build_certificate_client(config_model: Optional[CBZConfig] = None) -> IVeriCertificateClient:
@@ -676,6 +751,275 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
             {"success": False, "message": str(e), "merchant_reference": merchant_ref},
             status=502,
         )
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
+    """
+    POST /crm-api/payments/cbz/copyandpay/prepare/
+
+    Prepares a COPYandPAY checkout and returns a checkoutId for paymentWidgets.js.
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    required = ["amount", "currency"]
+    missing = [k for k in required if k not in payload]
+    if missing:
+        return JsonResponse(
+            {"success": False, "message": f"Missing fields: {', '.join(missing)}"},
+            status=400,
+        )
+
+    try:
+        amount = Decimal(str(payload['amount']))
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+    except (InvalidOperation, ValueError) as exc:
+        return JsonResponse(
+            {"success": False, "message": f"Invalid amount: {exc}"},
+            status=400,
+        )
+
+    config = _get_copyandpay_config()
+    if not config['entity_id'] or not config['bearer_token']:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "COPYandPAY is not configured. Missing entity ID or bearer token.",
+            },
+            status=503,
+        )
+
+    merchant_ref = f"KS-{uuid.uuid4().hex[:12].upper()}"
+    currency = str(payload.get('currency', 'USD')).upper()
+
+    try:
+        booking = _resolve_or_create_booking(payload, amount)
+    except Exception as exc:
+        logger.warning("Error resolving/creating booking for COPYandPAY prepare: %s", exc)
+        booking = None
+
+    txn = CBZTransaction.objects.create(
+        merchant_reference=merchant_ref,
+        payment_type=CBZTransaction.PaymentType.CARD,
+        amount=amount,
+        currency=currency,
+        command='Debit',
+        status=CBZTransaction.TransactionStatus.INITIATED,
+        booking=booking,
+    )
+
+    request_data = {
+        'entityId': config['entity_id'],
+        'amount': f"{amount:.2f}",
+        'currency': currency,
+        'paymentType': 'DB',
+        'merchantTransactionId': merchant_ref,
+    }
+    if config['test_mode']:
+        request_data['testMode'] = config['test_mode']
+    if payload.get('shopper_result_url'):
+        request_data['shopperResultUrl'] = str(payload.get('shopper_result_url')).strip()
+
+    headers = {
+        'Authorization': f"Bearer {config['bearer_token']}",
+    }
+    endpoint = f"{config['base_url']}/v1/checkouts"
+
+    try:
+        response = requests.post(endpoint, data=request_data, headers=headers, timeout=60)
+        try:
+            data = response.json()
+        except ValueError:
+            data = {'result': {'description': response.text[:500], 'code': ''}}
+
+        code = _copyandpay_result_code(data)
+        description = _copyandpay_result_description(data)
+        checkout_id = str(data.get('id') or '').strip()
+
+        txn.result_code = code or txn.result_code
+        txn.result_description = description or txn.result_description
+        txn.request_id = checkout_id or txn.request_id
+        if response.status_code >= 400 or not checkout_id:
+            txn.status = CBZTransaction.TransactionStatus.FAILED
+        txn.save()
+
+        if response.status_code >= 400 or not checkout_id:
+            return JsonResponse(
+                {
+                    "success": False,
+                    "message": description or 'Failed to prepare checkout',
+                    "merchant_reference": merchant_ref,
+                    "result_code": code,
+                },
+                status=502,
+            )
+
+        booking = _finalize_booking_reference_if_temporary(booking)
+
+        widget_url = f"{config['base_url']}/v1/paymentWidgets.js?checkoutId={checkout_id}"
+        return JsonResponse({
+            "success": True,
+            "message": "Checkout prepared",
+            "merchant_reference": merchant_ref,
+            "booking_reference": booking.booking_reference if booking else None,
+            "gateway_mode": config['mode'],
+            "checkout_id": checkout_id,
+            "widget_script_url": widget_url,
+            "brands": config['brands'],
+            "integrity": config['integrity'] or None,
+        })
+    except Exception as exc:
+        logger.exception("COPYandPAY checkout preparation failed")
+        txn.status = CBZTransaction.TransactionStatus.FAILED
+        txn.result_description = str(exc)[:500]
+        txn.save()
+        return JsonResponse(
+            {"success": False, "message": str(exc), "merchant_reference": merchant_ref},
+            status=502,
+        )
+
+
+@require_http_methods(["GET"])
+def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
+    """
+    GET /crm-api/payments/cbz/copyandpay/status/?resourcePath=...&merchant_reference=...
+
+    Verifies COPYandPAY payment status using the redirected resourcePath.
+    """
+    raw_resource_path = request.GET.get('resourcePath', '')
+    resource_path = _resolve_resource_path(raw_resource_path)
+    merchant_reference = (request.GET.get('merchant_reference', '') or request.GET.get('ref', '')).strip()
+
+    if not resource_path:
+        return JsonResponse({"success": False, "message": "Missing query parameter: resourcePath"}, status=400)
+
+    if not resource_path.startswith('/'):
+        resource_path = f"/{resource_path}"
+
+    config = _get_copyandpay_config()
+    if not config['entity_id'] or not config['bearer_token']:
+        return JsonResponse(
+            {
+                "success": False,
+                "message": "COPYandPAY is not configured. Missing entity ID or bearer token.",
+            },
+            status=503,
+        )
+
+    headers = {
+        'Authorization': f"Bearer {config['bearer_token']}",
+    }
+    endpoint = f"{config['base_url']}{resource_path}"
+
+    try:
+        response = requests.get(
+            endpoint,
+            params={'entityId': config['entity_id']},
+            headers=headers,
+            timeout=60,
+        )
+        try:
+            data = response.json()
+        except ValueError:
+            data = {'result': {'description': response.text[:500], 'code': ''}}
+
+        result_code = _copyandpay_result_code(data)
+        result_description = _copyandpay_result_description(data)
+
+        response_merchant_ref = str(data.get('merchantTransactionId') or '').strip()
+        if not merchant_reference:
+            merchant_reference = response_merchant_ref
+
+        checkout_id = _extract_checkout_id_from_resource_path(resource_path)
+        txn = None
+        if merchant_reference:
+            txn = CBZTransaction.objects.filter(merchant_reference=merchant_reference).first()
+        if not txn and checkout_id:
+            txn = CBZTransaction.objects.filter(request_id=checkout_id).first()
+        if txn and not merchant_reference:
+            merchant_reference = txn.merchant_reference
+
+        is_approved = _copyandpay_is_approved(result_code)
+        is_pending = _copyandpay_is_pending(result_code)
+
+        if txn:
+            txn.result_code = result_code or txn.result_code
+            txn.result_description = result_description or txn.result_description
+            txn.transaction_index = str(data.get('id') or txn.transaction_index or '').strip() or txn.transaction_index
+            txn.request_id = checkout_id or txn.request_id
+
+            if is_approved:
+                txn.status = CBZTransaction.TransactionStatus.APPROVED
+                txn.completed_at = timezone.now()
+            elif is_pending:
+                txn.status = CBZTransaction.TransactionStatus.PENDING
+            elif txn.status != CBZTransaction.TransactionStatus.APPROVED:
+                txn.status = CBZTransaction.TransactionStatus.DECLINED
+            txn.save()
+
+            if is_approved and txn.booking:
+                existing_payment = Payment.objects.filter(
+                    booking=txn.booking,
+                    transaction_reference=txn.merchant_reference,
+                ).exists()
+                if not existing_payment:
+                    _record_payment(txn, txn.booking)
+
+        resolved_booking_reference = None
+        if txn and txn.booking_id:
+            txn.booking = _finalize_booking_reference_if_temporary(txn.booking)
+            resolved_booking_reference = txn.booking.booking_reference if txn.booking else None
+
+        if response.status_code >= 400:
+            return JsonResponse({
+                "success": False,
+                "message": result_description or 'Unable to verify payment status',
+                "merchant_reference": merchant_reference,
+                "booking_reference": resolved_booking_reference,
+                "gateway_mode": config['mode'],
+                "result_code": result_code,
+            }, status=502)
+
+        if is_approved:
+            return JsonResponse({
+                "success": True,
+                "message": result_description or 'Payment approved',
+                "merchant_reference": merchant_reference,
+                "booking_reference": resolved_booking_reference,
+                "gateway_mode": config['mode'],
+                "result_code": result_code,
+                "payment_id": data.get('id'),
+            })
+
+        if is_pending:
+            return JsonResponse({
+                "success": True,
+                "pending": True,
+                "message": result_description or 'Payment is pending final confirmation',
+                "merchant_reference": merchant_reference,
+                "booking_reference": resolved_booking_reference,
+                "gateway_mode": config['mode'],
+                "result_code": result_code,
+                "payment_id": data.get('id'),
+            }, status=202)
+
+        return JsonResponse({
+            "success": False,
+            "message": result_description or 'Payment was not approved',
+            "merchant_reference": merchant_reference,
+            "booking_reference": resolved_booking_reference,
+            "gateway_mode": config['mode'],
+            "result_code": result_code,
+            "payment_id": data.get('id'),
+        })
+    except Exception as exc:
+        logger.exception("COPYandPAY status verification failed")
+        return JsonResponse({"success": False, "message": str(exc)}, status=502)
 
 
 @csrf_exempt
