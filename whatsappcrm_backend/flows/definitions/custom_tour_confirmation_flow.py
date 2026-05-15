@@ -106,7 +106,11 @@ CUSTOM_TOUR_CONFIRMATION_FLOW = {
                 },
                 "reply_config": {
                     "expected_type": "text",
-                    "save_to_variable": "custom_tour_email"
+                    "save_to_variable": "custom_tour_email",
+                    "validation_regex": "^(?:[sS][kK][iI][pP]|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,})$"
+                },
+                "fallback_config": {
+                    "re_prompt_message_text": "Please enter a valid email address (e.g. name@example.com) or type skip."
                 }
             },
             "transitions": [
@@ -172,7 +176,7 @@ CUSTOM_TOUR_CONFIRMATION_FLOW = {
                             "destinations": "{{ custom_tour_destination }}",
                             "preferred_dates": "{{ custom_tour_dates }}",
                             "number_of_travelers": "{{ custom_tour_travelers }}",
-                            "notes": "Custom tour request via WhatsApp.\\nSpecial requirements: {{ custom_tour_notes }}\\nContact email: {{ custom_tour_email }}",
+                            "notes": "Custom tour request via WhatsApp.\\nWhatsApp number: {{ contact.phone_number }}\\nSpecial requirements: {{ custom_tour_notes }}\\nContact email: {{ custom_tour_email }}",
                             "status": "new"
                         },
                         "save_to_variable": "created_inquiry"
