@@ -58,12 +58,12 @@ def send_whatsapp_message_task(self, outgoing_message_id: int, active_config_id:
     # 2. Were sent recently but not yet confirmed as delivered. We'll wait for a short period
     #    (e.g., 2 minutes) for the delivery receipt. This prevents sending a new message
     #    before the previous one is confirmed delivered by WhatsApp's servers.
-    stale_threshold = timezone.now() - timedelta(seconds=20)
+    stale_threshold = timezone.now() - timedelta(seconds=5)
     
     # FIX: Only wait for very recently created pending messages to prevent deadlocks.
     # If a message has been pending for more than a few seconds, another worker should have picked it up.
     # Waiting for older pending messages can cause a permanent halt if that worker's task failed to start.
-    recent_pending_threshold = timezone.now() - timedelta(seconds=15)
+    recent_pending_threshold = timezone.now() - timedelta(seconds=4)
 
     # Find the specific message causing the halt for better logging
     # A message is halting if it's a preceding message for the same contact AND
