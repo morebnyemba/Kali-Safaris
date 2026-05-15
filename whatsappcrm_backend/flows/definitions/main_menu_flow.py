@@ -204,21 +204,25 @@ MAIN_MENU_FLOW = {
         },
         {
             "name": "switch_to_contact_support_flow",
-            "type": "end_flow",
+            "type": "send_message",
             "config": {
                 "message_type": "text",
                 "text": {"body": "📞 *Contact Support*\n\nOur team is here to help you!\n\n📧 *Email:* bookings@kalaisafaris.com\n📱 *WhatsApp:* Reply here with your question\n⏰ *Hours:* Mon-Fri 8AM-6PM, Sat 9AM-1PM\n\n💬 *Quick Help:*\nDescribe your issue and we'll respond as soon as possible.\n\nType *menu* to return to main menu."}
             },
-            "transitions": []
+            "transitions": [
+                {"to_step": "show_main_menu", "condition_config": {"type": "always_true"}}
+            ]
         },
         {
             "name": "show_about_kalai",
-            "type": "end_flow",
+            "type": "send_message",
             "config": {
                 "message_type": "text",
                 "text": {"body": "🌍 *About Kalai Safaris*\n\nWelcome to Africa's premier safari experience! ✨\n\n🦁 *Our Mission:*\nProviding unforgettable, sustainable safari adventures across Africa's most spectacular landscapes.\n\n⭐ *What Makes Us Special:*\n• Expert local guides with years of experience\n• Eco-friendly practices protecting wildlife\n• Small group sizes for personalized attention\n• Flexible itineraries tailored to you\n• 24/7 support during your journey\n\n🏆 *Awards & Recognition:*\nTop-rated safari operator | Certified eco-tourism partner\n\n📍 *Coverage:* Victoria Falls, Hwange, Kruger, Serengeti, and more!\n\nReady for your adventure? Type *menu* to start booking! 🎉"}
             },
-            "transitions": []
+            "transitions": [
+                {"to_step": "show_main_menu", "condition_config": {"type": "always_true"}}
+            ]
         }
     ]
 }
