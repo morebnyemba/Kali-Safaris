@@ -25,8 +25,8 @@ MAIN_MENU_FLOW = {
                                 {
                                     "title": "🎯 Bookings & Tours",
                                     "rows": [
-                                        {"id": "book_tour", "title": "🦁 Book a Tour", "description": "Start a new safari or custom tour booking (~5 min)"},
                                         {"id": "view_tours", "title": "🌍 View Available Tours", "description": "Browse all our upcoming and featured tours"},
+                                        {"id": "book_tour", "title": "🦁 Book a Tour", "description": "Start a new safari or custom tour booking (~5 min)"},
                                         {"id": "special_offers", "title": "🎉 Special Offers", "description": "Check out our latest deals and discounts"}
                                     ]
                                 },
@@ -128,7 +128,7 @@ MAIN_MENU_FLOW = {
         {
             "name": "switch_to_booking_flow",
             "type": "switch_flow",
-            "config": {"target_flow_name": "booking_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "config": {"target_flow_name": "custom_tour_confirmation_flow", "initial_context_template": {"source_flow": "main_menu"}},
             "transitions": []
         },
         {
