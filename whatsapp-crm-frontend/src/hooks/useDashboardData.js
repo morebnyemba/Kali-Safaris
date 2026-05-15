@@ -7,11 +7,11 @@ import {
 import { apiCall } from '@/lib/api';
 
 const initialStatCardsDefinition = [
-  { id: "active_conversations_count", title: "Active Conversations", defaultIcon: <FiMessageCircle />, linkTo: "/conversation", colorScheme: "green", trendKey: null, valueSuffix: "" },
-  { id: "new_contacts_today", title: "New Contacts (Today)", defaultIcon: <FiUsers />, linkTo: "/contacts", colorScheme: "emerald", trendKey: "total_contacts", valueSuffix: "" },
-  { id: "messages_sent_24h", title: "Messages Sent (24h)", defaultIcon: <FiTrendingUp />, linkTo: null, colorScheme: "lime", trendKey: "messages_sent_automated_percent_text", valueSuffix: "" },
-  { id: "meta_configs_total", title: "Meta API Configs", defaultIcon: <FiHardDrive />, linkTo: "/api-settings", colorScheme: "teal", trendKey: "meta_config_active_name", valueSuffix: "" },
-  { id: "pending_human_handovers", title: "Pending Handovers", defaultIcon: <FiAlertCircle />, linkTo: "/contacts?filter=needs_intervention", colorScheme: "red", trendKey: "pending_human_handovers_priority_text", valueSuffix: "" },
+  { id: "active_conversations_count", title: "Active Conversations", defaultIcon: React.createElement(FiMessageCircle), linkTo: "/conversation", colorScheme: "green", trendKey: null, valueSuffix: "" },
+  { id: "new_contacts_today", title: "New Contacts (Today)", defaultIcon: React.createElement(FiUsers), linkTo: "/contacts", colorScheme: "emerald", trendKey: "total_contacts", valueSuffix: "" },
+  { id: "messages_sent_24h", title: "Messages Sent (24h)", defaultIcon: React.createElement(FiTrendingUp), linkTo: null, colorScheme: "lime", trendKey: "messages_sent_automated_percent_text", valueSuffix: "" },
+  { id: "meta_configs_total", title: "Meta API Configs", defaultIcon: React.createElement(FiHardDrive), linkTo: "/api-settings", colorScheme: "teal", trendKey: "meta_config_active_name", valueSuffix: "" },
+  { id: "pending_human_handovers", title: "Pending Handovers", defaultIcon: React.createElement(FiAlertCircle), linkTo: "/contacts?filter=needs_intervention", colorScheme: "red", trendKey: "pending_human_handovers_priority_text", valueSuffix: "" },
 ];
 
 const activityIcons = {
@@ -30,7 +30,11 @@ export function useDashboardData() {
   const [flowInsights, setFlowInsights] = useState({ activeFlows: "...", completedToday: "...", avgSteps: "..." });
   const [conversationTrendsData, setConversationTrendsData] = useState([]);
   const [botPerformanceData, setBotPerformanceData] = useState({});
-  const [systemStatus, setSystemStatus] = useState({ status: "Initializing...", color: "text-yellow-500 dark:text-yellow-400", icon: <FiLoader className="animate-spin" /> });
+  const [systemStatus, setSystemStatus] = useState({
+    status: "Initializing...",
+    color: "text-yellow-500 dark:text-yellow-400",
+    icon: React.createElement(FiLoader, { className: "animate-spin" })
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -100,9 +104,17 @@ export function useDashboardData() {
       let errors = [];
       if (summaryResult.status === 'rejected') {
         errors.push(`Summary: ${summaryResult.reason.message}`);
-        setSystemStatus({ status: "Data Error", color: "text-orange-500 dark:text-orange-400", icon: <FiAlertCircle /> });
+        setSystemStatus({
+          status: "Data Error",
+          color: "text-orange-500 dark:text-orange-400",
+          icon: React.createElement(FiAlertCircle)
+        });
       } else {
-        setSystemStatus({ status: summary.system_status || "Operational", color: "text-green-500 dark:text-green-400", icon: <FiCheckCircle /> });
+        setSystemStatus({
+          status: summary.system_status || "Operational",
+          color: "text-green-500 dark:text-green-400",
+          icon: React.createElement(FiCheckCircle)
+        });
       }
 
       if (configsResult.status === 'rejected') {
@@ -112,7 +124,11 @@ export function useDashboardData() {
 
     } catch (err) { 
       setError(`Dashboard fetch failed: ${err.message}`);
-      setSystemStatus({ status: "System Error", color: "text-red-500 dark:text-red-400", icon: <FiAlertCircle /> });
+      setSystemStatus({
+        status: "System Error",
+        color: "text-red-500 dark:text-red-400",
+        icon: React.createElement(FiAlertCircle)
+      });
     } finally {
       setIsLoading(false);
     }
