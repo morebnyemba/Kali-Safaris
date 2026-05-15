@@ -47,22 +47,20 @@ export const AuthProvider = ({ children }) => {
             setUser(decodedUser);
             apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           } else {
-            authService.logout(false);
+            authService.clearTokens();
             setAccessToken(null);
             setRefreshToken(null);
             setUser(null);
           }
         } catch (e) {
-          console.error("Invalid token on app load.", e);
-          authService.logout(false);
+          authService.clearTokens();
           setAccessToken(null);
           setRefreshToken(null);
           setUser(null);
         }
       } else {
         // Token is not a valid JWT, clear state
-        console.error("Invalid token format on app load.");
-        authService.logout(false);
+        authService.clearTokens();
         setAccessToken(null);
         setRefreshToken(null);
         setUser(null);

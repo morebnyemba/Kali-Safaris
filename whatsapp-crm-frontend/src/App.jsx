@@ -12,7 +12,6 @@ import FlowsPage from './pages/FlowsPage';
 import FlowEditorPage from './pages/FlowEditorPage'; // <--- IMPORT FlowEditorPage
 import MediaLibraryPage from './pages/MediaLibraryPage';
 import ContactsPage from './pages/ContactsPage';
-import SavedData from './pages/SavedData';
 import Conversation from './pages/Conversation';
 import LoginPage from './pages/LoginPage';
 import RoleRoute from './components/RoleRoute';
@@ -25,12 +24,6 @@ import SystemAuditPage from './pages/admin/SystemAuditPage';
 
 import OrdersPage from './pages/OrdersPage';
 import SiteAssessmentsPage from './pages/SiteAssessmentsPage';
-import SermonsPage from './pages/SermonsPage';
-import SermonFormPage from './pages/SermonFormPage';
-import EventsPage from './pages/EventsPage';
-import EventFormPage from './pages/EventFormPage';
-import MinistriesPage from './pages/MinistriesPage';
-import MinistryFormPage from './pages/MinistryFormPage';
 
 const NotFoundPage = () => (
   <div className="p-10 text-center">
@@ -74,21 +67,6 @@ const router = createBrowserRouter([
   { path: 'orders', element: <OrdersPage /> },
   { path: 'site-assessments', element: <SiteAssessmentsPage /> },
 
-  // Sermon Management
-  { path: 'sermons', element: <SermonsPage /> },
-  { path: 'sermons/new', element: <SermonFormPage /> },
-  { path: 'sermons/edit/:sermonId', element: <SermonFormPage /> },
-
-  // Event Management
-  { path: 'events', element: <EventsPage /> },
-  { path: 'events/new', element: <EventFormPage /> },
-  { path: 'events/edit/:eventId', element: <EventFormPage /> },
-
-  // Ministry Management
-  { path: 'ministries', element: <MinistriesPage /> },
-  { path: 'ministries/new', element: <MinistryFormPage /> },
-  { path: 'ministries/edit/:ministryId', element: <MinistryFormPage /> },
-
   // Admin and RBAC
   {
     path: 'admin',
@@ -123,7 +101,6 @@ const router = createBrowserRouter([
     )
   },
 
-  { path: 'saved-data', element: <SavedData /> },
   {
     path: 'conversation',
     element: (
