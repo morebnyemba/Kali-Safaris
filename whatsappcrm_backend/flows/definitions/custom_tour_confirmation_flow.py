@@ -9,7 +9,6 @@ CUSTOM_TOUR_CONFIRMATION_FLOW = {
     "steps": [
         {
             "name": "start_confirmation",
-            "is_entry_point": True,
             "type": "question",
             "config": {
                 "message_config": {
@@ -18,22 +17,17 @@ CUSTOM_TOUR_CONFIRMATION_FLOW = {
                         "type": "button",
                         "header": {"type": "text", "text": "🌍 Custom Tour Inquiry"},
                         "body": {
-                            "text": """Thank you, *{{ inquiry_full_name }}*! ✨
+                            "text": """Thanks for sharing your destination! ✨
 
-Please review your custom tour inquiry:
+Please confirm:
 
-📍 *Destination:* {{ inquiry_destination }}
-👥 *Travelers:* {{ inquiry_travelers }}
-📅 *Dates:* {{ inquiry_dates }}
-📝 *Special Requests:* {{ inquiry_notes }}
+📍 *Destination in Zimbabwe:* {{ custom_tour_destination }}
 
 ━━━━━━━━━━━━━━━━
 
 🎯 *What happens next?*
-A travel expert will:
-1. Review your requirements
-2. Design a personalized itinerary
-3. Send you a detailed quote
+We'll now move you to available tours.
+The booking flow will collect your travelers and dates.
 
 Ready to proceed?"""
                         },
@@ -48,7 +42,7 @@ Ready to proceed?"""
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "confirmation_choice"}
             },
             "transitions": [
-                {"to_step": "create_booking_from_inquiry_action", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_inquiry"}},
+                {"to_step": "switch_to_view_tours_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_inquiry"}},
                 {"to_step": "end_flow_cancelled", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cancel_inquiry"}}
             ]
         },
@@ -324,6 +318,7 @@ Thank you for choosing us! Type *menu* to explore more options."""}
         },
         {
             "name": "input_custom_tour_destination",
+            "is_entry_point": True,
             "type": "question",
             "config": {
                 "message_config": {
@@ -339,11 +334,23 @@ Thank you for choosing us! Type *menu* to explore more options."""}
             },
             "transitions": [
                 {
-                    "to_step": "create_booking_from_inquiry_action",
+                    "to_step": "start_confirmation",
                     "priority": 1,
                     "condition_config": {"type": "always_true"}
                 }
             ]
+        },
+        {
+            "name": "switch_to_view_tours_flow",
+            "type": "switch_flow",
+            "config": {
+                "target_flow_name": "view_available_tours_flow",
+                "initial_context_template": {
+                    "source_flow": "custom_tour_confirmation_flow",
+                    "custom_tour_destination": "{{ custom_tour_destination }}"
+                }
+            },
+            "transitions": []
         }
     ]
 }
