@@ -204,24 +204,50 @@ MAIN_MENU_FLOW = {
         },
         {
             "name": "switch_to_contact_support_flow",
-            "type": "send_message",
+            "type": "question",
             "config": {
-                "message_type": "text",
-                "text": {"body": "📞 *Contact Support*\n\nOur team is here to help you!\n\n📧 *Email:* bookings@kalaisafaris.com\n📱 *WhatsApp:* Reply here with your question\n⏰ *Hours:* Mon-Fri 8AM-6PM, Sat 9AM-1PM\n\n💬 *Quick Help:*\nDescribe your issue and we'll respond as soon as possible.\n\nType *menu* to return to main menu."}
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "body": {"text": "📞 *Contact Support*\n\nOur team is here to help you!\n\n📧 *Email:* bookings@kalaisafaris.com\n📱 *WhatsApp:* Reply here with your question\n⏰ *Hours:* Mon-Fri 8AM-6PM, Sat 9AM-1PM\n\n💬 *Quick Help:*\nDescribe your issue and we'll respond as soon as possible."},
+                        "action": {
+                            "buttons": [
+                                {"type": "reply", "reply": {"id": "back_to_main_support", "title": "Main Menu"}}
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "support_nav_choice"},
+                "fallback_config": {"re_prompt_message_text": "Please tap Main Menu to continue."}
             },
             "transitions": [
-                {"to_step": "show_main_menu", "condition_config": {"type": "always_true"}}
+                {"to_step": "show_main_menu", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "back_to_main_support"}},
+                {"to_step": "show_main_menu", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
         {
             "name": "show_about_kalai",
-            "type": "send_message",
+            "type": "question",
             "config": {
-                "message_type": "text",
-                "text": {"body": "🌍 *About Kalai Safaris*\n\nWelcome to Africa's premier safari experience! ✨\n\n🦁 *Our Mission:*\nProviding unforgettable, sustainable safari adventures across Africa's most spectacular landscapes.\n\n⭐ *What Makes Us Special:*\n• Expert local guides with years of experience\n• Eco-friendly practices protecting wildlife\n• Small group sizes for personalized attention\n• Flexible itineraries tailored to you\n• 24/7 support during your journey\n\n🏆 *Awards & Recognition:*\nTop-rated safari operator | Certified eco-tourism partner\n\n📍 *Coverage:* Victoria Falls, Hwange, Kruger, Serengeti, and more!\n\nReady for your adventure? Type *menu* to start booking! 🎉"}
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "body": {"text": "🌍 *About Kalai Safaris*\n\nWelcome to Africa's premier safari experience! ✨\n\n🦁 *Our Mission:*\nProviding unforgettable, sustainable safari adventures across Africa's most spectacular landscapes.\n\n⭐ *What Makes Us Special:*\n• Expert local guides with years of experience\n• Eco-friendly practices protecting wildlife\n• Small group sizes for personalized attention\n• Flexible itineraries tailored to you\n• 24/7 support during your journey\n\n🏆 *Awards & Recognition:*\nTop-rated safari operator | Certified eco-tourism partner\n\n📍 *Coverage:* Victoria Falls, Hwange, Kruger, Serengeti, and more!"},
+                        "action": {
+                            "buttons": [
+                                {"type": "reply", "reply": {"id": "back_to_main_about", "title": "Main Menu"}}
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "about_nav_choice"},
+                "fallback_config": {"re_prompt_message_text": "Please tap Main Menu to continue."}
             },
             "transitions": [
-                {"to_step": "show_main_menu", "condition_config": {"type": "always_true"}}
+                {"to_step": "show_main_menu", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "back_to_main_about"}},
+                {"to_step": "show_main_menu", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         }
     ]
