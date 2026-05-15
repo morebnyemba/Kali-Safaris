@@ -46,6 +46,44 @@ class CBZConfig(models.Model):
         max_length=500, blank=True, null=True,
         help_text="URL for iVeri to send out-of-band transaction notifications (optional)"
     )
+
+    # COPYandPAY (OPPWA / ZimSwitch) credentials
+    copyandpay_base_url = models.URLField(
+        max_length=500,
+        blank=True,
+        null=True,
+        help_text="COPYandPAY base URL, e.g. https://eu-test.oppwa.com"
+    )
+    copyandpay_entity_id = models.CharField(
+        max_length=120,
+        blank=True,
+        null=True,
+        help_text="COPYandPAY entityId for checkout preparation"
+    )
+    copyandpay_bearer_token = models.CharField(
+        max_length=512,
+        blank=True,
+        null=True,
+        help_text="Authorization bearer token used for COPYandPAY API calls"
+    )
+    copyandpay_test_mode = models.CharField(
+        max_length=32,
+        blank=True,
+        null=True,
+        help_text="Optional testMode value (for example EXTERNAL)"
+    )
+    copyandpay_brands = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        help_text="Space-separated brands exposed by paymentWidgets (e.g. VISA MASTER AMEX)"
+    )
+    copyandpay_widget_integrity = models.CharField(
+        max_length=512,
+        blank=True,
+        null=True,
+        help_text="Optional SRI integrity hash for paymentWidgets.js"
+    )
     
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

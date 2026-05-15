@@ -50,6 +50,20 @@ class CBZConfigAdmin(admin.ModelAdmin):
                 'CertificateID is required for REST payments, and may be generated through the SOAP certificate lifecycle if not yet issued.'
             ),
         }),
+        ('COPYandPAY Credentials', {
+            'fields': (
+                'copyandpay_base_url',
+                'copyandpay_entity_id',
+                'copyandpay_bearer_token',
+                'copyandpay_test_mode',
+                'copyandpay_brands',
+                'copyandpay_widget_integrity',
+            ),
+            'description': (
+                'Store COPYandPAY credentials in the database. '
+                'When set here on the active configuration, these values take precedence over environment variables.'
+            ),
+        }),
         ('Certificate Lifecycle', {
             'fields': ('auto_generate_certificate', 'auto_renew_certificate'),
             'description': (

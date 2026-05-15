@@ -105,11 +105,10 @@ def _get_public_payment_config() -> Dict[str, Any]:
     if not test_card_pans and mode == 'Test':
         test_card_pans = ['5413330089020020']
 
-    copyandpay_entity_id = getattr(settings, 'COPYANDPAY_ENTITY_ID', '') or os.getenv('COPYANDPAY_ENTITY_ID', '')
-    copyandpay_base_url = getattr(settings, 'COPYANDPAY_BASE_URL', '') or os.getenv('COPYANDPAY_BASE_URL', '')
-    if not copyandpay_base_url:
-        copyandpay_base_url = 'https://eu-test.oppwa.com' if mode == 'Test' else 'https://eu-prod.oppwa.com'
-    copyandpay_brands = getattr(settings, 'COPYANDPAY_BRANDS', '') or os.getenv('COPYANDPAY_BRANDS', '')
+    copyandpay_config = _get_copyandpay_config()
+    copyandpay_entity_id = copyandpay_config.get('entity_id', '')
+    copyandpay_base_url = copyandpay_config.get('base_url', '')
+    copyandpay_brands = copyandpay_config.get('brands', '')
 
     return {
         'mode': mode,
@@ -138,21 +137,46 @@ def _get_copyandpay_config() -> Dict[str, str]:
     config = _get_active_config()
     mode = config.mode if config else getattr(settings, 'CBZ_MODE', 'Test')
 
-    base_url = (getattr(settings, 'COPYANDPAY_BASE_URL', '') or os.getenv('COPYANDPAY_BASE_URL', '')).strip()
+    base_url = (
+        (getattr(config, 'copyandpay_base_url', '') if config else '')
+        or getattr(settings, 'COPYANDPAY_BASE_URL', '')
+        or os.getenv('COPYANDPAY_BASE_URL', '')
+    ).strip()
     if not base_url:
         base_url = 'https://eu-test.oppwa.com' if mode == 'Test' else 'https://eu-prod.oppwa.com'
 
     return {
         'mode': mode,
         'base_url': base_url.rstrip('/'),
-        'entity_id': (getattr(settings, 'COPYANDPAY_ENTITY_ID', '') or os.getenv('COPYANDPAY_ENTITY_ID', '')).strip(),
-        'bearer_token': (getattr(settings, 'COPYANDPAY_BEARER_TOKEN', '') or os.getenv('COPYANDPAY_BEARER_TOKEN', '')).strip(),
+        'entity_id': (
+            (getattr(config, 'copyandpay_entity_id', '') if config else '')
+            or getattr(settings, 'COPYANDPAY_ENTITY_ID', '')
+            or os.getenv('COPYANDPAY_ENTITY_ID', '')
+        ).strip(),
+        'bearer_token': (
+            (getattr(config, 'copyandpay_bearer_token', '') if config else '')
+            or getattr(settings, 'COPYANDPAY_BEARER_TOKEN', '')
+            or os.getenv('COPYANDPAY_BEARER_TOKEN', '')
+        ).strip(),
         'test_mode': (
-            (getattr(settings, 'COPYANDPAY_TEST_MODE', '') or os.getenv('COPYANDPAY_TEST_MODE', '')).strip()
+            (
+                (getattr(config, 'copyandpay_test_mode', '') if config else '')
+                or getattr(settings, 'COPYANDPAY_TEST_MODE', '')
+                or os.getenv('COPYANDPAY_TEST_MODE', '')
+            ).strip()
             or ('EXTERNAL' if mode == 'Test' else '')
         ),
-        'brands': (getattr(settings, 'COPYANDPAY_BRANDS', '') or os.getenv('COPYANDPAY_BRANDS', '') or 'VISA MASTER AMEX').strip(),
-        'integrity': (getattr(settings, 'COPYANDPAY_WIDGET_INTEGRITY', '') or os.getenv('COPYANDPAY_WIDGET_INTEGRITY', '')).strip(),
+        'brands': (
+            (getattr(config, 'copyandpay_brands', '') if config else '')
+            or getattr(settings, 'COPYANDPAY_BRANDS', '')
+            or os.getenv('COPYANDPAY_BRANDS', '')
+            or 'VISA MASTER AMEX'
+        ).strip(),
+        'integrity': (
+            (getattr(config, 'copyandpay_widget_integrity', '') if config else '')
+            or getattr(settings, 'COPYANDPAY_WIDGET_INTEGRITY', '')
+            or os.getenv('COPYANDPAY_WIDGET_INTEGRITY', '')
+        ).strip(),
     }
 
 
