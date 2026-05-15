@@ -176,6 +176,174 @@ Thank you for choosing us! Type *menu* to explore more options."""}
                     "text": {"body": "❌ *Inquiry Cancelled*\n\nNo worries! Your inquiry has been cancelled.\n\n🔄 *Want to try again?*\nType *menu* to start over or explore other options.\n\nWe're here whenever you're ready! 🌍✨"}
                 }
             }
+        },
+        {
+            "name": "ask_payment_option",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "list",
+                        "header": {"type": "text", "text": "Confirm & Pay"},
+                        "body": {"text": "Select a payment option below for your custom tour booking."},
+                        "footer": {"text": "Select an option"},
+                        "action": {
+                            "button": "Payment Options",
+                            "sections": [
+                                {"title": "EcoCash", "rows": [
+                                    {"id": "cbz_full", "title": "EcoCash Full Payment"},
+                                    {"id": "cbz_deposit", "title": "EcoCash 50% Deposit"}
+                                ]},
+                                {"title": "Card (Web Checkout)", "rows": [
+                                    {"id": "card_web_full", "title": "Card Full Payment"},
+                                    {"id": "card_web_deposit", "title": "Card 50% Deposit"}
+                                ]},
+                                {"title": "Other Online Payment", "rows": [
+                                    {"id": "manual_omari", "title": "Pay with Omari"}
+                                ]},
+                                {"title": "Manual Payment", "rows": [
+                                    {"id": "manual_bank", "title": "Manual/Bank Transfer"}
+                                ]},
+                                {"title": "Other", "rows": [
+                                    {"id": "get_quote", "title": "Just Get a Quote"}
+                                ]}
+                            ]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "payment_choice"}
+            },
+            "transitions": [
+                {"to_step": "set_payment_amount_full_cbz", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_full"}},
+                {"to_step": "set_payment_amount_deposit_cbz", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_deposit"}},
+                {"to_step": "set_payment_amount_full_card_web", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "card_web_full"}},
+                {"to_step": "set_payment_amount_deposit_card_web", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "card_web_deposit"}},
+                {"to_step": "prepare_omari_payment", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
+                {"to_step": "create_booking_for_manual_payment", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
+                {"to_step": "create_inquiry_record_only", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
+            ]
+        },
+        {
+            "name": "set_payment_amount_full_cbz",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "set_payment_amount_full_cbz",
+                    "params_template": {
+                        "inquiry_context_var": "created_inquiry",
+                        "save_booking_to": "created_booking_from_inquiry"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "end_flow_confirmed", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_payment_amount_deposit_cbz",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "set_payment_amount_deposit_cbz",
+                    "params_template": {
+                        "inquiry_context_var": "created_inquiry",
+                        "save_booking_to": "created_booking_from_inquiry"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "end_flow_confirmed", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_payment_amount_full_card_web",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "set_payment_amount_full_card_web",
+                    "params_template": {
+                        "inquiry_context_var": "created_inquiry",
+                        "save_booking_to": "created_booking_from_inquiry"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "end_flow_confirmed", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_payment_amount_deposit_card_web",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "set_payment_amount_deposit_card_web",
+                    "params_template": {
+                        "inquiry_context_var": "created_inquiry",
+                        "save_booking_to": "created_booking_from_inquiry"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "end_flow_confirmed", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "prepare_omari_payment",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "prepare_omari_payment",
+                    "params_template": {
+                        "inquiry_context_var": "created_inquiry",
+                        "save_booking_to": "created_booking_from_inquiry"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "end_flow_confirmed", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "create_booking_for_manual_payment",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "create_booking_for_manual_payment",
+                    "params_template": {
+                        "inquiry_context_var": "created_inquiry",
+                        "save_booking_to": "created_booking_from_inquiry"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "end_flow_confirmed", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "create_inquiry_record_only",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "create_inquiry_record_only",
+                    "params_template": {
+                        "inquiry_context_var": "created_inquiry",
+                        "save_booking_to": "created_booking_from_inquiry"
+                    }
+                }]
+            },
+            "transitions": [{"to_step": "end_flow_confirmed", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "input_custom_tour_destination",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "text",
+                    "text": {
+                        "body": "✏️ *Custom Tour Destination*\n\nPlease provide your preferred destination in Zimbabwe:\n\nExample: Victoria Falls, Hwange National Park, or Great Zimbabwe."
+                    }
+                },
+                "reply_config": {
+                    "expected_type": "text",
+                    "save_to_variable": "custom_tour_destination"
+                }
+            },
+            "transitions": [
+                {
+                    "to_step": "create_booking_from_inquiry_action",
+                    "priority": 1,
+                    "condition_config": {"type": "always_true"}
+                }
+            ]
         }
     ]
 }
