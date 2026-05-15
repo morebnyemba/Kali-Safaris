@@ -18,7 +18,7 @@ MY_BOOKINGS_FLOW = {
                     "model_name": "Booking",
                     "variable_name": "found_bookings",
                     "filters_template": {
-                        "customer_id": "{{ customer_profile.id }}"
+                        "customer_id": "{{ contact.id }}"
                     },
                     "fields_to_return": ["booking_reference", "tour_name", "start_date", "payment_status"],
                     "order_by": ["-start_date"]
