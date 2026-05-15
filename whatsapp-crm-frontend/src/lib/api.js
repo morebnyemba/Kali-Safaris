@@ -1,8 +1,9 @@
 // Filename: c:\Users\Administrator\Desktop\HAVANO\whatsapp-crm-frontend\src\lib\api.js
 import axios from 'axios';
 import { toast } from 'sonner';
+import { API_BASE_URL } from '@/config/appConfig';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://backend.hanna.co.zw';
+export { API_BASE_URL };
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

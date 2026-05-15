@@ -15,6 +15,12 @@ import ContactsPage from './pages/ContactsPage';
 import SavedData from './pages/SavedData';
 import Conversation from './pages/Conversation';
 import LoginPage from './pages/LoginPage';
+import RoleRoute from './components/RoleRoute';
+import { APP_ROLES } from './lib/rbac';
+import AdminOverviewPage from './pages/admin/AdminOverviewPage';
+import UsersCrudPage from './pages/admin/UsersCrudPage';
+import RolesPermissionsPage from './pages/admin/RolesPermissionsPage';
+import SystemAuditPage from './pages/admin/SystemAuditPage';
 
 
 import OrdersPage from './pages/OrdersPage';
@@ -82,6 +88,40 @@ const router = createBrowserRouter([
   { path: 'ministries', element: <MinistriesPage /> },
   { path: 'ministries/new', element: <MinistryFormPage /> },
   { path: 'ministries/edit/:ministryId', element: <MinistryFormPage /> },
+
+  // Admin and RBAC
+  {
+    path: 'admin',
+    element: (
+      <RoleRoute requiredRoles={[APP_ROLES.ADMIN, APP_ROLES.MANAGER]}>
+        <AdminOverviewPage />
+      </RoleRoute>
+    )
+  },
+  {
+    path: 'admin/users',
+    element: (
+      <RoleRoute requiredRoles={[APP_ROLES.ADMIN]}>
+        <UsersCrudPage />
+      </RoleRoute>
+    )
+  },
+  {
+    path: 'admin/roles',
+    element: (
+      <RoleRoute requiredRoles={[APP_ROLES.ADMIN]}>
+        <RolesPermissionsPage />
+      </RoleRoute>
+    )
+  },
+  {
+    path: 'admin/audit',
+    element: (
+      <RoleRoute requiredRoles={[APP_ROLES.ADMIN, APP_ROLES.MANAGER]}>
+        <SystemAuditPage />
+      </RoleRoute>
+    )
+  },
 
   { path: 'saved-data', element: <SavedData /> },
   { path: 'conversation', element: <Conversation /> },

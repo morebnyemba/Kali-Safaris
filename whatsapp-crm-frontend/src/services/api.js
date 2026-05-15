@@ -1,8 +1,9 @@
 // src/services/api.js
 import { authService } from './auth'; // Import your auth service
 import { toast } from 'sonner'; // Assuming toast is configured globally
+import { API_BASE_URL } from '@/config/appConfig';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'; // Keep this as the absolute base for your backend
+// API_BASE_URL is centralized in appConfig for consistent production behavior.
 
 // To handle concurrent requests during token refresh
 let isRefreshingToken = false;

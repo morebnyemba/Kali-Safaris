@@ -26,11 +26,14 @@ import {
   FiCalendar,
   FiMail,
   FiActivity,
-  FiCreditCard
+  FiCreditCard,
+  FiShield
 } from 'react-icons/fi';
+import { BRAND_ATTRIBUTION } from '@/config/appConfig';
+import { APP_ROLES, getRoleFromUser } from '@/lib/rbac';
 
 const DashboardBackground = () => (
-  <div className="absolute inset-0 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900 overflow-hidden -z-10">
+  <div className="absolute inset-0 bg-linear-to-br from-gray-50 to-gray-100 dark:from-gray-950 dark:to-gray-900 overflow-hidden -z-10">
     <div
       className="absolute inset-0 opacity-10 dark:opacity-5"
       style={{
@@ -55,6 +58,8 @@ export default function DashboardLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   
+  const userRole = getRoleFromUser(user);
+
   const navigationLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: <FiHome className="h-5 w-5" /> },
     { to: '/conversation', label: 'Conversations', icon: <FiMessageSquare className="h-5 w-5" /> },
@@ -66,6 +71,10 @@ export default function DashboardLayout() {
     { to: '/billing', label: 'Billing', icon: <FiCreditCard className="h-5 w-5" /> },
     { to: '/media-library', label: 'Media Library', icon: <FiImage className="h-5 w-5" /> },
     { to: '/api-settings', label: 'API Settings', icon: <FiSettings className="h-5 w-5" /> },
+  ];
+
+  const adminLinks = [
+    { to: '/admin', label: 'Admin Center', icon: <FiShield className="h-5 w-5" /> },
   ];
 
   // Auto-collapse on mobile and expand on desktop
@@ -122,7 +131,11 @@ export default function DashboardLayout() {
   };
 
   const userInitials = getInitials(user?.username);
-  const userRole = user?.is_staff ? 'Administrator' : 'User';
+  const roleDisplay = userRole === APP_ROLES.ADMIN
+    ? 'Administrator'
+    : userRole === APP_ROLES.MANAGER
+      ? 'Manager'
+      : 'Agent';
 
   // Find the current page title from navigation links
   const currentPage = navigationLinks.find(link => location.pathname.startsWith(link.to));
@@ -234,7 +247,7 @@ export default function DashboardLayout() {
                             to={link.to}
                             onClick={() => isMobile && setIsMobileMenuOpen(false)}
                           >
-                            <span className={`flex-shrink-0 h-5 w-5 ${
+                            <span className={`shrink-0 h-5 w-5 ${
                               isActive 
                                 ? 'text-purple-600 dark:text-purple-300' 
                                 : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'
@@ -265,6 +278,59 @@ export default function DashboardLayout() {
                     </Tooltip>
                   );
                 })}
+
+                {(userRole === APP_ROLES.ADMIN || userRole === APP_ROLES.MANAGER) && adminLinks.map((link) => {
+                  const isActive = location.pathname.startsWith(link.to);
+
+                  return (
+                    <Tooltip key={link.to}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant={isActive ? 'secondary' : 'ghost'}
+                          className={`w-full justify-start text-sm font-medium h-10 group rounded-lg relative ${
+                            collapsed ? 'px-0 justify-center' : 'px-3 gap-3'
+                          } ${
+                            isActive
+                              ? 'bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300'
+                              : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-slate-700/80'
+                          }`}
+                          asChild
+                        >
+                          <Link
+                            to={link.to}
+                            onClick={() => isMobile && setIsMobileMenuOpen(false)}
+                          >
+                            <span className={`shrink-0 h-5 w-5 ${
+                              isActive
+                                ? 'text-cyan-600 dark:text-cyan-300'
+                                : 'text-gray-500 dark:text-gray-400 group-hover:text-gray-700 dark:group-hover:text-gray-200'
+                            }`}>
+                              {link.icon}
+                            </span>
+                            {!collapsed && (
+                              <span className="truncate flex-1 text-left">
+                                {link.label}
+                              </span>
+                            )}
+                            {isMobileMenuOpen && (
+                              <span className="truncate flex-1 text-left ml-3">
+                                {link.label}
+                              </span>
+                            )}
+                          </Link>
+                        </Button>
+                      </TooltipTrigger>
+                      {collapsed && !isMobileMenuOpen && (
+                        <TooltipContent
+                          side="right"
+                          className="bg-gray-800 dark:bg-slate-900 text-white text-xs rounded-md px-2 py-1 shadow-lg border border-transparent dark:border-slate-700"
+                        >
+                          {link.label}
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  );
+                })}
               </div>
             </nav>
 
@@ -275,7 +341,7 @@ export default function DashboardLayout() {
                 collapsed && !isMobileMenuOpen ? 'justify-center' : 'px-3'
               }`}>
                 <div className="relative">
-                  <div className="bg-gradient-to-r from-purple-500 to-indigo-500 h-8 w-8 rounded-full flex items-center justify-center text-white font-semibold">
+                  <div className="bg-linear-to-r from-purple-500 to-indigo-500 h-8 w-8 rounded-full flex items-center justify-center text-white font-semibold">
                     {userInitials}
                   </div>
                   <div className="absolute bottom-0 right-0 h-2 w-2 rounded-full bg-green-500 border border-white dark:border-slate-800"></div>
@@ -283,7 +349,7 @@ export default function DashboardLayout() {
                 {(!collapsed || isMobileMenuOpen) && (
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{user?.username || 'User'}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{userRole}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{roleDisplay}</p>
                   </div>
                 )}
               </div>
@@ -335,12 +401,12 @@ export default function DashboardLayout() {
             </Button>
             
             <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-r from-purple-500 to-indigo-500 h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold">
+              <div className="bg-linear-to-r from-purple-500 to-indigo-500 h-9 w-9 rounded-full flex items-center justify-center text-white font-semibold">
                 {userInitials}
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-100">{user?.username || 'User'}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{userRole}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">{roleDisplay}</p>
               </div>
             </div>
           </div>
@@ -361,10 +427,10 @@ export default function DashboardLayout() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="text-sm text-gray-600 dark:text-gray-400">
               © {new Date().getFullYear()} <a 
-                href="https://pfungwa.tech" 
+                href={BRAND_ATTRIBUTION.url}
                 target="_blank" rel="noopener noreferrer" 
                 className="font-medium text-purple-600 hover:underline dark:text-purple-400"
-              >Pfungwa Technologies</a>. All rights reserved.
+              >Slyker Tech Web Services</a>. {BRAND_ATTRIBUTION.text}.
             </div>
             <div className="flex items-center gap-4">
               <a href="#" className="text-sm text-gray-600 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 transition-colors">Terms</a>

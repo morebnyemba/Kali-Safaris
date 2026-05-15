@@ -12,6 +12,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { toast } from 'sonner';
 import { FiEye, FiEyeOff, FiLoader, FiAlertCircle } from 'react-icons/fi';
+import { BRAND_ATTRIBUTION } from '@/config/appConfig';
 
 const loginSchema = z.object({
   username: z.string().min(1, { message: "Username is required." }),
@@ -50,13 +51,15 @@ export default function LoginPage() {
   }, [form]);
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-400 via-teal-500 to-blue-600 dark:from-gray-800 dark:via-gray-900 dark:to-black p-4">
-      <Card className="w-full max-w-md shadow-2xl dark:bg-gray-800">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-linear-to-br from-cyan-200 via-sky-300 to-indigo-300 p-4 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
+      <div className="pointer-events-none absolute -left-20 top-16 h-72 w-72 rounded-full bg-cyan-400/30 blur-3xl" />
+      <div className="pointer-events-none absolute -right-24 bottom-8 h-80 w-80 rounded-full bg-indigo-400/30 blur-3xl" />
+
+      <Card className="w-full max-w-md border-slate-200/70 bg-white/90 shadow-2xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/85">
         <CardHeader className="text-center">
-          {/* Logo removed as requested */}
-          <CardTitle className="text-3xl font-bold text-gray-800 dark:text-gray-100">Welcome Back!</CardTitle>
-          <CardDescription className="text-gray-600 dark:text-gray-400">
-            Log in to your WhatsApp CRM dashboard.
+          <CardTitle className="text-3xl font-bold text-slate-900 dark:text-slate-100">Kalai Safaris CRM</CardTitle>
+          <CardDescription className="text-slate-600 dark:text-slate-300">
+            Secure sign-in for operations, analytics, and admin controls.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -73,13 +76,13 @@ export default function LoginPage() {
                 name="username"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-700 dark:text-gray-300">Username</FormLabel>
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Username</FormLabel>
                     <FormControl>
                       <Input
                         placeholder="Enter your username"
                         {...field}
                         disabled={form.formState.isSubmitting}
-                        className="dark:bg-gray-700 dark:border-gray-600 dark:text-gray-50"
+                        className="dark:bg-slate-800 dark:border-slate-700 dark:text-slate-50"
                       />
                     </FormControl>
                     <FormMessage />
@@ -91,7 +94,7 @@ export default function LoginPage() {
                 name="password"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="text-gray-700 dark:text-gray-300">Password</FormLabel>
+                    <FormLabel className="text-slate-700 dark:text-slate-300">Password</FormLabel>
                     <FormControl>
                       <div className="relative">
                         <Input
@@ -99,7 +102,7 @@ export default function LoginPage() {
                           placeholder="Enter your password"
                           {...field}
                           disabled={form.formState.isSubmitting}
-                          className="dark:bg-gray-700 dark:border-gray-600 dark:text-gray-50 pr-10"
+                          className="pr-10 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-50"
                         />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" aria-label={showPassword ? "Hide password" : "Show password"}>
                           {showPassword ? <FiEyeOff /> : <FiEye />}
@@ -110,15 +113,18 @@ export default function LoginPage() {
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white" disabled={form.formState.isSubmitting}>
+              <Button type="submit" className="w-full bg-cyan-600 text-white hover:bg-cyan-700 dark:bg-cyan-500 dark:hover:bg-cyan-600" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting && <FiLoader className="animate-spin mr-2" />}
                 {form.formState.isSubmitting ? 'Logging in...' : 'Log In'}
               </Button>
             </form>
           </Form>
         </CardContent>
-        <CardFooter className="flex flex-col items-center text-xs text-gray-500 dark:text-gray-400 pt-4">
-          <p>&copy; {new Date().getFullYear()} AutoWhatsapp CRM</p>
+        <CardFooter className="flex flex-col items-center gap-1 pt-4 text-xs text-slate-500 dark:text-slate-400">
+          <p>&copy; {new Date().getFullYear()} Kalai Safaris CRM</p>
+          <a href={BRAND_ATTRIBUTION.url} target="_blank" rel="noopener noreferrer" className="font-medium text-cyan-700 hover:underline dark:text-cyan-400">
+            {BRAND_ATTRIBUTION.text}
+          </a>
         </CardFooter>
       </Card>
     </div>
