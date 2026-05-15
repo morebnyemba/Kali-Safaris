@@ -50,6 +50,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         # Add custom claims to the token payload itself
         token['username'] = user.username
         token['is_staff'] = user.is_staff
+        token['is_superuser'] = user.is_superuser
+        token['groups'] = list(user.groups.values_list('name', flat=True))
+        token['permissions'] = sorted(user.get_all_permissions())
         return token
 
     def validate(self, attrs):
@@ -58,6 +61,9 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         data['user'] = {
             'id': self.user.id, 'username': self.user.username,
             'email': self.user.email, 'is_staff': self.user.is_staff,
+            'is_superuser': self.user.is_superuser,
+            'groups': list(self.user.groups.values_list('name', flat=True)),
+            'permissions': sorted(self.user.get_all_permissions()),
         }
         return data
 

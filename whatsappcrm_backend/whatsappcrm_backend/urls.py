@@ -34,6 +34,7 @@ path('crm-api/customer-data/', include('customer_data.urls', namespace='customer
     # API endpoints for 'flows' application
     # This includes DRF APIs for Flows, FlowSteps, etc. (e.g., /crm-api/flows/flows/)
     path('crm-api/flows/', include('flows.urls', namespace='flows_api')),
+    path('crm-api/admin/', include('whatsappcrm_backend.admin_api_urls', namespace='admin_api')),
     
     # API endpoints for 'customer_data' application (if you add API views to it later)
     # For now, customer_data is primarily managed via the admin and updated by flows.
