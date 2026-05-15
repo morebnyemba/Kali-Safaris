@@ -3,7 +3,7 @@
 CUSTOM_TOUR_CONFIRMATION_FLOW = {
     "name": "custom_tour_confirmation_flow",
     "friendly_name": "Custom Tour Confirmation",
-    "description": "Confirms a custom tour inquiry and converts it to a booking.",
+    "description": "Confirms a custom tour inquiry and submits it for quote preparation.",
     "trigger_keywords": [],  # This flow is triggered by a switch
     "is_active": True,
     "steps": [
@@ -26,8 +26,8 @@ Please confirm:
 ━━━━━━━━━━━━━━━━
 
 🎯 *What happens next?*
-We'll now move you to available tours.
-The booking flow will collect your travelers and dates.
+Our team will review your destination and share a custom quote.
+No payment is required right now.
 
 Ready to proceed?"""
                         },
@@ -42,7 +42,7 @@ Ready to proceed?"""
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "confirmation_choice"}
             },
             "transitions": [
-                {"to_step": "switch_to_view_tours_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_inquiry"}},
+                {"to_step": "create_inquiry_record_only", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_inquiry"}},
                 {"to_step": "end_flow_cancelled", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cancel_inquiry"}}
             ]
         },
@@ -142,17 +142,17 @@ Is everything correct?"""
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": """✅ *Booking Request Created!*
+                    "text": {"body": """✅ *Custom Inquiry Submitted!*
 
-Your custom tour inquiry has been successfully submitted.
+Your custom tour request has been received.
 
-📋 *Reference Number:* #{{ created_booking_from_inquiry.booking_reference }}
+📋 *Inquiry Reference:* #{{ created_inquiry.inquiry_reference }}
 
 🎯 *What happens next?*
 1. ⏱️ A travel specialist will review your request (within 24 hours)
 2. 📞 They'll contact you to discuss details
-3. 💰 You'll receive a personalized quote
-4. ✨ We'll finalize your perfect itinerary
+3. 💬 You'll receive a personalized quote
+4. 💳 You can choose to pay only after you approve the quote
 
 📧 *Track Your Request:*
 Save your reference number for easy tracking.
@@ -339,18 +339,6 @@ Thank you for choosing us! Type *menu* to explore more options."""}
                     "condition_config": {"type": "always_true"}
                 }
             ]
-        },
-        {
-            "name": "switch_to_view_tours_flow",
-            "type": "switch_flow",
-            "config": {
-                "target_flow_name": "view_available_tours_flow",
-                "initial_context_template": {
-                    "source_flow": "custom_tour_confirmation_flow",
-                    "custom_tour_destination": "{{ custom_tour_destination }}"
-                }
-            },
-            "transitions": []
         }
     ]
 }
