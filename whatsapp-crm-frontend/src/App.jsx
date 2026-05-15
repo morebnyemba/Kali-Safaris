@@ -124,7 +124,14 @@ const router = createBrowserRouter([
   },
 
   { path: 'saved-data', element: <SavedData /> },
-  { path: 'conversation', element: <Conversation /> },
+  {
+    path: 'conversation',
+    element: (
+      <RoleRoute requiredRoles={[APP_ROLES.ADMIN, APP_ROLES.MANAGER, APP_ROLES.AGENT]}>
+        <Conversation />
+      </RoleRoute>
+    )
+  },
   { path: '*', element: <NotFoundPage /> } // Catch-all for paths under DashboardLayout
     ]
   },

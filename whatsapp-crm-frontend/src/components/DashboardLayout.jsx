@@ -62,7 +62,7 @@ export default function DashboardLayout() {
 
   const navigationLinks = [
     { to: '/dashboard', label: 'Dashboard', icon: <FiHome className="h-5 w-5" /> },
-    { to: '/conversation', label: 'Conversations', icon: <FiMessageSquare className="h-5 w-5" /> },
+    { to: '/conversation', label: 'Inbox', icon: <FiMessageSquare className="h-5 w-5" /> },
     { to: '/contacts', label: 'Contacts', icon: <FiUsers className="h-5 w-5" /> },
     { to: '/installation-requests', label: 'Installation Requests', icon: <FiActivity className="h-5 w-5" /> },
     { to: '/orders', label: 'Orders', icon: <FiCreditCard className="h-5 w-5" /> },
