@@ -251,6 +251,8 @@ CELERY_TASK_DEFAULT_QUEUE = 'celery'
 
 CELERY_TASK_QUEUES = (
     Queue('celery', routing_key='celery'), # Default queue for I/O-bound tasks
+    Queue('flow', routing_key='flow'),
+    Queue('message_sending', routing_key='message_sending'),
     Queue('cpu_heavy', routing_key='cpu_heavy'),
 )
 
@@ -258,6 +260,15 @@ CELERY_TASK_QUEUES = (
 # By default, tasks go to the 'celery' queue.
 # Add any CPU-intensive tasks to the 'cpu_heavy' queue.
 CELERY_TASK_ROUTES = {
+    # Flow engine and conversation progression tasks.
+    'flows.tasks.process_flow_for_message_task': {'queue': 'flow'},
+    'flows.tasks.handle_ai_conversation_task': {'queue': 'flow'},
+    'flows.tasks.cleanup_idle_conversations_task': {'queue': 'flow'},
+
+    # Outbound messaging tasks.
+    'meta_integration.tasks.send_whatsapp_message_task': {'queue': 'message_sending'},
+    'meta_integration.tasks.send_read_receipt_task': {'queue': 'message_sending'},
+
     # Example: Route a hypothetical report generation task to the CPU-heavy queue.
     # 'reports.tasks.generate_monthly_report': {'queue': 'cpu_heavy'},
     'media_manager.tasks.trigger_media_asset_sync_task': {'queue': 'cpu_heavy'},

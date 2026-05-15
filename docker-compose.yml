@@ -43,10 +43,10 @@ services:
       - backend
     restart: unless-stopped
 
-  celery_io_worker:
+  celery_flow_worker_1:
     build: ./whatsappcrm_backend
-    container_name: whatsappcrm_celery_io_worker
-    command: celery -A whatsappcrm_backend worker -Q celery -l INFO --concurrency=20
+    container_name: whatsappcrm_celery_flow_worker_1
+    command: celery -A whatsappcrm_backend worker -Q flow -l INFO --concurrency=1 --hostname=flow1@%h
     volumes:
       - ./whatsappcrm_backend:/app
     env_file:
@@ -56,13 +56,39 @@ services:
       - db
     restart: unless-stopped
 
-  celery_cpu_worker:
+  celery_flow_worker_2:
     build: ./whatsappcrm_backend
-    container_name: whatsappcrm_celery_cpu_worker
-    command: celery -A whatsappcrm_backend worker -Q cpu_heavy -l INFO --concurrency=1
+    container_name: whatsappcrm_celery_flow_worker_2
+    command: celery -A whatsappcrm_backend worker -Q flow -l INFO --concurrency=1 --hostname=flow2@%h
     volumes:
       - ./whatsappcrm_backend:/app
       - staticfiles_volume:/app/staticfiles # Mount the static files volume (used by collectstatic)
+    env_file:
+      - ./whatsappcrm_backend/.env.prod
+    depends_on:
+      - redis
+      - db
+    restart: unless-stopped
+
+  celery_message_worker:
+    build: ./whatsappcrm_backend
+    container_name: whatsappcrm_celery_message_worker
+    command: celery -A whatsappcrm_backend worker -Q message_sending -l INFO --concurrency=2 --hostname=msg@%h
+    volumes:
+      - ./whatsappcrm_backend:/app
+    env_file:
+      - ./whatsappcrm_backend/.env.prod
+    depends_on:
+      - redis
+      - db
+    restart: unless-stopped
+
+  celery_default_worker:
+    build: ./whatsappcrm_backend
+    container_name: whatsappcrm_celery_default_worker
+    command: celery -A whatsappcrm_backend worker -Q celery,cpu_heavy -l INFO --concurrency=1 --hostname=default@%h
+    volumes:
+      - ./whatsappcrm_backend:/app
     env_file:
       - ./whatsappcrm_backend/.env.prod
     depends_on:

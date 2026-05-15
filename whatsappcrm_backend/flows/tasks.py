@@ -23,7 +23,7 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
-@shared_task(queue='celery') # Use your main I/O queue
+@shared_task
 def process_flow_for_message_task(message_id: int):
     """
     This task asynchronously runs the entire flow engine for an incoming message.
@@ -58,7 +58,7 @@ def process_flow_for_message_task(message_id: int):
                         status='pending_dispatch', related_incoming_message=incoming_message
                     )
                     send_whatsapp_message_task.apply_async(args=[outgoing_msg.id, config_to_use.id], countdown=dispatch_countdown)
-                    dispatch_countdown += 2
+                    dispatch_countdown += 0.5
 
     except Message.DoesNotExist:
         logger.error(f"process_flow_for_message_task: Message with ID {message_id} not found.")
