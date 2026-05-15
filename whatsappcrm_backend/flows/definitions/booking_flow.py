@@ -25,7 +25,22 @@ BOOKING_FLOW = {
                     }
                 ]
             },
-            "transitions": [{"to_step": "query_tour_details", "condition_config": {"type": "always_true"}}]
+            "transitions": [
+                {"to_step": "query_tour_details", "priority": 1, "condition_config": {"type": "variable_exists", "variable_name": "tour_id"}},
+                {"to_step": "missing_tour_context_redirect", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "missing_tour_context_redirect",
+            "type": "switch_flow",
+            "config": {
+                "target_flow_name": "view_available_tours_flow",
+                "initial_context_template": {
+                    "source_flow": "booking_flow",
+                    "redirect_reason": "missing_tour_id"
+                }
+            },
+            "transitions": []
         },
         # Step 1b: Query tour details to get duration and base price
         {
