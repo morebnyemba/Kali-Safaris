@@ -22,6 +22,7 @@ import { useDebounce } from 'use-debounce';
 import { useAuth } from '@/context/AuthContext';
 import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { APP_ROLES, getRoleFromUser, hasPermission, hasRole } from '@/lib/rbac';
+import { normalizeToken } from '@/services/auth';
 
 const InteractiveReplyContent = ({ reply }) => {
   const { type, button_reply, list_reply } = reply;
@@ -185,6 +186,8 @@ export default function ConversationsPage() {
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
   const { accessToken, user } = useAuth();
+  const wsToken = normalizeToken(accessToken);
+  const isJwtToken = /^[-A-Za-z0-9_]+\.[-A-Za-z0-9_]+\.[-A-Za-z0-9_]+$/.test(wsToken);
   const userRole = getRoleFromUser(user);
   const canManageAutomation = hasRole(user, [APP_ROLES.ADMIN, APP_ROLES.MANAGER]);
   const canReply = hasPermission(user, ['conversations.add_message'])
@@ -192,11 +195,11 @@ export default function ConversationsPage() {
 
   // WebSocket Setup
   const getSocketUrl = useCallback(() => {
-    if (accessToken && selectedContact?.id) {
-      return `${API_BASE_URL.replace(/^http/, 'ws')}/ws/conversations/${selectedContact.id}/?token=${accessToken}`;
+    if (isJwtToken && selectedContact?.id) {
+      return `${API_BASE_URL.replace(/^http/, 'ws')}/ws/conversations/${selectedContact.id}/?token=${wsToken}`;
     }
     return null;
-  }, [accessToken, selectedContact]);
+  }, [isJwtToken, selectedContact, wsToken]);
 
   const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket(getSocketUrl, {
     shouldReconnect: (closeEvent) => true,

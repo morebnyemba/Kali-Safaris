@@ -235,16 +235,6 @@ CORS_ALLOWED_ORIGIN_REGEXES = [
     r'^https?://127\.0\.0\.1(:\d+)?$',
 ]
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = [
-    'https://dashboard.kalaisafaris.com',
-    'http://dashboard.kalaisafaris.com',
-    'https://backend.kalaisafaris.com',
-    'http://backend.kalaisafaris.com',
-    'https://kalaisafaris.com',
-    'http://kalaisafaris.com',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-]
 
 # --- Celery Configuration ---
 # Ensure your Redis server is running and accessible at this URL.

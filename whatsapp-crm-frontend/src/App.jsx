@@ -64,8 +64,8 @@ const router = createBrowserRouter([
   { path: 'media-library', element: <MediaLibraryPage /> },
   { path: 'contacts', element: <ContactsPage /> },
   { path: 'analytics', element: <AnalyticsPage />},
-  { path: 'orders', element: <OrdersPage /> },
-  { path: 'site-assessments', element: <SiteAssessmentsPage /> },
+  { path: 'bookings', element: <OrdersPage /> },
+  { path: 'inquiries', element: <SiteAssessmentsPage /> },
 
   // Admin and RBAC
   {

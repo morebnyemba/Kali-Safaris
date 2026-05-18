@@ -6,6 +6,7 @@ import useWebSocket, { ReadyState } from 'react-use-websocket';
 import { FiArrowLeft, FiSend, FiPaperclip, FiCheck, FiCheckCircle, FiClock, FiAlertTriangle } from 'react-icons/fi';
 import { useAuth } from '@/context/AuthContext';
 import { API_BASE_URL } from '@/lib/api';
+import { normalizeToken } from '@/services/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -14,7 +15,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 
 async function apiCall(endpoint, method = 'GET', body = null) {
-  const token = localStorage.getItem('accessToken');
+  const token = normalizeToken(localStorage.getItem('accessToken'));
   const headers = {
     ...(!body || !(body instanceof FormData) && { 'Content-Type': 'application/json' }),
     ...(token && { 'Authorization': `Bearer ${token}` }),
@@ -51,6 +52,8 @@ const MessageStatusIcon = ({ status }) => {
 export default function ConversationView() {
   const { contactId } = useParams();
   const { accessToken } = useAuth();
+  const wsToken = normalizeToken(accessToken);
+  const isJwtToken = /^[-A-Za-z0-9_]+\.[-A-Za-z0-9_]+\.[-A-Za-z0-9_]+$/.test(wsToken);
   const [contact, setContact] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -58,11 +61,11 @@ export default function ConversationView() {
   const messagesEndRef = useRef(null);
 
   const getSocketUrl = useCallback(() => {
-    if (accessToken && contactId) {
-      return `${API_BASE_URL.replace(/^http/, 'ws')}/ws/conversations/${contactId}/?token=${accessToken}`;
+    if (isJwtToken && contactId) {
+      return `${API_BASE_URL.replace(/^http/, 'ws')}/ws/conversations/${contactId}/?token=${wsToken}`;
     }
     return null;
-  }, [accessToken, contactId]);
+  }, [contactId, isJwtToken, wsToken]);
 
   const { sendJsonMessage, lastJsonMessage, readyState } = useWebSocket(getSocketUrl, {
     shouldReconnect: (closeEvent) => true,

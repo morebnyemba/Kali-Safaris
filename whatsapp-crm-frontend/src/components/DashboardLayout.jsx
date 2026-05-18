@@ -64,11 +64,9 @@ export default function DashboardLayout() {
     { to: '/dashboard', label: 'Dashboard', icon: <FiHome className="h-5 w-5" /> },
     { to: '/conversation', label: 'Inbox', icon: <FiMessageSquare className="h-5 w-5" /> },
     { to: '/contacts', label: 'Contacts', icon: <FiUsers className="h-5 w-5" /> },
-    { to: '/installation-requests', label: 'Installation Requests', icon: <FiActivity className="h-5 w-5" /> },
-    { to: '/orders', label: 'Orders', icon: <FiCreditCard className="h-5 w-5" /> },
-    { to: '/site-assessments', label: 'Site Assessments', icon: <FiBarChart2 className="h-5 w-5" /> },
+    { to: '/bookings', label: 'Bookings', icon: <FiCreditCard className="h-5 w-5" /> },
+    { to: '/inquiries', label: 'Tour Inquiries', icon: <FiActivity className="h-5 w-5" /> },
     { to: '/analytics', label: 'Analytics', icon: <FiBarChart2 className="h-5 w-5" /> },
-    { to: '/billing', label: 'Billing', icon: <FiCreditCard className="h-5 w-5" /> },
     { to: '/media-library', label: 'Media Library', icon: <FiImage className="h-5 w-5" /> },
     { to: '/api-settings', label: 'API Settings', icon: <FiSettings className="h-5 w-5" /> },
   ];

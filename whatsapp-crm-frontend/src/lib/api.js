@@ -15,6 +15,38 @@ const apiClient = axios.create({
 let isRefreshing = false;
 let failedQueue = [];
 
+const normalizeToken = (token) => {
+  if (typeof token !== 'string') return '';
+
+  let normalized = token.trim();
+  for (let i = 0; i < 3; i += 1) {
+    if (!normalized) break;
+
+    if (
+      (normalized.startsWith('"') && normalized.endsWith('"'))
+      || (normalized.startsWith("'") && normalized.endsWith("'"))
+    ) {
+      normalized = normalized.slice(1, -1).trim();
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(normalized);
+      if (typeof parsed === 'string') {
+        normalized = parsed.trim();
+        continue;
+      }
+    } catch {
+      // Keep as-is when not valid JSON.
+    }
+
+    normalized = normalized.replace(/\\"/g, '"').trim();
+    break;
+  }
+
+  return normalized.replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '').trim();
+};
+
 const processQueue = (error, token = null) => {
   failedQueue.forEach(prom => {
     if (error) {
@@ -28,7 +60,7 @@ const processQueue = (error, token = null) => {
 
 const refreshToken = async () => {
   try {
-    const refreshToken = localStorage.getItem('refreshToken');
+    const refreshToken = normalizeToken(localStorage.getItem('refreshToken'));
     if (!refreshToken) throw new Error("Session expired. Please log in again.");
 
     const response = await axios.post(`${API_BASE_URL}/crm-api/auth/token/refresh/`, {
@@ -36,11 +68,11 @@ const refreshToken = async () => {
     });
 
     const { access, refresh: newRefreshToken } = response.data;
-    localStorage.setItem('accessToken', access);
+    localStorage.setItem('accessToken', normalizeToken(access));
     if (newRefreshToken) {
-      localStorage.setItem('refreshToken', newRefreshToken);
+      localStorage.setItem('refreshToken', normalizeToken(newRefreshToken));
     }
-    return access;
+    return normalizeToken(access);
   } catch (err) {
 
     // Instead of forcing a redirect, dispatch an event that the AuthProvider can listen to.
@@ -51,7 +83,7 @@ const refreshToken = async () => {
 };
 
 apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('accessToken');
+  const token = normalizeToken(localStorage.getItem('accessToken'));
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }

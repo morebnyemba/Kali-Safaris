@@ -4,12 +4,45 @@ import apiClient from '@/lib/api'; // Use the central axios client
 const ACCESS_TOKEN_KEY = 'accessToken';
 const REFRESH_TOKEN_KEY = 'refreshToken';
 
+export const normalizeToken = (token) => {
+  if (typeof token !== 'string') return '';
+
+  let normalized = token.trim();
+  for (let i = 0; i < 3; i += 1) {
+    if (!normalized) break;
+
+    if (
+      (normalized.startsWith('"') && normalized.endsWith('"'))
+      || (normalized.startsWith("'") && normalized.endsWith("'"))
+    ) {
+      normalized = normalized.slice(1, -1).trim();
+      continue;
+    }
+
+    try {
+      const parsed = JSON.parse(normalized);
+      if (typeof parsed === 'string') {
+        normalized = parsed.trim();
+        continue;
+      }
+    } catch {
+      // Keep as-is when not valid JSON.
+    }
+
+    normalized = normalized.replace(/\\"/g, '"').trim();
+    break;
+  }
+
+  return normalized.replace(/^"+|"+$/g, '').replace(/^'+|'+$/g, '').trim();
+};
+
 export const authService = {
   // Token Management
   storeTokens(accessToken, refreshToken) {
-    localStorage.setItem(ACCESS_TOKEN_KEY, accessToken);
+    const cleanedAccessToken = normalizeToken(accessToken);
+    localStorage.setItem(ACCESS_TOKEN_KEY, cleanedAccessToken);
     if (refreshToken) {
-      localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      localStorage.setItem(REFRESH_TOKEN_KEY, normalizeToken(refreshToken));
     }
   },
   clearTokens() {
@@ -17,8 +50,8 @@ export const authService = {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem('user'); // Also clear user from jotai/storage
   },
-  getAccessToken: () => localStorage.getItem(ACCESS_TOKEN_KEY),
-  getRefreshToken: () => localStorage.getItem(REFRESH_TOKEN_KEY),
+  getAccessToken: () => normalizeToken(localStorage.getItem(ACCESS_TOKEN_KEY)),
+  getRefreshToken: () => normalizeToken(localStorage.getItem(REFRESH_TOKEN_KEY)),
 
   // API Calls
   async login(username, password) {
@@ -27,7 +60,7 @@ export const authService = {
       const response = await apiClient.post('/crm-api/auth/token/', { username, password });
       const { access, refresh } = response.data;
       this.storeTokens(access, refresh);
-      const user = jwtDecode(access);
+      const user = jwtDecode(normalizeToken(access));
       return { success: true, user };
     } catch (error) {
       // The interceptor in apiClient will toast errors, but we still need to return failure.

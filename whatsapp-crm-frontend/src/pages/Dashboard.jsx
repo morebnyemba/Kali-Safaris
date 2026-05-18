@@ -25,6 +25,7 @@ import { useDashboardData } from '@/hooks/useDashboardData';
 
 // --- API Configuration & Helper ---
 import { API_BASE_URL } from '@/lib/api';
+import { normalizeToken } from '@/services/auth';
 
 // Activity icons map for WebSocket updates
 const activityIcons = {
@@ -134,6 +135,8 @@ export default function Dashboard() {
   
   const navigate = useNavigate();
   const { accessToken, isLoadingAuth } = useAuth();
+  const wsToken = normalizeToken(accessToken);
+  const isJwtToken = /^[-A-Za-z0-9_]+\.[-A-Za-z0-9_]+\.[-A-Za-z0-9_]+$/.test(wsToken);
 
   // Sync local state with hook data when it changes
   useEffect(() => {
@@ -145,11 +148,11 @@ export default function Dashboard() {
 
   // --- WebSocket Setup ---
   const getSocketUrl = useCallback(() => {
-    if (accessToken) {
-      return `${API_BASE_URL.replace(/^http/, 'ws')}/ws/stats/dashboard/?token=${accessToken}`;
+    if (isJwtToken) {
+      return `${API_BASE_URL.replace(/^http/, 'ws')}/ws/stats/dashboard/?token=${wsToken}`;
     }
     return null; // Don't connect if no token
-  }, [accessToken]);
+  }, [isJwtToken, wsToken]);
 
   const { lastJsonMessage, readyState } = useWebSocket(getSocketUrl, { shouldReconnect: () => true });
 
