@@ -29,7 +29,8 @@ from django.views.decorators.http import require_http_methods
 from django.db import transaction as db_transaction
 from django.core.files.base import ContentFile
 
-from customer_data.models import Booking, Payment, Traveler
+from customer_data.models import Booking, Payment, Traveler, CustomerProfile
+from conversations.models import Contact
 from products_and_services.models import Tour
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
@@ -337,6 +338,40 @@ def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Opti
         f"Special requests: {customer_requests}" if customer_requests else '',
     ]
 
+    # Find or create CustomerProfile to link to booking
+    customer_profile = None
+    if customer_email or customer_name:
+        # Try to find existing customer by email
+        if customer_email:
+            customer_profile = CustomerProfile.objects.filter(email=customer_email).first()
+        
+        # If not found, try to find by name (loose match)
+        if not customer_profile and customer_name:
+            customer_profile = CustomerProfile.objects.filter(
+                first_name__iexact=str(customer_name).split()[0]
+            ).first() if len(str(customer_name).split()) > 0 else None
+        
+        # If still not found, create new customer
+        if not customer_profile:
+            try:
+                # Create Contact first (required by CustomerProfile)
+                contact = Contact.objects.create(
+                    phone_number=customer_phone,
+                    name=customer_name or 'Unknown'
+                )
+                # Create CustomerProfile linked to Contact
+                names = str(customer_name).split(' ', 1) if customer_name else ['', '']
+                customer_profile = CustomerProfile.objects.create(
+                    contact=contact,
+                    first_name=names[0],
+                    last_name=names[1] if len(names) > 1 else '',
+                    email=customer_email,
+                    country=customer_country,
+                )
+            except Exception as e:
+                logger.warning("Failed to create customer profile for CBZ payment: %s", e)
+                customer_profile = None
+
     tour = Tour.objects.filter(name__iexact=str(tour_name).strip()).first()
     booking = Booking.objects.create(
         booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
@@ -349,6 +384,7 @@ def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Opti
         total_amount=amount,
         payment_status=Booking.PaymentStatus.PENDING,
         source=Booking.BookingSource.MANUAL_ENTRY,
+        customer=customer_profile,  # NOW linking the customer!
         notes='\n'.join(part for part in note_parts if part),
         booking_details_payload=details or None,
     )

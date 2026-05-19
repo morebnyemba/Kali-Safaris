@@ -5,11 +5,13 @@ Register with: from omari_integration.flow_actions import register_payment_actio
 Then call: register_payment_actions()
 """
 import logging
+import requests
 from decimal import Decimal, InvalidOperation
 from typing import List, Dict, Any
+from django.utils import timezone
 
 from conversations.models import Contact
-from customer_data.models import Booking
+from customer_data.models import Booking, Payment
 from .whatsapp_handler import get_payment_handler
 
 
@@ -382,11 +384,307 @@ def validate_omari_phone_action(contact: Contact, flow_context: dict, params: di
         return {}
 
 
+def initiate_zimswitch_payment_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
+    """
+    Flow action to initiate ZimSwitch (COPYandPAY) payment through WhatsApp.
+    
+    Params expected:
+        - booking_reference: str (required) - Booking reference to pay for
+        - amount: str/float (optional) - Amount to charge, defaults to booking balance
+        - currency: str (optional) - 'USD' or 'ZWG', defaults to 'USD'
+    
+    Returns actions to send payment link to customer.
+    """
+    import json
+    import requests
+    from decimal import Decimal, InvalidOperation
+    from cbz_integration.models import CBZTransaction
+    from cbz_integration.views import _get_copyandpay_config
+    
+    booking_ref = params.get('booking_reference') or flow_context.get('booking_reference')
+    if not booking_ref:
+        logger.error(f"initiate_zimswitch_payment action: missing booking_reference for contact {contact.id}")
+        return [{
+            'type': 'send_text',
+            'text': '❌ Payment initiation failed: No booking found. Please contact support.'
+        }]
+    
+    try:
+        booking = Booking.objects.get(booking_reference=booking_ref, customer=contact.customer_profile)
+    except Booking.DoesNotExist:
+        logger.error(f"Booking {booking_ref} not found for zimswitch payment | contact={contact.id}")
+        return [{
+            'type': 'send_text',
+            'text': f'❌ Booking {booking_ref} not found. Please verify your booking reference.'
+        }]
+    
+    # Determine amount
+    amount_str = params.get('amount')
+    if amount_str:
+        try:
+            amount = Decimal(str(amount_str))
+        except (InvalidOperation, ValueError, TypeError):
+            amount = booking.total_amount - booking.amount_paid
+    else:
+        amount = booking.total_amount - booking.amount_paid
+    
+    if amount <= 0:
+        logger.info("zimswitch payment: booking %s already paid for contact %s", booking_ref, contact.id)
+        return [{
+            'type': 'send_text',
+            'text': f'✅ Booking {booking_ref} is already paid in full!'
+        }]
+    
+    currency = params.get('currency', 'USD')
+    
+    # Get COPYandPAY config
+    config = _get_copyandpay_config()
+    if not config['entity_id'] or not config['bearer_token']:
+        logger.error("ZimSwitch payment: COPYandPAY not configured for contact %s", contact.id)
+        return [{
+            'type': 'send_text',
+            'text': '❌ Payment system not configured. Please contact support.'
+        }]
+    
+    # Generate merchant reference
+    import uuid
+    merchant_ref = f"WA-ZS-{uuid.uuid4().hex[:10].upper()}"
+    
+    # Create transaction record
+    txn = CBZTransaction.objects.create(
+        merchant_reference=merchant_ref,
+        payment_type=CBZTransaction.PaymentType.CARD,
+        amount=amount,
+        currency=currency,
+        command='Debit',
+        status=CBZTransaction.TransactionStatus.INITIATED,
+        booking=booking,
+    )
+    
+    # Prepare COPYandPAY checkout
+    request_data = {
+        'entityId': config['entity_id'],
+        'amount': f"{amount:.2f}",
+        'currency': currency,
+        'paymentType': 'DB',
+        'merchantTransactionId': merchant_ref,
+    }
+    if config['test_mode']:
+        request_data['testMode'] = config['test_mode']
+    
+    headers = {
+        'Authorization': f"Bearer {config['bearer_token']}",
+    }
+    endpoint = f"{config['base_url']}/v1/checkouts"
+    
+    try:
+        response = requests.post(endpoint, data=request_data, headers=headers, timeout=60)
+        data = response.json() if response.status_code < 400 else {}
+        
+        checkout_id = str(data.get('id') or '').strip()
+        result_code = str(data.get('result', {}).get('code', '')).strip()
+        
+        txn.request_id = checkout_id or txn.request_id
+        txn.result_code = result_code or txn.result_code
+        
+        if response.status_code >= 400 or not checkout_id:
+            txn.status = CBZTransaction.TransactionStatus.FAILED
+            txn.save()
+            logger.error("ZimSwitch checkout failed | contact=%s merchant_ref=%s status=%s", 
+                        contact.id, merchant_ref, response.status_code)
+            return [{
+                'type': 'send_text',
+                'text': f'❌ Payment system error: {data.get("result", {}).get("description", "Unable to prepare checkout")}. Please try again.'
+            }]
+        
+        txn.save()
+        
+        # Store payment state
+        payment_state = {
+            'merchant_reference': merchant_ref,
+            'booking_id': booking.id,
+            'amount': str(amount),
+            'currency': currency,
+            'checkout_id': checkout_id,
+            'awaiting_payment': True,
+            'initiated_at': timezone.now().isoformat(),
+        }
+        
+        logger.info(
+            "ZimSwitch payment initiated | contact=%s booking=%s merchant_ref=%s checkout_id=%s amount=%s %s",
+            contact.id,
+            booking_ref,
+            merchant_ref,
+            checkout_id,
+            amount,
+            currency,
+        )
+        
+        # Build payment link (resourcePath is the checkout ID path)
+        payment_link = f"https://backend.kalaisafaris.com/crm-api/payments/cbz/copyandpay/status/?resourcePath=/v1/checkouts/{checkout_id}&merchant_reference={merchant_ref}"
+        
+        return [{
+            'type': 'send_text',
+            'text': f"""💳 *ZimSwitch Card Payment*
+
+Amount: *${amount:.2f}* {currency}
+Booking: *{booking_ref}*
+
+Secure payment link (valid for 15 minutes):
+{payment_link}
+
+After payment:
+✅ You'll see a confirmation on the website
+✅ We'll update your booking status automatically
+✅ You'll receive a WhatsApp confirmation
+
+Questions? Reply with your concern or contact support."""
+        }]
+        
+    except Exception as e:
+        logger.exception("ZimSwitch payment initiation error | contact=%s booking_ref=%s", contact.id, booking_ref)
+        txn.status = CBZTransaction.TransactionStatus.FAILED
+        txn.save()
+        return [{
+            'type': 'send_text',
+            'text': f'❌ Payment error: {str(e)}. Please try again or contact support.'
+        }]
+
+
+def poll_zimswitch_payment_action(contact: Contact, flow_context: dict, params: dict) -> List[Dict[str, Any]]:
+    """
+    Flow action to poll ZimSwitch payment status from COPYandPAY.
+    
+    Params expected:
+        - merchant_reference: str (required) - Merchant reference to query
+        - checkout_id: str (required) - COPYandPAY checkout ID
+    
+    Returns actions to send payment status to customer.
+    """
+    merchant_ref = params.get('merchant_reference') or flow_context.get('merchant_reference')
+    checkout_id = params.get('checkout_id') or flow_context.get('checkout_id')
+    
+    if not merchant_ref or not checkout_id:
+        logger.warning("poll_zimswitch_payment: missing parameters | contact=%s", contact.id)
+        return [{
+            'type': 'send_text',
+            'text': '❌ Unable to check payment status. Missing transaction reference.'
+        }]
+    
+    from cbz_integration.models import CBZTransaction
+    from cbz_integration.views import _get_copyandpay_config, _copyandpay_result_code, _copyandpay_is_approved, _copyandpay_is_pending
+    
+    try:
+        # Find transaction
+        txn = CBZTransaction.objects.filter(merchant_reference=merchant_ref).first()
+        if not txn:
+            logger.warning("poll_zimswitch_payment: transaction not found | merchant_ref=%s", merchant_ref)
+            return [{
+                'type': 'send_text',
+                'text': '❌ Payment transaction not found.'
+            }]
+        
+        # Get COPYandPAY config
+        config = _get_copyandpay_config()
+        if not config['entity_id'] or not config['bearer_token']:
+            return [{
+                'type': 'send_text',
+                'text': '❌ Payment system not configured. Please contact support.'
+            }]
+        
+        # Query payment status
+        headers = {
+            'Authorization': f"Bearer {config['bearer_token']}",
+        }
+        resource_path = f"/v1/checkouts/{checkout_id}"
+        endpoint = f"{config['base_url']}{resource_path}"
+        
+        response = requests.get(
+            endpoint,
+            params={'entityId': config['entity_id']},
+            headers=headers,
+            timeout=60,
+        )
+        
+        data = response.json() if response.status_code < 400 else {}
+        result_code = _copyandpay_result_code(data)
+        is_approved = _copyandpay_is_approved(result_code)
+        is_pending = _copyandpay_is_pending(result_code)
+        
+        # Update transaction
+        txn.result_code = result_code or txn.result_code
+        
+        if is_approved:
+            txn.status = CBZTransaction.TransactionStatus.APPROVED
+            txn.completed_at = timezone.now()
+            txn.save()
+            
+            # Record payment if not already recorded
+            if txn.booking:
+                existing_payment = Payment.objects.filter(
+                    booking=txn.booking,
+                    transaction_reference=merchant_ref,
+                ).exists()
+                if not existing_payment:
+                    from cbz_integration.views import _record_payment
+                    _record_payment(txn, txn.booking)
+            
+            logger.info("ZimSwitch payment approved | contact=%s merchant_ref=%s", contact.id, merchant_ref)
+            return [{
+                'type': 'send_text',
+                'text': f"""✅ *Payment Successful!*
+
+Your ZimSwitch payment has been approved!
+
+Booking: *{txn.booking.booking_reference if txn.booking else 'N/A'}*
+Amount: *${txn.amount}* {txn.currency}
+Reference: {merchant_ref}
+
+Your booking is now confirmed. Thank you for choosing Kali Safaris!"""
+            }]
+        
+        elif is_pending:
+            txn.status = CBZTransaction.TransactionStatus.PENDING
+            txn.save()
+            logger.info("ZimSwitch payment pending | contact=%s merchant_ref=%s", contact.id, merchant_ref)
+            return [{
+                'type': 'send_text',
+                'text': f"""⏳ *Payment Pending*
+
+Your payment is still processing. Please wait a few moments and try checking status again.
+
+If you continue to experience issues, please reply with your booking reference."""
+            }]
+        
+        else:
+            txn.status = CBZTransaction.TransactionStatus.DECLINED
+            txn.save()
+            logger.warning("ZimSwitch payment declined | contact=%s merchant_ref=%s result_code=%s", 
+                          contact.id, merchant_ref, result_code)
+            return [{
+                'type': 'send_text',
+                'text': f"""❌ *Payment Declined*
+
+Your payment could not be processed.
+
+Please try again with a different card or payment method. If you need help, reply with your booking reference."""
+            }]
+    
+    except Exception as e:
+        logger.exception("poll_zimswitch_payment error | contact=%s merchant_ref=%s", contact.id, merchant_ref)
+        return [{
+            'type': 'send_text',
+            'text': f'⚠️ Unable to check payment status. Error: {str(e)}. Please try again.'
+        }]
+
+
 def register_payment_actions():
     """Register Omari payment actions with the flow action registry."""
     from flows.services import flow_action_registry
 
     flow_action_registry.register('initiate_omari_payment', initiate_omari_payment_action)
+    flow_action_registry.register('initiate_zimswitch_payment', initiate_zimswitch_payment_action)
+    flow_action_registry.register('poll_zimswitch_payment', poll_zimswitch_payment_action)
     flow_action_registry.register('verify_omari_user', verify_omari_user_action)
     flow_action_registry.register('set_omari_not_eligible_message', set_omari_not_eligible_message_action)
     flow_action_registry.register('process_otp', process_otp_action)
