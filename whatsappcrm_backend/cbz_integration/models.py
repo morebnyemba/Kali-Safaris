@@ -187,7 +187,7 @@ class CBZTransaction(models.Model):
         choices=TransactionStatus.choices,
         default=TransactionStatus.INITIATED
     )
-    result_code = models.CharField(max_length=10, blank=True, null=True)
+    result_code = models.CharField(max_length=32, blank=True, null=True)
     result_description = models.TextField(blank=True, null=True)
 
     # iVeri authorisation details
