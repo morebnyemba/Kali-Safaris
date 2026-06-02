@@ -34,7 +34,7 @@ from conversations.models import Contact
 from products_and_services.models import Tour
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
-from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED
+from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED, IVERI_STATUS_MAP, IVERI_RETRIABLE_CODES
 
 
 logger = logging.getLogger(__name__)
@@ -271,6 +271,7 @@ def _apply_gateway_result_to_transaction(
     *,
     approved: bool,
     pending: bool,
+    raw_response: Optional[Dict[str, Any]] = None,
 ) -> None:
     """Persist gateway result fields and normalize local transaction status."""
     txn.result_code = result.get('result_code')
@@ -278,6 +279,12 @@ def _apply_gateway_result_to_transaction(
     txn.transaction_index = result.get('transaction_index') or txn.transaction_index
     txn.authorisation_code = result.get('authorisation_code') or txn.authorisation_code
     txn.request_id = result.get('request_id') or txn.request_id
+    txn.bank_reference = result.get('bank_reference') or txn.bank_reference
+    txn.consumer_order_id = result.get('consumer_order_id') or txn.consumer_order_id
+    txn.card_bin = result.get('card_bin') or txn.card_bin
+
+    if raw_response is not None:
+        txn.gateway_response = _scrub_pci_fields(raw_response)
 
     if approved:
         txn.status = CBZTransaction.TransactionStatus.APPROVED
@@ -288,6 +295,27 @@ def _apply_gateway_result_to_transaction(
         txn.status = CBZTransaction.TransactionStatus.DECLINED
 
     txn.save()
+
+
+def _scrub_pci_fields(response: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a copy of the response with PCI-sensitive fields removed."""
+    SENSITIVE_KEYS = {
+        'PAN', 'pan', 'CardNumber', 'card_number',
+        'CVV', 'cvv', 'CardSecurityCode', 'card_security_code',
+        'Password', 'password', 'Secret', 'secret',
+        'Token', 'token', 'AccessToken', 'access_token',
+    }
+    if not isinstance(response, dict):
+        return response
+
+    def _clean(obj: Any) -> Any:
+        if isinstance(obj, dict):
+            return {k: ('[REDACTED]' if k in SENSITIVE_KEYS else _clean(v)) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_clean(item) for item in obj]
+        return obj
+
+    return _clean(response)
 
 
 def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Optional[Booking]:
@@ -566,18 +594,14 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
         is_approved = IVeriClient.is_approved(response)
         is_pending = IVeriClient.is_pending(response)
 
-        # Update transaction
-        txn.result_code = result.get('result_code')
-        txn.result_description = result.get('result_description')
-        txn.transaction_index = result.get('transaction_index')
-        txn.authorisation_code = result.get('authorisation_code')
-        txn.request_id = result.get('request_id')
+        _apply_gateway_result_to_transaction(
+            txn, result,
+            approved=is_approved,
+            pending=is_pending,
+            raw_response=response,
+        )
 
         if is_approved:
-            txn.status = CBZTransaction.TransactionStatus.APPROVED
-            txn.completed_at = timezone.now()
-            txn.save()
-
             booking = _finalize_booking_reference_if_temporary(booking)
 
             # Record payment on booking
@@ -594,8 +618,6 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
                 "authorisation_code": result.get('authorisation_code'),
             })
         elif is_pending:
-            txn.status = CBZTransaction.TransactionStatus.PENDING
-            txn.save()
             booking = _finalize_booking_reference_if_temporary(booking)
             return JsonResponse({
                 "success": True,
@@ -610,14 +632,16 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
                 "result_code": result.get('result_code'),
             }, status=202)
         else:
-            txn.status = CBZTransaction.TransactionStatus.DECLINED
-            txn.save()
+            status_label = result.get('status_label', 'UNKNOWN')
+            is_retriable = result.get('is_retriable', False)
             return JsonResponse({
                 "success": False,
                 "message": result.get('result_description', 'Payment declined'),
                 "merchant_reference": merchant_ref,
                 "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
+                "status_label": status_label,
+                "retriable": is_retriable,
             })
 
     except Exception as e:
@@ -745,6 +769,7 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
             result,
             approved=is_approved,
             pending=is_pending or is_3ds_required,
+            raw_response=response,
         )
 
         if is_approved:
@@ -1139,6 +1164,7 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
             result,
             approved=is_approved,
             pending=is_pending,
+            raw_response=response,
         )
 
         if is_approved and txn.booking:
@@ -1224,6 +1250,13 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
 
     Receives out-of-band transaction notifications from iVeri.
     iVeri sends these for async transaction results (e.g., EcoCash delayed approval).
+
+    Status codes:
+      "0"   → SUCCESS (approved)
+      "1"   → ERROR / timeout — leave PENDING for reconciliation
+      "4"   → DECLINED — terminal, update to DECLINED
+      "255" → INVALID_CARD — terminal, update to DECLINED
+      other → DECLINED as safe default
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
@@ -1231,7 +1264,10 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
         logger.warning("CBZ callback: invalid JSON received")
         return JsonResponse({"error": "Invalid JSON"}, status=400)
 
-    logger.info("CBZ callback received: %s", json.dumps(payload, indent=2)[:500])
+    logger.info(
+        "CBZ callback received",
+        extra={"payload_preview": json.dumps(payload)[:500]},
+    )
 
     txn_data = payload.get('Transaction', {})
     merchant_ref = txn_data.get('MerchantReference')
@@ -1240,43 +1276,82 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
         logger.warning("CBZ callback: no MerchantReference in payload")
         return JsonResponse({"error": "Missing MerchantReference"}, status=400)
 
-    # Find the transaction
     txn = CBZTransaction.objects.filter(merchant_reference=merchant_ref).first()
     if not txn:
-        logger.warning(f"CBZ callback: transaction {merchant_ref} not found")
+        logger.warning("CBZ callback: transaction %s not found", merchant_ref)
         return JsonResponse({"error": "Transaction not found"}, status=404)
 
-    # Update transaction with callback data
-    result_code = txn_data.get('ResultCode')
-    status_text = txn_data.get('Status')
+    result_code = str(txn_data.get('ResultCode') or '')
+    status_text = txn_data.get('Status', '')
+    status_label = IVERI_STATUS_MAP.get(result_code, 'UNKNOWN')
 
+    # Persist all new data from callback, always storing the raw payload
     txn.result_code = result_code
     txn.result_description = txn_data.get('ResultDescription', '')
     txn.transaction_index = txn_data.get('TransactionIndex') or txn.transaction_index
     txn.authorisation_code = txn_data.get('AuthorisationCode') or txn.authorisation_code
+    txn.bank_reference = txn_data.get('BankReference') or txn.bank_reference
+    txn.consumer_order_id = txn_data.get('ConsumerOrderID') or txn.consumer_order_id
+    txn.card_bin = txn_data.get('CardBin') or txn_data.get('BIN') or txn.card_bin
+    txn.gateway_response = _scrub_pci_fields(payload)
 
-    if result_code == RESULT_CODE_SUCCESS and status_text == STATUS_APPROVED:
-        if txn.status != CBZTransaction.TransactionStatus.APPROVED:
+    if status_label == 'SUCCESS' and (result_code == RESULT_CODE_SUCCESS and status_text == STATUS_APPROVED):
+        # Idempotent: skip if already approved, still persist raw payload
+        if txn.status == CBZTransaction.TransactionStatus.APPROVED:
+            txn.save()
+            logger.info(
+                "CBZ callback: transaction %s already APPROVED — skipping payment record",
+                merchant_ref,
+            )
+        else:
             txn.status = CBZTransaction.TransactionStatus.APPROVED
             txn.completed_at = timezone.now()
             txn.save()
-
-            # Record the payment
             if txn.booking:
                 _record_payment(txn, txn.booking)
-
-            logger.info(f"CBZ callback: transaction {merchant_ref} APPROVED via callback")
-        else:
-            txn.save()
-            logger.info(f"CBZ callback: transaction {merchant_ref} already approved, skipping")
-    else:
+            logger.info(
+                "Payment status changed",
+                extra={
+                    "transaction_id": str(txn.id),
+                    "merchant_reference": merchant_ref,
+                    "old_status": "PENDING",
+                    "new_status": "APPROVED",
+                    "gateway": "IVERI",
+                    "result_code": result_code,
+                },
+            )
+    elif status_label == 'ERROR' or result_code in IVERI_RETRIABLE_CODES:
+        # Transient gateway error — leave transaction PENDING for reconciliation
         if txn.status in {
             CBZTransaction.TransactionStatus.INITIATED,
             CBZTransaction.TransactionStatus.PENDING,
         }:
+            txn.status = CBZTransaction.TransactionStatus.PENDING
+        txn.save()
+        logger.warning(
+            "CBZ callback: retriable error on %s (code=%s) — leaving PENDING",
+            merchant_ref, result_code,
+        )
+    else:
+        # DECLINED (4), INVALID_CARD (255), or unknown — terminal failure
+        if txn.status not in {
+            CBZTransaction.TransactionStatus.APPROVED,
+            CBZTransaction.TransactionStatus.DECLINED,
+        }:
             txn.status = CBZTransaction.TransactionStatus.DECLINED
         txn.save()
-        logger.info(f"CBZ callback: transaction {merchant_ref} status={status_text} code={result_code}")
+        logger.info(
+            "Payment status changed",
+            extra={
+                "transaction_id": str(txn.id),
+                "merchant_reference": merchant_ref,
+                "old_status": "PENDING",
+                "new_status": "DECLINED",
+                "gateway": "IVERI",
+                "result_code": result_code,
+                "status_label": status_label,
+            },
+        )
 
     return JsonResponse({"message": "OK"})
 

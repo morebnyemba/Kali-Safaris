@@ -40,3 +40,19 @@ ECI_ECOMMERCE = '7'  # Secure e-commerce with SSL
 RESULT_CODE_SUCCESS = '0'
 STATUS_PENDING = 'Pending'
 STATUS_APPROVED = 'Approved'
+
+# ─── iVeri Status Map ────────────────────────────────────────────────
+# Authoritative mapping of iVeri ResultCode values to semantic labels.
+# Source: iVeri Enterprise Gateway documentation + task specification.
+IVERI_STATUS_MAP = {
+    "0": "SUCCESS",         # Successful payment
+    "1": "ERROR",           # System error / timeout — retriable
+    "4": "DECLINED",        # Card declined
+    "255": "INVALID_CARD",  # Invalid card / PAN
+}
+
+# ResultCodes that indicate a transient failure worth retrying
+IVERI_RETRIABLE_CODES = {"1"}  # Timeout / system error
+
+# ResultCodes that are terminal failures — never retry
+IVERI_TERMINAL_FAILURE_CODES = {"4", "255"}  # Declined or invalid card

@@ -28,7 +28,10 @@ from .constants import (
     ECOCASH_PAN_PREFIX, ECOCASH_DEFAULT_EXPIRY,
     RESULT_CODE_SUCCESS, STATUS_APPROVED,
     COMMAND_DEBIT, IVERI_API_VERSION,
+    IVERI_STATUS_MAP, IVERI_RETRIABLE_CODES, IVERI_TERMINAL_FAILURE_CODES,
 )
+from .gateway import PaymentGatewayFactory, IVeriGateway, PaymentProcessor
+from .views import cbz_callback_view
 
 
 class IVeriClientPanEncodingTest(TestCase):
@@ -775,3 +778,397 @@ class CBZCertificateLifecycleViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(payload['certificate_id'], 'cert-renewed')
         self.assertEqual(self.config.certificate_id, 'cert-renewed')
+
+
+# ─── Phase 2+ Tests: IVERI_STATUS_MAP, idempotency, callback, factory ───
+
+
+class IVeriStatusMapConstantsTest(TestCase):
+    """Verify the authoritative IVERI_STATUS_MAP constants are correct."""
+
+    def test_success_code(self):
+        self.assertEqual(IVERI_STATUS_MAP["0"], "SUCCESS")
+
+    def test_error_code_is_retriable(self):
+        self.assertEqual(IVERI_STATUS_MAP["1"], "ERROR")
+        self.assertIn("1", IVERI_RETRIABLE_CODES)
+        self.assertNotIn("1", IVERI_TERMINAL_FAILURE_CODES)
+
+    def test_declined_code(self):
+        self.assertEqual(IVERI_STATUS_MAP["4"], "DECLINED")
+        self.assertIn("4", IVERI_TERMINAL_FAILURE_CODES)
+        self.assertNotIn("4", IVERI_RETRIABLE_CODES)
+
+    def test_invalid_card_code(self):
+        self.assertEqual(IVERI_STATUS_MAP["255"], "INVALID_CARD")
+        self.assertIn("255", IVERI_TERMINAL_FAILURE_CODES)
+
+    def test_unknown_code_fallback(self):
+        self.assertIsNone(IVERI_STATUS_MAP.get("999"))
+
+
+class IVeriClientGetResultEnhancedTest(TestCase):
+    """get_result() must now return status_label and supplemental fields."""
+
+    def _make_response(self, result_code, extra=None):
+        txn = {
+            "ResultCode": result_code,
+            "ResultDescription": "Test",
+            "Status": "Approved" if result_code == "0" else "Declined",
+            "TransactionIndex": "TX-001",
+            "AuthorisationCode": "AUTH-001",
+            "MerchantReference": "KS-ABC",
+            "Amount": "1000",
+            "Currency": "USD",
+            "RequestID": "REQ-001",
+        }
+        if extra:
+            txn.update(extra)
+        return {"Transaction": txn}
+
+    def test_success_result_has_status_label(self):
+        result = IVeriClient.get_result(self._make_response("0"))
+        self.assertEqual(result["status_label"], "SUCCESS")
+        self.assertFalse(result["is_retriable"])
+        self.assertFalse(result["is_terminal_failure"])
+
+    def test_error_code_is_retriable(self):
+        result = IVeriClient.get_result(self._make_response("1"))
+        self.assertEqual(result["status_label"], "ERROR")
+        self.assertTrue(result["is_retriable"])
+
+    def test_declined_code_is_terminal(self):
+        result = IVeriClient.get_result(self._make_response("4"))
+        self.assertEqual(result["status_label"], "DECLINED")
+        self.assertTrue(result["is_terminal_failure"])
+        self.assertFalse(result["is_retriable"])
+
+    def test_invalid_card_code_is_terminal(self):
+        result = IVeriClient.get_result(self._make_response("255"))
+        self.assertEqual(result["status_label"], "INVALID_CARD")
+        self.assertTrue(result["is_terminal_failure"])
+
+    def test_bank_reference_extracted(self):
+        result = IVeriClient.get_result(
+            self._make_response("0", {"BankReference": "BANK-REF-999"})
+        )
+        self.assertEqual(result["bank_reference"], "BANK-REF-999")
+
+    def test_consumer_order_id_extracted(self):
+        result = IVeriClient.get_result(
+            self._make_response("0", {"ConsumerOrderID": "CON-001"})
+        )
+        self.assertEqual(result["consumer_order_id"], "CON-001")
+
+    def test_card_bin_extracted(self):
+        result = IVeriClient.get_result(
+            self._make_response("0", {"CardBin": "541333"})
+        )
+        self.assertEqual(result["card_bin"], "541333")
+
+
+class CBZTransactionNewFieldsTest(TestCase):
+    """CBZTransaction new model fields must be saveable and queryable."""
+
+    def setUp(self):
+        self.txn = CBZTransaction.objects.create(
+            merchant_reference="KS-TEST-NEW-FIELDS",
+            payment_type=CBZTransaction.PaymentType.CARD,
+            amount=Decimal("100.00"),
+            currency="USD",
+            command="Debit",
+            status=CBZTransaction.TransactionStatus.INITIATED,
+        )
+
+    def test_bank_reference_persists(self):
+        self.txn.bank_reference = "BANK-123"
+        self.txn.save(update_fields=["bank_reference"])
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.bank_reference, "BANK-123")
+
+    def test_consumer_order_id_persists(self):
+        self.txn.consumer_order_id = "CON-456"
+        self.txn.save(update_fields=["consumer_order_id"])
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.consumer_order_id, "CON-456")
+
+    def test_card_bin_persists(self):
+        self.txn.card_bin = "541333"
+        self.txn.save(update_fields=["card_bin"])
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.card_bin, "541333")
+
+    def test_gateway_response_persists(self):
+        payload = {"Transaction": {"ResultCode": "0"}}
+        self.txn.gateway_response = payload
+        self.txn.save(update_fields=["gateway_response"])
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.gateway_response["Transaction"]["ResultCode"], "0")
+
+    def test_idempotency_key_unique(self):
+        from django.db import IntegrityError
+        self.txn.idempotency_key = "unique-key-abc"
+        self.txn.save(update_fields=["idempotency_key"])
+
+        with self.assertRaises(IntegrityError):
+            CBZTransaction.objects.create(
+                merchant_reference="KS-DUP-IDEM",
+                payment_type=CBZTransaction.PaymentType.CARD,
+                amount=Decimal("50.00"),
+                currency="USD",
+                command="Debit",
+                status=CBZTransaction.TransactionStatus.INITIATED,
+                idempotency_key="unique-key-abc",  # duplicate
+            )
+
+
+class CBZCallbackViewStatusMapTest(TestCase):
+    """Callback view must handle all IVERI_STATUS_MAP codes correctly."""
+
+    factory = RequestFactory()
+
+    def setUp(self):
+        self.txn = CBZTransaction.objects.create(
+            merchant_reference="KS-CB-TEST",
+            payment_type=CBZTransaction.PaymentType.ECOCASH,
+            amount=Decimal("25.00"),
+            currency="USD",
+            command="Debit",
+            status=CBZTransaction.TransactionStatus.PENDING,
+        )
+
+    def _post_callback(self, result_code, status_text=""):
+        payload = {
+            "Transaction": {
+                "MerchantReference": "KS-CB-TEST",
+                "ResultCode": result_code,
+                "ResultDescription": f"Test code {result_code}",
+                "Status": status_text,
+            }
+        }
+        request = self.factory.post(
+            "/crm-api/payments/cbz/callback/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        return cbz_callback_view(request)
+
+    def test_success_code_0_approves_transaction(self):
+        response = self._post_callback("0", STATUS_APPROVED)
+        self.assertEqual(response.status_code, 200)
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.status, CBZTransaction.TransactionStatus.APPROVED)
+
+    def test_error_code_1_leaves_transaction_pending(self):
+        """Code "1" is a retriable timeout — must NOT set DECLINED."""
+        response = self._post_callback("1", "Error")
+        self.assertEqual(response.status_code, 200)
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.status, CBZTransaction.TransactionStatus.PENDING)
+
+    def test_declined_code_4_sets_declined(self):
+        response = self._post_callback("4", "Declined")
+        self.assertEqual(response.status_code, 200)
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.status, CBZTransaction.TransactionStatus.DECLINED)
+
+    def test_invalid_card_code_255_sets_declined(self):
+        response = self._post_callback("255", "Invalid")
+        self.assertEqual(response.status_code, 200)
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.status, CBZTransaction.TransactionStatus.DECLINED)
+
+    def test_callback_stores_gateway_response(self):
+        self._post_callback("0", STATUS_APPROVED)
+        self.txn.refresh_from_db()
+        self.assertIsNotNone(self.txn.gateway_response)
+
+    def test_callback_idempotent_on_double_approval(self):
+        """Calling the callback twice for the same approval must not raise or double-record."""
+        self._post_callback("0", STATUS_APPROVED)
+        self.txn.refresh_from_db()
+        first_completed = self.txn.completed_at
+
+        # second identical callback
+        self._post_callback("0", STATUS_APPROVED)
+        self.txn.refresh_from_db()
+        self.assertEqual(self.txn.completed_at, first_completed)
+
+    def test_callback_missing_merchant_reference_returns_400(self):
+        payload = {"Transaction": {"ResultCode": "0"}}
+        request = self.factory.post(
+            "/crm-api/payments/cbz/callback/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        response = cbz_callback_view(request)
+        self.assertEqual(response.status_code, 400)
+
+    def test_callback_unknown_merchant_reference_returns_404(self):
+        payload = {"Transaction": {"MerchantReference": "KS-DOESNOTEXIST", "ResultCode": "0"}}
+        request = self.factory.post(
+            "/crm-api/payments/cbz/callback/",
+            data=json.dumps(payload),
+            content_type="application/json",
+        )
+        response = cbz_callback_view(request)
+        self.assertEqual(response.status_code, 404)
+
+
+class PaymentGatewayFactoryTest(TestCase):
+    """PaymentGatewayFactory must register and resolve gateways correctly."""
+
+    def test_get_iveri_gateway(self):
+        gateway = PaymentGatewayFactory.get_gateway("IVERI")
+        self.assertIsInstance(gateway, IVeriGateway)
+        self.assertIsInstance(gateway, PaymentProcessor)
+
+    def test_get_cbz_alias(self):
+        gateway = PaymentGatewayFactory.get_gateway("CBZ")
+        self.assertIsInstance(gateway, IVeriGateway)
+
+    def test_get_cbz_card_alias(self):
+        gateway = PaymentGatewayFactory.get_gateway("CBZ_CARD")
+        self.assertIsInstance(gateway, IVeriGateway)
+
+    def test_get_cbz_ecocash_alias(self):
+        gateway = PaymentGatewayFactory.get_gateway("CBZ_ECOCASH")
+        self.assertIsInstance(gateway, IVeriGateway)
+
+    def test_unknown_gateway_raises_key_error(self):
+        with self.assertRaises(KeyError):
+            PaymentGatewayFactory.get_gateway("NONEXISTENT_GW")
+
+    def test_case_insensitive_lookup(self):
+        gateway = PaymentGatewayFactory.get_gateway("iveri")
+        self.assertIsInstance(gateway, IVeriGateway)
+
+    def test_register_custom_gateway(self):
+        class DummyGateway(PaymentProcessor):
+            def initiate_payment(self, **kwargs):
+                return {}
+            def verify_payment(self, **kwargs):
+                return {}
+            def handle_callback(self, **kwargs):
+                return {}
+            def refund(self, **kwargs):
+                return {}
+
+        PaymentGatewayFactory.register("DUMMY_GW", DummyGateway)
+        gw = PaymentGatewayFactory.get_gateway("DUMMY_GW")
+        self.assertIsInstance(gw, DummyGateway)
+
+    def test_register_non_processor_raises_type_error(self):
+        class NotAGateway:
+            pass
+        with self.assertRaises(TypeError):
+            PaymentGatewayFactory.register("BAD_GW", NotAGateway)
+
+    def test_available_gateways_lists_registered_keys(self):
+        keys = PaymentGatewayFactory.available_gateways()
+        self.assertIn("IVERI", keys)
+        self.assertIn("CBZ", keys)
+
+    def test_handle_callback_normalises_success(self):
+        gateway = PaymentGatewayFactory.get_gateway("IVERI")
+        result = gateway.handle_callback(payload={
+            "Transaction": {
+                "MerchantReference": "KS-NORM",
+                "ResultCode": "0",
+                "ResultDescription": "OK",
+            }
+        })
+        self.assertEqual(result["status"], "approved")
+        self.assertEqual(result["status_label"], "SUCCESS")
+
+    def test_handle_callback_normalises_retriable_error(self):
+        gateway = PaymentGatewayFactory.get_gateway("IVERI")
+        result = gateway.handle_callback(payload={
+            "Transaction": {
+                "MerchantReference": "KS-ERR",
+                "ResultCode": "1",
+                "ResultDescription": "Timeout",
+            }
+        })
+        self.assertEqual(result["status"], "retriable_error")
+
+    def test_handle_callback_normalises_declined(self):
+        gateway = PaymentGatewayFactory.get_gateway("IVERI")
+        result = gateway.handle_callback(payload={
+            "Transaction": {
+                "MerchantReference": "KS-DEC",
+                "ResultCode": "4",
+                "ResultDescription": "Declined",
+            }
+        })
+        self.assertEqual(result["status"], "declined")
+
+
+class ScruPCIFieldsTest(TestCase):
+    """_scrub_pci_fields must redact sensitive keys and preserve safe keys."""
+
+    def test_redacts_pan(self):
+        from cbz_integration.views import _scrub_pci_fields
+        response = {"Transaction": {"PAN": "4111111111111111", "Amount": "100"}}
+        scrubbed = _scrub_pci_fields(response)
+        self.assertEqual(scrubbed["Transaction"]["PAN"], "[REDACTED]")
+        self.assertEqual(scrubbed["Transaction"]["Amount"], "100")
+
+    def test_redacts_nested_token(self):
+        from cbz_integration.views import _scrub_pci_fields
+        response = {"data": {"Token": "secret-tok", "MerchantRef": "KS-1"}}
+        scrubbed = _scrub_pci_fields(response)
+        self.assertEqual(scrubbed["data"]["Token"], "[REDACTED]")
+        self.assertEqual(scrubbed["data"]["MerchantRef"], "KS-1")
+
+    def test_handles_non_dict_gracefully(self):
+        from cbz_integration.views import _scrub_pci_fields
+        self.assertEqual(_scrub_pci_fields("plain-string"), "plain-string")
+
+
+class ReconcilePaymentsCommandTest(TestCase):
+    """Management command reconcile_payments must find and update pending transactions."""
+
+    def setUp(self):
+        from django.utils import timezone
+        from datetime import timedelta
+        CBZTransaction.objects.create(
+            merchant_reference="KS-RECON-1",
+            payment_type=CBZTransaction.PaymentType.ECOCASH,
+            amount=Decimal("50.00"),
+            currency="USD",
+            command="Debit",
+            status=CBZTransaction.TransactionStatus.PENDING,
+        )
+        # Make it look old enough for reconciliation
+        CBZTransaction.objects.filter(merchant_reference="KS-RECON-1").update(
+            created_at=timezone.now() - timedelta(minutes=10)
+        )
+
+    @patch("cbz_integration.management.commands.reconcile_payments.Command._get_client", create=True)
+    @patch("cbz_integration.views._build_client")
+    def test_dry_run_does_not_change_status(self, mock_build_client, *args):
+        from django.core.management import call_command
+        from io import StringIO
+        mock_client = MagicMock()
+        mock_client.query_transaction.return_value = {
+            "Transaction": {
+                "ResultCode": "0",
+                "Status": "Approved",
+                "TransactionIndex": "TX-001",
+                "AuthorisationCode": "AUTH-001",
+            }
+        }
+        mock_build_client.return_value = mock_client
+
+        out = StringIO()
+        call_command(
+            "reconcile_payments",
+            "--min-age-minutes=5",
+            "--dry-run",
+            stdout=out,
+        )
+
+        txn = CBZTransaction.objects.get(merchant_reference="KS-RECON-1")
+        self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)
+        self.assertIn("DRY RUN", out.getvalue())

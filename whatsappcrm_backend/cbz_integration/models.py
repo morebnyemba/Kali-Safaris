@@ -193,6 +193,32 @@ class CBZTransaction(models.Model):
     # iVeri authorisation details
     authorisation_code = models.CharField(max_length=20, blank=True, null=True)
 
+    # Additional iVeri response fields (Phase 2 — data-to-persist requirements)
+    bank_reference = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="Bank reference number returned by iVeri/acquiring bank"
+    )
+    consumer_order_id = models.CharField(
+        max_length=100, blank=True, null=True,
+        help_text="Consumer-facing order ID from iVeri response"
+    )
+    card_bin = models.CharField(
+        max_length=10, blank=True, null=True,
+        help_text="Card BIN (first 6 digits) — identifies card network/issuer"
+    )
+
+    # Raw gateway response for audit/troubleshooting (never contains full PAN/CVV)
+    gateway_response = models.JSONField(
+        blank=True, null=True,
+        help_text="Raw iVeri response payload for audit purposes (PCI-scrubbed)"
+    )
+
+    # Idempotency key — prevents duplicate payment submissions
+    idempotency_key = models.CharField(
+        max_length=64, blank=True, null=True, unique=True, db_index=True,
+        help_text="Client-supplied idempotency key to prevent duplicate transactions"
+    )
+
     # Link to booking
     booking = models.ForeignKey(
         'customer_data.Booking',

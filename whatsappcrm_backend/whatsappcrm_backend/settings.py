@@ -327,13 +327,34 @@ ADMIN_NOTIFICATION_FALLBACK_TEMPLATE_NAME = os.getenv('ADMIN_NOTIFICATION_FALLBA
 
 
 # --- Logging Configuration ---
+_LOGS_DIR = BASE_DIR / 'logs'
+_LOGS_DIR.mkdir(exist_ok=True)
+
 LOGGING = {
     'version': 1, 'disable_existing_loggers': False,
     'formatters': {
         'verbose': {'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}', 'style': '{'},
         'simple': {'format': '[{asctime}] {levelname} {module} {message}', 'style': '{', 'datefmt': '%Y-%m-%d %H:%M:%S'},
+        # Audit formatter: full ISO timestamp + logger name for traceability
+        'audit': {
+            'format': '[{asctime}] {levelname} {name} {message}',
+            'style': '{',
+            'datefmt': '%Y-%m-%dT%H:%M:%S',
+        },
     },
-    'handlers': {'console': {'class': 'logging.StreamHandler', 'formatter': 'simple'}},
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler', 'formatter': 'simple'},
+        # Rotating file handler — writes all iVeri request/response audit events.
+        # Max 10 MB per file, 5 backups kept (iveri_audit.log, .1, .2 … .5).
+        'iveri_audit_file': {
+            'class': 'logging.handlers.RotatingFileHandler',
+            'filename': str(_LOGS_DIR / 'iveri_audit.log'),
+            'maxBytes': 10 * 1024 * 1024,  # 10 MB
+            'backupCount': 5,
+            'formatter': 'audit',
+            'encoding': 'utf-8',
+        },
+    },
     'root': {'handlers': ['console'], 'level': 'INFO'},
     'loggers': {
         'django': {'handlers': ['console'], 'level': os.getenv('DJANGO_LOG_LEVEL', 'INFO'), 'propagate': False},
@@ -345,6 +366,13 @@ LOGGING = {
         'customer_data': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
         'cbz_integration': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
         'omari_integration': {'handlers': ['console'], 'level': 'DEBUG', 'propagate': False},
+        # Dedicated audit trail for every iVeri API call — written to iveri_audit.log
+        # and also echoed to console so Docker/systemd log capture picks it up too.
+        'cbz_integration.audit': {
+            'handlers': ['iveri_audit_file', 'console'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
     },
 }
 

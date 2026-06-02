@@ -32,10 +32,16 @@ from .constants import (
     RESULT_CODE_SUCCESS,
     STATUS_PENDING,
     STATUS_APPROVED,
+    IVERI_STATUS_MAP,
+    IVERI_RETRIABLE_CODES,
+    IVERI_TERMINAL_FAILURE_CODES,
 )
 
 
 logger = logging.getLogger(__name__)
+# Dedicated audit logger — routed to iveri_audit.log via settings.py LOGGING config.
+# Captures every outgoing request and incoming response (PCI-scrubbed).
+audit_logger = logging.getLogger("cbz_integration.audit")
 
 
 def _mask_value(value: str, visible_chars: int = 6) -> str:
@@ -260,29 +266,42 @@ class IVeriClient:
             requests.exceptions.HTTPError: On HTTP errors
             Exception: On unexpected errors
         """
-        # Log outgoing request (masked sensitive data)
-        safe_log = {
+        _SENSITIVE_PAYLOAD_FIELDS = {'PAN', 'Pan', 'Cvc', 'CVV', 'Pin', 'CardNumber', 'AccountNumber', 'CertificateID'}
+
+        # Build a PCI-scrubbed copy of the outgoing payload for audit logging
+        txn_out = payload.get('Transaction', {})
+        safe_request = {
             'Version': payload.get('Version'),
             'Direction': payload.get('Direction'),
-            'Command': payload.get('Transaction', {}).get('Command'),
-            'Mode': payload.get('Transaction', {}).get('Mode'),
-            'Amount': payload.get('Transaction', {}).get('Amount'),
-            'Currency': payload.get('Transaction', {}).get('Currency'),
-            'MerchantReference': payload.get('Transaction', {}).get('MerchantReference'),
-            'HasNotificationURL': bool(payload.get('Transaction', {}).get('NotificationURL')),
+            'Command': txn_out.get('Command'),
+            'Mode': txn_out.get('Mode'),
+            'Amount': txn_out.get('Amount'),
+            'Currency': txn_out.get('Currency'),
+            'MerchantReference': txn_out.get('MerchantReference'),
+            'ApplicationID': _mask_value(txn_out.get('ApplicationID', '')),
+            'HasPAN': bool(txn_out.get('PAN') or txn_out.get('Pan')),
+            'HasNotificationURL': bool(txn_out.get('NotificationURL')),
         }
-        logger.info("iVeri request | %s", safe_log)
+        logger.info("iVeri request | %s", safe_request)
+        audit_logger.info(
+            "IVERI_REQUEST",
+            extra={"audit": safe_request},
+        )
 
         try:
             resp = self.session.post(self.api_url, json=payload, timeout=60)
             resp.raise_for_status()
             data = resp.json()
 
-            # Log full response (exclude raw card/account data)
+            # Build a PCI-scrubbed response for audit logging
             txn_resp = data.get('Transaction', {})
-            _SENSITIVE_RESP_FIELDS = {'Pan', 'Cvc', 'Pin', 'CardNumber', 'AccountNumber'}
-            safe_resp = {k: v for k, v in txn_resp.items() if k not in _SENSITIVE_RESP_FIELDS}
-            logger.info("iVeri response | %s", safe_resp)
+            safe_response = {k: v for k, v in txn_resp.items() if k not in _SENSITIVE_PAYLOAD_FIELDS}
+            logger.info("iVeri response | %s", safe_response)
+            audit_logger.info(
+                "IVERI_RESPONSE http_status=%s",
+                resp.status_code,
+                extra={"audit": safe_response},
+            )
             return data
 
         except requests.exceptions.HTTPError as e:
@@ -295,12 +314,25 @@ class IVeriClient:
                 payload.get('Transaction', {}).get('MerchantReference'),
                 error_body,
             )
+            audit_logger.error(
+                "IVERI_HTTP_ERROR http_status=%s command=%s ref=%s",
+                error_status,
+                payload.get('Transaction', {}).get('Command'),
+                payload.get('Transaction', {}).get('MerchantReference'),
+                extra={"audit": {"body_snippet": error_body}},
+            )
             raise
         except requests.exceptions.Timeout:
             logger.error(
                 "iVeri request timeout | command=%s ref=%s timeout=60s",
                 payload.get('Transaction', {}).get('Command'),
                 payload.get('Transaction', {}).get('MerchantReference'),
+            )
+            audit_logger.error(
+                "IVERI_TIMEOUT command=%s ref=%s",
+                payload.get('Transaction', {}).get('Command'),
+                payload.get('Transaction', {}).get('MerchantReference'),
+                extra={"audit": {}},
             )
             raise
         except Exception as e:
@@ -310,6 +342,13 @@ class IVeriClient:
                 payload.get('Transaction', {}).get('MerchantReference'),
                 str(e),
                 exc_info=True,
+            )
+            audit_logger.error(
+                "IVERI_ERROR command=%s ref=%s error=%s",
+                payload.get('Transaction', {}).get('Command'),
+                payload.get('Transaction', {}).get('MerchantReference'),
+                str(e),
+                extra={"audit": {}},
             )
             raise
 
@@ -684,10 +723,14 @@ class IVeriClient:
         """Extract key result fields from the iVeri response."""
         txn = response.get('Transaction', {})
         fields = IVeriClient._extract_result_fields(txn)
+        result_code = fields['code'] or None
         return {
-            'result_code': fields['code'] or None,
+            'result_code': result_code,
             'result_description': fields['description'],
             'status': fields['status'] or None,
+            'status_label': IVERI_STATUS_MAP.get(str(result_code), 'UNKNOWN') if result_code else None,
+            'is_retriable': result_code in IVERI_RETRIABLE_CODES if result_code else False,
+            'is_terminal_failure': result_code in IVERI_TERMINAL_FAILURE_CODES if result_code else False,
             'mode': txn.get('Mode') or None,
             'transaction_index': txn.get('TransactionIndex'),
             'authorisation_code': txn.get('AuthorisationCode'),
@@ -695,6 +738,10 @@ class IVeriClient:
             'amount': txn.get('Amount'),
             'currency': txn.get('Currency'),
             'request_id': txn.get('RequestID'),
+            # PCI-safe supplemental fields
+            'bank_reference': txn.get('BankReference') or txn.get('bankReference') or None,
+            'consumer_order_id': txn.get('ConsumerOrderID') or txn.get('ConsumerOrderId') or None,
+            'card_bin': txn.get('CardBin') or txn.get('BIN') or None,
         }
 
 
