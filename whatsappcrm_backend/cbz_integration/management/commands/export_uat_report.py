@@ -1,24 +1,35 @@
 """
 Management command: export_uat_report
 
-Produces a structured export of CBZTransaction records suitable for submission
-to iVeri/CBZ as UAT evidence for go-live approval.
+Exports CBZTransaction records in the iVeri Lite log format required for UAT
+go-live submission to iVeri/CBZ.
 
-Output formats:
-  JSON  — one record per line (default), or pretty-printed with --pretty
-  CSV   — flat spreadsheet row per transaction
+Output format (matches handy-hands_logs-iveri-lite.json reference):
+  [
+    {
+      "status": "success",
+      "message": "Payment was successful.",
+      "gateway_response": { <LITE_* and ECOM_* fields> }
+    },
+    ...
+  ]
+
+Status mapping:
+  LITE_PAYMENT_CARD_STATUS "0"   → status: "success"
+  LITE_PAYMENT_CARD_STATUS "4"   → status: "fail"
+  LITE_PAYMENT_CARD_STATUS "1"   → status: "error"
+  LITE_PAYMENT_CARD_STATUS "255" → status: "error"
 
 Usage:
     python manage.py export_uat_report
-    python manage.py export_uat_report --format=csv --output=uat_evidence.csv
-    python manage.py export_uat_report --format=json --pretty --output=uat_report.json
-    python manage.py export_uat_report --since=2025-01-01 --status=APPROVED,DECLINED
-    python manage.py export_uat_report --include-gateway-response
+    python manage.py export_uat_report --output=uat_report.json
+    python manage.py export_uat_report --status=APPROVED,DECLINED
+    python manage.py export_uat_report --since=2025-01-01
+    python manage.py export_uat_report --payment-type=card
 """
 
 from __future__ import annotations
 
-import csv
 import json
 import sys
 from datetime import datetime, timezone
@@ -28,56 +39,28 @@ from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone as dj_tz
 
 
+# Human-friendly labels for iVeri result codes
+_RESULT_STATUS: Dict[str, tuple] = {
+    "0":   ("success", "Payment was successful."),
+    "4":   ("fail",    "Payment failed or was declined."),
+    "1":   ("error",   "A system error occurred during payment."),
+    "255": ("error",   "A system error occurred during payment."),
+}
+_DEFAULT_STATUS = ("error", "An unknown gateway error occurred.")
+
+
 class Command(BaseCommand):
     help = (
-        "Export CBZ/iVeri transaction records for UAT go-live submission. "
-        "Produces JSON or CSV evidence for iVeri acceptance testing."
+        "Export CBZ/iVeri transaction records in iVeri Lite log format "
+        "for UAT go-live submission to iVeri/CBZ."
     )
 
-    # Fields included in the export by default (PCI-safe — no full PAN / CVV)
-    _EXPORT_FIELDS = [
-        "id",
-        "merchant_reference",
-        "transaction_index",
-        "request_id",
-        "payment_type",
-        "msisdn",
-        "masked_pan",
-        "amount",
-        "currency",
-        "command",
-        "status",
-        "result_code",
-        "result_description",
-        "authorisation_code",
-        "bank_reference",
-        "consumer_order_id",
-        "card_bin",
-        "idempotency_key",
-        "booking_id",
-        "created_at",
-        "updated_at",
-        "completed_at",
-    ]
-
     def add_arguments(self, parser: Any) -> None:
-        parser.add_argument(
-            "--format",
-            choices=["json", "csv"],
-            default="json",
-            help="Output format: json (default) or csv",
-        )
         parser.add_argument(
             "--output",
             metavar="FILE",
             default=None,
             help="Write output to FILE instead of stdout",
-        )
-        parser.add_argument(
-            "--pretty",
-            action="store_true",
-            default=False,
-            help="Pretty-print JSON output (ignored for CSV)",
         )
         parser.add_argument(
             "--status",
@@ -113,17 +96,6 @@ class Command(BaseCommand):
             default=None,
             help="Maximum number of records to export",
         )
-        parser.add_argument(
-            "--include-gateway-response",
-            action="store_true",
-            default=False,
-            help=(
-                "Include the raw gateway_response JSON blob in the export. "
-                "Useful for detailed iVeri review. Already PCI-scrubbed."
-            ),
-        )
-
-    # ─── Helpers ──────────────────────────────────────────────────────
 
     @staticmethod
     def _parse_date(value: str, field_name: str) -> datetime:
@@ -135,38 +107,86 @@ class Command(BaseCommand):
                 f"--{field_name}: '{value}' is not a valid date (expected YYYY-MM-DD)"
             )
 
-    @staticmethod
-    def _serialize_value(v: Any) -> Any:
-        """Make a value JSON-serializable."""
-        if v is None:
-            return None
-        if hasattr(v, "isoformat"):
-            return v.isoformat()
-        if hasattr(v, "__str__") and not isinstance(v, (int, float, bool, str, dict, list)):
-            return str(v)
-        return v
+    def _build_gateway_response(self, txn: Any, application_id: str) -> Dict[str, Any]:
+        """
+        Return a gateway_response dict in iVeri Lite format.
 
-    def _transaction_to_dict(
-        self, txn: Any, include_gateway_response: bool
-    ) -> Dict[str, Any]:
-        fields = list(self._EXPORT_FIELDS)
-        if include_gateway_response:
-            fields.append("gateway_response")
+        If the transaction already has a stored gateway_response with LITE_*
+        keys (from a real iVeri Lite callback), use that directly and ensure
+        ECOM_PAYMENT_CARD_NUMBER is populated from masked_pan.
 
-        row: Dict[str, Any] = {}
-        for field in fields:
-            raw = getattr(txn, field, None)
-            row[field] = self._serialize_value(raw)
-        return row
+        Otherwise reconstruct from model fields (e.g. REST API transactions).
+        """
+        stored: Dict[str, Any] = txn.gateway_response or {}
 
-    # ─── Main handle ──────────────────────────────────────────────────
+        if "LITE_PAYMENT_CARD_STATUS" in stored:
+            # Already in Lite format — use as-is, injecting masked_pan if stored
+            gr = dict(stored)
+            if txn.masked_pan and not gr.get("ECOM_PAYMENT_CARD_NUMBER"):
+                gr["ECOM_PAYMENT_CARD_NUMBER"] = txn.masked_pan
+            return gr
+
+        # Reconstruct Lite-format dict from model fields
+        amount_minor = ""
+        try:
+            if txn.amount is not None:
+                amount_minor = str(int(float(txn.amount) * 100))
+        except (ValueError, TypeError):
+            pass
+
+        created_str = ""
+        if txn.created_at:
+            created_str = txn.created_at.strftime("%Y-%m-%d %H:%M:%S")
+
+        return {
+            "LITE_MERCHANT_APPLICATIONID": application_id,
+            "MERCHANTREFERENCE": txn.merchant_reference or "",
+            "ECOM_CONSUMERORDERID": txn.consumer_order_id or txn.merchant_reference or "",
+            "LITE_CONSUMERORDERID_PREFIX": "INV",
+            "LITE_PAYMENT_CARD_STATUS": txn.result_code or "",
+            "LITE_RESULT_DESCRIPTION": txn.result_description or "",
+            "LITE_TRANSACTIONINDEX": txn.transaction_index or "",
+            "LITE_TRANSACTIONDATE": created_str,
+            "LITE_BANKREFERENCE": txn.bank_reference or "",
+            "LITE_ORDER_AUTHORISATIONCODE": txn.authorisation_code or "",
+            "LITE_PAYMENT_CARD_BIN": txn.card_bin or "",
+            "LITE_ORDER_AMOUNT": amount_minor,
+            "LITE_ORDER_LINEITEMS_AMOUNT_1": amount_minor,
+            "LITE_ORDER_LINEITEMS_QUANTITY_1": "1",
+            "LITE_ORDER_LINEITEMS_PRODUCT_1": "Order",
+            "LITE_CURRENCY_ALPHACODE": txn.currency or "USD",
+            "ECOM_PAYMENT_CARD_NUMBER": txn.masked_pan or "",
+            "ECOM_PAYMENT_CARD_PROTOCOLS": "IVERI",
+            "ECOM_TRANSACTIONCOMPLETE": "False",
+        }
+
+    def _transaction_to_record(self, txn: Any, application_id: str) -> Dict[str, Any]:
+        result_code = txn.result_code or ""
+        status_label, message = _RESULT_STATUS.get(result_code, _DEFAULT_STATUS)
+
+        # Override status label from stored model status for non-terminal transactions
+        if not result_code:
+            if txn.status == "APPROVED":
+                status_label, message = _RESULT_STATUS["0"]
+            elif txn.status == "DECLINED":
+                status_label, message = _RESULT_STATUS["4"]
+
+        return {
+            "status": status_label,
+            "message": message,
+            "gateway_response": self._build_gateway_response(txn, application_id),
+        }
 
     def handle(self, *args: Any, **options: Any) -> None:
-        from cbz_integration.models import CBZTransaction  # noqa: PLC0415
+        from cbz_integration.models import CBZTransaction, CBZConfig  # noqa: PLC0415
 
-        qs = CBZTransaction.objects.select_related("booking").order_by("created_at")
+        # Get application ID from active config (used in gateway_response reconstruction)
+        config = CBZConfig.objects.filter(is_active=True).first()
+        application_id = config.application_id if config else ""
 
-        # ── Filters ──
+        qs = CBZTransaction.objects.order_by("created_at")
+
+        # ── Filters ──────────────────────────────────────────────────
         if options["status"]:
             statuses = [s.strip().upper() for s in options["status"].split(",")]
             valid = {c[0] for c in CBZTransaction.TransactionStatus.choices}
@@ -182,104 +202,42 @@ class Command(BaseCommand):
             qs = qs.filter(payment_type=options["payment_type"])
 
         if options["since"]:
-            since_dt = self._parse_date(options["since"], "since")
-            qs = qs.filter(created_at__gte=since_dt)
+            qs = qs.filter(created_at__gte=self._parse_date(options["since"], "since"))
 
         if options["until"]:
-            until_dt = self._parse_date(options["until"], "until")
-            qs = qs.filter(created_at__date__lte=until_dt.date())
+            qs = qs.filter(created_at__date__lte=self._parse_date(options["until"], "until").date())
 
         if options["limit"]:
             qs = qs[: options["limit"]]
 
-        # ── Serialise ──
+        # ── Build output ──────────────────────────────────────────────
         records: List[Dict[str, Any]] = [
-            self._transaction_to_dict(txn, options["include_gateway_response"])
-            for txn in qs
+            self._transaction_to_record(txn, application_id) for txn in qs
         ]
 
-        total = len(records)
-        approved = sum(1 for r in records if r.get("status") == "APPROVED")
-        declined = sum(1 for r in records if r.get("status") == "DECLINED")
-        failed = sum(1 for r in records if r.get("status") in ("FAILED", "PENDING", "INITIATED"))
+        text = json.dumps(records, indent=2, ensure_ascii=False)
 
-        # ── Write ──
-        fmt = options["format"]
         outfile = options["output"]
-
-        if fmt == "json":
-            self._write_json(records, outfile, options["pretty"])
-        else:
-            self._write_csv(records, outfile, options["include_gateway_response"])
-
-        # Summary to stderr so it doesn't pollute stdout/file output
-        summary_lines = [
-            "",
-            "── UAT Export Summary ──────────────────────────",
-            f"  Total records  : {total}",
-            f"  Approved       : {approved}",
-            f"  Declined       : {declined}",
-            f"  Pending/Failed : {failed}",
-            f"  Format         : {fmt.upper()}",
-            f"  Output         : {outfile or 'stdout'}",
-            f"  Generated at   : {dj_tz.now().isoformat()}",
-            "────────────────────────────────────────────────",
-            "",
-        ]
-        self.stderr.write(self.style.SUCCESS("\n".join(summary_lines)))
-
-    # ─── Output writers ───────────────────────────────────────────────
-
-    def _write_json(
-        self,
-        records: List[Dict[str, Any]],
-        outfile: Optional[str],
-        pretty: bool,
-    ) -> None:
-        indent = 2 if pretty else None
-        payload = {
-            "generated_at": dj_tz.now().isoformat(),
-            "record_count": len(records),
-            "transactions": records,
-        }
-        text = json.dumps(payload, indent=indent, ensure_ascii=False)
         if outfile:
             with open(outfile, "w", encoding="utf-8") as fh:
                 fh.write(text)
                 fh.write("\n")
-            self.stdout.write(f"Written to {outfile}")
+            self.stdout.write(self.style.SUCCESS(f"Written to {outfile}"))
         else:
             sys.stdout.write(text)
             sys.stdout.write("\n")
 
-    def _write_csv(
-        self,
-        records: List[Dict[str, Any]],
-        outfile: Optional[str],
-        include_gateway_response: bool,
-    ) -> None:
-        if not records:
-            self.stderr.write(self.style.WARNING("No records to export."))
-            return
-
-        fieldnames = list(records[0].keys())
-
-        def _write(fh: Any) -> None:
-            writer = csv.DictWriter(fh, fieldnames=fieldnames)
-            writer.writeheader()
-            for row in records:
-                # Flatten gateway_response dict → JSON string for CSV cells
-                if "gateway_response" in row and isinstance(row["gateway_response"], dict):
-                    row = dict(row)
-                    row["gateway_response"] = json.dumps(row["gateway_response"])
-                writer.writerow(row)
-
-        if outfile:
-            with open(outfile, "w", newline="", encoding="utf-8") as fh:
-                _write(fh)
-            self.stdout.write(f"Written to {outfile}")
-        else:
-            import io
-            buf = io.StringIO()
-            _write(buf)
-            sys.stdout.write(buf.getvalue())
+        # Summary to stderr
+        approved = sum(1 for r in records if r["status"] == "success")
+        failed = sum(1 for r in records if r["status"] == "fail")
+        errored = sum(1 for r in records if r["status"] == "error")
+        self.stderr.write(self.style.SUCCESS(
+            f"\n── UAT Export ─────────────────────────────────\n"
+            f"  Total    : {len(records)}\n"
+            f"  Success  : {approved}\n"
+            f"  Fail     : {failed}\n"
+            f"  Error    : {errored}\n"
+            f"  Output   : {outfile or 'stdout'}\n"
+            f"  Generated: {dj_tz.now().isoformat()}\n"
+            f"────────────────────────────────────────────────\n"
+        ))

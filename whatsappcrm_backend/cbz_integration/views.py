@@ -300,10 +300,14 @@ def _apply_gateway_result_to_transaction(
 def _scrub_pci_fields(response: Dict[str, Any]) -> Dict[str, Any]:
     """Return a copy of the response with PCI-sensitive fields removed."""
     SENSITIVE_KEYS = {
+        # REST API keys
         'PAN', 'pan', 'CardNumber', 'card_number',
         'CVV', 'cvv', 'CardSecurityCode', 'card_security_code',
         'Password', 'password', 'Secret', 'secret',
         'Token', 'token', 'AccessToken', 'access_token',
+        # iVeri Lite — only scrub the CVV field; ECOM_PAYMENT_CARD_NUMBER is
+        # already pre-masked by iVeri (e.g. "4242........4242") and is safe to store
+        'ECOM_PAYMENT_CARD_VERIFICATION',
     }
     if not isinstance(response, dict):
         return response
@@ -1248,32 +1252,85 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
     """
     POST /crm-api/payments/cbz/callback/
 
-    Receives out-of-band transaction notifications from iVeri.
-    iVeri sends these for async transaction results (e.g., EcoCash delayed approval).
+    Handles iVeri out-of-band callback notifications in TWO formats:
 
-    Status codes:
-      "0"   → SUCCESS (approved)
+    1. iVeri Lite (hosted payment page) — flat form-POST with LITE_*/ECOM_* keys:
+       - MERCHANTREFERENCE        → merchant_reference (transaction lookup)
+       - LITE_PAYMENT_CARD_STATUS → result code ("0"/"1"/"4"/"255")
+       - LITE_TRANSACTIONINDEX    → transaction_index
+       - LITE_BANKREFERENCE       → bank_reference
+       - ECOM_CONSUMERORDERID     → consumer_order_id
+       - LITE_PAYMENT_CARD_BIN    → card_bin
+       - LITE_ORDER_AUTHORISATIONCODE → authorisation_code
+       - LITE_RESULT_DESCRIPTION  → result_description
+       Detected when payload contains "LITE_PAYMENT_CARD_STATUS".
+
+    2. iVeri REST — JSON body with nested Transaction object:
+       - Transaction.MerchantReference, Transaction.ResultCode, etc.
+       Detected when payload contains "Transaction".
+
+    Status codes (both formats use same numeric values):
+      "0"   → SUCCESS — mark APPROVED
       "1"   → ERROR / timeout — leave PENDING for reconciliation
-      "4"   → DECLINED — terminal, update to DECLINED
-      "255" → INVALID_CARD — terminal, update to DECLINED
-      other → DECLINED as safe default
+      "4"   → DECLINED — terminal failure
+      "255" → INVALID_CARD — terminal failure
     """
-    try:
-        payload = json.loads(request.body.decode('utf-8'))
-    except Exception:
-        logger.warning("CBZ callback: invalid JSON received")
-        return JsonResponse({"error": "Invalid JSON"}, status=400)
+    # ── Parse incoming body (JSON or form-encoded) ──────────────────
+    payload: Dict[str, Any] = {}
+    content_type = request.content_type or ''
+    if 'application/json' in content_type:
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            logger.warning("CBZ callback: invalid JSON body")
+            return JsonResponse({"error": "Invalid JSON"}, status=400)
+    elif 'application/x-www-form-urlencoded' in content_type or 'multipart/form-data' in content_type:
+        payload = dict(request.POST)
+        # QueryDict gives lists; flatten single-value lists
+        payload = {k: (v[0] if isinstance(v, list) and len(v) == 1 else v) for k, v in payload.items()}
+    else:
+        # Attempt JSON first, fall back to form data
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            payload = dict(request.POST)
+            payload = {k: (v[0] if isinstance(v, list) and len(v) == 1 else v) for k, v in payload.items()}
 
     logger.info(
         "CBZ callback received",
-        extra={"payload_preview": json.dumps(payload)[:500]},
+        extra={"payload_preview": str(payload)[:500]},
     )
 
-    txn_data = payload.get('Transaction', {})
-    merchant_ref = txn_data.get('MerchantReference')
+    # ── Detect format and extract normalised fields ──────────────────
+    is_lite_format = 'LITE_PAYMENT_CARD_STATUS' in payload
+
+    if is_lite_format:
+        merchant_ref = payload.get('MERCHANTREFERENCE') or payload.get('MerchantReference')
+        result_code = str(payload.get('LITE_PAYMENT_CARD_STATUS') or '')
+        transaction_index = payload.get('LITE_TRANSACTIONINDEX')
+        bank_reference = payload.get('LITE_BANKREFERENCE')
+        consumer_order_id = payload.get('ECOM_CONSUMERORDERID')
+        card_bin = payload.get('LITE_PAYMENT_CARD_BIN')
+        authorisation_code = payload.get('LITE_ORDER_AUTHORISATIONCODE')
+        result_description = payload.get('LITE_RESULT_DESCRIPTION', '')
+        # ECOM_PAYMENT_CARD_NUMBER is pre-masked by iVeri (e.g. "4242........4242") — safe to store
+        masked_pan_from_callback = payload.get('ECOM_PAYMENT_CARD_NUMBER') or ''
+        callback_format = 'IVERI_LITE'
+    else:
+        txn_data = payload.get('Transaction', {})
+        merchant_ref = txn_data.get('MerchantReference')
+        result_code = str(txn_data.get('ResultCode') or '')
+        transaction_index = txn_data.get('TransactionIndex')
+        bank_reference = txn_data.get('BankReference')
+        consumer_order_id = txn_data.get('ConsumerOrderID')
+        card_bin = txn_data.get('CardBin') or txn_data.get('BIN')
+        authorisation_code = txn_data.get('AuthorisationCode')
+        result_description = txn_data.get('ResultDescription', '')
+        masked_pan_from_callback = ''
+        callback_format = 'IVERI_REST'
 
     if not merchant_ref:
-        logger.warning("CBZ callback: no MerchantReference in payload")
+        logger.warning("CBZ callback (%s): no MerchantReference in payload", callback_format)
         return JsonResponse({"error": "Missing MerchantReference"}, status=400)
 
     txn = CBZTransaction.objects.filter(merchant_reference=merchant_ref).first()
@@ -1281,27 +1338,29 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
         logger.warning("CBZ callback: transaction %s not found", merchant_ref)
         return JsonResponse({"error": "Transaction not found"}, status=404)
 
-    result_code = str(txn_data.get('ResultCode') or '')
-    status_text = txn_data.get('Status', '')
     status_label = IVERI_STATUS_MAP.get(result_code, 'UNKNOWN')
+    old_status = txn.status
 
-    # Persist all new data from callback, always storing the raw payload
+    # ── Persist all callback data ────────────────────────────────────
     txn.result_code = result_code
-    txn.result_description = txn_data.get('ResultDescription', '')
-    txn.transaction_index = txn_data.get('TransactionIndex') or txn.transaction_index
-    txn.authorisation_code = txn_data.get('AuthorisationCode') or txn.authorisation_code
-    txn.bank_reference = txn_data.get('BankReference') or txn.bank_reference
-    txn.consumer_order_id = txn_data.get('ConsumerOrderID') or txn.consumer_order_id
-    txn.card_bin = txn_data.get('CardBin') or txn_data.get('BIN') or txn.card_bin
+    txn.result_description = result_description
+    txn.transaction_index = transaction_index or txn.transaction_index
+    txn.authorisation_code = authorisation_code or txn.authorisation_code
+    txn.bank_reference = bank_reference or txn.bank_reference
+    txn.consumer_order_id = consumer_order_id or txn.consumer_order_id
+    txn.card_bin = card_bin or txn.card_bin
+    if masked_pan_from_callback:
+        txn.masked_pan = masked_pan_from_callback
     txn.gateway_response = _scrub_pci_fields(payload)
 
-    if status_label == 'SUCCESS' and (result_code == RESULT_CODE_SUCCESS and status_text == STATUS_APPROVED):
-        # Idempotent: skip if already approved, still persist raw payload
+    # ── Update transaction status ────────────────────────────────────
+    if result_code == RESULT_CODE_SUCCESS:
+        # Idempotent: skip re-recording if already approved
         if txn.status == CBZTransaction.TransactionStatus.APPROVED:
             txn.save()
             logger.info(
-                "CBZ callback: transaction %s already APPROVED — skipping payment record",
-                merchant_ref,
+                "CBZ callback (%s): transaction %s already APPROVED — skipping payment record",
+                callback_format, merchant_ref,
             )
         else:
             txn.status = CBZTransaction.TransactionStatus.APPROVED
@@ -1314,14 +1373,15 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
                 extra={
                     "transaction_id": str(txn.id),
                     "merchant_reference": merchant_ref,
-                    "old_status": "PENDING",
+                    "old_status": old_status,
                     "new_status": "APPROVED",
                     "gateway": "IVERI",
+                    "callback_format": callback_format,
                     "result_code": result_code,
                 },
             )
-    elif status_label == 'ERROR' or result_code in IVERI_RETRIABLE_CODES:
-        # Transient gateway error — leave transaction PENDING for reconciliation
+    elif result_code in IVERI_RETRIABLE_CODES:
+        # Transient error (code "1") — leave PENDING for reconciliation
         if txn.status in {
             CBZTransaction.TransactionStatus.INITIATED,
             CBZTransaction.TransactionStatus.PENDING,
@@ -1329,8 +1389,8 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
             txn.status = CBZTransaction.TransactionStatus.PENDING
         txn.save()
         logger.warning(
-            "CBZ callback: retriable error on %s (code=%s) — leaving PENDING",
-            merchant_ref, result_code,
+            "CBZ callback (%s): retriable error on %s (code=%s, desc=%s) — leaving PENDING",
+            callback_format, merchant_ref, result_code, result_description,
         )
     else:
         # DECLINED (4), INVALID_CARD (255), or unknown — terminal failure
@@ -1345,11 +1405,13 @@ def cbz_callback_view(request: HttpRequest) -> JsonResponse:
             extra={
                 "transaction_id": str(txn.id),
                 "merchant_reference": merchant_ref,
-                "old_status": "PENDING",
+                "old_status": old_status,
                 "new_status": "DECLINED",
                 "gateway": "IVERI",
+                "callback_format": callback_format,
                 "result_code": result_code,
                 "status_label": status_label,
+                "result_description": result_description,
             },
         )
 
