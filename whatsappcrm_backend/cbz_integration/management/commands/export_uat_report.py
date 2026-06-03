@@ -91,6 +91,12 @@ class Command(BaseCommand):
             help="Only include transactions created on or before this date",
         )
         parser.add_argument(
+            "--today",
+            action="store_true",
+            default=False,
+            help="Only include transactions created today (overrides --since/--until)",
+        )
+        parser.add_argument(
             "--limit",
             type=int,
             default=None,
@@ -201,11 +207,15 @@ class Command(BaseCommand):
         if options["payment_type"]:
             qs = qs.filter(payment_type=options["payment_type"])
 
-        if options["since"]:
-            qs = qs.filter(created_at__gte=self._parse_date(options["since"], "since"))
+        if options["today"]:
+            today = dj_tz.localdate()
+            qs = qs.filter(created_at__date=today)
+        else:
+            if options["since"]:
+                qs = qs.filter(created_at__gte=self._parse_date(options["since"], "since"))
 
-        if options["until"]:
-            qs = qs.filter(created_at__date__lte=self._parse_date(options["until"], "until").date())
+            if options["until"]:
+                qs = qs.filter(created_at__date__lte=self._parse_date(options["until"], "until").date())
 
         if options["limit"]:
             qs = qs[: options["limit"]]
