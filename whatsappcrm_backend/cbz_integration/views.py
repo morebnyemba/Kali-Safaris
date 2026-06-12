@@ -1134,12 +1134,28 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
     if not merchant_reference:
         return JsonResponse({"success": False, "message": "Missing field: merchant_reference"}, status=400)
 
+    # PaRes is the bank ACS authentication response forwarded from the browser
+    pares = (payload.get('pares') or payload.get('PaRes') or '').strip()
+
     txn = CBZTransaction.objects.filter(
         merchant_reference=merchant_reference,
         payment_type=CBZTransaction.PaymentType.CARD,
     ).first()
     if not txn:
         return JsonResponse({"success": False, "message": "Transaction not found"}, status=404)
+
+    if pares:
+        logger.info(
+            "3DS PaRes received | ref=%s pares_len=%d",
+            merchant_reference, len(pares),
+        )
+        # Store PaRes in the transaction gateway response for audit
+        existing = txn.gateway_response or {}
+        if isinstance(existing, dict):
+            existing['_3ds_pares_received'] = True
+            existing['_3ds_pares_len'] = len(pares)
+            txn.gateway_response = existing
+            txn.save(update_fields=['gateway_response'])
 
     if txn.status == CBZTransaction.TransactionStatus.APPROVED:
         resolved_booking_reference = None
@@ -1158,7 +1174,34 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
 
     client = _build_client()
     try:
-        response = client.query_transaction(merchant_reference=merchant_reference)
+        # If PaRes and TransactionIndex are available, submit them to iVeri to
+        # complete the 3DS authentication. This is the proper 3DS v1 completion
+        # flow (liability shifts to the issuer on success).
+        if pares and txn.transaction_index:
+            logger.info(
+                "Submitting 3DS PaRes to iVeri | ref=%s txn_idx=%s",
+                merchant_reference, txn.transaction_index,
+            )
+            try:
+                response = client.complete_3ds_auth(
+                    transaction_index=txn.transaction_index,
+                    merchant_reference=merchant_reference,
+                    pares=pares,
+                    amount=txn.amount,
+                    currency=txn.currency,
+                )
+            except Exception:
+                logger.warning(
+                    "3DS PaRes submission failed, falling back to query | ref=%s",
+                    merchant_reference, exc_info=True,
+                )
+                response = client.query_transaction(merchant_reference=merchant_reference)
+        else:
+            # No PaRes or TransactionIndex — query current status.
+            # iVeri may have already updated the transaction via server-to-server
+            # notification from the ACS (requires NotificationURL to be configured).
+            response = client.query_transaction(merchant_reference=merchant_reference)
+
         result = IVeriClient.get_result(response)
         is_approved = IVeriClient.is_approved(response)
         is_pending = IVeriClient.is_pending(response)

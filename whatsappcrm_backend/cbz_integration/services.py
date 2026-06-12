@@ -29,6 +29,8 @@ from .constants import (
     COMMAND_LOOKUP,
     COMMAND_VOID,
     ECI_ECOMMERCE,
+    ECI_3DS_AUTHENTICATED,
+    ECI_3DS_ATTEMPTED,
     RESULT_CODE_SUCCESS,
     STATUS_PENDING,
     STATUS_APPROVED,
@@ -475,6 +477,55 @@ class IVeriClient:
         logger.info(
             "Card debit | pan=%s amount=%s %s ref=%s",
             masked, amount, currency, merchant_reference,
+        )
+
+        return self._execute(payload)
+
+    def complete_3ds_auth(
+        self,
+        transaction_index: str,
+        merchant_reference: str,
+        pares: str,
+        amount: Decimal,
+        currency: str,
+        authenticated: bool = True,
+    ) -> Dict[str, Any]:
+        """
+        Complete a 3DS v1 authentication by submitting PaRes to iVeri.
+
+        Called after the ACS redirects the browser back to the merchant's
+        TermUrl with PaRes in the POST body. Submits PaRes to iVeri to
+        finalize authentication and capture funds.
+
+        Args:
+            transaction_index: TransactionIndex from the original debit response
+            merchant_reference: Original merchant reference
+            pares: Payment Authentication Response from ACS (base64-encoded)
+            amount: Original transaction amount
+            currency: Currency code
+            authenticated: True if 3DS fully authenticated (ECI 5), False for attempted (ECI 6)
+
+        Returns:
+            iVeri API response dict
+        """
+        amount_cents = str(int(amount * 100))
+        eci = ECI_3DS_AUTHENTICATED if authenticated else ECI_3DS_ATTEMPTED
+
+        transaction_data = {
+            'Currency': currency,
+            'Amount': amount_cents,
+            'TransactionIndex': transaction_index,
+            'MerchantReference': merchant_reference,
+            'ECI': eci,
+            'ThreeDSecure': {
+                'PaRes': pares,
+            },
+        }
+
+        payload = self._build_payload(COMMAND_DEBIT, transaction_data)
+        logger.info(
+            "3DS complete | txn=%s ref=%s eci=%s pares_len=%d",
+            transaction_index, merchant_reference, eci, len(pares),
         )
 
         return self._execute(payload)
