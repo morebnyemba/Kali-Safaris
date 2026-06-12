@@ -33,8 +33,10 @@ COMMAND_LOOKUP = 'Lookup'
 MODE_TEST = 'Test'
 MODE_LIVE = 'LIVE'
 
-# ECI for e-commerce (Card Not Present)
-ECI_ECOMMERCE = '7'  # Secure e-commerce with SSL
+# ECI (Electronic Commerce Indicator) values
+ECI_ECOMMERCE = '7'           # Card Not Present, no 3DS authentication
+ECI_3DS_AUTHENTICATED = '5'   # Fully 3DS authenticated — liability shifts to issuer
+ECI_3DS_ATTEMPTED = '6'       # 3DS attempted but not completed (e.g. card not enrolled)
 
 # Result codes
 RESULT_CODE_SUCCESS = '0'

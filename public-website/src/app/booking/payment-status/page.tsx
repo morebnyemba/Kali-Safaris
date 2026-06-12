@@ -60,6 +60,9 @@ function PaymentStatusPageContent() {
 
   const resourcePath = useMemo(() => searchParams.get('resourcePath') ?? '', [searchParams]);
 
+  // PaRes from the ACS callback (set by /api/3ds/callback route handler after ACS redirect)
+  const paRes = useMemo(() => searchParams.get('pares') ?? '', [searchParams]);
+
   const effectiveReference = useMemo(() => {
     const queryRef = searchParams.get('ref') ?? '';
     if (queryRef) {
@@ -123,7 +126,11 @@ function PaymentStatusPageContent() {
               headers: {
                 'Content-Type': 'application/json',
               },
-              body: JSON.stringify({ merchant_reference: reference }),
+              body: JSON.stringify({
+                merchant_reference: reference,
+                // Forward PaRes from ACS to backend for 3DS completion
+                ...(paRes ? { pares: paRes } : {}),
+              }),
             })
         : await fetch(`${API_BASE}/crm-api/payments/cbz/query/${reference}/`);
 
@@ -182,7 +189,7 @@ function PaymentStatusPageContent() {
       setStatus('failed');
       setMessage('Unable to reach payment services right now. Please try again.');
     }
-  }, [cardProvider, channel, effectiveReference, resourcePath]);
+  }, [cardProvider, channel, effectiveReference, paRes, resourcePath]);
 
   useEffect(() => {
     if (!effectiveReference && !resourcePath) {

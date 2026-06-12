@@ -679,12 +679,19 @@ export default function BookingModal({
     }
 
     const paReq = challenge.PaReq || challenge.PAREQ || '';
-    const md = challenge.MD || merchantReference;
-    const termUrl = challenge.TermUrl || challenge.TermURL || `${window.location.origin}/booking/payment-status?channel=card${launchedFromWhatsApp ? `&source=whatsapp${activeBookingReference ? `&booking_reference=${encodeURIComponent(activeBookingReference)}` : ''}` : ''}`;
+    // MD is set to merchantReference so our callback route can extract it after ACS redirect
+    const md = merchantReference;
+    // TermUrl points to our API route handler so it can receive the ACS POST body (PaRes + MD)
+    // and then redirect to the payment-status page as a GET request.
+    const termUrl = `${window.location.origin}/api/3ds/callback`;
 
     setSessionItem(PENDING_3DS_REF_KEY, merchantReference);
+    setSessionItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
     if (activeBookingReference) {
       setSessionItem(PENDING_BOOKING_REFERENCE_KEY, activeBookingReference);
+    }
+    if (launchedFromWhatsApp) {
+      setSessionItem(RETURN_TO_WHATSAPP_KEY, '1');
     }
     setLastMerchantReference(merchantReference);
 
