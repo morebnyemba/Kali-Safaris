@@ -1099,22 +1099,37 @@ export default function BookingModal({
               </svg>
             </div>
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-              Book Your Cruise
+              {checkoutStep === 'details' ? 'Your Details' : 'Secure Payment'}
             </h2>
             <p className="text-gray-600">
               {cruiseType}
             </p>
           </div>
 
-          <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
-            <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#ff9800] text-black' : 'bg-gray-100 text-gray-600'}`}>
-              1. Booking Details
-            </span>
-            <span className="text-gray-400"><FaArrowRight size={12} /></span>
-            <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#ff9800] text-black' : 'bg-gray-100 text-gray-600'}`}>
-              2. Secure Payment
-            </span>
-          </div>
+          {isPagePresentation && (
+            <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
+              <span className="rounded-full bg-gray-100 text-gray-500 px-3 py-1 line-through">1. Choose Cruise</span>
+              <span className="text-gray-400"><FaArrowRight size={12} /></span>
+              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-500 line-through'}`}>
+                2. Your Details
+              </span>
+              <span className="text-gray-400"><FaArrowRight size={12} /></span>
+              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                3. Payment
+              </span>
+            </div>
+          )}
+          {!isPagePresentation && (
+            <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
+              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                1. Your Details
+              </span>
+              <span className="text-gray-400"><FaArrowRight size={12} /></span>
+              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                2. Payment
+              </span>
+            </div>
+          )}
 
           {isTestMode && (
             <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -1545,7 +1560,7 @@ export default function BookingModal({
                 onClick={onClose}
                 className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-full hover:bg-gray-50 transition"
               >
-                Cancel
+                {isPagePresentation && checkoutStep === 'details' ? '← Back to Cruises' : 'Cancel'}
               </button>
               {checkoutStep === 'payment' && !hasExistingBooking && (
                 <button
