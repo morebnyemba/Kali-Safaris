@@ -76,6 +76,19 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* Kali Safaris brand tokens */
+  --ks-white: #FFFFFF;
+  --ks-off-white: #FFF9F5;
+  --ks-black: #0A0A0A;
+  --ks-dark: #1A1A1A;
+  --ks-red: #C8102E;
+  --ks-red-light: #E8173A;
+  --ks-red-dark: #A00D24;
+  --ks-orange: #E8600A;
+  --ks-orange-light: #F47B1A;
+  --ks-amber: #C8880A;
+  --ks-amber-light: #E09A18;
 }
 
 .dark {

@@ -95,8 +95,25 @@ const WIDGET_CSS = `
   /* Hide the brand logo row — we show our own icons in the header */
   .wpwl-wrapper-brand { display: none; }
 
-  /* Error messages from widget */
-  .wpwl-hint { color: #dc2626; font-size: 0.75rem; margin-top: 0.25rem; }
+  /* Validation error messages from widget */
+  .wpwl-hint {
+    display: block;
+    margin-top: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #b91c1c;
+    background: #fef2f2;
+    border-left: 3px solid #ef4444;
+    border-radius: 0 0.375rem 0.375rem 0;
+  }
+
+  /* Highlight field with error */
+  .wpwl-has-error .wpwl-control,
+  .wpwl-has-error input.wpwl-control {
+    border-color: #ef4444;
+    background: #fff5f5;
+  }
 `;
 
 function injectWidgetStyles() {
@@ -107,10 +124,11 @@ function injectWidgetStyles() {
   document.head.appendChild(style);
 }
 
-function setWpwlOptions() {
+function setWpwlOptions(onWidgetError: (msg: string, expired: boolean) => void) {
   // Must be set on window BEFORE the paymentWidgets.js script loads
   (window as Window & { wpwlOptions?: object }).wpwlOptions = {
     style: 'plain',
+    requireCvv: false,
     iframeStyles: {
       'card-number-placeholder': { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
       'cvv-placeholder':         { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
@@ -118,9 +136,24 @@ function setWpwlOptions() {
     labels: {
       cardHolder:  'Name on Card',
       cardNumber:  'Card Number',
-      cvv:         'CVV / CVC',
-      expiryDate:  'Expiry (MM/YY)',
+      cvv:         'CVV / CVC (optional for some cards)',
+      expiryDate:  'Expiry Date (MM/YY)',
       submit:      'Pay Securely',
+    },
+    onError: function(error: { name?: string; code?: string; message?: string }) {
+      const name = error?.name || '';
+      const code = error?.code || '';
+      const msg  = error?.message || '';
+      const isExpired =
+        name === 'InvalidCheckoutIdError' ||
+        code === '200.300.404' ||
+        msg.includes('No payment session found');
+      onWidgetError(
+        isExpired
+          ? 'Your payment session has expired. Sessions last 30 minutes — please go back and start a new payment.'
+          : `Payment error: ${msg || code || name || 'Unknown error'}. Please try again.`,
+        isExpired,
+      );
     },
   };
 }
@@ -130,10 +163,12 @@ function CardCheckoutContent() {
   const searchParams = useSearchParams();
   const [scriptLoaded, setScriptLoaded] = useState(false);
   const [scriptError, setScriptError] = useState('');
+  const [widgetError, setWidgetError] = useState('');
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   const checkoutId = (searchParams.get('checkoutId') || '').trim();
   const merchantReference = (searchParams.get('merchantRef') || '').trim();
-  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX ZIMSWITCH').trim();
+  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX').trim();
   const widgetScriptUrl = (searchParams.get('widget') || '').trim();
   const integrity = (searchParams.get('integrity') || '').trim();
   let returnUrl = (searchParams.get('returnUrl') || '/booking/payment-status?channel=card').trim();
@@ -165,7 +200,10 @@ function CardCheckoutContent() {
 
     // Inject styles and set options BEFORE the script loads
     injectWidgetStyles();
-    setWpwlOptions();
+    setWpwlOptions((msg, expired) => {
+      setWidgetError(msg);
+      setSessionExpired(expired);
+    });
 
     const existing = document.querySelector('script[data-copyandpay-widget="1"]');
     if (existing) existing.remove();
@@ -234,7 +272,9 @@ function CardCheckoutContent() {
             <FaCcVisa className="text-white text-2xl" title="Visa" />
             <FaCcMastercard className="text-white text-2xl" title="Mastercard" />
             <FaCcAmex className="text-white text-2xl" title="American Express" />
-            <span className="rounded bg-white/15 px-2 py-0.5 text-white text-[10px] font-bold tracking-wider">ZIMSWITCH</span>
+            {brands.includes('ZIMSWITCH') && (
+              <span className="rounded bg-white/15 px-2 py-0.5 text-white text-[10px] font-bold tracking-wider">ZIMSWITCH</span>
+            )}
           </div>
         </div>
 
@@ -275,8 +315,29 @@ function CardCheckoutContent() {
             </div>
           )}
 
+          {/* Widget-level error (e.g. session expired) */}
+          {widgetError && (
+            <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-100 bg-red-50 px-4 py-4">
+              <span className="mt-0.5 flex-shrink-0 text-red-500">⚠</span>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-red-700">
+                  {sessionExpired ? 'Payment session expired' : 'Payment error'}
+                </p>
+                <p className="mt-0.5 text-xs text-red-600">{widgetError}</p>
+                {sessionExpired && (
+                  <Link
+                    href="/booking"
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#001a33] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#003366]"
+                  >
+                    <FaArrowLeft className="text-[10px]" /> Start a new payment
+                  </Link>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* OPPWA widget — styled via wpwlOptions + injected CSS above */}
-          <form action={returnUrl} className="paymentWidgets" data-brands={brands} />
+          {!widgetError && <form action={returnUrl} className="paymentWidgets" data-brands={brands} />}
 
           <div className="mt-6 flex flex-col items-center gap-4">
             <Link
