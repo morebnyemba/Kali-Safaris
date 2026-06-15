@@ -55,7 +55,7 @@ export default function GalleryPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         <div className="relative text-center text-white px-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-[#ffba5a] font-semibold mb-3">
+          <p className="text-sm uppercase tracking-[0.3em] text-[#E09A18] font-semibold mb-3">
             Explore
           </p>
           <h1 className="text-4xl md:text-6xl font-black drop-shadow-lg">
@@ -65,10 +65,10 @@ export default function GalleryPage() {
       </section>
 
       {/* Gallery Grid */}
-      <section className="py-16 bg-gradient-to-b from-white via-[#fff7ec] to-white relative overflow-hidden">
+      <section className="py-16 bg-gradient-to-b from-white via-[#FFF9F5] to-white relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-10 right-10 w-48 h-48 bg-[#ffba5a]/15 blur-3xl rounded-full" />
-          <div className="absolute bottom-10 left-10 w-56 h-56 bg-[#ff9800]/10 blur-3xl rounded-full" />
+          <div className="absolute top-10 right-10 w-48 h-48 bg-[#E09A18]/15 blur-3xl rounded-full" />
+          <div className="absolute bottom-10 left-10 w-56 h-56 bg-[#E8600A]/10 blur-3xl rounded-full" />
         </div>
 
         <div className="container mx-auto px-6 relative">
@@ -80,8 +80,8 @@ export default function GalleryPage() {
                 onClick={() => setActiveCategory(cat.key)}
                 className={`px-4 py-2 rounded-full text-sm font-semibold transition-all duration-300 ${
                   activeCategory === cat.key
-                    ? "bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black shadow-lg"
-                    : "bg-white/60 backdrop-blur-md border border-white/50 text-gray-700 hover:border-[#ff9800]/50"
+                    ? "bg-gradient-to-r from-[#E09A18] to-[#E8600A] text-black shadow-lg"
+                    : "bg-white/60 backdrop-blur-md border border-white/50 text-gray-700 hover:border-[#E8600A]/50"
                 }`}
               >
                 {cat.icon && <cat.icon size={14} className="inline mr-1" />}{cat.label}

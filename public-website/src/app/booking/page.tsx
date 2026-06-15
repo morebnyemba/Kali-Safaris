@@ -210,7 +210,7 @@ function BookingPageContent() {
                   </a>
                   <a
                     href="tel:+263712629336"
-                    className="flex items-center justify-center gap-3 p-4 rounded-xl bg-[#E8600A]/10 border border-[#ff9800]/20 hover:bg-[#ff9800] hover:text-black text-[#E8600A] transition-all duration-300 font-semibold"
+                    className="flex items-center justify-center gap-3 p-4 rounded-xl bg-[#E8600A]/10 border border-[#E8600A]/20 hover:bg-[#E8600A] hover:text-black text-[#E8600A] transition-all duration-300 font-semibold"
                   >
                     <FaPhone size={18} />
                     +263 712 629 336
