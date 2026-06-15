@@ -168,7 +168,7 @@ function CardCheckoutContent() {
 
   const checkoutId = (searchParams.get('checkoutId') || '').trim();
   const merchantReference = (searchParams.get('merchantRef') || '').trim();
-  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX ZIMSWITCH').trim();
+  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX').trim();
   const widgetScriptUrl = (searchParams.get('widget') || '').trim();
   const integrity = (searchParams.get('integrity') || '').trim();
   const returnUrl = (searchParams.get('returnUrl') || '/booking/payment-status?channel=card').trim();
@@ -259,7 +259,9 @@ function CardCheckoutContent() {
             <FaCcVisa className="text-white text-2xl" title="Visa" />
             <FaCcMastercard className="text-white text-2xl" title="Mastercard" />
             <FaCcAmex className="text-white text-2xl" title="American Express" />
-            <span className="rounded bg-white/15 px-2 py-0.5 text-white text-[10px] font-bold tracking-wider">ZIMSWITCH</span>
+            {brands.includes('ZIMSWITCH') && (
+              <span className="rounded bg-white/15 px-2 py-0.5 text-white text-[10px] font-bold tracking-wider">ZIMSWITCH</span>
+            )}
           </div>
         </div>
 
