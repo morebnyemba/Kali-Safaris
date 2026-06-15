@@ -1,15 +1,15 @@
-import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaWhatsapp, FaFacebook, FaInstagram, FaTwitter, FaSun } from "react-icons/fa";
+import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaWhatsapp, FaFacebook, FaSun } from "react-icons/fa";
 import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
 
 export default function FooterSection() {
   const currentYear = new Date().getFullYear();
-  
+
   return (
-    <footer className="relative w-full bg-gradient-to-b from-[#001a33] via-[#003] to-[#000d1a] text-white overflow-hidden" id="contact">
+    <footer className="relative w-full bg-gradient-to-b from-[#0A0A0A] via-[#1A1A1A] to-[#0A0A0A] text-white overflow-hidden" id="contact">
       {/* Decorative background elements */}
       <div className="absolute inset-0 pointer-events-none opacity-10">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#ffba5a] rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#ff9800] rounded-full blur-3xl" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-[#C8102E] rounded-full blur-3xl" />
+        <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#E8600A] rounded-full blur-3xl" />
       </div>
 
       <div className="container mx-auto px-6 py-12 relative">
@@ -17,15 +17,15 @@ export default function FooterSection() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
           {/* Location Map */}
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#ffba5a] to-[#ff9800]">Our Location</h2>
+            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#E09A18] to-[#E8600A]">Our Location</h2>
             <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-              <iframe 
-                src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d15186.660309634595!2d25.827891!3d-17.9011077!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x194ffbfa993efc89%3A0x4ccf5857807bae76!2sKalai%20Safari!5e0!3m2!1sen!2szw!4v1695656987970!5m2!1sen!2szw" 
-                width="100%" 
-                height="250" 
-                style={{ border: 0 }} 
-                allowFullScreen 
-                loading="lazy" 
+              <iframe
+                src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d15186.660309634595!2d25.827891!3d-17.9011077!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x194ffbfa993efc89%3A0x4ccf5857807bae76!2sKalai%20Safari!5e0!3m2!1sen!2szw!4v1695656987970!5m2!1sen!2szw"
+                width="100%"
+                height="250"
+                style={{ border: 0 }}
+                allowFullScreen
+                loading="lazy"
                 referrerPolicy="no-referrer-when-downgrade"
                 title="Kalai Safari Location Map"
               />
@@ -34,30 +34,30 @@ export default function FooterSection() {
 
           {/* Contact Information */}
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#ffba5a] to-[#ff9800]">Contact Us</h2>
+            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#E09A18] to-[#E8600A]">Contact Us</h2>
             <div className="space-y-4">
-              <a 
-                href="https://maps.google.com/?q=Kalai+Safaris+Victoria+Falls" 
-                target="_blank" 
+              <a
+                href="https://maps.google.com/?q=Kalai+Safaris+Victoria+Falls"
+                target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-start gap-3 group hover:translate-x-1 transition-transform"
               >
-                <FaMapMarkerAlt className="text-[#ffba5a] mt-1 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="group-hover:text-[#ffba5a] transition">Kalai Safaris, riverside jetty next to Palm Lodge, Victoria Falls Zimbabwe</span>
+                <FaMapMarkerAlt className="text-[#E09A18] mt-1 flex-shrink-0 group-hover:scale-110 transition-transform" />
+                <span className="group-hover:text-[#E09A18] transition">Kalai Safaris, riverside jetty next to Palm Lodge, Victoria Falls Zimbabwe</span>
               </a>
-              <a 
-                href="tel:+263712629336" 
+              <a
+                href="tel:+263712629336"
                 className="flex items-center gap-3 group hover:translate-x-1 transition-transform"
               >
-                <FaPhone className="text-[#ffba5a] flex-shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="group-hover:text-[#ffba5a] transition">+263 712 629 336</span>
+                <FaPhone className="text-[#E09A18] flex-shrink-0 group-hover:scale-110 transition-transform" />
+                <span className="group-hover:text-[#E09A18] transition">+263 712 629 336</span>
               </a>
-              <a 
-                href="mailto:reservation@kalaisafaris.com" 
+              <a
+                href="mailto:reservation@kalaisafaris.com"
                 className="flex items-center gap-3 group hover:translate-x-1 transition-transform"
               >
-                <FaEnvelope className="text-[#ffba5a] flex-shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="group-hover:text-[#ffba5a] transition break-all">reservation@kalaisafaris.com</span>
+                <FaEnvelope className="text-[#E09A18] flex-shrink-0 group-hover:scale-110 transition-transform" />
+                <span className="group-hover:text-[#E09A18] transition break-all">reservation@kalaisafaris.com</span>
               </a>
             </div>
 
@@ -65,18 +65,18 @@ export default function FooterSection() {
             <div className="pt-4">
               <h3 className="text-lg font-semibold mb-3 text-white/90">Follow Us</h3>
               <div className="flex gap-3">
-                <a 
-                  href="https://www.facebook.com/KalaiSafari" 
-                  target="_blank" 
+                <a
+                  href="https://www.facebook.com/KalaiSafari"
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-[#ffba5a] hover:scale-110 transition-all duration-300"
+                  className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-[#E8600A] hover:scale-110 transition-all duration-300"
                   aria-label="Facebook"
                 >
                   <FaFacebook size={20} />
                 </a>
-                <a 
-                  href="https://wa.me/263712629336" 
-                  target="_blank" 
+                <a
+                  href="https://wa.me/263712629336"
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-[#25D366] hover:scale-110 transition-all duration-300"
                   aria-label="WhatsApp"
@@ -87,26 +87,26 @@ export default function FooterSection() {
             </div>
           </div>
 
-          {/* Quick Info & Hours */}
+          {/* Cruise Hours */}
           <div className="space-y-4">
-            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#ffba5a] to-[#ff9800]">Cruise Hours</h2>
+            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#E09A18] to-[#E8600A]">Cruise Hours</h2>
             <div className="space-y-3">
               <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <BsSunriseFill className="text-[#ffba5a] text-lg" />
+                <BsSunriseFill className="text-[#E09A18] text-lg" />
                 <div>
                   <p className="font-semibold text-white/90">Sunrise Cruise</p>
                   <p className="text-sm text-white/60">06:00 AM — 08:00 AM</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <FaSun className="text-[#ffba5a] text-lg" />
+                <FaSun className="text-[#E09A18] text-lg" />
                 <div>
                   <p className="font-semibold text-white/90">Lunch Cruise</p>
                   <p className="text-sm text-white/60">12:00 PM — 02:00 PM</p>
                 </div>
               </div>
               <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <BsSunsetFill className="text-[#ffba5a] text-lg" />
+                <BsSunsetFill className="text-[#E09A18] text-lg" />
                 <div>
                   <p className="font-semibold text-white/90">Sunset Cruise</p>
                   <p className="text-sm text-white/60">04:00 PM — After Sunset</p>
@@ -114,9 +114,9 @@ export default function FooterSection() {
               </div>
             </div>
             <div className="pt-4">
-              <a 
-                href="/booking" 
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
+              <a
+                href="/booking"
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#C8102E] hover:bg-[#E8173A] text-white font-bold transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 shadow-lg"
               >
                 Book a Cruise
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,14 +135,14 @@ export default function FooterSection() {
             </div>
             <div className="flex items-center gap-2">
               <span className="text-sm text-white/70">Powered by</span>
-              <a 
-                href="https://slykertech.co.zw" 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black font-bold text-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
+              <a
+                href="https://slykertech.co.zw"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#E09A18] to-[#E8600A] text-white font-bold text-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/>
+                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
                 </svg>
                 Slyker Tech Web Services
               </a>

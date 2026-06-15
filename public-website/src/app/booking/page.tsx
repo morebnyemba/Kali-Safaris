@@ -118,7 +118,7 @@ function BookingPageContent() {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         <div className="relative text-center text-white px-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-[#ffba5a] font-semibold mb-3">
+          <p className="text-sm uppercase tracking-[0.3em] text-[#E09A18] font-semibold mb-3">
             Reservations
           </p>
           <h1 className="text-4xl md:text-6xl font-black drop-shadow-lg mb-4">
@@ -131,15 +131,15 @@ function BookingPageContent() {
       </section>
 
       {/* Cruise Selection Cards */}
-      <section className="py-20 bg-gradient-to-b from-white via-[#fff7ec] to-white relative overflow-hidden">
+      <section className="py-20 bg-gradient-to-b from-white via-[#FFF9F5] to-white relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-10 left-10 w-48 h-48 bg-[#ffba5a]/15 blur-3xl rounded-full" />
-          <div className="absolute bottom-10 right-10 w-56 h-56 bg-[#ff9800]/10 blur-3xl rounded-full" />
+          <div className="absolute top-10 left-10 w-48 h-48 bg-[#E09A18]/15 blur-3xl rounded-full" />
+          <div className="absolute bottom-10 right-10 w-56 h-56 bg-[#E8600A]/10 blur-3xl rounded-full" />
         </div>
 
         <div className="container mx-auto px-6 relative">
           <div className="text-center mb-14">
-            <p className="text-sm uppercase tracking-[0.3em] text-[#ff9800] font-semibold mb-3">
+            <p className="text-sm uppercase tracking-[0.3em] text-[#E8600A] font-semibold mb-3">
               Choose Your Cruise
             </p>
             <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
@@ -166,7 +166,7 @@ function BookingPageContent() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                   <div className="absolute bottom-3 left-3">
-                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black shadow-sm">
+                    <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-[#C8102E] to-[#E8600A] text-black shadow-sm">
                       <cruise.Icon size={12} /> {cruise.price}
                     </span>
                   </div>
@@ -175,11 +175,11 @@ function BookingPageContent() {
                 {/* Card Content */}
                 <div className="p-5">
                   <h3 className="text-xl font-bold text-gray-900 mb-1">{cruise.title}</h3>
-                  <p className="text-sm text-[#ff9800] font-medium mb-3">{cruise.time}</p>
+                  <p className="text-sm text-[#E8600A] font-medium mb-3">{cruise.time}</p>
                   <p className="text-gray-600 text-sm leading-relaxed mb-4">{cruise.description}</p>
                   <button
                     onClick={() => handleBookClick(cruise.title, cruise.amountUsd)}
-                    className="w-full rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5"
+                    className="w-full rounded-full bg-gradient-to-r from-[#C8102E] to-[#E8600A] hover:from-[#E8173A] hover:to-[#F47B1A] text-black font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5"
                   >
                     Book This Cruise
                   </button>
@@ -207,14 +207,14 @@ function BookingPageContent() {
                 </a>
                 <a
                   href="tel:+263712629336"
-                  className="flex items-center justify-center gap-3 p-4 rounded-xl bg-[#ff9800]/10 border border-[#ff9800]/20 hover:bg-[#ff9800] hover:text-black text-[#ff9800] transition-all duration-300 font-semibold"
+                  className="flex items-center justify-center gap-3 p-4 rounded-xl bg-[#E8600A]/10 border border-[#ff9800]/20 hover:bg-[#ff9800] hover:text-black text-[#E8600A] transition-all duration-300 font-semibold"
                 >
                   <FaPhone size={18} />
                   +263 712 629 336
                 </a>
                 <a
                   href="mailto:reservation@kalaisafaris.com"
-                  className="flex items-center justify-center gap-3 p-4 rounded-xl bg-[#001a33]/10 border border-[#001a33]/20 hover:bg-[#001a33] hover:text-white text-[#001a33] transition-all duration-300 font-semibold"
+                  className="flex items-center justify-center gap-3 p-4 rounded-xl bg-[#0A0A0A]/10 border border-[#0A0A0A]/20 hover:bg-[#0A0A0A] hover:text-white text-[#0A0A0A] transition-all duration-300 font-semibold"
                 >
                   <FaEnvelope size={18} />
                   Email Us
@@ -229,14 +229,14 @@ function BookingPageContent() {
 
       <section id="booking-flow" className={`${isPaymentScreen ? 'fixed inset-0 z-[120] overflow-y-auto bg-white py-6' : 'py-20 bg-gradient-to-b from-[#fff7ec] via-white to-[#fff7ec] relative overflow-hidden'}`}>
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-16 left-10 h-56 w-56 rounded-full bg-[#ffba5a]/15 blur-3xl" />
-          <div className="absolute bottom-10 right-10 h-64 w-64 rounded-full bg-[#001a33]/10 blur-3xl" />
+          <div className="absolute top-16 left-10 h-56 w-56 rounded-full bg-[#E09A18]/15 blur-3xl" />
+          <div className="absolute bottom-10 right-10 h-64 w-64 rounded-full bg-[#0A0A0A]/10 blur-3xl" />
         </div>
 
         <div className="container mx-auto px-6 relative">
           {!isPaymentScreen && (
           <div className="max-w-4xl mx-auto text-center mb-10">
-            <p className="text-sm uppercase tracking-[0.3em] text-[#ff9800] font-semibold mb-3">
+            <p className="text-sm uppercase tracking-[0.3em] text-[#E8600A] font-semibold mb-3">
               Booking Flow
             </p>
             <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">
@@ -249,7 +249,7 @@ function BookingPageContent() {
           )}
 
           <div className={`max-w-5xl mx-auto mb-6 rounded-2xl border border-[#ffba5a]/30 bg-white/80 backdrop-blur-lg px-5 py-4 shadow-lg ${isPaymentScreen ? 'hidden' : ''}`}>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#ff9800] mb-1">Selected Cruise</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#E8600A] mb-1">Selected Cruise</p>
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <h3 className="text-2xl font-bold text-gray-900">{selectedCruise}</h3>
               <p className="text-sm font-semibold text-gray-700">Starting from ${selectedAmountUsd.toFixed(2)}</p>

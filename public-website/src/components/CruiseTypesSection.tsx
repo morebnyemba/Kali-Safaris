@@ -1,8 +1,7 @@
 'use client';
 
 import Image from "next/image";
-import { useState } from "react";
-import BookingModal from "./BookingModal";
+import { useRouter } from "next/navigation";
 
 const cruises = [
   {
@@ -13,8 +12,7 @@ const cruises = [
       "Get to experience the early blessings of what the mighty Zambezi river can offer while you take a relaxing and most comforting safari cruise. Experience how nature and wild animals starts their beautiful day.",
     time: "Our cruise is a 2 hour early morning cruise starting at 06:00 am to 08:00 am",
     image: "/images/sunrise.jpeg",
-    accent: "from-[#ffefc7] via-[#ffe2a8] to-white",
-    pill: "bg-[#ffba5a]/20 text-[#a24c00]",
+    pill: "bg-[#E09A18]/20 text-[#7a3d00]",
   },
   {
     id: "lunch",
@@ -24,8 +22,7 @@ const cruises = [
       "Have a relaxing and most comforting experience on mighty zambezi river lunch time safari cruise.",
     time: "A 2 hour cruise starting at 12:00pm to 02:00pm",
     image: "/images/work_no_play.jpeg",
-    accent: "from-[#001a33] via-[#01294d] to-[#0a4d79]",
-    pill: "bg-[#001a33]/10 text-[#01294d]",
+    pill: "bg-[#0A0A0A]/10 text-[#1A1A1A]",
     imageFirst: true,
   },
   {
@@ -36,8 +33,7 @@ const cruises = [
       "Kalai Safaris will give you an unforgettable experience along the Zambezi, as you may have an opportunity to spot a wide range of wild animals and birds interacting. Our cruise is a 2 hour late afternoon cruise starting at 16:00hrs and it ends soon after sunset",
     image: "/images/sunset.jpeg",
     image2: "/images/Kalai Sunset background shot.jpeg",
-    accent: "from-[#ffba5a] via-[#ff8c42] to-[#ff6f3c]",
-    pill: "bg-[#ff6f3c]/15 text-[#5c1d00]",
+    pill: "bg-[#C8102E]/10 text-[#7a0016]",
   },
   {
     id: "jetty",
@@ -46,39 +42,30 @@ const cruises = [
     description:
       "We can offer events hosting on our riverside jetty, conference, weddings, cocktails or any outdoor function which needs a beautiful backdrop of the mighty Zambezi River",
     image: "/images/jetty_venue.jpg",
-    accent: "from-[#001a33] via-[#032b44] to-[#0e3f5c]",
-    pill: "bg-[#032b44]/10 text-[#032b44]",
+    pill: "bg-[#0A0A0A]/10 text-[#1A1A1A]",
     imageFirst: true,
   },
 ];
 
 export default function CruiseTypesSection() {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCruise, setSelectedCruise] = useState("");
-  const [selectedAmountUsd, setSelectedAmountUsd] = useState(25);
+  const router = useRouter();
 
   const handleBookClick = (cruiseTitle: string, amountUsd: number) => {
-    setSelectedCruise(cruiseTitle);
-    setSelectedAmountUsd(amountUsd);
-    setIsModalOpen(true);
+    router.push(`/booking?tour_name=${encodeURIComponent(cruiseTitle)}&amount=${amountUsd}`);
   };
 
   const handleAskQuestion = (cruiseTitle: string) => {
     const message = `*[Message from Kalai Safaris Website]*\n\nHi, I would like to ask a question about the ${cruiseTitle}.`;
-    const whatsappUrl = `https://wa.me/263712629336?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
+    window.open(`https://wa.me/263712629336?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (
-    <div className="space-y-16">{cruises.map((cruise, idx) => (
-        <section
-          key={cruise.id}
-          id={cruise.id}
-          className="relative py-16"
-        >
+    <div className="space-y-16">
+      {cruises.map((cruise) => (
+        <section key={cruise.id} id={cruise.id} className="relative py-16 bg-[#FFF9F5]">
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className={`absolute -left-10 top-10 w-52 h-52 rounded-full blur-3xl bg-gradient-to-br ${cruise.accent} opacity-60`} />
-            <div className={`absolute -right-10 bottom-10 w-56 h-56 rounded-full blur-3xl bg-gradient-to-tr ${cruise.accent} opacity-40`} />
+            <div className="absolute -left-10 top-10 w-52 h-52 rounded-full blur-3xl bg-[#E09A18]/20 opacity-60" />
+            <div className="absolute -right-10 bottom-10 w-56 h-56 rounded-full blur-3xl bg-[#E8600A]/15 opacity-40" />
           </div>
 
           <div
@@ -87,12 +74,10 @@ export default function CruiseTypesSection() {
             }`}
           >
             {/* Text Content */}
-            <div className="bg-white/75 backdrop-blur-lg border border-white/60 shadow-xl rounded-2xl p-8 md:p-10 relative overflow-hidden">
+            <div className="bg-white/90 backdrop-blur-lg border border-white/60 shadow-xl rounded-2xl p-8 md:p-10 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-white/60 via-transparent to-white/30" />
               <div className="relative flex flex-wrap items-center gap-3 mb-4">
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-[0.2em] ${cruise.pill}`}
-                >
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-[0.2em] ${cruise.pill}`}>
                   {cruise.title}
                 </span>
                 {cruise.time && (
@@ -111,14 +96,15 @@ export default function CruiseTypesSection() {
               </p>
 
               <div className="relative flex flex-wrap gap-3">
-                <button 
+                <button
                   onClick={() => handleBookClick(cruise.title, cruise.amountUsd)}
-                  className="rounded-full bg-gradient-to-r from-[#ffba5a] to-[#ff9800] text-black font-semibold px-6 py-3 shadow-lg transition-transform duration-300 hover:-translate-y-0.5 hover:shadow-xl">
+                  className="rounded-full bg-[#C8102E] hover:bg-[#E8173A] text-white font-semibold px-6 py-3 shadow-lg transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-red-600/25"
+                >
                   Book this cruise
                 </button>
                 <button
                   onClick={() => handleAskQuestion(cruise.title)}
-                  className="rounded-full border border-black/10 bg-white/70 backdrop-blur-md text-gray-800 font-semibold px-6 py-3 shadow-sm transition duration-300 hover:border-[#ff9800]/60"
+                  className="rounded-full border border-black/10 bg-white/70 backdrop-blur-md text-gray-800 font-semibold px-6 py-3 shadow-sm transition duration-300 hover:border-[#E8600A]/60 hover:text-[#E8600A]"
                 >
                   Ask a question
                 </button>
@@ -133,8 +119,7 @@ export default function CruiseTypesSection() {
                   alt={cruise.title}
                   width={800}
                   height={600}
-                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.02]"
-                  priority={idx === 0}
+                  className="w-full h-full object-cover transition-transform duration-700 hover:scale-[1.02]"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-transparent" />
               </div>
@@ -154,14 +139,6 @@ export default function CruiseTypesSection() {
           </div>
         </section>
       ))}
-
-      {/* Booking Modal */}
-      <BookingModal 
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        cruiseType={selectedCruise}
-        amountUsd={selectedAmountUsd}
-      />
     </div>
   );
 }

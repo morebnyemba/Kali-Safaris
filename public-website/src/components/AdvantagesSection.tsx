@@ -2,22 +2,22 @@ import { FaBinoculars, FaTree, FaUserShield, FaSmileBeam } from "react-icons/fa"
 
 const advantages = [
   {
-    icon: <FaBinoculars className="text-3xl text-[#ff9800]" />,
+    icon: <FaBinoculars className="text-3xl text-[#E8600A]" />,
     title: "Expert Guides",
     desc: "Our team consists of experienced guides who know the Zambezi and its wildlife intimately.",
   },
   {
-    icon: <FaTree className="text-3xl text-[#ff9800]" />,
+    icon: <FaTree className="text-3xl text-[#E8600A]" />,
     title: "Immersive Nature",
     desc: "Get close to nature in a responsible, eco-friendly way, supporting conservation.",
   },
   {
-    icon: <FaUserShield className="text-3xl text-[#ff9800]" />,
+    icon: <FaUserShield className="text-3xl text-[#E8600A]" />,
     title: "Safety First",
     desc: "Your safety is our top priority, with well-maintained vessels and strict protocols.",
   },
   {
-    icon: <FaSmileBeam className="text-3xl text-[#ff9800]" />,
+    icon: <FaSmileBeam className="text-3xl text-[#E8600A]" />,
     title: "Memorable Experiences",
     desc: "We create moments you'll cherish forever, from sunrise to sunset.",
   },
@@ -25,16 +25,16 @@ const advantages = [
 
 export default function AdvantagesSection() {
   return (
-    <section className="py-20 bg-gradient-to-b from-[#001a33] via-[#002b4d] to-[#001a33] relative overflow-hidden">
+    <section className="py-20 bg-[#0A0A0A] relative overflow-hidden">
       {/* Decorative blobs */}
-      <div className="absolute inset-0 pointer-events-none opacity-20">
-        <div className="absolute top-10 left-10 w-48 h-48 bg-[#ffba5a] blur-3xl rounded-full" />
-        <div className="absolute bottom-10 right-10 w-56 h-56 bg-[#ff9800] blur-3xl rounded-full" />
+      <div className="absolute inset-0 pointer-events-none opacity-15">
+        <div className="absolute top-10 left-10 w-48 h-48 bg-[#C8102E] blur-3xl rounded-full" />
+        <div className="absolute bottom-10 right-10 w-56 h-56 bg-[#E8600A] blur-3xl rounded-full" />
       </div>
 
       <div className="container mx-auto px-6 relative">
         <div className="text-center mb-14">
-          <p className="text-sm uppercase tracking-[0.3em] text-[#ffba5a] font-semibold mb-3">
+          <p className="text-sm uppercase tracking-[0.3em] text-[#E09A18] font-semibold mb-3">
             Why Choose Us
           </p>
           <h2 className="text-4xl md:text-5xl font-black mb-4 text-white drop-shadow-sm">
@@ -49,9 +49,9 @@ export default function AdvantagesSection() {
           {advantages.map((adv, idx) => (
             <div
               key={idx}
-              className="group bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 text-center transition-all duration-300 hover:-translate-y-2 hover:bg-white/10 hover:shadow-xl"
+              className="group bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl p-6 text-center transition-all duration-300 hover:-translate-y-2 hover:bg-white/10 hover:shadow-xl hover:border-[#E8600A]/30"
             >
-              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[#ffba5a]/15 mb-4 group-hover:bg-[#ffba5a]/25 transition-colors">
+              <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-[#E8600A]/15 mb-4 group-hover:bg-[#E8600A]/25 transition-colors">
                 {adv.icon}
               </div>
               <h3 className="text-xl font-bold text-white mb-2">{adv.title}</h3>
