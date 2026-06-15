@@ -922,7 +922,7 @@ export default function BookingModal({
         const checkoutUrl = new URL(`${window.location.origin}/booking/card-checkout`);
         checkoutUrl.searchParams.set('checkoutId', String(result.checkout_id));
         checkoutUrl.searchParams.set('merchantRef', merchantRef);
-        checkoutUrl.searchParams.set('brands', String(result.brands || 'VISA MASTER AMEX'));
+        checkoutUrl.searchParams.set('brands', String(result.brands || 'VISA MASTER AMEX ZIMSWITCH'));
         checkoutUrl.searchParams.set('widget', String(result.widget_script_url || ''));
         checkoutUrl.searchParams.set('returnUrl', resultUrl.toString());
         if (result.integrity) {
@@ -955,9 +955,8 @@ export default function BookingModal({
       setPaymentMessage('Card number failed validation. Please check and try again.');
       return;
     }
-    if (brand !== 'visa' && brand !== 'mastercard') {
-      setPaymentMessage('Only Visa and Mastercard are currently accepted on this checkout.');
-      return;
+    if (brand === 'unknown') {
+      // Don't block — let the gateway decline unsupported cards with a clear message
     }
     if (expiryDate.length !== 4) {
       setPaymentMessage('Enter expiry date in MM/YY format.');
