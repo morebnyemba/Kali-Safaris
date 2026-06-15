@@ -128,7 +128,6 @@ function setWpwlOptions(onWidgetError: (msg: string, expired: boolean) => void) 
   // Must be set on window BEFORE the paymentWidgets.js script loads
   (window as Window & { wpwlOptions?: object }).wpwlOptions = {
     style: 'plain',
-    requireCvv: false,
     iframeStyles: {
       'card-number-placeholder': { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
       'cvv-placeholder':         { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
