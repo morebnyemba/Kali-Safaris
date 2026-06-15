@@ -722,7 +722,9 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
 
     if len(pan) < 13 or len(pan) > 19:
         return JsonResponse({"success": False, "message": "Invalid card number length"}, status=400)
-    if not _is_luhn_valid(pan):
+    active_config = _get_active_config()
+    is_test_mode = (active_config.mode == 'Test') if active_config else True
+    if not is_test_mode and not _is_luhn_valid(pan):
         return JsonResponse({"success": False, "message": "Card number failed validation"}, status=400)
     if not _is_valid_expiry_mm_yy(expiry_date):
         return JsonResponse({"success": False, "message": "Invalid or expired card expiry date"}, status=400)

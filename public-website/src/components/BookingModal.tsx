@@ -951,7 +951,7 @@ export default function BookingModal({
       setPaymentMessage('Enter a valid card number.');
       return;
     }
-    if (!isLuhnValid(pan)) {
+    if (!isTestMode && !isLuhnValid(pan)) {
       setPaymentMessage('Card number failed validation. Please check and try again.');
       return;
     }
