@@ -95,8 +95,25 @@ const WIDGET_CSS = `
   /* Hide the brand logo row — we show our own icons in the header */
   .wpwl-wrapper-brand { display: none; }
 
-  /* Error messages from widget */
-  .wpwl-hint { color: #dc2626; font-size: 0.75rem; margin-top: 0.25rem; }
+  /* Validation error messages from widget */
+  .wpwl-hint {
+    display: block;
+    margin-top: 0.35rem;
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: #b91c1c;
+    background: #fef2f2;
+    border-left: 3px solid #ef4444;
+    border-radius: 0 0.375rem 0.375rem 0;
+  }
+
+  /* Highlight field with error */
+  .wpwl-has-error .wpwl-control,
+  .wpwl-has-error input.wpwl-control {
+    border-color: #ef4444;
+    background: #fff5f5;
+  }
 `;
 
 function injectWidgetStyles() {
@@ -111,16 +128,26 @@ function setWpwlOptions() {
   // Must be set on window BEFORE the paymentWidgets.js script loads
   (window as Window & { wpwlOptions?: object }).wpwlOptions = {
     style: 'plain',
+
+    // CVV is optional — Maestro and some ZimSwitch cards don't have one
+    requireCvv: false,
+
     iframeStyles: {
       'card-number-placeholder': { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
       'cvv-placeholder':         { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
     },
+
     labels: {
       cardHolder:  'Name on Card',
       cardNumber:  'Card Number',
-      cvv:         'CVV / CVC',
-      expiryDate:  'Expiry (MM/YY)',
+      cvv:         'CVV / CVC (optional for some cards)',
+      expiryDate:  'Expiry Date (MM/YY)',
       submit:      'Pay Securely',
+    },
+
+    // Show friendly inline hints before the widget validates
+    onBeforeSubmitCard: function() {
+      return true; // let OPPWA handle all validation — no extra blocking
     },
   };
 }
