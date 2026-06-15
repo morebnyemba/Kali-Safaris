@@ -11,7 +11,7 @@ function CardCheckoutContent() {
 
   const checkoutId = (searchParams.get('checkoutId') || '').trim();
   const merchantReference = (searchParams.get('merchantRef') || '').trim();
-  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX DINERS DISCOVER JCB UNIONPAY MAESTRO').trim();
+  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX ZIMSWITCH').trim();
   const widgetScriptUrl = (searchParams.get('widget') || '').trim();
   const integrity = (searchParams.get('integrity') || '').trim();
   let returnUrl = (searchParams.get('returnUrl') || '/booking/payment-status?channel=card').trim();
