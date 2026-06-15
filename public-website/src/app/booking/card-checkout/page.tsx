@@ -8,6 +8,124 @@ import {
   FaLock, FaShieldAlt, FaArrowLeft,
 } from 'react-icons/fa';
 
+/* ── Widget CSS overrides injected once into <head> ───────────────────────
+   Requires wpwlOptions.style = "plain" so OPPWA ships unstyled markup.
+   We cannot touch inside card-number/CVV iframes — only iframeStyles
+   (placeholder colour/font) works there.
+──────────────────────────────────────────────────────────────────────────── */
+const WIDGET_CSS = `
+  .wpwl-form-card { font-family: inherit; }
+
+  .wpwl-group { margin-bottom: 1rem; }
+
+  .wpwl-label {
+    display: block;
+    margin-bottom: 0.35rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #374151;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .wpwl-control,
+  input.wpwl-control {
+    display: block;
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    font-size: 0.9375rem;
+    color: #111827;
+    background: #f9fafb;
+    border: 1.5px solid #e5e7eb;
+    border-radius: 0.625rem;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+  }
+  .wpwl-control:focus,
+  input.wpwl-control:focus {
+    border-color: #002b4d;
+    box-shadow: 0 0 0 3px rgba(0,43,77,0.12);
+    background: #fff;
+  }
+
+  /* The card-number and CVV controls are iframes — style the wrapper div */
+  .wpwl-control-cardNumber,
+  .wpwl-control-cvv {
+    padding: 0;
+    overflow: hidden;
+    height: 2.75rem;
+    display: flex;
+    align-items: center;
+  }
+  .wpwl-control-cardNumber iframe,
+  .wpwl-control-cvv iframe {
+    width: 100% !important;
+    height: 100% !important;
+    border: none;
+  }
+
+  /* Expiry + CVV side by side */
+  .wpwl-group-expiry,
+  .wpwl-group-cvv {
+    width: 48%;
+    display: inline-block;
+  }
+  .wpwl-group-expiry { margin-right: 4%; }
+
+  /* Submit button */
+  .wpwl-button-pay {
+    display: block;
+    width: 100%;
+    margin-top: 1.25rem;
+    padding: 0.8rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    background: linear-gradient(135deg, #001a33 0%, #003366 100%);
+    border: none;
+    border-radius: 9999px;
+    cursor: pointer;
+    letter-spacing: 0.02em;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+  .wpwl-button-pay:hover { opacity: 0.88; transform: translateY(-1px); }
+  .wpwl-button-pay:active { transform: translateY(0); }
+
+  /* Hide the brand logo row — we show our own icons in the header */
+  .wpwl-wrapper-brand { display: none; }
+
+  /* Error messages from widget */
+  .wpwl-hint { color: #dc2626; font-size: 0.75rem; margin-top: 0.25rem; }
+`;
+
+function injectWidgetStyles() {
+  if (document.getElementById('wpwl-custom-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'wpwl-custom-styles';
+  style.textContent = WIDGET_CSS;
+  document.head.appendChild(style);
+}
+
+function setWpwlOptions() {
+  // Must be set on window BEFORE the paymentWidgets.js script loads
+  (window as Window & { wpwlOptions?: object }).wpwlOptions = {
+    style: 'plain',
+    iframeStyles: {
+      'card-number-placeholder': { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
+      'cvv-placeholder':         { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
+    },
+    labels: {
+      cardHolder:  'Name on Card',
+      cardNumber:  'Card Number',
+      cvv:         'CVV / CVC',
+      expiryDate:  'Expiry (MM/YY)',
+      submit:      'Pay Securely',
+    },
+  };
+}
+
+
 function CardCheckoutContent() {
   const searchParams = useSearchParams();
   const [scriptLoaded, setScriptLoaded] = useState(false);
@@ -31,6 +149,10 @@ function CardCheckoutContent() {
 
     setScriptLoaded(false);
     setScriptError('');
+
+    // Inject styles and set options BEFORE the script loads
+    injectWidgetStyles();
+    setWpwlOptions();
 
     const existing = document.querySelector('script[data-copyandpay-widget="1"]');
     if (existing) existing.remove();
@@ -115,12 +237,16 @@ function CardCheckoutContent() {
           {/* Loading shimmer */}
           {!scriptLoaded && !scriptError && (
             <div className="mb-5 space-y-3 animate-pulse" aria-label="Loading payment form">
-              <div className="h-12 rounded-lg bg-gray-100" />
+              <div className="h-4 w-24 rounded bg-gray-200" />
+              <div className="h-11 rounded-xl bg-gray-100" />
+              <div className="h-4 w-20 rounded bg-gray-200" />
               <div className="flex gap-3">
-                <div className="h-12 flex-1 rounded-lg bg-gray-100" />
-                <div className="h-12 flex-1 rounded-lg bg-gray-100" />
+                <div className="h-11 flex-1 rounded-xl bg-gray-100" />
+                <div className="h-11 flex-1 rounded-xl bg-gray-100" />
               </div>
-              <div className="h-12 rounded-lg bg-gray-100" />
+              <div className="h-4 w-28 rounded bg-gray-200" />
+              <div className="h-11 rounded-xl bg-gray-100" />
+              <div className="mt-2 h-12 rounded-full bg-gray-200" />
               <p className="pt-1 text-center text-xs text-gray-400">Loading secure payment widget…</p>
             </div>
           )}
@@ -136,7 +262,7 @@ function CardCheckoutContent() {
             </div>
           )}
 
-          {/* OPPWA widget — styled by their hosted script; we cannot touch internals */}
+          {/* OPPWA widget — styled via wpwlOptions + injected CSS above */}
           <form action={returnUrl} className="paymentWidgets" data-brands={brands} />
 
           <div className="mt-6 flex flex-col items-center gap-4">
