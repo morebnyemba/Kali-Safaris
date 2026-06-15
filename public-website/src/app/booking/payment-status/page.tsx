@@ -297,7 +297,7 @@ function PaymentStatusPageContent() {
             type="button"
             onClick={() => void verifyPayment()}
             disabled={status === 'checking'}
-            className="rounded-full bg-linear-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold py-3 px-5 transition-all disabled:opacity-60"
+            className="rounded-full bg-linear-to-r from-[#E09A18] to-[#E8600A] hover:from-[#E8600A] hover:to-[#F47B1A] text-black font-bold py-3 px-5 transition-all disabled:opacity-60"
           >
             {status === 'checking' ? 'Checking...' : 'Check Again'}
           </button>

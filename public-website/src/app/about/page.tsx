@@ -21,7 +21,7 @@ export default function AboutPage() {
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black/70" />
         <div className="relative text-center text-white px-6">
-          <p className="text-sm uppercase tracking-[0.3em] text-[#ffba5a] font-semibold mb-3">
+          <p className="text-sm uppercase tracking-[0.3em] text-[#E09A18] font-semibold mb-3">
             Our Story
           </p>
           <h1 className="text-4xl md:text-6xl font-black drop-shadow-lg">
@@ -31,10 +31,10 @@ export default function AboutPage() {
       </section>
 
       {/* Main Content */}
-      <section className="py-20 bg-gradient-to-b from-white via-[#fff7ec] to-white relative overflow-hidden">
+      <section className="py-20 bg-gradient-to-b from-white via-[#FFF9F5] to-white relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-10 left-10 w-48 h-48 bg-[#ffba5a]/15 blur-3xl rounded-full" />
-          <div className="absolute bottom-10 right-10 w-56 h-56 bg-[#ff9800]/10 blur-3xl rounded-full" />
+          <div className="absolute top-10 left-10 w-48 h-48 bg-[#E09A18]/15 blur-3xl rounded-full" />
+          <div className="absolute bottom-10 right-10 w-56 h-56 bg-[#E8600A]/10 blur-3xl rounded-full" />
         </div>
 
         <div className="container mx-auto px-6 relative">
@@ -43,7 +43,7 @@ export default function AboutPage() {
             <div className="bg-white/75 backdrop-blur-lg border border-white/60 shadow-xl rounded-2xl p-8 md:p-10 relative overflow-hidden">
               <div className="absolute inset-0 bg-gradient-to-br from-white/60 via-transparent to-white/30" />
               <h2 className="relative text-3xl md:text-4xl font-black text-gray-900 mb-6">
-                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#ff9800] to-[#ffba5a]">Kalai</span> — The Cry of the Fish Eagle
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#E8600A] to-[#E09A18]">Kalai</span> — The Cry of the Fish Eagle
               </h2>
               <p className="relative text-lg text-gray-700 leading-relaxed mb-4">
                 Kalai Safaris is a boating safari company on the mighty Zambezi River, above the Victoria Falls. We are dedicated to providing unforgettable cruise experiences that combine the beauty of Africa&apos;s wildlife with the serenity of the river.
@@ -84,19 +84,19 @@ export default function AboutPage() {
               </p>
               <ul className="relative space-y-3 text-gray-700">
                 <li className="flex items-start gap-3">
-                  <span className="w-2 h-2 rounded-full bg-[#ff9800] mt-2 flex-shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[#E8600A] mt-2 flex-shrink-0" />
                   Expert guides with deep knowledge of the Zambezi ecosystem
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="w-2 h-2 rounded-full bg-[#ff9800] mt-2 flex-shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[#E8600A] mt-2 flex-shrink-0" />
                   Safety-first approach with well-maintained vessels
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="w-2 h-2 rounded-full bg-[#ff9800] mt-2 flex-shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[#E8600A] mt-2 flex-shrink-0" />
                   Tailor-made cruises for weddings, conferences & events
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="w-2 h-2 rounded-full bg-[#ff9800] mt-2 flex-shrink-0" />
+                  <span className="w-2 h-2 rounded-full bg-[#E8600A] mt-2 flex-shrink-0" />
                   Eco-friendly practices supporting conservation
                 </li>
               </ul>

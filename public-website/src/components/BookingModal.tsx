@@ -1093,28 +1093,43 @@ export default function BookingModal({
         {/* Modal content */}
         <div className="p-6 md:p-8 lg:p-10">
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-linear-to-r from-[#ffba5a] to-[#ff9800] mb-4">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-linear-to-r from-[#E09A18] to-[#E8600A] mb-4">
               <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-              Book Your Cruise
+              {checkoutStep === 'details' ? 'Your Details' : 'Secure Payment'}
             </h2>
             <p className="text-gray-600">
               {cruiseType}
             </p>
           </div>
 
-          <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
-            <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#ff9800] text-black' : 'bg-gray-100 text-gray-600'}`}>
-              1. Booking Details
-            </span>
-            <span className="text-gray-400"><FaArrowRight size={12} /></span>
-            <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#ff9800] text-black' : 'bg-gray-100 text-gray-600'}`}>
-              2. Secure Payment
-            </span>
-          </div>
+          {isPagePresentation && (
+            <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
+              <span className="rounded-full bg-gray-100 text-gray-500 px-3 py-1 line-through">1. Choose Cruise</span>
+              <span className="text-gray-400"><FaArrowRight size={12} /></span>
+              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-500 line-through'}`}>
+                2. Your Details
+              </span>
+              <span className="text-gray-400"><FaArrowRight size={12} /></span>
+              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                3. Payment
+              </span>
+            </div>
+          )}
+          {!isPagePresentation && (
+            <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
+              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                1. Your Details
+              </span>
+              <span className="text-gray-400"><FaArrowRight size={12} /></span>
+              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                2. Payment
+              </span>
+            </div>
+          )}
 
           {isTestMode && (
             <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -1137,7 +1152,7 @@ export default function BookingModal({
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                   />
                 </div>
 
@@ -1151,7 +1166,7 @@ export default function BookingModal({
                     value={numberOfPeople}
                     onChange={(e) => setNumberOfPeople(e.target.value)}
                     min="1"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                   />
                 </div>
 
@@ -1162,35 +1177,35 @@ export default function BookingModal({
                     placeholder="Full name"
                     value={traveler.fullName}
                     onChange={(e) => setTraveler((prev) => ({ ...prev, fullName: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                   />
                   <input
                     type="email"
                     placeholder="Email address"
                     value={traveler.email}
                     onChange={(e) => setTraveler((prev) => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                   />
                   <input
                     type="text"
                     placeholder="Phone / WhatsApp number"
                     value={traveler.phone}
                     onChange={(e) => setTraveler((prev) => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                   />
                   <input
                     type="text"
                     placeholder="Country (optional)"
                     value={traveler.country}
                     onChange={(e) => setTraveler((prev) => ({ ...prev, country: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                   />
                   <textarea
                     placeholder="Special requests (dietary, accessibility, occasion, pickup details)"
                     value={traveler.specialRequests}
                     onChange={(e) => setTraveler((prev) => ({ ...prev, specialRequests: e.target.value }))}
                     rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                   />
                   <label className="flex items-start gap-2 text-sm text-gray-700">
                     <input
@@ -1214,7 +1229,7 @@ export default function BookingModal({
                           placeholder="Full name"
                           value={item.name}
                           onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, name: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         />
                         <input
                           type="number"
@@ -1222,33 +1237,33 @@ export default function BookingModal({
                           min="1"
                           value={item.age}
                           onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, age: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         />
                         <input
                           type="text"
                           placeholder="Nationality"
                           value={item.nationality}
                           onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         />
                         <input
                           type="text"
                           placeholder="Gender"
                           value={item.gender}
                           onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, gender: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         />
                         <input
                           type="text"
                           placeholder="ID / Passport number"
                           value={item.idNumber}
                           onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, idNumber: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition sm:col-span-2"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition sm:col-span-2"
                         />
                         <select
                           value={item.travelerType}
                           onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, travelerType: e.target.value as 'adult' | 'child' } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         >
                           <option value="adult">Adult</option>
                           <option value="child">Child</option>
@@ -1258,7 +1273,7 @@ export default function BookingModal({
                           placeholder="Medical / Dietary requirements (optional)"
                           value={item.medicalDietaryRequirements}
                           onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, medicalDietaryRequirements: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         />
                         <div className="sm:col-span-2">
                           <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -1268,7 +1283,7 @@ export default function BookingModal({
                             type="file"
                             accept=".jpg,.jpeg,.png,.pdf"
                             onChange={(e) => handleTravelerDocumentChange(index, e.target.files?.[0] || null)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                           />
                           {item.idDocumentName && (
                             <p className="mt-2 text-xs text-gray-500">Attached: {item.idDocumentName}</p>
@@ -1287,7 +1302,7 @@ export default function BookingModal({
               </>
             )}
 
-            <div className="bg-linear-to-r from-[#fff7ec] to-[#ffe8cc] border border-[#ffba5a]/30 rounded-lg p-4">
+            <div className="bg-linear-to-r from-[#FFF9F5] to-[#FFE0C8] border border-[#E09A18]/30 rounded-lg p-4">
               <p className="text-sm text-gray-700">
                 <strong className="text-gray-900">Estimated total:</strong> USD {totalAmount.toFixed(2)}
               </p>
@@ -1351,7 +1366,7 @@ export default function BookingModal({
                     onChange={(e) => setEcocash({ msisdn: sanitizeMsisdn(e.target.value) })}
                     inputMode="numeric"
                     placeholder="263771234567 or 0771234567"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                   />
                   <p className="mt-2 text-xs text-gray-500">
                     Accepted formats: {(paymentConfig?.ecocash.accepted_formats || ['2637XXXXXXXX', '07XXXXXXXX']).join(' or ')}
@@ -1366,7 +1381,7 @@ export default function BookingModal({
                           key={testMsisdn}
                           type="button"
                           onClick={() => setEcocash({ msisdn: testMsisdn })}
-                          className="rounded-full border border-[#ff9800] px-3 py-1 text-xs font-semibold text-[#ff9800] transition hover:bg-[#fff2e0]"
+                          className="rounded-full border border-[#E8600A] px-3 py-1 text-xs font-semibold text-[#E8600A] transition hover:bg-[#FFF3E8]"
                         >
                           {testMsisdn}
                         </button>
@@ -1378,7 +1393,7 @@ export default function BookingModal({
                   type="button"
                   onClick={checkEcoCashPaymentStatus}
                   disabled={isSubmitting || !lastMerchantReference || lastPaymentChannel !== 'ecocash'}
-                  className="w-full rounded-full border border-[#ff9800] text-[#ff9800] font-semibold py-2.5 hover:bg-[#fff2e0] transition disabled:opacity-50"
+                  className="w-full rounded-full border border-[#E8600A] text-[#E8600A] font-semibold py-2.5 hover:bg-[#FFF3E8] transition disabled:opacity-50"
                 >
                   Check EcoCash Status
                 </button>
@@ -1436,7 +1451,7 @@ export default function BookingModal({
                           key={testPan}
                           type="button"
                           onClick={() => setCard((prev) => ({ ...prev, cardNumber: testPan, expiry: '02/28', cvv: '123' }))}
-                          className="rounded-full border border-[#ff9800] px-3 py-1 text-xs font-semibold text-[#ff9800] transition hover:bg-[#fff2e0]"
+                          className="rounded-full border border-[#E8600A] px-3 py-1 text-xs font-semibold text-[#E8600A] transition hover:bg-[#FFF3E8]"
                         >
                           {`${testPan.slice(0, 4)} **** **** ${testPan.slice(-4)}`}
                         </button>
@@ -1459,7 +1474,7 @@ export default function BookingModal({
                           inputMode="numeric"
                           autoComplete="cc-number"
                           placeholder="5413330089020020"
-                          className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         />
                         {sanitizePan(card.cardNumber).length >= 4 && (
                           <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl" aria-hidden="true">
@@ -1488,7 +1503,7 @@ export default function BookingModal({
                           inputMode="numeric"
                           autoComplete="cc-exp"
                           placeholder="02/28"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         />
                       </div>
                       <div>
@@ -1503,7 +1518,7 @@ export default function BookingModal({
                           inputMode="numeric"
                           autoComplete="cc-csc"
                           placeholder="123"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ff9800] focus:border-transparent transition"
+                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
                         />
                       </div>
                     </div>
@@ -1514,7 +1529,7 @@ export default function BookingModal({
                     type="button"
                     onClick={() => void complete3DSPayment()}
                     disabled={isSubmitting}
-                    className="w-full rounded-full border border-[#ff9800] text-[#ff9800] font-semibold py-2.5 hover:bg-[#fff2e0] transition disabled:opacity-50"
+                    className="w-full rounded-full border border-[#E8600A] text-[#E8600A] font-semibold py-2.5 hover:bg-[#FFF3E8] transition disabled:opacity-50"
                   >
                     Retry 3DS Status Check
                   </button>
@@ -1523,7 +1538,7 @@ export default function BookingModal({
             )}
 
             {paymentMessage && (
-              <div className="rounded-lg border border-[#ffba5a]/40 bg-[#fff9ef] p-3 text-sm text-gray-700">
+              <div className="rounded-lg border border-[#E09A18]/40 bg-[#FFF9F5] p-3 text-sm text-gray-700">
                 {paymentMessage}
               </div>
             )}
@@ -1545,13 +1560,13 @@ export default function BookingModal({
                 onClick={onClose}
                 className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-full hover:bg-gray-50 transition"
               >
-                Cancel
+                {isPagePresentation && checkoutStep === 'details' ? '← Back to Cruises' : 'Cancel'}
               </button>
               {checkoutStep === 'payment' && !hasExistingBooking && (
                 <button
                   type="button"
                   onClick={() => setCheckoutStep('details')}
-                  className="flex-1 px-6 py-3 border border-[#ff9800] text-[#ff9800] font-semibold rounded-full hover:bg-[#fff2e0] transition"
+                  className="flex-1 px-6 py-3 border border-[#E8600A] text-[#E8600A] font-semibold rounded-full hover:bg-[#FFF3E8] transition"
                 >
                   Back to Details
                 </button>
@@ -1559,7 +1574,7 @@ export default function BookingModal({
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="flex-1 px-6 py-3 bg-linear-to-r from-[#ffba5a] to-[#ff9800] hover:from-[#ff9800] hover:to-[#ff7700] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
+                className="flex-1 px-6 py-3 bg-linear-to-r from-[#E09A18] to-[#E8600A] hover:from-[#E8600A] hover:to-[#F47B1A] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
               >
                 {isSubmitting
                   ? 'Processing...'
