@@ -133,6 +133,7 @@ function setWpwlOptions(onWidgetError: (msg: string, expired: boolean) => void) 
       'card-number-placeholder': { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
       'cvv-placeholder':         { color: '#9ca3af', fontSize: '15px', fontFamily: 'inherit' },
     },
+
     labels: {
       cardHolder:  'Name on Card',
       cardNumber:  'Card Number',
