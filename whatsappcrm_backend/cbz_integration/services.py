@@ -467,7 +467,10 @@ class IVeriClient:
             'MerchantReference': merchant_reference,
             # MD echoed through iVeri → ACS → TermUrl callback so we can recover merchant_reference
             'MD': merchant_reference,
-            'ECI': ECI_ECOMMERCE,
+            # Do NOT send ECI on the initial debit — iVeri uses the card's
+            # enrolment status to decide whether to issue a 3DS challenge.
+            # Sending ECI '7' here tells iVeri "no 3DS" and suppresses the challenge.
+            # ECI is submitted on the completion call (5 = authenticated, 6 = attempted).
         }
 
         # TermUrl tells iVeri (and subsequently the ACS) where to redirect the
