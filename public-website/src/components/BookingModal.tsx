@@ -973,13 +973,12 @@ export default function BookingModal({
 
     try {
       setIsSubmitting(true);
-      setPaymentMessage('Submitting card payment...');
+      setPaymentMessage('Initiating 3D Secure authentication...');
 
-      const response = await fetch(`${API_BASE}/crm-api/payments/cbz/card/debit/`, {
+      // Step 1: request 3DS 2 enrollment form data from the backend
+      const enrollResponse = await fetch(`${API_BASE}/crm-api/payments/cbz/card/3ds/enroll/`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pan,
           expiry_date: expiryDate,
@@ -991,40 +990,45 @@ export default function BookingModal({
         }),
       });
 
-      const result = await response.json();
-      const resolvedBookingReference = result.booking_reference || initialBookingReference || '';
+      const enrollResult = await enrollResponse.json();
+
+      if (!enrollResult.success) {
+        setPaymentMessage(enrollResult.message || 'Could not initiate 3DS authentication. Please try again.');
+        return;
+      }
+
+      const resolvedBookingReference = enrollResult.booking_reference || initialBookingReference || '';
       if (resolvedBookingReference) {
         setActiveBookingReference(resolvedBookingReference);
         setSessionItem(PENDING_BOOKING_REFERENCE_KEY, resolvedBookingReference);
       }
-      if (result.success && result.requires_3ds) {
-        setCanReturnToWhatsApp(launchedFromWhatsApp);
-        setPaymentMessage('3DS verification required. Redirecting to your bank authentication page...');
-        submit3DSChallenge(result.challenge || {}, result.merchant_reference);
-        return;
+      setSessionItem(PENDING_3DS_REF_KEY, enrollResult.merchant_reference);
+      setSessionItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
+      if (launchedFromWhatsApp) {
+        setSessionItem(RETURN_TO_WHATSAPP_KEY, '1');
       }
+      setLastMerchantReference(enrollResult.merchant_reference);
+      setCanReturnToWhatsApp(launchedFromWhatsApp);
 
-      if (result.success && !result.pending) {
-        setLastPaymentChannel('card');
-        removeSessionItem(PENDING_PAYMENT_CHANNEL_KEY);
-        setCanReturnToWhatsApp(launchedFromWhatsApp);
-        setPaymentMessage(buildApprovalMessage(result.merchant_reference, result.gateway_mode));
-        return;
-      }
-
-      if (result.pending) {
-        setLastMerchantReference(result.merchant_reference || '');
-        setLastPaymentChannel('card');
-        setCanReturnToWhatsApp(launchedFromWhatsApp);
-        if (result.merchant_reference) {
-          setSessionItem(PENDING_3DS_REF_KEY, result.merchant_reference);
-          setSessionItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
-        }
-        setPaymentMessage('Payment is pending. If this was a 3DS flow, click Complete 3DS Payment after authentication.');
-        return;
-      }
-
-      setPaymentMessage(result.message || 'Payment failed.');
+      // Step 2: auto-submit the enrollment form to iVeri — browser takes over from here.
+      // iVeri drives the 3DS challenge and POSTs the result back to CBZ_3DS_RETURN_URL,
+      // which completes the Debit and redirects the browser to /booking/payment-status.
+      setPaymentMessage('Redirecting to 3D Secure authentication...');
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = enrollResult.enrollment_url;
+      form.style.display = 'none';
+      Object.entries(enrollResult.fields as Record<string, string>).forEach(([key, value]) => {
+        if (!value) return;
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        form.appendChild(input);
+      });
+      document.body.appendChild(form);
+      form.submit();
+      return;
     } catch {
       setPaymentMessage('Payment request failed. Please try again.');
     } finally {

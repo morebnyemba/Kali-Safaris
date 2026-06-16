@@ -6,6 +6,8 @@ from .views import (
     cbz_copyandpay_prepare_view,
     cbz_copyandpay_status_view,
     cbz_card_3ds_complete_view,
+    cbz_card_3ds_enroll_view,
+    cbz_card_3ds_return_view,
     cbz_query_view,
     cbz_callback_view,
     cbz_certificate_generate_view,
@@ -26,6 +28,12 @@ urlpatterns = [
     path('card/debit/', cbz_card_debit_view, name='card_debit'),
     path('copyandpay/prepare/', cbz_copyandpay_prepare_view, name='copyandpay_prepare'),
     path('copyandpay/status/', cbz_copyandpay_status_view, name='copyandpay_status'),
+
+    # 3DS 2 flow: enroll → browser submits to iVeri → iVeri POSTs to return
+    path('card/3ds/enroll/', cbz_card_3ds_enroll_view, name='card_3ds_enroll'),
+    path('card/3ds/return/', cbz_card_3ds_return_view, name='card_3ds_return'),
+
+    # Legacy 3DS v1 completion (kept for any in-flight transactions)
     path('card/3ds/complete/', cbz_card_3ds_complete_view, name='card_3ds_complete'),
 
     # Transaction status query

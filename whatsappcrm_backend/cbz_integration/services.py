@@ -22,6 +22,7 @@ from .constants import (
     ECOCASH_PAN_PREFIX,
     IVERI_API_VERSION,
     IVERI_REST_TRANSACTIONS,
+    IVERI_3DS_ENROLLMENT,
     IVERI_SOAP_TIMEOUT,
     COMMAND_DEBIT,
     COMMAND_AUTHORISATION,
@@ -441,6 +442,62 @@ class IVeriClient:
 
     # ─── Card Payments (Website Only) ────────────────────────────────
 
+    def get_3ds_enrollment_form_data(
+        self,
+        pan: str,
+        expiry_date: str,
+        amount: Decimal,
+        currency: str,
+        merchant_reference: str,
+        return_url: str,
+        cvv: str = '',
+    ) -> Dict[str, Any]:
+        """
+        Build the form-data fields for the iVeri 3DS 2 EnrollmentInitial POST.
+
+        The caller (frontend) must submit these as a form POST to enrollment_url
+        so that iVeri can drive the browser through the 3DS challenge (if required)
+        and POST the authentication result back to return_url.
+
+        Args:
+            pan: Card PAN
+            expiry_date: Expiry in MMYY format
+            amount: Transaction amount (major units)
+            currency: Currency code
+            merchant_reference: Unique merchant reference
+            return_url: Backend URL where iVeri POSTs the 3DS result
+            cvv: Card security code (optional per iVeri spec)
+
+        Returns:
+            {
+                'enrollment_url': str,    # Target for the form action
+                'fields': dict,           # Hidden input name→value pairs
+            }
+        """
+        amount_cents = str(int(amount * 100))
+        enrollment_url = f"{self.config.portal_url.rstrip('/')}{IVERI_3DS_ENROLLMENT}"
+
+        fields: Dict[str, str] = {
+            'ApplicationID': self.config.application_id,
+            'MerchantReference': merchant_reference,
+            'Amount': amount_cents,
+            'Currency': currency,
+            'PAN': pan,
+            'ExpiryDate': expiry_date,
+            'ReturnUrl': return_url,
+        }
+        if cvv:
+            fields['CardSecurityCode'] = cvv
+
+        logger.info(
+            "3DS enrollment form prepared | ref=%s amount=%s %s return_url=%s",
+            merchant_reference, amount, currency, return_url,
+        )
+        return {
+            'enrollment_url': enrollment_url,
+            'fields': fields,
+        }
+
     def debit_card(
         self,
         pan: str,
@@ -452,18 +509,24 @@ class IVeriClient:
         threed_secure_data: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
-        Process card payment (Visa/Mastercard) via iVeri.
+        Process card payment (Visa/Mastercard) via iVeri REST API.
 
-        For website-initiated payments with optional 3D Secure data.
+        For 3DS 2: call get_3ds_enrollment_form_data() first, complete the 3DS
+        flow via the browser, then call this method with the auth data returned
+        by iVeri to the ReturnUrl.
 
         Args:
-            pan: Card number (16 digits)
+            pan: Card number
             expiry_date: Expiry in MMYY format (e.g., '0228')
             cvv: Card CVV/CVC
             amount: Amount to charge
             currency: Currency code ('USD' or 'ZWG')
             merchant_reference: Unique merchant reference
-            threed_secure_data: Optional 3DS authentication data
+            threed_secure_data: 3DS 2 authentication fields from ReturnUrl result:
+                CardHolderAuthenticationData, CardHolderAuthenticationID,
+                ElectronicCommerceIndicator, ThreeDSecure_DSTransID,
+                ThreeDSecure_ProtocolVersion, ThreeDSecure_AuthenticationType,
+                ThreeDSecure_VEResEnrolled, ThreeDSecure_RequestID
 
         Returns:
             iVeri API response dict
@@ -477,20 +540,9 @@ class IVeriClient:
             'ExpiryDate': expiry_date,
             'CardSecurityCode': cvv,
             'MerchantReference': merchant_reference,
-            # MD echoed through iVeri → ACS → TermUrl callback so we can recover merchant_reference
-            'MD': merchant_reference,
-            # Do NOT send ECI on the initial debit — iVeri uses the card's
-            # enrolment status to decide whether to issue a 3DS challenge.
-            # Sending ECI '7' here tells iVeri "no 3DS" and suppresses the challenge.
-            # ECI is submitted on the completion call (5 = authenticated, 6 = attempted).
         }
 
-        # TermUrl tells iVeri (and subsequently the ACS) where to redirect the
-        # browser after 3DS authentication.  Required for 3DS v1 to work end-to-end.
-        if self.config.term_url:
-            transaction_data['TermUrl'] = self.config.term_url
-
-        # Add 3D Secure data if provided (caller may override TermUrl or add PaReq)
+        # Include 3DS 2 authentication data if provided
         if threed_secure_data:
             transaction_data.update(threed_secure_data)
 

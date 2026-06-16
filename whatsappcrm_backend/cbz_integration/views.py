@@ -22,7 +22,8 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
 import requests
 from django.conf import settings
-from django.http import JsonResponse, HttpRequest
+from django.core import signing
+from django.http import JsonResponse, HttpRequest, HttpResponseRedirect
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -1592,6 +1593,310 @@ def cbz_certificate_renew_view(request: HttpRequest) -> JsonResponse:
     except Exception as exc:
         logger.exception("CBZ certificate renewal failed")
         return JsonResponse({"success": False, "message": str(exc)}, status=502)
+
+
+# ─── 3DS 2 Enrollment + ReturnUrl ───────────────────────────────────
+
+_3DS_PAN_SALT = 'cbz_3ds_pan_v1'
+_3DS_PAN_MAX_AGE = 900  # 15 minutes — enough for a 3DS challenge
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cbz_card_3ds_enroll_view(request: HttpRequest) -> JsonResponse:
+    """
+    POST /crm-api/payments/cbz/card/3ds/enroll/
+
+    Prepares a 3DS 2 enrollment request for the iVeri Gateway.
+
+    The frontend must auto-submit the returned form fields to enrollment_url
+    so that iVeri can drive the browser through the 3DS challenge and POST
+    the authentication result back to the ReturnUrl (cbz_card_3ds_return_view).
+
+    Request JSON:
+    {
+        "pan": "4070427646039018",
+        "expiry_date": "0228",
+        "cvv": "123",
+        "amount": 25.00,
+        "currency": "USD",
+        "booking_reference": "KS-ABC123"   // optional
+    }
+
+    Response:
+    {
+        "success": true,
+        "merchant_reference": "KS-XXXXXXXXXXXX",
+        "enrollment_url": "https://portal.host.iveri.com/threedsecure/EnrollmentInitial",
+        "fields": {
+            "ApplicationID": "...",
+            "MerchantReference": "...",
+            "Amount": "2500",
+            "Currency": "USD",
+            "PAN": "4070427646039018",
+            "ExpiryDate": "0228",
+            "CardSecurityCode": "123",
+            "ReturnUrl": "https://backend.kalisafaris.com/crm-api/payments/cbz/card/3ds/return/"
+        }
+    }
+    """
+    try:
+        payload = json.loads(request.body.decode('utf-8'))
+    except Exception:
+        return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
+
+    required = ["pan", "expiry_date", "cvv", "amount", "currency"]
+    missing = [k for k in required if k not in payload]
+    if missing:
+        return JsonResponse(
+            {"success": False, "message": f"Missing fields: {', '.join(missing)}"},
+            status=400,
+        )
+
+    try:
+        amount = Decimal(str(payload['amount']))
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+    except (InvalidOperation, ValueError) as e:
+        return JsonResponse({"success": False, "message": f"Invalid amount: {e}"}, status=400)
+
+    pan = re.sub(r'\D', '', str(payload.get('pan', '')))
+    expiry_date = re.sub(r'\D', '', str(payload.get('expiry_date', '')))
+    cvv = re.sub(r'\D', '', str(payload.get('cvv', '')))
+
+    if len(pan) < 13 or len(pan) > 19:
+        return JsonResponse({"success": False, "message": "Invalid card number length"}, status=400)
+    active_config = _get_active_config()
+    is_test_mode = (active_config.mode == 'Test') if active_config else True
+    if not is_test_mode and not _is_luhn_valid(pan):
+        return JsonResponse({"success": False, "message": "Card number failed validation"}, status=400)
+    if not _is_valid_expiry_mm_yy(expiry_date):
+        return JsonResponse({"success": False, "message": "Invalid or expired card expiry date"}, status=400)
+    if len(cvv) < 3 or len(cvv) > 4:
+        return JsonResponse({"success": False, "message": "Invalid CVV"}, status=400)
+
+    currency = str(payload.get('currency', 'USD')).upper()
+    merchant_ref = f"KS-{uuid.uuid4().hex[:12].upper()}"
+    masked_pan = f"{pan[:4]}****{pan[-4:]}" if len(pan) >= 8 else "****"
+
+    # ReturnUrl — backend endpoint that receives the 3DS result from iVeri
+    return_url = getattr(settings, 'CBZ_3DS_RETURN_URL', '') or ''
+    if not return_url:
+        logger.warning(
+            "CBZ_3DS_RETURN_URL not configured — iVeri cannot POST 3DS result back. "
+            "Set CBZ_3DS_RETURN_URL to the public URL of /crm-api/payments/cbz/card/3ds/return/"
+        )
+        return JsonResponse(
+            {"success": False, "message": "3DS return URL not configured. Contact support."},
+            status=503,
+        )
+
+    try:
+        booking = _resolve_or_create_booking(payload, amount)
+    except Exception as e:
+        logger.warning("Error resolving/creating booking for 3DS enrollment: %s", e)
+        booking = None
+
+    txn = CBZTransaction.objects.create(
+        merchant_reference=merchant_ref,
+        payment_type=CBZTransaction.PaymentType.CARD,
+        masked_pan=masked_pan,
+        amount=amount,
+        currency=currency,
+        command='Debit',
+        status=CBZTransaction.TransactionStatus.INITIATED,
+        booking=booking,
+    )
+
+    # Temporarily sign the card data so the ReturnUrl handler can complete the Debit
+    # without the frontend needing to re-submit the PAN.
+    signed_card = signing.dumps(
+        {'pan': pan, 'expiry': expiry_date, 'cvv': cvv},
+        salt=_3DS_PAN_SALT,
+    )
+    txn.gateway_response = {'_signed_card': signed_card, '_3ds_enrollment_initiated': True}
+    txn.save(update_fields=['gateway_response'])
+
+    client = _build_client()
+    enrollment = client.get_3ds_enrollment_form_data(
+        pan=pan,
+        expiry_date=expiry_date,
+        amount=amount,
+        currency=currency,
+        merchant_reference=merchant_ref,
+        return_url=return_url,
+        cvv=cvv,
+    )
+
+    return JsonResponse({
+        "success": True,
+        "merchant_reference": merchant_ref,
+        "booking_reference": booking.booking_reference if booking else None,
+        "enrollment_url": enrollment['enrollment_url'],
+        "fields": enrollment['fields'],
+    })
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def cbz_card_3ds_return_view(request: HttpRequest) -> HttpResponseRedirect:
+    """
+    POST /crm-api/payments/cbz/card/3ds/return/
+
+    iVeri POSTs the 3DS 2 authentication result to this URL after the
+    cardholder completes the enrollment/challenge flow.
+
+    On ResultCode "0": retrieves signed card data, submits the Debit with
+    3DS authentication fields, then redirects the browser to the frontend
+    payment-status page.
+
+    On non-zero ResultCode: marks the transaction failed and redirects to
+    the frontend with an error.
+    """
+    # Parse the form POST from iVeri
+    payload: Dict[str, Any] = {}
+    content_type = request.content_type or ''
+    if 'application/json' in content_type:
+        try:
+            payload = json.loads(request.body.decode('utf-8'))
+        except Exception:
+            payload = {}
+    else:
+        payload = {
+            k: (v[0] if isinstance(v, list) and len(v) == 1 else v)
+            for k, v in request.POST.items()
+        }
+
+    logger.info("3DS ReturnUrl received | keys=%s", list(payload.keys()))
+
+    merchant_ref = str(payload.get('MerchantReference') or '').strip()
+    result_code = str(payload.get('ResultCode') or '').strip()
+
+    frontend_base = getattr(settings, 'CBZ_3DS_FRONTEND_BASE', '') or ''
+
+    def _redirect(path: str) -> HttpResponseRedirect:
+        return HttpResponseRedirect(f"{frontend_base.rstrip('/')}{path}")
+
+    if not merchant_ref:
+        logger.warning("3DS ReturnUrl: no MerchantReference in payload")
+        return _redirect('/booking/payment-status?channel=card&error=no_reference')
+
+    txn = CBZTransaction.objects.filter(merchant_reference=merchant_ref).first()
+    if not txn:
+        logger.warning("3DS ReturnUrl: transaction %s not found", merchant_ref)
+        return _redirect(f'/booking/payment-status?channel=card&error=not_found&ref={merchant_ref}')
+
+    # Store the 3DS auth data on the transaction
+    stored = txn.gateway_response or {}
+    stored['_3ds_return_payload'] = _scrub_pci_fields(payload)
+    stored['_3ds_pares_received'] = True  # reuse existing UAT export field
+
+    if result_code != '0':
+        txn.result_code = result_code
+        txn.result_description = str(payload.get('ResultDescription') or 'Authentication failed')
+        txn.status = CBZTransaction.TransactionStatus.DECLINED
+        txn.gateway_response = stored
+        txn.save()
+        logger.info("3DS ReturnUrl: authentication failed | ref=%s code=%s", merchant_ref, result_code)
+        return _redirect(
+            f'/booking/payment-status?channel=card&ref={merchant_ref}'
+            f'&error=3ds_failed&result_code={result_code}'
+        )
+
+    # 3DS authentication succeeded — collect auth fields for the Debit
+    three_ds_auth = {}
+    for field in (
+        'CardHolderAuthenticationData',
+        'CardHolderAuthenticationID',
+        'ElectronicCommerceIndicator',
+        'ThreeDSecure_DSTransID',
+        'ThreeDSecure_ProtocolVersion',
+        'ThreeDSecure_AuthenticationType',
+        'ThreeDSecure_VEResEnrolled',
+        'ThreeDSecure_RequestID',
+        'JWT',
+    ):
+        value = payload.get(field)
+        if value:
+            three_ds_auth[field] = str(value)
+
+    stored['_3ds_auth_data'] = three_ds_auth
+    txn.gateway_response = stored
+    txn.save(update_fields=['gateway_response'])
+
+    # Retrieve the temporarily signed card data and complete the Debit
+    signed_card = stored.get('_signed_card', '')
+    if not signed_card:
+        logger.error("3DS ReturnUrl: no signed card data for %s — cannot complete Debit", merchant_ref)
+        txn.status = CBZTransaction.TransactionStatus.FAILED
+        txn.result_description = '3DS completed but card data unavailable for charge'
+        txn.save(update_fields=['status', 'result_description', 'gateway_response'])
+        return _redirect(f'/booking/payment-status?channel=card&ref={merchant_ref}&error=card_data_missing')
+
+    try:
+        card_data = signing.loads(signed_card, salt=_3DS_PAN_SALT, max_age=_3DS_PAN_MAX_AGE)
+    except signing.SignatureExpired:
+        logger.error("3DS ReturnUrl: signed card data expired for %s", merchant_ref)
+        txn.status = CBZTransaction.TransactionStatus.FAILED
+        txn.result_description = '3DS session expired — please restart payment'
+        txn.save(update_fields=['status', 'result_description'])
+        return _redirect(f'/booking/payment-status?channel=card&ref={merchant_ref}&error=session_expired')
+    except Exception:
+        logger.exception("3DS ReturnUrl: could not load signed card data for %s", merchant_ref)
+        txn.status = CBZTransaction.TransactionStatus.FAILED
+        txn.result_description = '3DS completion error'
+        txn.save(update_fields=['status', 'result_description'])
+        return _redirect(f'/booking/payment-status?channel=card&ref={merchant_ref}&error=internal')
+
+    # Clear the signed card data before making the Debit call
+    stored.pop('_signed_card', None)
+    txn.gateway_response = stored
+    txn.save(update_fields=['gateway_response'])
+
+    client = _build_client()
+    try:
+        response = client.debit_card(
+            pan=card_data['pan'],
+            expiry_date=card_data['expiry'],
+            cvv=card_data.get('cvv', ''),
+            amount=txn.amount,
+            currency=txn.currency,
+            merchant_reference=merchant_ref,
+            threed_secure_data=three_ds_auth or None,
+        )
+
+        result = IVeriClient.get_result(response)
+        is_approved = IVeriClient.is_approved(response)
+        is_pending = IVeriClient.is_pending(response)
+
+        _apply_gateway_result_to_transaction(
+            txn, result,
+            approved=is_approved,
+            pending=is_pending,
+            raw_response=response,
+        )
+
+        if is_approved:
+            txn.booking = _finalize_booking_reference_if_temporary(txn.booking)
+            if txn.booking:
+                existing = Payment.objects.filter(
+                    booking=txn.booking,
+                    transaction_reference=txn.merchant_reference,
+                ).exists()
+                if not existing:
+                    _record_payment(txn, txn.booking)
+
+        logger.info(
+            "3DS ReturnUrl: Debit complete | ref=%s approved=%s pending=%s",
+            merchant_ref, is_approved, is_pending,
+        )
+
+    except Exception:
+        logger.exception("3DS ReturnUrl: Debit failed | ref=%s", merchant_ref)
+        txn.status = CBZTransaction.TransactionStatus.FAILED
+        txn.save(update_fields=['status'])
+
+    return _redirect(f'/booking/payment-status?channel=card&ref={merchant_ref}&provider=cbz')
 
 
 # ─── Helper Functions ────────────────────────────────────────────────
