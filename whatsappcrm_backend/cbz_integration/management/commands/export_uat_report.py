@@ -26,6 +26,7 @@ Usage:
     python manage.py export_uat_report --status=APPROVED,DECLINED
     python manage.py export_uat_report --since=2025-01-01
     python manage.py export_uat_report --payment-type=card
+    python manage.py export_uat_report --include-3ds
 """
 
 from __future__ import annotations
@@ -102,6 +103,16 @@ class Command(BaseCommand):
             default=None,
             help="Maximum number of records to export",
         )
+        parser.add_argument(
+            "--include-3ds",
+            action="store_true",
+            default=False,
+            help=(
+                "Append a 'three_ds' block to each card transaction record "
+                "showing whether a 3DS challenge occurred, whether PaRes was "
+                "received, and the ECI outcome."
+            ),
+        )
 
     @staticmethod
     def _parse_date(value: str, field_name: str) -> datetime:
@@ -166,7 +177,67 @@ class Command(BaseCommand):
             "ECOM_TRANSACTIONCOMPLETE": "False",
         }
 
-    def _transaction_to_record(self, txn: Any, application_id: str) -> Dict[str, Any]:
+    @staticmethod
+    def _build_3ds_block(txn: Any) -> Optional[Dict[str, Any]]:
+        """
+        Build the 'three_ds' UAT block for a card transaction.
+
+        Inspects gateway_response for 3DS challenge markers and completion data.
+        Returns None for non-card or transactions with no 3DS involvement.
+        """
+        if txn.payment_type != "card":
+            return None
+
+        stored: Dict[str, Any] = txn.gateway_response or {}
+
+        # Detect whether a 3DS challenge was issued in the initial debit response.
+        # We check both top-level and nested ThreeDSecure keys.
+        _challenge_markers = ("ACSURL", "ACSUrl", "AcsUrl", "PaReq", "PAREQ",
+                              "TermUrl", "TermURL", "MD", "RedirectURL")
+        txn_data = stored.get("Transaction", {}) if isinstance(stored.get("Transaction"), dict) else {}
+        three_ds_data = txn_data.get("ThreeDSecure", {}) if isinstance(txn_data.get("ThreeDSecure"), dict) else {}
+
+        challenged = (
+            any(stored.get(k) for k in _challenge_markers)
+            or any(txn_data.get(k) for k in _challenge_markers)
+            or any(three_ds_data.get(k) for k in _challenge_markers)
+            or bool(stored.get("_3ds_pares_received"))
+        )
+
+        if not challenged:
+            return None
+
+        # ECI from the completion response (stored in Transaction or ThreeDSecure)
+        eci = (
+            txn_data.get("ECI")
+            or three_ds_data.get("ECI")
+            or stored.get("ECI")
+            or ""
+        )
+        _eci_labels = {
+            "5": "fully_authenticated",
+            "6": "attempted",
+            "7": "not_authenticated",
+        }
+
+        return {
+            "challenged": True,
+            "pares_received": bool(stored.get("_3ds_pares_received")),
+            "eci": eci or None,
+            "eci_label": _eci_labels.get(str(eci), "unknown") if eci else None,
+            "outcome": (
+                "approved" if txn.status == "APPROVED"
+                else "declined" if txn.status == "DECLINED"
+                else "pending"
+            ),
+        }
+
+    def _transaction_to_record(
+        self,
+        txn: Any,
+        application_id: str,
+        include_3ds: bool = False,
+    ) -> Dict[str, Any]:
         result_code = txn.result_code or ""
         status_label, message = _RESULT_STATUS.get(result_code, _DEFAULT_STATUS)
 
@@ -177,11 +248,18 @@ class Command(BaseCommand):
             elif txn.status == "DECLINED":
                 status_label, message = _RESULT_STATUS["4"]
 
-        return {
+        record: Dict[str, Any] = {
             "status": status_label,
             "message": message,
             "gateway_response": self._build_gateway_response(txn, application_id),
         }
+
+        if include_3ds:
+            three_ds_block = self._build_3ds_block(txn)
+            if three_ds_block is not None:
+                record["three_ds"] = three_ds_block
+
+        return record
 
     def handle(self, *args: Any, **options: Any) -> None:
         from cbz_integration.models import CBZTransaction, CBZConfig  # noqa: PLC0415
@@ -220,9 +298,12 @@ class Command(BaseCommand):
         if options["limit"]:
             qs = qs[: options["limit"]]
 
+        include_3ds = bool(options.get("include_3ds"))
+
         # ── Build output ──────────────────────────────────────────────
         records: List[Dict[str, Any]] = [
-            self._transaction_to_record(txn, application_id) for txn in qs
+            self._transaction_to_record(txn, application_id, include_3ds=include_3ds)
+            for txn in qs
         ]
 
         text = json.dumps(records, indent=2, ensure_ascii=False)
@@ -241,13 +322,24 @@ class Command(BaseCommand):
         approved = sum(1 for r in records if r["status"] == "success")
         failed = sum(1 for r in records if r["status"] == "fail")
         errored = sum(1 for r in records if r["status"] == "error")
-        self.stderr.write(self.style.SUCCESS(
-            f"\n── UAT Export ─────────────────────────────────\n"
-            f"  Total    : {len(records)}\n"
-            f"  Success  : {approved}\n"
-            f"  Fail     : {failed}\n"
-            f"  Error    : {errored}\n"
-            f"  Output   : {outfile or 'stdout'}\n"
-            f"  Generated: {dj_tz.now().isoformat()}\n"
-            f"────────────────────────────────────────────────\n"
-        ))
+        challenged = sum(1 for r in records if r.get("three_ds", {}).get("challenged"))
+        pares_received = sum(1 for r in records if r.get("three_ds", {}).get("pares_received"))
+
+        summary_lines = [
+            f"\n── UAT Export ─────────────────────────────────\n",
+            f"  Total    : {len(records)}\n",
+            f"  Success  : {approved}\n",
+            f"  Fail     : {failed}\n",
+            f"  Error    : {errored}\n",
+        ]
+        if include_3ds:
+            summary_lines += [
+                f"  3DS challenged  : {challenged}\n",
+                f"  3DS PaRes recv  : {pares_received}\n",
+            ]
+        summary_lines += [
+            f"  Output   : {outfile or 'stdout'}\n",
+            f"  Generated: {dj_tz.now().isoformat()}\n",
+            f"────────────────────────────────────────────────\n",
+        ]
+        self.stderr.write(self.style.SUCCESS("".join(summary_lines)))

@@ -284,7 +284,17 @@ def _apply_gateway_result_to_transaction(
     txn.card_bin = result.get('card_bin') or txn.card_bin
 
     if raw_response is not None:
-        txn.gateway_response = _scrub_pci_fields(raw_response)
+        # Preserve internal 3DS audit markers set before this call so the
+        # UAT export can report whether a PaRes was received.
+        _3ds_meta = {}
+        if isinstance(txn.gateway_response, dict):
+            for key in ('_3ds_pares_received', '_3ds_pares_len'):
+                if key in txn.gateway_response:
+                    _3ds_meta[key] = txn.gateway_response[key]
+        scrubbed = _scrub_pci_fields(raw_response)
+        if _3ds_meta:
+            scrubbed.update(_3ds_meta)
+        txn.gateway_response = scrubbed
 
     if approved:
         txn.status = CBZTransaction.TransactionStatus.APPROVED
