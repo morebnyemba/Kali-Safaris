@@ -582,6 +582,9 @@ CBZ_CERTIFICATE_ID = os.getenv('CBZ_CERTIFICATE_ID', '')  # GUID used in REST tr
 CBZ_APPLICATION_ID = os.getenv('CBZ_APPLICATION_ID', '')  # GUID from acquiring bank (CBZ)
 CBZ_MERCHANT_PROFILE_ID = os.getenv('CBZ_MERCHANT_PROFILE_ID', '')  # Merchant profile ID for iVeri
 CBZ_MODE = os.getenv('CBZ_MODE', 'Test')  # 'Test' or 'LIVE'
+# Full public URL of the Next.js /api/3ds/callback route — sent to iVeri as TermUrl
+# so the ACS knows where to redirect the browser after cardholder authentication.
+CBZ_3DS_TERM_URL = os.getenv('CBZ_3DS_TERM_URL', '')
 
 # Optional SOAP certificate lifecycle configuration.
 CBZ_CERTIFICATE_SOAP_URL = os.getenv('CBZ_CERTIFICATE_SOAP_URL', '')

@@ -284,7 +284,17 @@ def _apply_gateway_result_to_transaction(
     txn.card_bin = result.get('card_bin') or txn.card_bin
 
     if raw_response is not None:
-        txn.gateway_response = _scrub_pci_fields(raw_response)
+        # Preserve internal 3DS audit markers set before this call so the
+        # UAT export can report whether a PaRes was received.
+        _3ds_meta = {}
+        if isinstance(txn.gateway_response, dict):
+            for key in ('_3ds_pares_received', '_3ds_pares_len'):
+                if key in txn.gateway_response:
+                    _3ds_meta[key] = txn.gateway_response[key]
+        scrubbed = _scrub_pci_fields(raw_response)
+        if _3ds_meta:
+            scrubbed.update(_3ds_meta)
+        txn.gateway_response = scrubbed
 
     if approved:
         txn.status = CBZTransaction.TransactionStatus.APPROVED
@@ -796,6 +806,21 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
             })
         elif is_3ds_required:
             booking = _finalize_booking_reference_if_temporary(booking)
+            challenge_data = IVeriClient.get_3ds_challenge_data(response)
+
+            # If iVeri didn't echo TermUrl, fall back to the configured one so the
+            # frontend always knows where to direct the ACS redirect.
+            fallback_term_url = getattr(settings, 'CBZ_3DS_TERM_URL', '') or ''
+            if fallback_term_url and not (
+                challenge_data.get('TermUrl') or challenge_data.get('TermURL')
+            ):
+                challenge_data['TermUrl'] = fallback_term_url
+
+            # Ensure MD (merchant_reference) is in challenge data so the frontend
+            # can include it in the ACS POST and the ACS echoes it back to TermUrl.
+            if not challenge_data.get('MD'):
+                challenge_data['MD'] = merchant_ref
+
             return JsonResponse({
                 "success": True,
                 "requires_3ds": True,
@@ -806,7 +831,7 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
                 "transaction_index": result.get('transaction_index'),
-                "challenge": IVeriClient.get_3ds_challenge_data(response),
+                "challenge": challenge_data,
                 "next_step": {
                     "complete_url": "/crm-api/payments/cbz/card/3ds/complete/",
                     "query_url": f"/crm-api/payments/cbz/query/{merchant_ref}/",
