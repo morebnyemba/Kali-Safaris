@@ -308,6 +308,11 @@ class IVeriClient:
             txn_resp = data.get('Transaction', {})
             safe_response = {k: v for k, v in txn_resp.items() if k not in _SENSITIVE_PAYLOAD_FIELDS}
             logger.info("iVeri response | %s", safe_response)
+            # Log the full raw response (top-level keys + Transaction) so nothing is missed.
+            # PCI-sensitive fields are still excluded from the Transaction sub-object.
+            full_log = {k: v for k, v in data.items() if k != 'Transaction'}
+            full_log['Transaction'] = safe_response
+            logger.info("iVeri full response | %s", full_log)
             audit_logger.info(
                 "IVERI_RESPONSE http_status=%s",
                 resp.status_code,
