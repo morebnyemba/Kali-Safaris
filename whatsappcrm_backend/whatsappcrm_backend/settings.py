@@ -582,9 +582,16 @@ CBZ_CERTIFICATE_ID = os.getenv('CBZ_CERTIFICATE_ID', '')  # GUID used in REST tr
 CBZ_APPLICATION_ID = os.getenv('CBZ_APPLICATION_ID', '')  # GUID from acquiring bank (CBZ)
 CBZ_MERCHANT_PROFILE_ID = os.getenv('CBZ_MERCHANT_PROFILE_ID', '')  # Merchant profile ID for iVeri
 CBZ_MODE = os.getenv('CBZ_MODE', 'Test')  # 'Test' or 'LIVE'
-# Full public URL of the Next.js /api/3ds/callback route — sent to iVeri as TermUrl
-# so the ACS knows where to redirect the browser after cardholder authentication.
+# Legacy 3DS v1 TermUrl (no longer used — iVeri uses 3DS 2)
 CBZ_3DS_TERM_URL = os.getenv('CBZ_3DS_TERM_URL', '')
+
+# 3DS 2: public URL of the Django /crm-api/payments/cbz/card/3ds/return/ endpoint.
+# iVeri POSTs the authentication result here after the cardholder completes enrollment.
+CBZ_3DS_RETURN_URL = os.getenv('CBZ_3DS_RETURN_URL', '')
+
+# 3DS 2: base URL of the frontend (Next.js) app — used to redirect the browser
+# after 3DS completes (e.g. https://kalisafaris.com).
+CBZ_3DS_FRONTEND_BASE = os.getenv('CBZ_3DS_FRONTEND_BASE', '')
 
 # Optional SOAP certificate lifecycle configuration.
 CBZ_CERTIFICATE_SOAP_URL = os.getenv('CBZ_CERTIFICATE_SOAP_URL', '')

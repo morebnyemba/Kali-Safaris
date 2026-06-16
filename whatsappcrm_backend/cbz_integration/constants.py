@@ -10,6 +10,9 @@ IVERI_PORTAL_URL_TEST = 'https://portal.host.iveri.com'  # Same host, Mode field
 # REST API endpoints (relative to portal URL)
 IVERI_REST_TRANSACTIONS = '/api/transactions'
 
+# 3DS 2 enrollment endpoint (relative to portal URL) — form POST, browser-initiated
+IVERI_3DS_ENROLLMENT = '/threedsecure/EnrollmentInitial'
+
 # SOAP certificate lifecycle defaults
 IVERI_SOAP_TIMEOUT = 60
 
@@ -33,10 +36,17 @@ COMMAND_LOOKUP = 'Lookup'
 MODE_TEST = 'Test'
 MODE_LIVE = 'LIVE'
 
-# ECI (Electronic Commerce Indicator) values
-ECI_ECOMMERCE = '7'           # Card Not Present, no 3DS authentication
-ECI_3DS_AUTHENTICATED = '5'   # Fully 3DS authenticated — liability shifts to issuer
-ECI_3DS_ATTEMPTED = '6'       # 3DS attempted but not completed (e.g. card not enrolled)
+# ECI (Electronic Commerce Indicator) values for EcoCash (legacy numeric)
+ECI_ECOMMERCE = '7'           # Card Not Present, no 3DS (used for EcoCash only)
+
+# ECI string values for 3DS 2 (iVeri Enterprise uses string labels, not numeric)
+ECI_3DS2_AUTHENTICATED = 'ThreeDSecure'         # Fully authenticated — ECI 05/02
+ECI_3DS2_ATTEMPTED = 'ThreeDSecureAttempted'    # Attempted — ECI 06/01
+ECI_3DS2_SECURE_CHANNEL = 'SecureChannel'       # Secure channel — ECI 07
+
+# Legacy 3DS v1 ECI numeric values (kept for reference/compatibility)
+ECI_3DS_AUTHENTICATED = '5'   # 3DS v1 fully authenticated
+ECI_3DS_ATTEMPTED = '6'       # 3DS v1 attempted
 
 # Result codes
 RESULT_CODE_SUCCESS = '0'
