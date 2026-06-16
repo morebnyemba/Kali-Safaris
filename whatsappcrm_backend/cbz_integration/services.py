@@ -285,7 +285,14 @@ class IVeriClient:
             'ApplicationID': _mask_value(txn_out.get('ApplicationID', '')),
             'HasPAN': bool(txn_out.get('PAN') or txn_out.get('Pan')),
             'HasNotificationURL': bool(txn_out.get('NotificationURL')),
+            'TermUrl': txn_out.get('TermUrl') or txn_out.get('TermURL') or None,
+            'HasMD': bool(txn_out.get('MD')),
         }
+        if safe_request['Command'] == 'Debit' and safe_request['HasPAN'] and not safe_request['TermUrl']:
+            logger.warning(
+                "iVeri card debit has no TermUrl — 3DS challenge will not be issued. "
+                "Set CBZ_3DS_TERM_URL to the public URL of /api/3ds/callback."
+            )
         logger.info("iVeri request | %s", safe_request)
         audit_logger.info(
             "IVERI_REQUEST",
