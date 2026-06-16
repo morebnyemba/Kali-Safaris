@@ -796,6 +796,21 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
             })
         elif is_3ds_required:
             booking = _finalize_booking_reference_if_temporary(booking)
+            challenge_data = IVeriClient.get_3ds_challenge_data(response)
+
+            # If iVeri didn't echo TermUrl, fall back to the configured one so the
+            # frontend always knows where to direct the ACS redirect.
+            fallback_term_url = getattr(settings, 'CBZ_3DS_TERM_URL', '') or ''
+            if fallback_term_url and not (
+                challenge_data.get('TermUrl') or challenge_data.get('TermURL')
+            ):
+                challenge_data['TermUrl'] = fallback_term_url
+
+            # Ensure MD (merchant_reference) is in challenge data so the frontend
+            # can include it in the ACS POST and the ACS echoes it back to TermUrl.
+            if not challenge_data.get('MD'):
+                challenge_data['MD'] = merchant_ref
+
             return JsonResponse({
                 "success": True,
                 "requires_3ds": True,
@@ -806,7 +821,7 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
                 "gateway_mode": _resolve_gateway_mode(result),
                 "result_code": result.get('result_code'),
                 "transaction_index": result.get('transaction_index'),
-                "challenge": IVeriClient.get_3ds_challenge_data(response),
+                "challenge": challenge_data,
                 "next_step": {
                     "complete_url": "/crm-api/payments/cbz/card/3ds/complete/",
                     "query_url": f"/crm-api/payments/cbz/query/{merchant_ref}/",

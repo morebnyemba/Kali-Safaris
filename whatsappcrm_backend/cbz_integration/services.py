@@ -87,6 +87,7 @@ class IVeriConfig:
     application_id: str      # ApplicationID GUID
     mode: str = 'Test'       # 'Test' or 'LIVE'
     callback_url: str = ''   # Optional out-of-band notification URL
+    term_url: str = ''       # 3DS v1 TermUrl — where ACS redirects after cardholder auth
 
 
 @dataclass
@@ -207,6 +208,7 @@ class IVeriClient:
                     application_id=config_model.application_id,
                     mode=config_model.mode,
                     callback_url=config_model.callback_url or '',
+                    term_url=getattr(settings, 'CBZ_3DS_TERM_URL', '') or '',
                 )
             else:
                 logger.warning("No active CBZ/iVeri configuration found in database.")
@@ -463,10 +465,17 @@ class IVeriClient:
             'ExpiryDate': expiry_date,
             'CardSecurityCode': cvv,
             'MerchantReference': merchant_reference,
+            # MD echoed through iVeri → ACS → TermUrl callback so we can recover merchant_reference
+            'MD': merchant_reference,
             'ECI': ECI_ECOMMERCE,
         }
 
-        # Add 3D Secure data if provided
+        # TermUrl tells iVeri (and subsequently the ACS) where to redirect the
+        # browser after 3DS authentication.  Required for 3DS v1 to work end-to-end.
+        if self.config.term_url:
+            transaction_data['TermUrl'] = self.config.term_url
+
+        # Add 3D Secure data if provided (caller may override TermUrl or add PaReq)
         if threed_secure_data:
             transaction_data.update(threed_secure_data)
 
