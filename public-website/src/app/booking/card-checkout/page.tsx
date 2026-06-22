@@ -160,6 +160,8 @@ function setWpwlOptions(onWidgetError: (msg: string, expired: boolean) => void) 
       submit:      'Pay Securely',
     },
     onError: function(error: { name?: string; code?: string; message?: string }) {
+      // eslint-disable-next-line no-console
+      console.error('[COPYandPAY widget error]', error);
       const name = error?.name || '';
       const code = error?.code || '';
       const msg  = error?.message || '';
