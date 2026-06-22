@@ -940,10 +940,12 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
     if config['test_mode']:
         request_data['testMode'] = config['test_mode']
 
-    # OPPWA locks shopperResultUrl at checkout-creation time and rejects any
-    # later mismatch (even an added query param) when the widget submits the
-    # payment. So we embed merchant_ref here and hand the final URL back to
-    # the caller, who must use it verbatim as the payment form's action.
+    # NOTE: shopperResultUrl must NOT be sent in the /v1/checkouts prepare
+    # request. Per OPPWA's integration guide it belongs only on the payment
+    # form's action attribute (step 2). Sending it here as well causes OPPWA
+    # to reject the later widget submission with "shopperResultUrl was
+    # already set and cannot be overwritten" (200.300.404), even when the
+    # value is byte-for-byte identical.
     final_shopper_result_url = ''
     raw_shopper_result_url = str(payload.get('shopper_result_url') or '').strip()
     if raw_shopper_result_url:
@@ -951,7 +953,6 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
         query = parse_qs(parsed.query)
         query['ref'] = [merchant_ref]
         final_shopper_result_url = urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
-        request_data['shopperResultUrl'] = final_shopper_result_url
 
     headers = {
         'Authorization': f"Bearer {config['bearer_token']}",
