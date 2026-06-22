@@ -165,12 +165,14 @@ function setWpwlOptions(onWidgetError: (msg: string, expired: boolean) => void) 
       const msg  = error?.message || '';
       const isExpired =
         name === 'InvalidCheckoutIdError' ||
-        code === '200.300.404' ||
         msg.includes('No payment session found');
+      const isInvalidParam = code === '200.300.404';
       onWidgetError(
         isExpired
           ? 'Your payment session has expired. Sessions last 30 minutes — please go back and start a new payment.'
-          : `Payment error: ${msg || code || name || 'Unknown error'}. Please try again.`,
+          : isInvalidParam
+            ? 'This card type or payment detail is not supported for this merchant account. Please try a different card.'
+            : `Payment error: ${msg || code || name || 'Unknown error'}. Please try again.`,
         isExpired,
       );
     },
@@ -187,7 +189,7 @@ function CardCheckoutContent() {
 
   const checkoutId = (searchParams.get('checkoutId') || '').trim();
   const merchantReference = (searchParams.get('merchantRef') || '').trim();
-  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX PRIVATE_LABEL').trim();
+  const brands = (searchParams.get('brands') || 'PRIVATE_LABEL').trim();
   const widgetScriptUrl = (searchParams.get('widget') || '').trim();
   const integrity = (searchParams.get('integrity') || '').trim();
   let returnUrl = (searchParams.get('returnUrl') || '/booking/payment-status?channel=card').trim();

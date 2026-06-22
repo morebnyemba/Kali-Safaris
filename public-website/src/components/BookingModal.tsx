@@ -922,7 +922,7 @@ export default function BookingModal({
         const checkoutUrl = new URL(`${window.location.origin}/booking/card-checkout`);
         checkoutUrl.searchParams.set('checkoutId', String(result.checkout_id));
         checkoutUrl.searchParams.set('merchantRef', merchantRef);
-        checkoutUrl.searchParams.set('brands', String(result.brands || 'VISA MASTER AMEX PRIVATE_LABEL'));
+        checkoutUrl.searchParams.set('brands', String(result.brands || 'PRIVATE_LABEL'));
         checkoutUrl.searchParams.set('widget', String(result.widget_script_url || ''));
         checkoutUrl.searchParams.set('returnUrl', resultUrl.toString());
         if (result.integrity) {
