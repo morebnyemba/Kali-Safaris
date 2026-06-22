@@ -92,8 +92,28 @@ const WIDGET_CSS = `
   .wpwl-button-pay:hover { opacity: 0.88; transform: translateY(-1px); }
   .wpwl-button-pay:active { transform: translateY(0); }
 
-  /* Hide the brand logo row — we show our own icons in the header */
-  .wpwl-wrapper-brand { display: none; }
+  /* Brand selector row — lets the cardholder explicitly pick their card type
+     (e.g. Private Label) when it can't be auto-detected from the PAN alone. */
+  .wpwl-wrapper-brand {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+  }
+  .wpwl-wrapper-brand .wpwl-brand-card {
+    width: 2.75rem;
+    height: 1.75rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.15s, border-color 0.15s;
+  }
+  .wpwl-wrapper-brand .wpwl-brand-card:hover,
+  .wpwl-wrapper-brand .wpwl-brand-card.wpwl-selected-brand {
+    opacity: 1;
+    border-color: #E8600A;
+  }
 
   /* Validation error messages from widget */
   .wpwl-hint {
