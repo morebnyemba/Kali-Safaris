@@ -913,18 +913,24 @@ export default function BookingModal({
           setLastMerchantReference(merchantRef);
           setSessionItem(PENDING_3DS_REF_KEY, merchantRef);
           setSessionItem(PENDING_PAYMENT_CHANNEL_KEY, 'card');
-          resultUrl.searchParams.set('ref', merchantRef);
         }
 
         setLastPaymentChannel('card');
         setCanReturnToWhatsApp(launchedFromWhatsApp);
+
+        // OPPWA locks shopperResultUrl at checkout-creation time, so the
+        // payment form's action must match the URL the backend actually sent
+        // to OPPWA (with ?ref= already embedded) byte-for-byte — building our
+        // own copy here caused "shopperResultUrl was already set and cannot
+        // be overwritten" (200.300.404) at payment time.
+        const finalReturnUrl = result.shopper_result_url || resultUrl.toString();
 
         const checkoutUrl = new URL(`${window.location.origin}/booking/card-checkout`);
         checkoutUrl.searchParams.set('checkoutId', String(result.checkout_id));
         checkoutUrl.searchParams.set('merchantRef', merchantRef);
         checkoutUrl.searchParams.set('brands', String(result.brands || 'PRIVATE_LABEL'));
         checkoutUrl.searchParams.set('widget', String(result.widget_script_url || ''));
-        checkoutUrl.searchParams.set('returnUrl', resultUrl.toString());
+        checkoutUrl.searchParams.set('returnUrl', finalReturnUrl);
         if (result.integrity) {
           checkoutUrl.searchParams.set('integrity', String(result.integrity));
         }

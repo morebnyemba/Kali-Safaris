@@ -16,7 +16,7 @@ import base64
 import binascii
 import mimetypes
 from datetime import date
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlparse, urlunparse, urlencode
 
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
@@ -939,8 +939,19 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
     }
     if config['test_mode']:
         request_data['testMode'] = config['test_mode']
-    if payload.get('shopper_result_url'):
-        request_data['shopperResultUrl'] = str(payload.get('shopper_result_url')).strip()
+
+    # OPPWA locks shopperResultUrl at checkout-creation time and rejects any
+    # later mismatch (even an added query param) when the widget submits the
+    # payment. So we embed merchant_ref here and hand the final URL back to
+    # the caller, who must use it verbatim as the payment form's action.
+    final_shopper_result_url = ''
+    raw_shopper_result_url = str(payload.get('shopper_result_url') or '').strip()
+    if raw_shopper_result_url:
+        parsed = urlparse(raw_shopper_result_url)
+        query = parse_qs(parsed.query)
+        query['ref'] = [merchant_ref]
+        final_shopper_result_url = urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+        request_data['shopperResultUrl'] = final_shopper_result_url
 
     headers = {
         'Authorization': f"Bearer {config['bearer_token']}",
@@ -1001,6 +1012,7 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
             "widget_script_url": widget_url,
             "brands": config['brands'],
             "integrity": config['integrity'] or None,
+            "shopper_result_url": final_shopper_result_url or None,
         })
     except Exception as exc:
         logger.exception("COPYandPAY checkout preparation failed")
