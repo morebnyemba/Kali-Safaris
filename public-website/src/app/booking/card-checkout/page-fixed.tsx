@@ -317,19 +317,33 @@ function CardCheckoutContent() {
           {resolvedScriptUrl.includes('eu-test.oppwa.com') && (
             <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
               <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-2">Test Mode — Use these cards</p>
-              <div className="space-y-1">
-                {[
+              {(() => {
+                const testCards = [
                   { brand: 'Visa', pan: '4200000000000000', expiry: '05/30', cvv: '123' },
                   { brand: 'Mastercard', pan: '5454545454545454', expiry: '05/30', cvv: '123' },
                   { brand: 'Amex', pan: '375987000000005', expiry: '05/30', cvv: '1234' },
-                ].map(({ brand, pan, expiry, cvv }) => (
-                  <div key={brand} className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-amber-800 w-20">{brand}</span>
-                    <span className="font-mono text-xs text-amber-900">{pan}</span>
-                    <span className="font-mono text-xs text-amber-700">{expiry} / {cvv}</span>
+                ].filter(({ brand }) => brands.toUpperCase().includes(brand.toUpperCase()));
+                if (testCards.length === 0) {
+                  return (
+                    <p className="text-xs text-amber-800">
+                      This merchant account only accepts {brands} test cards. Contact CBZ/ZimSwitch
+                      for a valid test PAN for this brand — the standard VISA/Mastercard/Amex test
+                      cards will not work here.
+                    </p>
+                  );
+                }
+                return (
+                  <div className="space-y-1">
+                    {testCards.map(({ brand, pan, expiry, cvv }) => (
+                      <div key={brand} className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-semibold text-amber-800 w-20">{brand}</span>
+                        <span className="font-mono text-xs text-amber-900">{pan}</span>
+                        <span className="font-mono text-xs text-amber-700">{expiry} / {cvv}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                );
+              })()}
             </div>
           )}
 
