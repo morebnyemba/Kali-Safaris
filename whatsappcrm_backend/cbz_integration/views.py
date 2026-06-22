@@ -947,12 +947,24 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
     }
     endpoint = f"{config['base_url']}/v1/checkouts"
 
+    logger.info(
+        "COPYandPAY prepare-checkout request | endpoint=%s | data=%s",
+        endpoint,
+        {**request_data, 'entityId': request_data['entityId'][:8] + '...'},
+    )
+
     try:
         response = requests.post(endpoint, data=request_data, headers=headers, timeout=60)
         try:
             data = response.json()
         except ValueError:
             data = {'result': {'description': response.text[:500], 'code': ''}}
+
+        logger.info(
+            "COPYandPAY prepare-checkout response | status=%s | body=%s",
+            response.status_code,
+            data,
+        )
 
         code = _copyandpay_result_code(data)
         description = _copyandpay_result_description(data)
@@ -1033,6 +1045,13 @@ def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
     }
     endpoint = f"{config['base_url']}{resource_path}"
 
+    logger.info(
+        "COPYandPAY status request | endpoint=%s | entityId=%s... | merchant_reference=%s",
+        endpoint,
+        config['entity_id'][:8],
+        merchant_reference,
+    )
+
     try:
         response = requests.get(
             endpoint,
@@ -1044,6 +1063,12 @@ def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
             data = response.json()
         except ValueError:
             data = {'result': {'description': response.text[:500], 'code': ''}}
+
+        logger.info(
+            "COPYandPAY status response | status=%s | body=%s",
+            response.status_code,
+            data,
+        )
 
         result_code = _copyandpay_result_code(data)
         result_description = _copyandpay_result_description(data)
