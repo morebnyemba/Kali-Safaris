@@ -76,7 +76,7 @@ class CBZConfig(models.Model):
         max_length=255,
         blank=True,
         null=True,
-        help_text="Space-separated brands exposed by paymentWidgets (e.g. VISA MASTER AMEX ZIMSWITCH). Only brands enabled on your CBZ merchant account will appear in the widget."
+        help_text="Space-separated brands exposed by paymentWidgets (e.g. VISA MASTER AMEX PRIVATE_LABEL). PRIVATE_LABEL covers ZimSwitch private-label cards. Only brands enabled on your CBZ merchant account will appear in the widget."
     )
     copyandpay_widget_integrity = models.CharField(
         max_length=512,

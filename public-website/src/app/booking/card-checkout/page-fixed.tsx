@@ -167,7 +167,7 @@ function CardCheckoutContent() {
 
   const checkoutId = (searchParams.get('checkoutId') || '').trim();
   const merchantReference = (searchParams.get('merchantRef') || '').trim();
-  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX').trim();
+  const brands = (searchParams.get('brands') || 'VISA MASTER AMEX PRIVATE_LABEL').trim();
   const widgetScriptUrl = (searchParams.get('widget') || '').trim();
   const integrity = (searchParams.get('integrity') || '').trim();
   let returnUrl = (searchParams.get('returnUrl') || '/booking/payment-status?channel=card').trim();
@@ -273,6 +273,9 @@ function CardCheckoutContent() {
             <FaCcAmex className="text-white text-2xl" title="American Express" />
             {brands.includes('ZIMSWITCH') && (
               <span className="rounded bg-white/15 px-2 py-0.5 text-white text-[10px] font-bold tracking-wider">ZIMSWITCH</span>
+            )}
+            {brands.includes('PRIVATE_LABEL') && (
+              <span className="rounded bg-white/15 px-2 py-0.5 text-white text-[10px] font-bold tracking-wider">PRIVATE LABEL</span>
             )}
           </div>
         </div>
