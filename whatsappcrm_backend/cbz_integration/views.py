@@ -129,7 +129,7 @@ def _get_public_payment_config() -> Dict[str, Any]:
             'copyandpay': {
                 'enabled': bool(copyandpay_entity_id),
                 'base_url': copyandpay_base_url,
-                'brands': copyandpay_brands or 'VISA MASTER AMEX PRIVATE_LABEL',
+                'brands': copyandpay_brands or 'PRIVATE_LABEL',
             },
         },
     }
@@ -172,7 +172,7 @@ def _get_copyandpay_config() -> Dict[str, str]:
             (getattr(config, 'copyandpay_brands', '') if config else '')
             or getattr(settings, 'COPYANDPAY_BRANDS', '')
             or os.getenv('COPYANDPAY_BRANDS', '')
-            or 'VISA MASTER AMEX PRIVATE_LABEL'
+            or 'PRIVATE_LABEL'
         ).strip(),
         'integrity': (
             (getattr(config, 'copyandpay_widget_integrity', '') if config else '')
