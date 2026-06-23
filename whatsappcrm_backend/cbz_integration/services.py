@@ -218,13 +218,23 @@ class IVeriClient:
             logger.error(f"Error loading CBZ config from database: {e}", exc_info=True)
             return None
 
-    def _build_payload(self, command: str, transaction_data: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_payload(
+        self,
+        command: str,
+        transaction_data: Dict[str, Any],
+        category: str = 'Transaction',
+    ) -> Dict[str, Any]:
         """
         Build the standard iVeri REST API payload.
 
         Args:
             command: Transaction command (Debit, Authorisation, Credit, etc.)
             transaction_data: Additional transaction-specific parameters
+            category: Top-level iVeri message category — 'Transaction' for
+                financial commands (Debit, Authorisation, Credit, Void) or
+                'Enquiry' for non-financial status queries (Lookup). iVeri
+                rejects a Command that doesn't belong to its wrapping
+                category with "Unknown Category:Command combination".
 
         Returns:
             Complete JSON payload for the iVeri REST API
@@ -248,12 +258,12 @@ class IVeriClient:
             'Version': IVERI_API_VERSION,
             'CertificateID': self.config.certificate_id,
             'Direction': 'Request',
-            'Transaction': transaction,
+            category: transaction,
         }
 
         # Add callback URL for out-of-band notifications if configured
         if self.config.callback_url:
-            payload['Transaction']['NotificationURL'] = self.config.callback_url
+            payload[category]['NotificationURL'] = self.config.callback_url
 
         return payload
 
@@ -273,8 +283,12 @@ class IVeriClient:
         """
         _SENSITIVE_PAYLOAD_FIELDS = {'PAN', 'Pan', 'Cvc', 'CVV', 'Pin', 'CardNumber', 'AccountNumber', 'CertificateID'}
 
+        # Requests are wrapped in either 'Transaction' (financial commands)
+        # or 'Enquiry' (status lookups) — use whichever key is present.
+        category_key = 'Enquiry' if 'Enquiry' in payload else 'Transaction'
+
         # Build a PCI-scrubbed copy of the outgoing payload for audit logging
-        txn_out = payload.get('Transaction', {})
+        txn_out = payload.get(category_key, {})
         safe_request = {
             'Version': payload.get('Version'),
             'Direction': payload.get('Direction'),
@@ -305,14 +319,16 @@ class IVeriClient:
             resp.raise_for_status()
             data = resp.json()
 
-            # Build a PCI-scrubbed response for audit logging
-            txn_resp = data.get('Transaction', {})
+            # Build a PCI-scrubbed response for audit logging. iVeri echoes
+            # back the same wrapper key it was sent ('Transaction'/'Enquiry').
+            resp_key = 'Enquiry' if 'Enquiry' in data else 'Transaction'
+            txn_resp = data.get(resp_key, {})
             safe_response = {k: v for k, v in txn_resp.items() if k not in _SENSITIVE_PAYLOAD_FIELDS}
             logger.info("iVeri response | %s", safe_response)
-            # Log the full raw response (top-level keys + Transaction) so nothing is missed.
-            # PCI-sensitive fields are still excluded from the Transaction sub-object.
-            full_log = {k: v for k, v in data.items() if k != 'Transaction'}
-            full_log['Transaction'] = safe_response
+            # Log the full raw response (top-level keys + wrapper) so nothing is missed.
+            # PCI-sensitive fields are still excluded from the wrapper sub-object.
+            full_log = {k: v for k, v in data.items() if k != resp_key}
+            full_log[resp_key] = safe_response
             logger.info("iVeri full response | %s", full_log)
             audit_logger.info(
                 "IVERI_RESPONSE http_status=%s",
@@ -327,43 +343,43 @@ class IVeriClient:
             logger.error(
                 "iVeri HTTP error | status=%s command=%s ref=%s body=%s",
                 error_status,
-                payload.get('Transaction', {}).get('Command'),
-                payload.get('Transaction', {}).get('MerchantReference'),
+                payload.get(category_key, {}).get('Command'),
+                payload.get(category_key, {}).get('MerchantReference'),
                 error_body,
             )
             audit_logger.error(
                 "IVERI_HTTP_ERROR http_status=%s command=%s ref=%s",
                 error_status,
-                payload.get('Transaction', {}).get('Command'),
-                payload.get('Transaction', {}).get('MerchantReference'),
+                payload.get(category_key, {}).get('Command'),
+                payload.get(category_key, {}).get('MerchantReference'),
                 extra={"audit": {"body_snippet": error_body}},
             )
             raise
         except requests.exceptions.Timeout:
             logger.error(
                 "iVeri request timeout | command=%s ref=%s timeout=60s",
-                payload.get('Transaction', {}).get('Command'),
-                payload.get('Transaction', {}).get('MerchantReference'),
+                payload.get(category_key, {}).get('Command'),
+                payload.get(category_key, {}).get('MerchantReference'),
             )
             audit_logger.error(
                 "IVERI_TIMEOUT command=%s ref=%s",
-                payload.get('Transaction', {}).get('Command'),
-                payload.get('Transaction', {}).get('MerchantReference'),
+                payload.get(category_key, {}).get('Command'),
+                payload.get(category_key, {}).get('MerchantReference'),
                 extra={"audit": {}},
             )
             raise
         except Exception as e:
             logger.error(
                 "iVeri unexpected error | command=%s ref=%s error=%s",
-                payload.get('Transaction', {}).get('Command'),
-                payload.get('Transaction', {}).get('MerchantReference'),
+                payload.get(category_key, {}).get('Command'),
+                payload.get(category_key, {}).get('MerchantReference'),
                 str(e),
                 exc_info=True,
             )
             audit_logger.error(
                 "IVERI_ERROR command=%s ref=%s error=%s",
-                payload.get('Transaction', {}).get('Command'),
-                payload.get('Transaction', {}).get('MerchantReference'),
+                payload.get(category_key, {}).get('Command'),
+                payload.get(category_key, {}).get('MerchantReference'),
                 str(e),
                 extra={"audit": {}},
             )
@@ -655,7 +671,11 @@ class IVeriClient:
             'MerchantReference': merchant_reference,
         }
 
-        payload = self._build_payload(COMMAND_LOOKUP, transaction_data)
+        # Status lookups are non-financial enquiries — iVeri requires them
+        # wrapped under 'Enquiry' rather than 'Transaction'. Sending Lookup
+        # under 'Transaction' is rejected with "Unknown Category:Command
+        # combination (Transaction:Lookup)".
+        payload = self._build_payload(COMMAND_LOOKUP, transaction_data, category='Enquiry')
         logger.info("Transaction query | ref=%s", merchant_reference)
 
         return self._execute(payload)
@@ -744,7 +764,7 @@ class IVeriClient:
     @staticmethod
     def is_approved(response: Dict[str, Any]) -> bool:
         """Check if the iVeri response indicates an approved transaction."""
-        txn = response.get('Transaction', {})
+        txn = response.get('Transaction') or response.get('Enquiry') or {}
         fields = IVeriClient._extract_result_fields(txn)
         code = fields['code']
         status = fields['status'].lower()
@@ -753,7 +773,7 @@ class IVeriClient:
     @staticmethod
     def is_pending(response: Dict[str, Any]) -> bool:
         """Check if the iVeri response indicates the transaction is still pending."""
-        txn = response.get('Transaction', {})
+        txn = response.get('Transaction') or response.get('Enquiry') or {}
         fields = IVeriClient._extract_result_fields(txn)
         result_code = fields['code']
         status = fields['status']
@@ -794,7 +814,7 @@ class IVeriClient:
     @staticmethod
     def is_3ds_required(response: Dict[str, Any]) -> bool:
         """Detect whether the response expects a 3DS browser challenge/redirect step."""
-        txn = response.get('Transaction', {})
+        txn = response.get('Transaction') or response.get('Enquiry') or {}
         three_ds = txn.get('ThreeDSecure') if isinstance(txn.get('ThreeDSecure'), dict) else {}
 
         # Gateways differ in naming; support common iVeri/3DS field variants.
@@ -818,7 +838,7 @@ class IVeriClient:
     @staticmethod
     def get_3ds_challenge_data(response: Dict[str, Any]) -> Dict[str, Any]:
         """Extract browser challenge data that should be returned to the frontend."""
-        txn = response.get('Transaction', {})
+        txn = response.get('Transaction') or response.get('Enquiry') or {}
         three_ds = txn.get('ThreeDSecure') if isinstance(txn.get('ThreeDSecure'), dict) else {}
 
         fields = (
@@ -848,7 +868,7 @@ class IVeriClient:
     @staticmethod
     def get_result(response: Dict[str, Any]) -> Dict[str, Any]:
         """Extract key result fields from the iVeri response."""
-        txn = response.get('Transaction', {})
+        txn = response.get('Transaction') or response.get('Enquiry') or {}
         fields = IVeriClient._extract_result_fields(txn)
         result_code = fields['code'] or None
         return {
