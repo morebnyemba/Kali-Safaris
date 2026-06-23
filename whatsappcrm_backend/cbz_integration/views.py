@@ -1674,7 +1674,7 @@ def cbz_card_3ds_enroll_view(request: HttpRequest) -> JsonResponse:
             "PAN": "4070427646039018",
             "ExpiryDate": "0228",
             "CardSecurityCode": "123",
-            "ReturnUrl": "https://backend.kalisafaris.com/crm-api/payments/cbz/card/3ds/return/"
+            "ReturnUrl": "https://backend.kalaisafaris.com/crm-api/payments/cbz/card/3ds/return/"
         }
     }
     """

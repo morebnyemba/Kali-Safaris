@@ -590,7 +590,7 @@ CBZ_3DS_TERM_URL = os.getenv('CBZ_3DS_TERM_URL', '')
 CBZ_3DS_RETURN_URL = os.getenv('CBZ_3DS_RETURN_URL', '')
 
 # 3DS 2: base URL of the frontend (Next.js) app — used to redirect the browser
-# after 3DS completes (e.g. https://kalisafaris.com).
+# after 3DS completes (e.g. https://kalaisafaris.com).
 CBZ_3DS_FRONTEND_BASE = os.getenv('CBZ_3DS_FRONTEND_BASE', '')
 
 # Optional SOAP certificate lifecycle configuration.
