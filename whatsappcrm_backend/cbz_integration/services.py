@@ -698,17 +698,17 @@ class IVeriClient:
         Returns:
             iVeri API response dict with current transaction status
         """
-        # No Command body — iVeri filters by the query string. It still requires
-        # the merchant app identity though: a query without it is rejected with
-        # Result.Code 255 "No ApplicationID specified for command". Send
-        # ApplicationID + Mode (environment) alongside the reference; the body
-        # carries only the Legacy-auth envelope (CertificateID).
-        query_params = {
+        # iVeri reads ApplicationID from inside the command/Transaction object in
+        # the body — NOT from the query string. A query-string ApplicationID is
+        # ignored, giving Result.Code 255 "No ApplicationID specified for
+        # command". Put the app identity in a Transaction object and keep the
+        # reference as the query-string filter.
+        payload = self._build_auth_envelope()
+        payload['Transaction'] = {
             'ApplicationID': self.config.application_id,
             'Mode': self.config.mode,
-            IVERI_QUERY_PARAM_MERCHANT_REF: merchant_reference,
         }
-        payload = self._build_auth_envelope()
+        query_params = {IVERI_QUERY_PARAM_MERCHANT_REF: merchant_reference}
         logger.info("Transaction query | ref=%s", merchant_reference)
 
         return self._execute(payload, params=query_params)

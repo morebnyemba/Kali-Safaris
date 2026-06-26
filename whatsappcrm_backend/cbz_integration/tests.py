@@ -111,11 +111,11 @@ class IVeriClientPayloadTest(TestCase):
             self.assertEqual(call_payload['Transaction']['Amount'], '1050')
 
     @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
-    def test_query_transaction_uses_query_string(self, mock_db):
-        """Status lookups are not a Command — iVeri has no Transaction:Lookup or
-        Enquiry:Lookup (both rejected as "Unknown Category:Command combination").
-        The query goes as a URL query-string parameter on POST /api/transactions,
-        with no Command in the body — just the Legacy-auth envelope."""
+    def test_query_transaction_puts_app_id_in_body(self, mock_db):
+        """iVeri reads ApplicationID from inside the Transaction object in the
+        body, not the query string (a query-string ApplicationID is ignored:
+        "No ApplicationID specified for command"). The reference stays as the
+        query-string filter; a status query carries no financial Command."""
         client = IVeriClient(config=self.config)
 
         with patch.object(client, '_execute') as mock_execute:
@@ -125,19 +125,16 @@ class IVeriClientPayloadTest(TestCase):
 
             call_args, call_kwargs = mock_execute.call_args
             payload = call_args[0]
-            # No command body — neither financial nor (invalid) enquiry command.
-            self.assertNotIn('Transaction', payload)
-            self.assertNotIn('Enquiry', payload)
-            self.assertNotIn('Command', payload)
+            # App identity now lives in the body Transaction object.
+            self.assertEqual(payload['Transaction']['ApplicationID'], 'test-app-id-5678')
+            self.assertEqual(payload['Transaction']['Mode'], 'Test')
+            # No financial command on a status query.
+            self.assertNotIn('Command', payload['Transaction'])
             # Legacy auth still travels in the body.
             self.assertEqual(payload['CertificateID'], 'test-cert-id-1234')
-            # The identifier + merchant app identity travel in the query string.
-            # iVeri rejects a query with no ApplicationID ("No ApplicationID
-            # specified for command").
+            # The reference travels as the query-string filter.
             params = call_kwargs.get('params') or {}
             self.assertEqual(params[IVERI_QUERY_PARAM_MERCHANT_REF], 'TEST-REF-001')
-            self.assertEqual(params['ApplicationID'], 'test-app-id-5678')
-            self.assertEqual(params['Mode'], 'Test')
 
     def test_missing_certificate_id_raises_value_error(self):
         with self.assertRaises(ValueError):
