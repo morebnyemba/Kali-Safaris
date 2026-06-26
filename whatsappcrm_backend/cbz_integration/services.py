@@ -22,7 +22,6 @@ from .constants import (
     ECOCASH_PAN_PREFIX,
     IVERI_API_VERSION,
     IVERI_REST_TRANSACTIONS,
-    IVERI_QUERY_PARAM_MERCHANT_REF,
     IVERI_3DS_ENROLLMENT,
     IVERI_SOAP_TIMEOUT,
     COMMAND_DEBIT,
@@ -267,21 +266,6 @@ class IVeriClient:
             payload[category]['NotificationURL'] = self.config.callback_url
 
         return payload
-
-    def _build_auth_envelope(self) -> Dict[str, Any]:
-        """
-        Build a minimal request body carrying only Legacy authentication
-        (CertificateID) with no transaction command.
-
-        Used by query-string lookups (e.g. transaction status by merchant
-        reference) where iVeri identifies the transaction via the URL query
-        string rather than a Command in the body.
-        """
-        return {
-            'Version': IVERI_API_VERSION,
-            'CertificateID': self.config.certificate_id,
-            'Direction': 'Request',
-        }
 
     def _execute(self, payload: Dict[str, Any], params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
@@ -683,35 +667,76 @@ class IVeriClient:
 
     def query_transaction(self, merchant_reference: str) -> Dict[str, Any]:
         """
-        Query transaction status by merchant reference.
+        Return the current status of a transaction from the local database.
 
-        iVeri's REST API has no status-query *command* — there is no
-        Transaction:Lookup or Enquiry:Lookup (both are rejected with "Unknown
-        Category:Command combination"). A status query is instead a POST to
-        /api/transactions with the identifier passed as a URL query-string
-        parameter; iVeri returns the matching transaction under the usual
-        'Transaction' wrapper.
+        iVeri Enterprise exposes NO status-query command: Transaction:Lookup and
+        Enquiry:Lookup are both rejected ("Unknown Category:Command combination"),
+        and a command-less request returns "A Command must be specified". Per
+        iVeri's transaction-integrity guidance there is no direct status lookup —
+        the authoritative result is delivered out-of-band. Both the NotificationURL
+        callback (cbz_callback_view) and the 3DS ReturnUrl handler persist it to
+        CBZTransaction, so we read the stored record and return it in iVeri
+        response shape, keeping the response helpers (get_result / is_approved /
+        is_pending) and existing callers working unchanged.
 
         Args:
             merchant_reference: Original merchant reference
 
         Returns:
-            iVeri API response dict with current transaction status
+            iVeri-shaped response dict reflecting the stored transaction status
         """
-        # iVeri reads ApplicationID from inside the command/Transaction object in
-        # the body — NOT from the query string. A query-string ApplicationID is
-        # ignored, giving Result.Code 255 "No ApplicationID specified for
-        # command". Put the app identity in a Transaction object and keep the
-        # reference as the query-string filter.
-        payload = self._build_auth_envelope()
-        payload['Transaction'] = {
-            'ApplicationID': self.config.application_id,
-            'Mode': self.config.mode,
-        }
-        query_params = {IVERI_QUERY_PARAM_MERCHANT_REF: merchant_reference}
-        logger.info("Transaction query | ref=%s", merchant_reference)
+        from .models import CBZTransaction  # local import avoids app-load cycle
 
-        return self._execute(payload, params=query_params)
+        logger.info("Transaction status (from DB) | ref=%s", merchant_reference)
+        txn = CBZTransaction.objects.filter(merchant_reference=merchant_reference).first()
+        return {
+            'Version': IVERI_API_VERSION,
+            'Direction': 'Response',
+            'Transaction': self._txn_status_to_iveri(txn),
+        }
+
+    @staticmethod
+    def _txn_status_to_iveri(txn: Optional[Any]) -> Dict[str, Any]:
+        """
+        Render a stored CBZTransaction as an iVeri Transaction result block.
+
+        Maps the local status to ResultCode/Status so the response helpers
+        classify it correctly:
+          APPROVED            -> ResultCode 0, Status Approved   (is_approved)
+          PENDING / INITIATED -> ResultCode 0, Status Pending    (is_pending)
+          anything else       -> terminal failure with a nested Result block
+        Returns an empty dict for an unknown reference (not approved/pending).
+        """
+        if txn is None:
+            return {}
+
+        from .models import CBZTransaction
+        status = CBZTransaction.TransactionStatus
+
+        common = {
+            'MerchantReference': txn.merchant_reference,
+            'TransactionIndex': txn.transaction_index,
+            'AuthorisationCode': txn.authorisation_code,
+            'RequestID': txn.request_id,
+            'Currency': txn.currency,
+        }
+
+        if txn.status == status.APPROVED:
+            return {**common, 'ResultCode': RESULT_CODE_SUCCESS, 'Status': STATUS_APPROVED,
+                    'ResultDescription': txn.result_description or 'Approved'}
+        if txn.status in (status.PENDING, status.INITIATED):
+            return {**common, 'ResultCode': RESULT_CODE_SUCCESS, 'Status': STATUS_PENDING,
+                    'ResultDescription': txn.result_description or 'Pending'}
+
+        # DECLINED / FAILED / VOIDED / REFUNDED — terminal, not approved/pending.
+        code = txn.result_code or '4'
+        return {
+            **common,
+            'ResultCode': code,
+            'Status': str(txn.status).capitalize(),
+            'ResultDescription': txn.result_description or 'Not approved',
+            'Result': {'Code': code, 'Status': '-1', 'Description': txn.result_description or ''},
+        }
 
     def refund(
         self,

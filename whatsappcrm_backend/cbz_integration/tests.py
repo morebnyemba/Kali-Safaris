@@ -27,7 +27,7 @@ from .views import (
 from .constants import (
     ECOCASH_PAN_PREFIX, ECOCASH_DEFAULT_EXPIRY,
     RESULT_CODE_SUCCESS, STATUS_APPROVED,
-    COMMAND_DEBIT, IVERI_API_VERSION, IVERI_QUERY_PARAM_MERCHANT_REF,
+    COMMAND_DEBIT, IVERI_API_VERSION,
     IVERI_STATUS_MAP, IVERI_RETRIABLE_CODES, IVERI_TERMINAL_FAILURE_CODES,
 )
 from .gateway import PaymentGatewayFactory, IVeriGateway, PaymentProcessor
@@ -111,30 +111,46 @@ class IVeriClientPayloadTest(TestCase):
             self.assertEqual(call_payload['Transaction']['Amount'], '1050')
 
     @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
-    def test_query_transaction_puts_app_id_in_body(self, mock_db):
-        """iVeri reads ApplicationID from inside the Transaction object in the
-        body, not the query string (a query-string ApplicationID is ignored:
-        "No ApplicationID specified for command"). The reference stays as the
-        query-string filter; a status query carries no financial Command."""
+    def test_query_transaction_reads_db_status(self, mock_db):
+        """iVeri has no status-query command, so query_transaction returns the
+        stored transaction status (written out-of-band by the callback / 3DS
+        ReturnUrl) in iVeri response shape — no HTTP call to the gateway."""
         client = IVeriClient(config=self.config)
 
-        with patch.object(client, '_execute') as mock_execute:
-            mock_execute.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
+        def _make(ref, status, **extra):
+            return CBZTransaction.objects.create(
+                merchant_reference=ref,
+                payment_type=CBZTransaction.PaymentType.CARD,
+                amount=Decimal('25.00'),
+                currency='USD',
+                status=status,
+                **extra,
+            )
 
-            client.query_transaction(merchant_reference='TEST-REF-001')
+        # APPROVED → is_approved, not is_pending.
+        _make('KS-APPROVED', CBZTransaction.TransactionStatus.APPROVED, result_code='0')
+        resp = client.query_transaction('KS-APPROVED')
+        self.assertTrue(IVeriClient.is_approved(resp))
+        self.assertFalse(IVeriClient.is_pending(resp))
 
-            call_args, call_kwargs = mock_execute.call_args
-            payload = call_args[0]
-            # App identity now lives in the body Transaction object.
-            self.assertEqual(payload['Transaction']['ApplicationID'], 'test-app-id-5678')
-            self.assertEqual(payload['Transaction']['Mode'], 'Test')
-            # No financial command on a status query.
-            self.assertNotIn('Command', payload['Transaction'])
-            # Legacy auth still travels in the body.
-            self.assertEqual(payload['CertificateID'], 'test-cert-id-1234')
-            # The reference travels as the query-string filter.
-            params = call_kwargs.get('params') or {}
-            self.assertEqual(params[IVERI_QUERY_PARAM_MERCHANT_REF], 'TEST-REF-001')
+        # PENDING (and INITIATED) → is_pending, not is_approved.
+        _make('KS-PENDING', CBZTransaction.TransactionStatus.PENDING)
+        resp = client.query_transaction('KS-PENDING')
+        self.assertFalse(IVeriClient.is_approved(resp))
+        self.assertTrue(IVeriClient.is_pending(resp))
+
+        # DECLINED → neither; result_code preserved.
+        _make('KS-DECLINED', CBZTransaction.TransactionStatus.DECLINED, result_code='4')
+        resp = client.query_transaction('KS-DECLINED')
+        self.assertFalse(IVeriClient.is_approved(resp))
+        self.assertFalse(IVeriClient.is_pending(resp))
+        self.assertEqual(IVeriClient.get_result(resp)['result_code'], '4')
+
+        # Unknown reference → empty transaction, not approved/pending.
+        resp = client.query_transaction('KS-DOES-NOT-EXIST')
+        self.assertEqual(resp['Transaction'], {})
+        self.assertFalse(IVeriClient.is_approved(resp))
+        self.assertFalse(IVeriClient.is_pending(resp))
 
     def test_missing_certificate_id_raises_value_error(self):
         with self.assertRaises(ValueError):
@@ -674,29 +690,48 @@ class CBZCard3DSViewTests(TestCase):
         self.assertEqual(payload['challenge']['ACSURL'], 'https://acs.iveri.example/challenge')
         self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)
 
-    @patch('cbz_integration.views._build_client')
-    def test_card_3ds_complete_marks_approved_transaction(self, mock_build_client):
+    def test_card_3ds_complete_reports_db_status_approved(self):
+        """3ds/complete reports the status the 3DS ReturnUrl wrote to our DB
+        (iVeri has no status-query command); it does not itself mark approval."""
         txn = CBZTransaction.objects.create(
-            merchant_reference='KS-3DS-COMPLETE-001',
+            merchant_reference='KS-3DS-APPROVED-001',
+            payment_type=CBZTransaction.PaymentType.CARD,
+            masked_pan='5413****0020',
+            amount=Decimal('150.00'),
+            currency='USD',
+            command='Debit',
+            status=CBZTransaction.TransactionStatus.APPROVED,
+            transaction_index='TXN-3DS-001',
+            authorisation_code='AUTH-3DS-001',
+        )
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/card/3ds/complete/',
+            data=json.dumps({'merchant_reference': txn.merchant_reference}),
+            content_type='application/json',
+        )
+
+        response = cbz_card_3ds_complete_view(request)
+        payload = json.loads(response.content.decode('utf-8'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(payload['success'])
+        self.assertEqual(payload['transaction_index'], 'TXN-3DS-001')
+
+    def test_card_3ds_complete_pending_preserves_signed_card(self):
+        """While still PENDING (ReturnUrl not yet arrived), 3ds/complete reports
+        pending and must NOT overwrite gateway_response — the ReturnUrl still
+        needs the signed card data to complete the Debit."""
+        txn = CBZTransaction.objects.create(
+            merchant_reference='KS-3DS-PENDING-001',
             payment_type=CBZTransaction.PaymentType.CARD,
             masked_pan='5413****0020',
             amount=Decimal('150.00'),
             currency='USD',
             command='Debit',
             status=CBZTransaction.TransactionStatus.PENDING,
+            gateway_response={'_signed_card': 'SIGNED-DATA', '_3ds_enrollment_initiated': True},
         )
-
-        mock_client = MagicMock()
-        mock_client.query_transaction.return_value = {
-            'Transaction': {
-                'ResultCode': RESULT_CODE_SUCCESS,
-                'Status': STATUS_APPROVED,
-                'MerchantReference': txn.merchant_reference,
-                'TransactionIndex': 'TXN-3DS-001',
-                'AuthorisationCode': 'AUTH-3DS-001',
-            }
-        }
-        mock_build_client.return_value = mock_client
 
         request = self.factory.post(
             '/crm-api/payments/cbz/card/3ds/complete/',
@@ -708,10 +743,10 @@ class CBZCard3DSViewTests(TestCase):
         payload = json.loads(response.content.decode('utf-8'))
         txn.refresh_from_db()
 
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(payload['success'])
-        self.assertEqual(txn.status, CBZTransaction.TransactionStatus.APPROVED)
-        self.assertEqual(txn.transaction_index, 'TXN-3DS-001')
+        self.assertEqual(response.status_code, 202)
+        self.assertTrue(payload.get('pending'))
+        self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)
+        self.assertEqual(txn.gateway_response.get('_signed_card'), 'SIGNED-DATA')
 
 
 class IVeriCertificateClientTests(TestCase):

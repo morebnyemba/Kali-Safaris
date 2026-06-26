@@ -10,15 +10,11 @@ IVERI_PORTAL_URL_TEST = 'https://portal.host.iveri.com'  # Same host, Mode field
 # REST API endpoints (relative to portal URL)
 IVERI_REST_TRANSACTIONS = '/api/transactions'
 
-# Transaction status queries are NOT a Command — iVeri has no Transaction:Lookup
-# or Enquiry:Lookup (both are rejected with "Unknown Category:Command
-# combination"). A status query is a POST to /api/transactions with the
-# transaction identifier supplied as a URL query-string parameter; iVeri returns
-# the matching transaction under the usual 'Transaction' wrapper.
-# Ref: iVeri REST API guide ("query by MerchantReference ... using the POST
-# method with query strings"). Adjust the casing here if your iVeri Enterprise
-# profile expects a different parameter name (e.g. 'merchantReference').
-IVERI_QUERY_PARAM_MERCHANT_REF = 'MerchantReference'
+# NOTE: iVeri Enterprise has no transaction status-query command. Transaction:Lookup
+# and Enquiry:Lookup are rejected ("Unknown Category:Command combination") and a
+# command-less request returns "A Command must be specified". Status is recovered
+# out-of-band via the NotificationURL callback / 3DS ReturnUrl, which persist the
+# result to CBZTransaction. IVeriClient.query_transaction() reads that DB record.
 
 # 3DS 2 enrollment endpoint (relative to portal URL) — form POST, browser-initiated
 IVERI_3DS_ENROLLMENT = '/threedsecure/EnrollmentInitial'

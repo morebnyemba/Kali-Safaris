@@ -308,6 +308,49 @@ def _apply_gateway_result_to_transaction(
     txn.save()
 
 
+def _card_status_json_from_txn(txn: CBZTransaction, merchant_reference: str) -> JsonResponse:
+    """
+    Build the card payment-status response from the stored transaction.
+
+    iVeri has no status-query command, so the authoritative result is written to
+    our DB by the server-to-server 3DS ReturnUrl handler. The status page polls
+    this endpoint and we report what's stored — read-only, so we never overwrite
+    gateway_response (which still holds the signed card data the ReturnUrl needs
+    to complete the Debit).
+    """
+    S = CBZTransaction.TransactionStatus
+    if txn.status == S.APPROVED:
+        resolved_booking_reference = None
+        if txn.booking_id:
+            txn.booking = _finalize_booking_reference_if_temporary(txn.booking)
+            resolved_booking_reference = txn.booking.booking_reference if txn.booking else None
+        return JsonResponse({
+            "success": True,
+            "message": "Payment approved",
+            "merchant_reference": merchant_reference,
+            "booking_reference": resolved_booking_reference,
+            "gateway_mode": _resolve_gateway_mode(),
+            "transaction_index": txn.transaction_index,
+            "authorisation_code": txn.authorisation_code,
+        })
+    if txn.status in (S.INITIATED, S.PENDING):
+        return JsonResponse({
+            "success": True,
+            "pending": True,
+            "message": txn.result_description or "Payment still pending",
+            "merchant_reference": merchant_reference,
+            "gateway_mode": _resolve_gateway_mode(),
+            "result_code": txn.result_code,
+        }, status=202)
+    return JsonResponse({
+        "success": False,
+        "message": txn.result_description or "Payment declined",
+        "merchant_reference": merchant_reference,
+        "gateway_mode": _resolve_gateway_mode(),
+        "result_code": txn.result_code,
+    })
+
+
 def _scrub_pci_fields(response: Dict[str, Any]) -> Dict[str, Any]:
     """Return a copy of the response with PCI-sensitive fields removed."""
     SENSITIVE_KEYS = {
@@ -1238,92 +1281,52 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
             "authorisation_code": txn.authorisation_code,
         })
 
-    client = _build_client()
-    try:
-        # If PaRes and TransactionIndex are available, submit them to iVeri to
-        # complete the 3DS authentication. This is the proper 3DS v1 completion
-        # flow (liability shifts to the issuer on success).
-        if pares and txn.transaction_index:
+    # If the browser forwarded a PaRes and we have a TransactionIndex, submit it
+    # to iVeri to complete 3DS authentication (3DS v1 path — liability shifts to
+    # the issuer on success). Otherwise there is nothing to send: the
+    # authoritative result is written to our DB by the server-to-server 3DS
+    # ReturnUrl handler, and iVeri has no status-query command.
+    if pares and txn.transaction_index:
+        client = _build_client()
+        try:
             logger.info(
                 "Submitting 3DS PaRes to iVeri | ref=%s txn_idx=%s",
                 merchant_reference, txn.transaction_index,
             )
-            try:
-                response = client.complete_3ds_auth(
-                    transaction_index=txn.transaction_index,
-                    merchant_reference=merchant_reference,
-                    pares=pares,
-                    amount=txn.amount,
-                    currency=txn.currency,
-                )
-            except Exception:
-                logger.warning(
-                    "3DS PaRes submission failed, falling back to query | ref=%s",
-                    merchant_reference, exc_info=True,
-                )
-                response = client.query_transaction(merchant_reference=merchant_reference)
-        else:
-            # No PaRes or TransactionIndex — query current status.
-            # iVeri may have already updated the transaction via server-to-server
-            # notification from the ACS (requires NotificationURL to be configured).
-            response = client.query_transaction(merchant_reference=merchant_reference)
+            response = client.complete_3ds_auth(
+                transaction_index=txn.transaction_index,
+                merchant_reference=merchant_reference,
+                pares=pares,
+                amount=txn.amount,
+                currency=txn.currency,
+            )
+            result = IVeriClient.get_result(response)
+            is_approved = IVeriClient.is_approved(response)
+            is_pending = IVeriClient.is_pending(response)
 
-        result = IVeriClient.get_result(response)
-        is_approved = IVeriClient.is_approved(response)
-        is_pending = IVeriClient.is_pending(response)
+            _apply_gateway_result_to_transaction(
+                txn,
+                result,
+                approved=is_approved,
+                pending=is_pending,
+                raw_response=response,
+            )
 
-        _apply_gateway_result_to_transaction(
-            txn,
-            result,
-            approved=is_approved,
-            pending=is_pending,
-            raw_response=response,
-        )
+            if is_approved and txn.booking:
+                existing_payment = Payment.objects.filter(
+                    booking=txn.booking,
+                    transaction_reference=txn.merchant_reference,
+                ).exists()
+                if not existing_payment:
+                    _record_payment(txn, txn.booking)
+        except Exception as e:
+            logger.exception("CBZ card 3DS PaRes completion failed")
+            return JsonResponse({"success": False, "message": str(e)}, status=502)
 
-        if is_approved and txn.booking:
-            existing_payment = Payment.objects.filter(
-                booking=txn.booking,
-                transaction_reference=txn.merchant_reference,
-            ).exists()
-            if not existing_payment:
-                _record_payment(txn, txn.booking)
-
-        if is_approved:
-            resolved_booking_reference = None
-            if txn.booking_id:
-                txn.booking = _finalize_booking_reference_if_temporary(txn.booking)
-                resolved_booking_reference = txn.booking.booking_reference if txn.booking else None
-
-            return JsonResponse({
-                "success": True,
-                "message": "Payment approved",
-                "merchant_reference": merchant_reference,
-                "booking_reference": resolved_booking_reference,
-                "gateway_mode": _resolve_gateway_mode(result),
-                "transaction_index": result.get('transaction_index'),
-                "authorisation_code": result.get('authorisation_code'),
-            })
-
-        if is_pending:
-            return JsonResponse({
-                "success": True,
-                "pending": True,
-                "message": result.get('result_description', 'Payment still pending'),
-                "merchant_reference": merchant_reference,
-                "gateway_mode": _resolve_gateway_mode(result),
-                "result_code": result.get('result_code'),
-            }, status=202)
-
-        return JsonResponse({
-            "success": False,
-            "message": result.get('result_description', 'Payment declined'),
-            "merchant_reference": merchant_reference,
-            "gateway_mode": _resolve_gateway_mode(result),
-            "result_code": result.get('result_code'),
-        })
-    except Exception as e:
-        logger.exception("CBZ card 3DS completion failed")
-        return JsonResponse({"success": False, "message": str(e)}, status=502)
+    # Report the authoritative status from our DB (refresh in case the ReturnUrl
+    # updated it concurrently). Read-only — must not overwrite gateway_response.
+    txn.refresh_from_db()
+    return _card_status_json_from_txn(txn, merchant_reference)
 
 
 # ─── Transaction Query ──────────────────────────────────────────────
