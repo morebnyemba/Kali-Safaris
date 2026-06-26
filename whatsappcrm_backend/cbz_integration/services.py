@@ -22,12 +22,12 @@ from .constants import (
     ECOCASH_PAN_PREFIX,
     IVERI_API_VERSION,
     IVERI_REST_TRANSACTIONS,
+    IVERI_QUERY_PARAM_MERCHANT_REF,
     IVERI_3DS_ENROLLMENT,
     IVERI_SOAP_TIMEOUT,
     COMMAND_DEBIT,
     COMMAND_AUTHORISATION,
     COMMAND_CREDIT,
-    COMMAND_LOOKUP,
     COMMAND_VOID,
     ECI_ECOMMERCE,
     ECI_3DS_AUTHENTICATED,
@@ -230,11 +230,12 @@ class IVeriClient:
         Args:
             command: Transaction command (Debit, Authorisation, Credit, etc.)
             transaction_data: Additional transaction-specific parameters
-            category: Top-level iVeri message category — 'Transaction' for
-                financial commands (Debit, Authorisation, Credit, Void) or
-                'Enquiry' for non-financial status queries (Lookup). iVeri
-                rejects a Command that doesn't belong to its wrapping
-                category with "Unknown Category:Command combination".
+            category: Top-level iVeri message category. Financial commands
+                (Debit, Authorisation, Credit, Void) are wrapped under
+                'Transaction'. Status queries are NOT commands — iVeri rejects
+                both Transaction:Lookup and Enquiry:Lookup with "Unknown
+                Category:Command combination"; see query_transaction(), which
+                uses a URL query string instead of a Command.
 
         Returns:
             Complete JSON payload for the iVeri REST API
@@ -267,12 +268,30 @@ class IVeriClient:
 
         return payload
 
-    def _execute(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_auth_envelope(self) -> Dict[str, Any]:
+        """
+        Build a minimal request body carrying only Legacy authentication
+        (CertificateID) with no transaction command.
+
+        Used by query-string lookups (e.g. transaction status by merchant
+        reference) where iVeri identifies the transaction via the URL query
+        string rather than a Command in the body.
+        """
+        return {
+            'Version': IVERI_API_VERSION,
+            'CertificateID': self.config.certificate_id,
+            'Direction': 'Request',
+        }
+
+    def _execute(self, payload: Dict[str, Any], params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Execute an API request to the iVeri gateway.
 
         Args:
-            payload: Complete JSON payload
+            payload: Complete JSON request body
+            params: Optional URL query-string parameters. Used by status
+                lookups, which identify the transaction via the query string
+                rather than a Command in the body.
 
         Returns:
             Parsed JSON response
@@ -303,6 +322,10 @@ class IVeriClient:
             'TermUrl': txn_out.get('TermUrl') or txn_out.get('TermURL') or None,
             'HasMD': bool(txn_out.get('MD')),
         }
+        # Query-string lookups carry no command body — surface the URL params so
+        # the request is still auditable.
+        if params:
+            safe_request['QueryParams'] = params
         if safe_request['Command'] == 'Debit' and safe_request['HasPAN'] and not safe_request['TermUrl']:
             logger.warning(
                 "iVeri card debit has no TermUrl — 3DS challenge will not be issued. "
@@ -315,7 +338,7 @@ class IVeriClient:
         )
 
         try:
-            resp = self.session.post(self.api_url, json=payload, timeout=60)
+            resp = self.session.post(self.api_url, json=payload, params=params, timeout=60)
             resp.raise_for_status()
             data = resp.json()
 
@@ -661,24 +684,26 @@ class IVeriClient:
         """
         Query transaction status by merchant reference.
 
+        iVeri's REST API has no status-query *command* — there is no
+        Transaction:Lookup or Enquiry:Lookup (both are rejected with "Unknown
+        Category:Command combination"). A status query is instead a POST to
+        /api/transactions with the identifier passed as a URL query-string
+        parameter; iVeri returns the matching transaction under the usual
+        'Transaction' wrapper.
+
         Args:
             merchant_reference: Original merchant reference
 
         Returns:
             iVeri API response dict with current transaction status
         """
-        transaction_data = {
-            'MerchantReference': merchant_reference,
-        }
-
-        # Status lookups are non-financial enquiries — iVeri requires them
-        # wrapped under 'Enquiry' rather than 'Transaction'. Sending Lookup
-        # under 'Transaction' is rejected with "Unknown Category:Command
-        # combination (Transaction:Lookup)".
-        payload = self._build_payload(COMMAND_LOOKUP, transaction_data, category='Enquiry')
+        # No Command body — iVeri filters by the query string. The request body
+        # carries only the Legacy-auth envelope (CertificateID).
+        query_params = {IVERI_QUERY_PARAM_MERCHANT_REF: merchant_reference}
+        payload = self._build_auth_envelope()
         logger.info("Transaction query | ref=%s", merchant_reference)
 
-        return self._execute(payload)
+        return self._execute(payload, params=query_params)
 
     def refund(
         self,

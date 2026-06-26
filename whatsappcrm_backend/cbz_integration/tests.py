@@ -27,7 +27,7 @@ from .views import (
 from .constants import (
     ECOCASH_PAN_PREFIX, ECOCASH_DEFAULT_EXPIRY,
     RESULT_CODE_SUCCESS, STATUS_APPROVED,
-    COMMAND_DEBIT, COMMAND_LOOKUP, IVERI_API_VERSION,
+    COMMAND_DEBIT, IVERI_API_VERSION, IVERI_QUERY_PARAM_MERCHANT_REF,
     IVERI_STATUS_MAP, IVERI_RETRIABLE_CODES, IVERI_TERMINAL_FAILURE_CODES,
 )
 from .gateway import PaymentGatewayFactory, IVeriGateway, PaymentProcessor
@@ -111,21 +111,29 @@ class IVeriClientPayloadTest(TestCase):
             self.assertEqual(call_payload['Transaction']['Amount'], '1050')
 
     @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
-    def test_query_transaction_uses_enquiry_category(self, mock_db):
-        """Status lookups must be wrapped under 'Enquiry', not 'Transaction' —
-        iVeri rejects Command=Lookup under 'Transaction' with
-        "Unknown Category:Command combination (Transaction:Lookup)"."""
+    def test_query_transaction_uses_query_string(self, mock_db):
+        """Status lookups are not a Command — iVeri has no Transaction:Lookup or
+        Enquiry:Lookup (both rejected as "Unknown Category:Command combination").
+        The query goes as a URL query-string parameter on POST /api/transactions,
+        with no Command in the body — just the Legacy-auth envelope."""
         client = IVeriClient(config=self.config)
 
         with patch.object(client, '_execute') as mock_execute:
-            mock_execute.return_value = {'Enquiry': {'ResultCode': '0', 'Status': 'Approved'}}
+            mock_execute.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
 
             client.query_transaction(merchant_reference='TEST-REF-001')
 
-            call_payload = mock_execute.call_args[0][0]
-            self.assertNotIn('Transaction', call_payload)
-            self.assertEqual(call_payload['Enquiry']['Command'], COMMAND_LOOKUP)
-            self.assertEqual(call_payload['Enquiry']['MerchantReference'], 'TEST-REF-001')
+            call_args, call_kwargs = mock_execute.call_args
+            payload = call_args[0]
+            # No command body — neither financial nor (invalid) enquiry command.
+            self.assertNotIn('Transaction', payload)
+            self.assertNotIn('Enquiry', payload)
+            self.assertNotIn('Command', payload)
+            # Legacy auth still travels in the body.
+            self.assertEqual(payload['CertificateID'], 'test-cert-id-1234')
+            # The transaction identifier travels in the query string instead.
+            params = call_kwargs.get('params') or {}
+            self.assertEqual(params[IVERI_QUERY_PARAM_MERCHANT_REF], 'TEST-REF-001')
 
     def test_missing_certificate_id_raises_value_error(self):
         with self.assertRaises(ValueError):
