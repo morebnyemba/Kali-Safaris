@@ -12,6 +12,37 @@ const RETURN_TO_WHATSAPP_KEY = 'kalai_return_to_whatsapp';
 const WHATSAPP_NUMBER = '263712629336';
 const REFRESH_SECONDS = 30;
 
+// Terminal failures the backend redirects here with ?error=... — these should
+// be shown as-is, never re-verified (re-verifying a failed 3DS just queries a
+// DECLINED transaction and hides the real reason).
+const HARD_FAILURE_ERRORS = new Set([
+  '3ds_failed',
+  'not_found',
+  'card_data_missing',
+  'session_expired',
+  'internal',
+]);
+
+function describeError(errorCode: string, resultDescription: string): string {
+  const detail = resultDescription.trim();
+  switch (errorCode) {
+    case '3ds_failed':
+      return detail
+        ? `3D Secure authentication didn't complete: ${detail}. Please try the payment again.`
+        : "3D Secure authentication didn't complete. Please try the payment again.";
+    case 'session_expired':
+      return 'Your secure payment session expired. Please start the payment again.';
+    case 'card_data_missing':
+      return 'We lost your card session before the charge could be completed. Please try again.';
+    case 'not_found':
+      return 'We could not find this payment. Please start a new booking payment.';
+    default:
+      return detail
+        ? `The payment could not be completed: ${detail}. Please try again.`
+        : 'The payment could not be completed. Please try again.';
+  }
+}
+
 type PaymentChannel = 'card' | 'ecocash';
 type CardProvider = 'copyandpay' | 'cbz';
 
@@ -62,6 +93,11 @@ function PaymentStatusPageContent() {
 
   // PaRes from the ACS callback (set by /api/3ds/callback route handler after ACS redirect)
   const paRes = useMemo(() => searchParams.get('pares') ?? '', [searchParams]);
+
+  // Terminal error forwarded by the backend (e.g. ?error=3ds_failed&result_description=...)
+  const errorCode = useMemo(() => (searchParams.get('error') ?? '').toLowerCase(), [searchParams]);
+  const resultDescription = useMemo(() => searchParams.get('result_description') ?? '', [searchParams]);
+  const isHardFailure = useMemo(() => HARD_FAILURE_ERRORS.has(errorCode), [errorCode]);
 
   const effectiveReference = useMemo(() => {
     const queryRef = searchParams.get('ref') ?? '';
@@ -191,7 +227,23 @@ function PaymentStatusPageContent() {
     }
   }, [cardProvider, channel, effectiveReference, paRes, resourcePath]);
 
+  // Backend signalled a terminal failure — show it, don't re-verify.
+  // Defer the setState out of the effect body to satisfy react-hooks lint.
   useEffect(() => {
+    if (!isHardFailure) {
+      return;
+    }
+    const id = window.setTimeout(() => {
+      setStatus('failed');
+      setMessage(describeError(errorCode, resultDescription));
+    }, 0);
+    return () => window.clearTimeout(id);
+  }, [isHardFailure, errorCode, resultDescription]);
+
+  useEffect(() => {
+    if (isHardFailure) {
+      return;
+    }
     if (!effectiveReference && !resourcePath) {
       return;
     }
@@ -199,7 +251,7 @@ function PaymentStatusPageContent() {
       void verifyPayment();
     }, 0);
     return () => window.clearTimeout(id);
-  }, [effectiveReference, resourcePath, verifyPayment]);
+  }, [isHardFailure, effectiveReference, resourcePath, verifyPayment]);
 
   useEffect(() => {
     if (status !== 'pending') {
@@ -293,19 +345,21 @@ function PaymentStatusPageContent() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <button
-            type="button"
-            onClick={() => void verifyPayment()}
-            disabled={status === 'checking'}
-            className="rounded-full bg-linear-to-r from-[#E09A18] to-[#E8600A] hover:from-[#E8600A] hover:to-[#F47B1A] text-black font-bold py-3 px-5 transition-all disabled:opacity-60"
-          >
-            {status === 'checking' ? 'Checking...' : 'Check Again'}
-          </button>
+          {!isHardFailure && (
+            <button
+              type="button"
+              onClick={() => void verifyPayment()}
+              disabled={status === 'checking'}
+              className="rounded-full bg-linear-to-r from-[#E09A18] to-[#E8600A] hover:from-[#E8600A] hover:to-[#F47B1A] text-black font-bold py-3 px-5 transition-all disabled:opacity-60"
+            >
+              {status === 'checking' ? 'Checking...' : 'Check Again'}
+            </button>
+          )}
           <Link
             href="/booking"
             className="rounded-full border border-gray-300 text-gray-700 font-semibold py-3 px-5 text-center hover:bg-gray-50 transition"
           >
-            Back to Booking
+            {isHardFailure ? 'Try Payment Again' : 'Back to Booking'}
           </Link>
         </div>
 

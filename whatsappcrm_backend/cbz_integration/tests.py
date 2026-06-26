@@ -131,9 +131,13 @@ class IVeriClientPayloadTest(TestCase):
             self.assertNotIn('Command', payload)
             # Legacy auth still travels in the body.
             self.assertEqual(payload['CertificateID'], 'test-cert-id-1234')
-            # The transaction identifier travels in the query string instead.
+            # The identifier + merchant app identity travel in the query string.
+            # iVeri rejects a query with no ApplicationID ("No ApplicationID
+            # specified for command").
             params = call_kwargs.get('params') or {}
             self.assertEqual(params[IVERI_QUERY_PARAM_MERCHANT_REF], 'TEST-REF-001')
+            self.assertEqual(params['ApplicationID'], 'test-app-id-5678')
+            self.assertEqual(params['Mode'], 'Test')
 
     def test_missing_certificate_id_raises_value_error(self):
         with self.assertRaises(ValueError):

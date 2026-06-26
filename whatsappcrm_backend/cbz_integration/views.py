@@ -16,7 +16,7 @@ import base64
 import binascii
 import mimetypes
 from datetime import date
-from urllib.parse import parse_qs, urlparse, urlunparse, urlencode
+from urllib.parse import parse_qs, urlparse, urlunparse, urlencode, quote
 
 from decimal import Decimal, InvalidOperation
 from typing import Any, Dict, Optional
@@ -1830,15 +1830,22 @@ def cbz_card_3ds_return_view(request: HttpRequest) -> HttpResponseRedirect:
     stored['_3ds_pares_received'] = True  # reuse existing UAT export field
 
     if result_code != '0':
+        result_desc = str(payload.get('ResultDescription') or 'Authentication failed')
         txn.result_code = result_code
-        txn.result_description = str(payload.get('ResultDescription') or 'Authentication failed')
+        txn.result_description = result_desc
         txn.status = CBZTransaction.TransactionStatus.DECLINED
         txn.gateway_response = stored
         txn.save()
-        logger.info("3DS ReturnUrl: authentication failed | ref=%s code=%s", merchant_ref, result_code)
+        # Log the description value (not just keys) so the real iVeri reason is
+        # visible, and forward it to the status page instead of a bare code.
+        logger.warning(
+            "3DS ReturnUrl: authentication failed | ref=%s code=%s desc=%s",
+            merchant_ref, result_code, result_desc,
+        )
         return _redirect(
             f'/booking/payment-status?channel=card&ref={merchant_ref}'
             f'&error=3ds_failed&result_code={result_code}'
+            f'&result_description={quote(result_desc)}'
         )
 
     # 3DS authentication succeeded — collect auth fields for the Debit
