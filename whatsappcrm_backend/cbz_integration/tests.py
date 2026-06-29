@@ -152,6 +152,35 @@ class IVeriClientPayloadTest(TestCase):
         self.assertFalse(IVeriClient.is_approved(resp))
         self.assertFalse(IVeriClient.is_pending(resp))
 
+    @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
+    def test_debit_card_nests_3ds_auth_data(self, mock_db):
+        """Post-3DS Debit must carry ElectronicCommerceIndicator plus a nested
+        ThreeDSecure element — flat ThreeDSecure_* fields are rejected by iVeri
+        ("ElectronicCommerceIndicator ThreeDSecure or ThreeDSecureAttempted
+        required")."""
+        client = IVeriClient(config=self.config)
+        with patch.object(client, '_execute') as mock_execute:
+            mock_execute.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
+            client.debit_card(
+                pan='5189000000009697', expiry_date='1230', cvv='123',
+                amount=Decimal('25.00'), currency='USD',
+                merchant_reference='KS-3DS-DEBIT',
+                threed_secure_data={
+                    'ElectronicCommerceIndicator': '02',
+                    'ThreeDSecure_VEResEnrolled': 'Y',
+                    'ThreeDSecure_RequestID': 'REQ-1',
+                    'JWT': 'jwt-token',
+                },
+            )
+            txn = mock_execute.call_args[0][0]['Transaction']
+            # ECI stays at transaction level under iVeri's spelling.
+            self.assertEqual(txn['ElectronicCommerceIndicator'], '02')
+            # 3DS auth data is nested under ThreeDSecure (flat keys are gone).
+            self.assertNotIn('ThreeDSecure_VEResEnrolled', txn)
+            self.assertEqual(txn['ThreeDSecure']['VEResEnrolled'], 'Y')
+            self.assertEqual(txn['ThreeDSecure']['RequestID'], 'REQ-1')
+            self.assertEqual(txn['ThreeDSecure']['JWT'], 'jwt-token')
+
     def test_missing_certificate_id_raises_value_error(self):
         with self.assertRaises(ValueError):
             IVeriClient(config=IVeriConfig(

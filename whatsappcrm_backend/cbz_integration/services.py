@@ -566,9 +566,27 @@ class IVeriClient:
             'MerchantReference': merchant_reference,
         }
 
-        # Include 3DS 2 authentication data if provided
+        # Include 3DS 2 authentication data if provided. iVeri's Debit requires
+        # ElectronicCommerceIndicator *plus* a nested ThreeDSecure element (or
+        # ThreeDSecureAttempted). Flat ThreeDSecure_* fields are ignored, which
+        # produces "ElectronicCommerceIndicator ThreeDSecure or
+        # ThreeDSecureAttempted required". Re-nest the ReturnUrl auth fields:
+        #   ElectronicCommerceIndicator   -> transaction level (iVeri spelling)
+        #   ThreeDSecure_<X> / JWT         -> nested ThreeDSecure.<X> / .JWT
+        #   anything else                  -> transaction level as-is
         if threed_secure_data:
-            transaction_data.update(threed_secure_data)
+            three_ds: Dict[str, Any] = {}
+            for key, value in threed_secure_data.items():
+                if key == 'ElectronicCommerceIndicator':
+                    transaction_data['ElectronicCommerceIndicator'] = value
+                elif key.startswith('ThreeDSecure_'):
+                    three_ds[key[len('ThreeDSecure_'):]] = value
+                elif key == 'JWT':
+                    three_ds['JWT'] = value
+                else:
+                    transaction_data[key] = value
+            if three_ds:
+                transaction_data['ThreeDSecure'] = three_ds
 
         payload = self._build_payload(COMMAND_DEBIT, transaction_data)
 
