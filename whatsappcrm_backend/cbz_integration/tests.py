@@ -152,6 +152,35 @@ class IVeriClientPayloadTest(TestCase):
         self.assertFalse(IVeriClient.is_approved(resp))
         self.assertFalse(IVeriClient.is_pending(resp))
 
+    @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
+    def test_debit_card_3ds_auth_data_flat_with_eci_enum(self, mock_db):
+        """Post-3DS Debit sends the 3DS fields FLAT and ElectronicCommerceIndicator
+        as iVeri's string enum ("ThreeDSecure"), translated from the numeric ECI
+        the ReturnUrl relays — otherwise iVeri returns "ElectronicCommerceIndicator
+        ThreeDSecure or ThreeDSecureAttempted required"."""
+        client = IVeriClient(config=self.config)
+        with patch.object(client, '_execute') as mock_execute:
+            mock_execute.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
+            client.debit_card(
+                pan='5189000000009697', expiry_date='1230', cvv='123',
+                amount=Decimal('25.00'), currency='USD',
+                merchant_reference='KS-3DS-DEBIT',
+                threed_secure_data={
+                    'ElectronicCommerceIndicator': '05',  # numeric ECI from ReturnUrl
+                    'ThreeDSecure_VEResEnrolled': 'Y',
+                    'ThreeDSecure_DSTransID': 'DS-1',
+                    'ThreeDSecure_ProtocolVersion': '2.1.0',
+                },
+            )
+            txn = mock_execute.call_args[0][0]['Transaction']
+            # Numeric ECI 05 -> string enum "ThreeDSecure".
+            self.assertEqual(txn['ElectronicCommerceIndicator'], 'ThreeDSecure')
+            # Fields stay FLAT — no nested ThreeDSecure element.
+            self.assertNotIn('ThreeDSecure', txn)
+            self.assertEqual(txn['ThreeDSecure_VEResEnrolled'], 'Y')
+            self.assertEqual(txn['ThreeDSecure_DSTransID'], 'DS-1')
+            self.assertEqual(txn['ThreeDSecure_ProtocolVersion'], '2.1.0')
+
     def test_missing_certificate_id_raises_value_error(self):
         with self.assertRaises(ValueError):
             IVeriClient(config=IVeriConfig(

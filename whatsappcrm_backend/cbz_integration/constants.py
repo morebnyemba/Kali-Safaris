@@ -49,6 +49,16 @@ ECI_3DS2_AUTHENTICATED = 'ThreeDSecure'         # Fully authenticated — ECI 05
 ECI_3DS2_ATTEMPTED = 'ThreeDSecureAttempted'    # Attempted — ECI 06/01
 ECI_3DS2_SECURE_CHANNEL = 'SecureChannel'       # Secure channel — ECI 07
 
+# The 3DS ReturnUrl relays the numeric ECI; iVeri's Debit wants the string label
+# above. Sending the numeric value yields "ElectronicCommerceIndicator
+# ThreeDSecure or ThreeDSecureAttempted required". Source: iVeri "3D Secure" guide.
+ECI_NUMERIC_TO_3DS2 = {
+    '05': ECI_3DS2_AUTHENTICATED, '5': ECI_3DS2_AUTHENTICATED,
+    '02': ECI_3DS2_AUTHENTICATED, '2': ECI_3DS2_AUTHENTICATED,
+    '06': ECI_3DS2_ATTEMPTED, '6': ECI_3DS2_ATTEMPTED,
+    '01': ECI_3DS2_ATTEMPTED, '1': ECI_3DS2_ATTEMPTED,
+}
+
 # Legacy 3DS v1 ECI numeric values (kept for reference/compatibility)
 ECI_3DS_AUTHENTICATED = '5'   # 3DS v1 fully authenticated
 ECI_3DS_ATTEMPTED = '6'       # 3DS v1 attempted

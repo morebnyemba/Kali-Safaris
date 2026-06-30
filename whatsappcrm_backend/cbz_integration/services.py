@@ -31,6 +31,8 @@ from .constants import (
     ECI_ECOMMERCE,
     ECI_3DS_AUTHENTICATED,
     ECI_3DS_ATTEMPTED,
+    ECI_3DS2_AUTHENTICATED,
+    ECI_NUMERIC_TO_3DS2,
     RESULT_CODE_SUCCESS,
     STATUS_PENDING,
     STATUS_APPROVED,
@@ -566,9 +568,20 @@ class IVeriClient:
             'MerchantReference': merchant_reference,
         }
 
-        # Include 3DS 2 authentication data if provided
+        # Include 3DS 2 authentication data if provided. iVeri's Enterprise Debit
+        # takes these FLAT at the transaction level (ThreeDSecure_DSTransID,
+        # ThreeDSecure_ProtocolVersion, ...), and ElectronicCommerceIndicator is a
+        # STRING enum — "ThreeDSecure" (ECI 05/02) or "ThreeDSecureAttempted"
+        # (06/01) — NOT the numeric ECI the ReturnUrl relays. Sending the numeric
+        # value gives "ElectronicCommerceIndicator ThreeDSecure or
+        # ThreeDSecureAttempted required". Ref: iVeri "3D Secure" guide.
         if threed_secure_data:
-            transaction_data.update(threed_secure_data)
+            three_ds = dict(threed_secure_data)
+            eci = str(three_ds.get('ElectronicCommerceIndicator') or '').strip()
+            three_ds['ElectronicCommerceIndicator'] = (
+                ECI_NUMERIC_TO_3DS2.get(eci, eci) if eci else ECI_3DS2_AUTHENTICATED
+            )
+            transaction_data.update(three_ds)
 
         payload = self._build_payload(COMMAND_DEBIT, transaction_data)
 
