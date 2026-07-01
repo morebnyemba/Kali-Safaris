@@ -858,6 +858,7 @@ class CBZCard3DSViewTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn('error=3ds_not_enrolled', response.url)
         self.assertEqual(txn.status, CBZTransaction.TransactionStatus.DECLINED)
+        self.assertEqual(txn.result_code, '255')
         mock_client.debit_card.assert_not_called()
 
 

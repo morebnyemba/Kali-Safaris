@@ -1886,8 +1886,9 @@ def cbz_card_3ds_return_view(request: HttpRequest) -> HttpResponseRedirect:
         stored.pop('_signed_card', None)
         txn.gateway_response = stored
         txn.status = CBZTransaction.TransactionStatus.DECLINED
+        txn.result_code = '255'
         txn.result_description = 'Card is not enrolled in 3D Secure. Please try a different card.'
-        txn.save(update_fields=['status', 'result_description', 'gateway_response'])
+        txn.save(update_fields=['status', 'result_code', 'result_description', 'gateway_response'])
         return _redirect(
             f'/booking/payment-status?channel=card&ref={merchant_ref}&error=3ds_not_enrolled'
         )
