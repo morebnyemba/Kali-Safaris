@@ -33,7 +33,6 @@ from .constants import (
     ECI_3DS_ATTEMPTED,
     ECI_3DS2_AUTHENTICATED,
     ECI_3DS2_ATTEMPTED,
-    ECI_3DS2_SECURE_CHANNEL,
     ECI_NUMERIC_TO_3DS2,
     RESULT_CODE_SUCCESS,
     STATUS_PENDING,
@@ -585,14 +584,14 @@ class IVeriClient:
         # fall back to the enrolment status instead of passing it through.
         if threed_secure_data:
             three_ds = dict(threed_secure_data)
-            known_enums = {ECI_3DS2_AUTHENTICATED, ECI_3DS2_ATTEMPTED, ECI_3DS2_SECURE_CHANNEL}
+            known_enums = {ECI_3DS2_AUTHENTICATED, ECI_3DS2_ATTEMPTED}
             eci = str(three_ds.get('ElectronicCommerceIndicator') or '').strip()
             enrolled = str(three_ds.get('ThreeDSecure_VEResEnrolled') or '').strip().upper()
             if eci in ECI_NUMERIC_TO_3DS2:
                 eci = ECI_NUMERIC_TO_3DS2[eci]
             elif eci in known_enums:
                 pass  # already iVeri's string enum
-            elif not eci or enrolled == 'Y':
+            elif enrolled == 'Y':
                 eci = ECI_3DS2_AUTHENTICATED
             else:
                 eci = ECI_3DS2_ATTEMPTED

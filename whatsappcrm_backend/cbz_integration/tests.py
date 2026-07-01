@@ -204,6 +204,26 @@ class IVeriClientPayloadTest(TestCase):
             txn = mock_execute.call_args[0][0]['Transaction']
             self.assertEqual(txn['ElectronicCommerceIndicator'], 'ThreeDSecureAttempted')
 
+    @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
+    def test_debit_card_3ds_not_enrolled_no_eci_still_attempted(self, mock_db):
+        """A not-enrolled card with no ElectronicCommerceIndicator at all must
+        still fall back to "attempted", not "authenticated" — there's no
+        evidence of authentication just because the field is missing."""
+        client = IVeriClient(config=self.config)
+        with patch.object(client, '_execute') as mock_execute:
+            mock_execute.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
+            client.debit_card(
+                pan='5189000000009697', expiry_date='1230', cvv='123',
+                amount=Decimal('25.00'), currency='USD',
+                merchant_reference='KS-3DS-NOT-ENROLLED-NO-ECI',
+                threed_secure_data={
+                    'ThreeDSecure_VEResEnrolled': 'N',
+                    'ThreeDSecure_RequestID': 'REQ-2',
+                },
+            )
+            txn = mock_execute.call_args[0][0]['Transaction']
+            self.assertEqual(txn['ElectronicCommerceIndicator'], 'ThreeDSecureAttempted')
+
     def test_missing_certificate_id_raises_value_error(self):
         with self.assertRaises(ValueError):
             IVeriClient(config=IVeriConfig(
