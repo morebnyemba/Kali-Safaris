@@ -21,6 +21,7 @@ from .views import (
     cbz_ecocash_debit_view,
     cbz_card_debit_view,
     cbz_card_3ds_complete_view,
+    cbz_card_3ds_return_view,
     cbz_certificate_generate_view,
     cbz_certificate_renew_view,
 )
@@ -819,6 +820,46 @@ class CBZCard3DSViewTests(TestCase):
         self.assertTrue(payload.get('pending'))
         self.assertEqual(txn.status, CBZTransaction.TransactionStatus.PENDING)
         self.assertEqual(txn.gateway_response.get('_signed_card'), 'SIGNED-DATA')
+
+    @patch('cbz_integration.views._build_client')
+    def test_3ds_return_declines_when_no_cardholder_auth_data(self, mock_build_client):
+        """When the card isn't 3DS-enrolled, iVeri's ACS never returns
+        CardHolderAuthenticationData. Submitting the Debit anyway gets
+        rejected with -255 "Missing CardHolderAuthenticationData", so the
+        ReturnUrl handler must decline locally without attempting it."""
+        mock_client = MagicMock()
+        mock_build_client.return_value = mock_client
+
+        txn = CBZTransaction.objects.create(
+            merchant_reference='KS-3DS-NOT-ENROLLED-RET',
+            payment_type=CBZTransaction.PaymentType.CARD,
+            masked_pan='4070****9018',
+            amount=Decimal('25.00'),
+            currency='USD',
+            command='Debit',
+            status=CBZTransaction.TransactionStatus.PENDING,
+            gateway_response={'_signed_card': 'SIGNED-DATA'},
+        )
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/card/3ds/return/',
+            data={
+                'MerchantReference': txn.merchant_reference,
+                'ResultCode': '0',
+                'ElectronicCommerceIndicator': '07',
+                'ThreeDSecure_VEResEnrolled': 'N',
+                'ThreeDSecure_RequestID': 'REQ-1',
+            },
+        )
+
+        response = cbz_card_3ds_return_view(request)
+        txn.refresh_from_db()
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('error=3ds_not_enrolled', response.url)
+        self.assertEqual(txn.status, CBZTransaction.TransactionStatus.DECLINED)
+        self.assertEqual(txn.result_code, '255')
+        mock_client.debit_card.assert_not_called()
 
 
 class IVeriCertificateClientTests(TestCase):
