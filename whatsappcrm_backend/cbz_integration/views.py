@@ -1874,24 +1874,37 @@ def cbz_card_3ds_return_view(request: HttpRequest) -> HttpResponseRedirect:
     # iVeri's Debit hard-requires CardHolderAuthenticationData whenever a 3DS
     # ECI is sent. Cards that aren't 3DS-enrolled never get this field from
     # the ACS/enrollment step, and iVeri rejects the Debit with -255 "Missing
-    # CardHolderAuthenticationData" — there's no valid substitute value, so
-    # decline here rather than attempt a Debit that's guaranteed to fail (or
-    # risk an unauthenticated charge by dropping the 3DS fields).
+    # CardHolderAuthenticationData" — there's no valid substitute value.
+    proceed_without_3ds = False
     if not three_ds_auth.get('CardHolderAuthenticationData'):
-        logger.warning(
-            "3DS ReturnUrl: no CardHolderAuthenticationData (card not 3DS-enrolled) "
-            "— declining without attempting the Debit | ref=%s enrolled=%s",
-            merchant_ref, three_ds_auth.get('ThreeDSecure_VEResEnrolled'),
-        )
-        stored.pop('_signed_card', None)
-        txn.gateway_response = stored
-        txn.status = CBZTransaction.TransactionStatus.DECLINED
-        txn.result_code = '255'
-        txn.result_description = 'Card is not enrolled in 3D Secure. Please try a different card.'
-        txn.save(update_fields=['status', 'result_code', 'result_description', 'gateway_response'])
-        return _redirect(
-            f'/booking/payment-status?channel=card&ref={merchant_ref}&error=3ds_not_enrolled'
-        )
+        enrolled = str(three_ds_auth.get('ThreeDSecure_VEResEnrolled') or '').strip().upper()
+        if enrolled == 'U':
+            # iVeri couldn't determine enrollment at all (as opposed to a
+            # confirmed "not enrolled"). Business decision: proceed with a
+            # plain non-3DS Debit rather than declining outright. This shifts
+            # fraud/chargeback liability for these transactions onto the
+            # merchant, since there's no 3DS or "attempts" liability shift.
+            proceed_without_3ds = True
+            logger.warning(
+                "3DS ReturnUrl: enrollment status 'U' (unable to verify) — "
+                "proceeding with a plain non-3DS Debit | ref=%s",
+                merchant_ref,
+            )
+        else:
+            logger.warning(
+                "3DS ReturnUrl: no CardHolderAuthenticationData (card not 3DS-enrolled) "
+                "— declining without attempting the Debit | ref=%s enrolled=%s",
+                merchant_ref, enrolled,
+            )
+            stored.pop('_signed_card', None)
+            txn.gateway_response = stored
+            txn.status = CBZTransaction.TransactionStatus.DECLINED
+            txn.result_code = '255'
+            txn.result_description = 'Card is not enrolled in 3D Secure. Please try a different card.'
+            txn.save(update_fields=['status', 'result_code', 'result_description', 'gateway_response'])
+            return _redirect(
+                f'/booking/payment-status?channel=card&ref={merchant_ref}&error=3ds_not_enrolled'
+            )
 
     txn.save(update_fields=['gateway_response'])
 
@@ -1933,7 +1946,7 @@ def cbz_card_3ds_return_view(request: HttpRequest) -> HttpResponseRedirect:
             amount=txn.amount,
             currency=txn.currency,
             merchant_reference=merchant_ref,
-            threed_secure_data=three_ds_auth or None,
+            threed_secure_data=None if proceed_without_3ds else (three_ds_auth or None),
         )
 
         result = IVeriClient.get_result(response)
