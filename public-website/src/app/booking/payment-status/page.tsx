@@ -52,6 +52,7 @@ interface GatewayResult {
   success?: boolean;
   pending?: boolean;
   message?: string;
+  extended_description?: string;
   merchant_reference?: string;
   booking_reference?: string;
   result_code?: string;
@@ -62,6 +63,7 @@ function PaymentStatusPageContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<StatusState>('idle');
   const [message, setMessage] = useState('Preparing payment verification...');
+  const [detail, setDetail] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [bookingReference, setBookingReference] = useState('');
   const [gatewayMode, setGatewayMode] = useState('');
@@ -172,6 +174,7 @@ function PaymentStatusPageContent() {
 
       const result = (await response.json()) as GatewayResult;
       setGatewayMode(result.gateway_mode ?? '');
+      setDetail((result.extended_description ?? '').trim());
       if (result.booking_reference) {
         setBookingReference(result.booking_reference);
         window.sessionStorage.setItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
@@ -314,6 +317,10 @@ function PaymentStatusPageContent() {
         </div>
 
         <p className="text-gray-700 leading-relaxed mb-4">{message}</p>
+
+        {detail && status !== 'approved' && (
+          <p className="text-sm text-gray-500 leading-relaxed mb-4 border-l-2 border-gray-200 pl-3">{detail}</p>
+        )}
 
         {gatewayMode === 'Test' && (
           <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
