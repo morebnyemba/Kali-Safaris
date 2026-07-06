@@ -190,6 +190,19 @@ def _copyandpay_result_description(payload: Dict[str, Any]) -> str:
     return str((payload.get('result') or {}).get('description') or '').strip()
 
 
+def _copyandpay_extended_description(payload: Dict[str, Any]) -> str:
+    """
+    OPPWA's `result.description` is a generic code label (e.g. "Transaction
+    declined"); the connector/acquirer-specific detail — the part that's
+    actually useful for support/reconciliation — lives in `resultDetails`.
+    Key casing varies by connector, so check both variants.
+    """
+    details = payload.get('resultDetails')
+    if not isinstance(details, dict):
+        return ''
+    return str(details.get('ExtendedDescription') or details.get('extendedDescription') or '').strip()
+
+
 def _copyandpay_is_approved(code: str) -> bool:
     return bool(re.match(r'^(000\.000\.|000\.100\.1|000\.[36])', code or ''))
 
@@ -1023,11 +1036,13 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
 
         code = _copyandpay_result_code(data)
         description = _copyandpay_result_description(data)
+        extended_description = _copyandpay_extended_description(data)
         checkout_id = str(data.get('id') or '').strip()
 
         txn.result_code = code or txn.result_code
         txn.result_description = description or txn.result_description
         txn.request_id = checkout_id or txn.request_id
+        txn.gateway_response = data if isinstance(data, dict) else txn.gateway_response
         if response.status_code >= 400 or not checkout_id:
             txn.status = CBZTransaction.TransactionStatus.FAILED
         txn.save()
@@ -1037,6 +1052,7 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
                 {
                     "success": False,
                     "message": description or 'Failed to prepare checkout',
+                    "extended_description": extended_description or None,
                     "merchant_reference": merchant_ref,
                     "result_code": code,
                 },
@@ -1128,6 +1144,7 @@ def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
 
         result_code = _copyandpay_result_code(data)
         result_description = _copyandpay_result_description(data)
+        extended_description = _copyandpay_extended_description(data)
 
         response_merchant_ref = str(data.get('merchantTransactionId') or '').strip()
         if not merchant_reference:
@@ -1150,6 +1167,7 @@ def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
             txn.result_description = result_description or txn.result_description
             txn.transaction_index = str(data.get('id') or txn.transaction_index or '').strip() or txn.transaction_index
             txn.request_id = checkout_id or txn.request_id
+            txn.gateway_response = data if isinstance(data, dict) else txn.gateway_response
 
             if is_approved:
                 txn.status = CBZTransaction.TransactionStatus.APPROVED
@@ -1177,6 +1195,7 @@ def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
             return JsonResponse({
                 "success": False,
                 "message": result_description or 'Unable to verify payment status',
+                "extended_description": extended_description or None,
                 "merchant_reference": merchant_reference,
                 "booking_reference": resolved_booking_reference,
                 "gateway_mode": config['mode'],
@@ -1187,6 +1206,7 @@ def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
             return JsonResponse({
                 "success": True,
                 "message": result_description or 'Payment approved',
+                "extended_description": extended_description or None,
                 "merchant_reference": merchant_reference,
                 "booking_reference": resolved_booking_reference,
                 "gateway_mode": config['mode'],
@@ -1199,6 +1219,7 @@ def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
                 "success": True,
                 "pending": True,
                 "message": result_description or 'Payment is pending final confirmation',
+                "extended_description": extended_description or None,
                 "merchant_reference": merchant_reference,
                 "booking_reference": resolved_booking_reference,
                 "gateway_mode": config['mode'],
@@ -1209,6 +1230,7 @@ def cbz_copyandpay_status_view(request: HttpRequest) -> JsonResponse:
         return JsonResponse({
             "success": False,
             "message": result_description or 'Payment was not approved',
+            "extended_description": extended_description or None,
             "merchant_reference": merchant_reference,
             "booking_reference": resolved_booking_reference,
             "gateway_mode": config['mode'],

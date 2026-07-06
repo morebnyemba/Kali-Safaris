@@ -16,11 +16,11 @@ import {
 const WIDGET_CSS = `
   .wpwl-form-card { font-family: inherit; }
 
-  .wpwl-group { margin-bottom: 1rem; }
+  .wpwl-group { margin-bottom: 1.1rem; }
 
   .wpwl-label {
     display: block;
-    margin-bottom: 0.35rem;
+    margin-bottom: 0.4rem;
     font-size: 0.75rem;
     font-weight: 600;
     color: #374151;
@@ -32,18 +32,24 @@ const WIDGET_CSS = `
   input.wpwl-control {
     display: block;
     width: 100%;
-    padding: 0.65rem 0.85rem;
+    padding: 0.7rem 0.9rem;
     font-size: 0.9375rem;
     color: #111827;
     background: #f9fafb;
     border: 1.5px solid #e5e7eb;
     border-radius: 0.625rem;
     outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
     box-sizing: border-box;
   }
+  .wpwl-control:hover,
+  input.wpwl-control:hover {
+    border-color: #cbd5e1;
+  }
   .wpwl-control:focus,
-  input.wpwl-control:focus {
+  input.wpwl-control:focus,
+  .wpwl-control:focus-within {
     border-color: #002b4d;
     box-shadow: 0 0 0 3px rgba(0,43,77,0.12);
     background: #fff;
@@ -52,9 +58,9 @@ const WIDGET_CSS = `
   /* The card-number and CVV controls are iframes — style the wrapper div */
   .wpwl-control-cardNumber,
   .wpwl-control-cvv {
-    padding: 0;
+    padding: 0 0.25rem;
     overflow: hidden;
-    height: 2.75rem;
+    height: 2.85rem;
     display: flex;
     align-items: center;
   }
@@ -65,20 +71,29 @@ const WIDGET_CSS = `
     border: none;
   }
 
-  /* Expiry + CVV side by side */
+  /* Expiry + CVV side by side, stacked on very narrow viewports */
   .wpwl-group-expiry,
   .wpwl-group-cvv {
     width: 48%;
     display: inline-block;
+    vertical-align: top;
   }
   .wpwl-group-expiry { margin-right: 4%; }
+  @media (max-width: 380px) {
+    .wpwl-group-expiry,
+    .wpwl-group-cvv {
+      width: 100%;
+      display: block;
+    }
+    .wpwl-group-expiry { margin-right: 0; }
+  }
 
   /* Submit button */
   .wpwl-button-pay {
     display: block;
     width: 100%;
-    margin-top: 1.25rem;
-    padding: 0.8rem 1.5rem;
+    margin-top: 1.4rem;
+    padding: 0.85rem 1.5rem;
     font-size: 1rem;
     font-weight: 700;
     color: #fff;
@@ -87,39 +102,56 @@ const WIDGET_CSS = `
     border-radius: 9999px;
     cursor: pointer;
     letter-spacing: 0.02em;
-    transition: opacity 0.15s, transform 0.1s;
+    box-shadow: 0 8px 20px -8px rgba(0, 26, 51, 0.55);
+    transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
   }
-  .wpwl-button-pay:hover { opacity: 0.88; transform: translateY(-1px); }
+  .wpwl-button-pay:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 10px 24px -8px rgba(0, 26, 51, 0.6); }
   .wpwl-button-pay:active { transform: translateY(0); }
+  .wpwl-button-pay:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(232, 96, 10, 0.45), 0 8px 20px -8px rgba(0, 26, 51, 0.55);
+  }
+  .wpwl-button-pay:disabled,
+  .wpwl-button-pay.wpwl-disabled {
+    opacity: 0.65;
+    cursor: progress;
+    transform: none;
+  }
 
   /* Brand selector row — lets the cardholder explicitly pick their card type
      (e.g. Private Label) when it can't be auto-detected from the PAN alone. */
   .wpwl-wrapper-brand {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 1rem;
+    margin-bottom: 1.1rem;
     flex-wrap: wrap;
   }
   .wpwl-wrapper-brand .wpwl-brand-card {
-    width: 2.75rem;
-    height: 1.75rem;
-    border: 1px solid #e5e7eb;
+    width: 2.85rem;
+    height: 1.85rem;
+    background: #fff;
+    border: 1.5px solid #e5e7eb;
     border-radius: 0.5rem;
     cursor: pointer;
-    opacity: 0.5;
-    transition: opacity 0.15s, border-color 0.15s;
+    opacity: 0.55;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+    transition: opacity 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
   }
-  .wpwl-wrapper-brand .wpwl-brand-card:hover,
+  .wpwl-wrapper-brand .wpwl-brand-card:hover {
+    opacity: 0.85;
+    transform: translateY(-1px);
+  }
   .wpwl-wrapper-brand .wpwl-brand-card.wpwl-selected-brand {
     opacity: 1;
     border-color: #E8600A;
+    box-shadow: 0 0 0 3px rgba(232, 96, 10, 0.15);
   }
 
   /* Validation error messages from widget */
   .wpwl-hint {
     display: block;
-    margin-top: 0.35rem;
-    padding: 0.3rem 0.6rem;
+    margin-top: 0.4rem;
+    padding: 0.35rem 0.65rem;
     font-size: 0.75rem;
     font-weight: 500;
     color: #b91c1c;
@@ -133,6 +165,12 @@ const WIDGET_CSS = `
   .wpwl-has-error input.wpwl-control {
     border-color: #ef4444;
     background: #fff5f5;
+    box-shadow: none;
+  }
+
+  /* Loading spinner OPPWA injects while the widget boots / submits */
+  .wpwl-spinner {
+    border-top-color: #E8600A !important;
   }
 `;
 
@@ -255,14 +293,14 @@ function CardCheckoutContent() {
   if (!checkoutId || !resolvedScriptUrl) return errorState;
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#001a33] via-[#002b4d] to-[#001a33] flex items-center justify-center px-4 py-16">
+    <main className="min-h-screen bg-gradient-to-b from-[#001a33] via-[#002b4d] to-[#001a33] flex items-center justify-center px-3 py-10 sm:px-4 sm:py-16">
       <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl overflow-hidden">
 
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#001a33] to-[#003366] px-8 py-6">
-          <div className="flex items-center justify-between">
+        <div className="bg-gradient-to-r from-[#001a33] to-[#003366] px-5 py-6 sm:px-8">
+          <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-400/20">
+              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-400/20">
                 <FaLock className="text-amber-400 text-base" />
               </div>
               <div>
@@ -277,26 +315,26 @@ function CardCheckoutContent() {
           </div>
 
           {/* Accepted cards */}
-          <div className="mt-5 flex items-center gap-2">
+          <div className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
             <span className="text-blue-200 text-xs mr-1">Accepted:</span>
             <FaCcVisa className="text-white text-2xl" title="Visa" />
             <FaCcMastercard className="text-white text-2xl" title="Mastercard" />
             <FaCcAmex className="text-white text-2xl" title="American Express" />
             {brands.includes('ZIMSWITCH') && (
-              <span className="rounded bg-white/15 px-2 py-0.5 text-white text-[10px] font-bold tracking-wider">ZIMSWITCH</span>
+              <span className="rounded-full bg-white/15 px-2.5 py-1 text-white text-[10px] font-bold tracking-wider ring-1 ring-white/20">ZIMSWITCH</span>
             )}
             {brands.includes('PRIVATE_LABEL') && (
-              <span className="rounded bg-white/15 px-2 py-0.5 text-white text-[10px] font-bold tracking-wider">PRIVATE LABEL</span>
+              <span className="rounded-full bg-white/15 px-2.5 py-1 text-white text-[10px] font-bold tracking-wider ring-1 ring-white/20">PRIVATE LABEL</span>
             )}
           </div>
         </div>
 
         {/* Body */}
-        <div className="px-8 py-7">
+        <div className="px-5 py-6 sm:px-8 sm:py-7">
           {merchantReference && (
-            <div className="mb-5 flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
-              <span className="text-xs text-gray-500">Reference</span>
-              <span className="font-mono text-xs font-semibold text-gray-700 tracking-wider">{merchantReference}</span>
+            <div className="mb-5 flex items-center justify-between gap-2 rounded-xl bg-gray-50 border border-gray-100 px-4 py-3">
+              <span className="text-xs text-gray-500 flex-shrink-0">Reference</span>
+              <span className="font-mono text-xs font-semibold text-gray-700 tracking-wider truncate">{merchantReference}</span>
             </div>
           )}
 
@@ -320,10 +358,10 @@ function CardCheckoutContent() {
                   );
                 }
                 return (
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     {testCards.map(({ brand, pan, expiry, cvv }) => (
-                      <div key={brand} className="flex items-center justify-between gap-2">
-                        <span className="text-xs font-semibold text-amber-800 w-20">{brand}</span>
+                      <div key={brand} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 rounded-lg bg-white/60 px-2.5 py-1.5">
+                        <span className="text-xs font-semibold text-amber-800 w-20 flex-shrink-0">{brand}</span>
                         <span className="font-mono text-xs text-amber-900">{pan}</span>
                         <span className="font-mono text-xs text-amber-700">{expiry} / {cvv}</span>
                       </div>
@@ -386,14 +424,18 @@ function CardCheckoutContent() {
           {/* OPPWA widget — styled via wpwlOptions + injected CSS above */}
           {!widgetError && <form action={returnUrl} className="paymentWidgets" data-brands={brands} />}
 
-          <div className="mt-6 flex flex-col items-center gap-4">
+          <div className="mt-7 border-t border-gray-100 pt-5 flex flex-col items-center gap-4">
             <Link
               href="/booking"
               className="inline-flex items-center gap-2 text-sm text-gray-400 transition hover:text-gray-700"
             >
               <FaArrowLeft className="text-xs" /> Cancel and return to booking
             </Link>
-            <p className="text-center text-[11px] text-gray-300 leading-relaxed">
+            <div className="flex items-center gap-1.5 text-gray-300">
+              <FaShieldAlt className="text-[11px]" />
+              <span className="text-[11px] font-semibold tracking-wide uppercase">Secured by ZimSwitch &amp; OPPWA</span>
+            </div>
+            <p className="text-center text-[11px] text-gray-300 leading-relaxed max-w-xs">
               Your card details are handled directly by the bank&apos;s secure gateway.<br />
               Kali Safaris never sees or stores your card number.
             </p>
