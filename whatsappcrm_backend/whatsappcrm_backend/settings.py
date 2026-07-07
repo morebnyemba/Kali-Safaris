@@ -459,6 +459,13 @@ JAZZMIN_UI_TWEAKS = {
 BACKEND_DOMAIN_FOR_CSP = os.getenv('BACKEND_DOMAIN_FOR_CSP', 'backend.kalaisafaris.com') # Default to Kalai Safaris
 FRONTEND_DOMAIN_FOR_CSP = os.getenv('FRONTEND_DOMAIN_FOR_CSP', 'dashboard.kalaisafaris.com') # Default to Kalai Safaris
 
+# Public base URL of this backend, used by paynow_integration to build the
+# resulturl/returnurl sent to Paynow. Previously unset, so PaynowService's
+# `getattr(settings, 'SITE_URL', ...)` always fell through to a placeholder
+# ('https://your-domain.com') that doesn't resolve, regardless of any
+# SITE_URL value in .env.
+SITE_URL = os.getenv('SITE_URL', f'https://{BACKEND_DOMAIN_FOR_CSP}')
+
 # Base directives for production
 connect_src_list = [
     "'self'",
