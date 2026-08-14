@@ -1,24 +1,31 @@
 """
 Management command: export_uat_report
 
-Exports CBZTransaction records in the iVeri Lite log format required for UAT
-go-live submission to iVeri/CBZ.
+Exports CBZTransaction records in the iVeri Enterprise log format required
+for UAT go-live submission to iVeri/CBZ. The merchant is configured for
+iVeri Enterprise, so the exported gateway_response must use the Enterprise
+Transaction response shape (as returned by IVeriClient / services.py),
+not the iVeri Lite LITE_*/ECOM_* key-value format.
 
-Output format (matches handy-hands_logs-iveri-lite.json reference):
+Output format:
   [
     {
       "status": "success",
       "message": "Payment was successful.",
-      "gateway_response": { <LITE_* and ECOM_* fields> }
+      "gateway_response": {
+        "Version": "2.0",
+        "Direction": "Response",
+        "Transaction": { <Enterprise Transaction fields> }
+      }
     },
     ...
   ]
 
 Status mapping:
-  LITE_PAYMENT_CARD_STATUS "0"   → status: "success"
-  LITE_PAYMENT_CARD_STATUS "4"   → status: "fail"
-  LITE_PAYMENT_CARD_STATUS "1"   → status: "error"
-  LITE_PAYMENT_CARD_STATUS "255" → status: "error"
+  ResultCode "0"   → status: "success"
+  ResultCode "4"   → status: "fail"
+  ResultCode "1"   → status: "error"
+  ResultCode "255" → status: "error"
 
 Usage:
     python manage.py export_uat_report
@@ -39,6 +46,8 @@ from typing import Any, Dict, List, Optional
 from django.core.management.base import BaseCommand, CommandError
 from django.utils import timezone as dj_tz
 
+from cbz_integration.constants import IVERI_API_VERSION
+
 
 # Human-friendly labels for iVeri result codes
 _RESULT_STATUS: Dict[str, tuple] = {
@@ -52,7 +61,7 @@ _DEFAULT_STATUS = ("error", "An unknown gateway error occurred.")
 
 class Command(BaseCommand):
     help = (
-        "Export CBZ/iVeri transaction records in iVeri Lite log format "
+        "Export CBZ/iVeri transaction records in iVeri Enterprise log format "
         "for UAT go-live submission to iVeri/CBZ."
     )
 
@@ -126,24 +135,29 @@ class Command(BaseCommand):
 
     def _build_gateway_response(self, txn: Any, application_id: str) -> Dict[str, Any]:
         """
-        Return a gateway_response dict in iVeri Lite format.
+        Return a gateway_response dict in iVeri Enterprise format.
 
-        If the transaction already has a stored gateway_response with LITE_*
-        keys (from a real iVeri Lite callback), use that directly and ensure
-        ECOM_PAYMENT_CARD_NUMBER is populated from masked_pan.
+        If the transaction already has a stored gateway_response with a
+        nested 'Transaction' block (from a real iVeri Enterprise callback),
+        use that directly and ensure the Pan field is populated from
+        masked_pan.
 
-        Otherwise reconstruct from model fields (e.g. REST API transactions).
+        Otherwise reconstruct an Enterprise-shaped response from model
+        fields, using the same Transaction field names IVeriClient uses
+        elsewhere (see services.py _txn_status_to_iveri / get_result).
         """
         stored: Dict[str, Any] = txn.gateway_response or {}
 
-        if "LITE_PAYMENT_CARD_STATUS" in stored:
-            # Already in Lite format — use as-is, injecting masked_pan if stored
+        if isinstance(stored.get("Transaction"), dict):
+            # Already in Enterprise format — use as-is, injecting masked_pan if stored
             gr = dict(stored)
-            if txn.masked_pan and not gr.get("ECOM_PAYMENT_CARD_NUMBER"):
-                gr["ECOM_PAYMENT_CARD_NUMBER"] = txn.masked_pan
+            transaction = dict(gr["Transaction"])
+            if txn.masked_pan and not transaction.get("Pan"):
+                transaction["Pan"] = txn.masked_pan
+            gr["Transaction"] = transaction
             return gr
 
-        # Reconstruct Lite-format dict from model fields
+        # Reconstruct Enterprise-format dict from model fields
         amount_minor = ""
         try:
             if txn.amount is not None:
@@ -155,26 +169,28 @@ class Command(BaseCommand):
         if txn.created_at:
             created_str = txn.created_at.strftime("%Y-%m-%d %H:%M:%S")
 
+        transaction: Dict[str, Any] = {
+            "ApplicationID": application_id,
+            "MerchantReference": txn.merchant_reference or "",
+            "TransactionIndex": txn.transaction_index or "",
+            "RequestID": txn.request_id or "",
+            "AuthorisationCode": txn.authorisation_code or "",
+            "ResultCode": txn.result_code or "",
+            "Status": txn.status or "",
+            "ResultDescription": txn.result_description or "",
+            "BankReference": txn.bank_reference or "",
+            "ConsumerOrderID": txn.consumer_order_id or txn.merchant_reference or "",
+            "CardBin": txn.card_bin or "",
+            "Pan": txn.masked_pan or "",
+            "Amount": amount_minor,
+            "Currency": txn.currency or "USD",
+            "TransactionDate": created_str,
+        }
+
         return {
-            "LITE_MERCHANT_APPLICATIONID": application_id,
-            "MERCHANTREFERENCE": txn.merchant_reference or "",
-            "ECOM_CONSUMERORDERID": txn.consumer_order_id or txn.merchant_reference or "",
-            "LITE_CONSUMERORDERID_PREFIX": "INV",
-            "LITE_PAYMENT_CARD_STATUS": txn.result_code or "",
-            "LITE_RESULT_DESCRIPTION": txn.result_description or "",
-            "LITE_TRANSACTIONINDEX": txn.transaction_index or "",
-            "LITE_TRANSACTIONDATE": created_str,
-            "LITE_BANKREFERENCE": txn.bank_reference or "",
-            "LITE_ORDER_AUTHORISATIONCODE": txn.authorisation_code or "",
-            "LITE_PAYMENT_CARD_BIN": txn.card_bin or "",
-            "LITE_ORDER_AMOUNT": amount_minor,
-            "LITE_ORDER_LINEITEMS_AMOUNT_1": amount_minor,
-            "LITE_ORDER_LINEITEMS_QUANTITY_1": "1",
-            "LITE_ORDER_LINEITEMS_PRODUCT_1": "Order",
-            "LITE_CURRENCY_ALPHACODE": txn.currency or "USD",
-            "ECOM_PAYMENT_CARD_NUMBER": txn.masked_pan or "",
-            "ECOM_PAYMENT_CARD_PROTOCOLS": "IVERI",
-            "ECOM_TRANSACTIONCOMPLETE": "False",
+            "Version": IVERI_API_VERSION,
+            "Direction": "Response",
+            "Transaction": transaction,
         }
 
     @staticmethod
