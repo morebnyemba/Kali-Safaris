@@ -16,15 +16,15 @@ import {
 const WIDGET_CSS = `
   .wpwl-form-card { font-family: inherit; }
 
-  .wpwl-group { margin-bottom: 1.1rem; }
+  .wpwl-group { margin-bottom: 1.25rem; }
 
   .wpwl-label {
     display: block;
-    margin-bottom: 0.4rem;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #374151;
-    letter-spacing: 0.04em;
+    margin-bottom: 0.45rem;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    color: #6b7280;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }
 
@@ -32,14 +32,14 @@ const WIDGET_CSS = `
   input.wpwl-control {
     display: block;
     width: 100%;
-    padding: 0.7rem 0.9rem;
+    padding: 0.8rem 1rem;
     font-size: 0.9375rem;
     color: #111827;
     background: #f9fafb;
     border: 1.5px solid #e5e7eb;
-    border-radius: 0.625rem;
+    border-radius: 0.75rem;
     outline: none;
-    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
+    box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.03);
     transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
     box-sizing: border-box;
   }
@@ -51,16 +51,28 @@ const WIDGET_CSS = `
   input.wpwl-control:focus,
   .wpwl-control:focus-within {
     border-color: #002b4d;
-    box-shadow: 0 0 0 3px rgba(0,43,77,0.12);
+    box-shadow: 0 0 0 4px rgba(0, 43, 77, 0.1);
     background: #fff;
+  }
+
+  /* Cardholder name is a real DOM input (not an iframe) — safe to add an
+     icon affordance, matching the icon-in-input pattern used across the
+     rest of the booking flow. */
+  .wpwl-control.wpwl-control-cardHolder,
+  input.wpwl-control-cardHolder {
+    padding-left: 2.75rem;
+    background-repeat: no-repeat;
+    background-position: 0.95rem center;
+    background-size: 1rem 1rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%239ca3af'%3E%3Cpath d='M12 12a5 5 0 100-10 5 5 0 000 10zm0 2c-4.42 0-8 2.24-8 5v1a1 1 0 001 1h14a1 1 0 001-1v-1c0-2.76-3.58-5-8-5z'/%3E%3C/svg%3E");
   }
 
   /* The card-number and CVV controls are iframes — style the wrapper div */
   .wpwl-control-cardNumber,
   .wpwl-control-cvv {
-    padding: 0 0.25rem;
+    padding: 0 0.35rem;
     overflow: hidden;
-    height: 2.85rem;
+    height: 3rem;
     display: flex;
     align-items: center;
   }
@@ -74,11 +86,11 @@ const WIDGET_CSS = `
   /* Expiry + CVV side by side, stacked on very narrow viewports */
   .wpwl-group-expiry,
   .wpwl-group-cvv {
-    width: 48%;
+    width: calc(50% - 0.5rem);
     display: inline-block;
     vertical-align: top;
   }
-  .wpwl-group-expiry { margin-right: 4%; }
+  .wpwl-group-expiry { margin-right: 1rem; }
   @media (max-width: 380px) {
     .wpwl-group-expiry,
     .wpwl-group-cvv {
@@ -90,10 +102,13 @@ const WIDGET_CSS = `
 
   /* Submit button */
   .wpwl-button-pay {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
     width: 100%;
-    margin-top: 1.4rem;
-    padding: 0.85rem 1.5rem;
+    margin-top: 1.5rem;
+    padding: 0.95rem 1.5rem;
     font-size: 1rem;
     font-weight: 700;
     color: #fff;
@@ -102,14 +117,23 @@ const WIDGET_CSS = `
     border-radius: 9999px;
     cursor: pointer;
     letter-spacing: 0.02em;
-    box-shadow: 0 8px 20px -8px rgba(0, 26, 51, 0.55);
+    box-shadow: 0 10px 24px -8px rgba(0, 26, 51, 0.55);
     transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
   }
-  .wpwl-button-pay:hover { opacity: 0.9; transform: translateY(-1px); box-shadow: 0 10px 24px -8px rgba(0, 26, 51, 0.6); }
+  .wpwl-button-pay::before {
+    content: '';
+    width: 0.9rem;
+    height: 0.9rem;
+    flex-shrink: 0;
+    background-repeat: no-repeat;
+    background-size: contain;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 1a5 5 0 00-5 5v3H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2v-9a2 2 0 00-2-2h-2V6a5 5 0 00-5-5zm-3 8V6a3 3 0 116 0v3H9zm3 3a2 2 0 012 2c0 .74-.4 1.39-1 1.73V17a1 1 0 11-2 0v-1.27c-.6-.34-1-.99-1-1.73a2 2 0 012-2z'/%3E%3C/svg%3E");
+  }
+  .wpwl-button-pay:hover { opacity: 0.92; transform: translateY(-1px); box-shadow: 0 12px 28px -8px rgba(0, 26, 51, 0.6); }
   .wpwl-button-pay:active { transform: translateY(0); }
   .wpwl-button-pay:focus-visible {
     outline: none;
-    box-shadow: 0 0 0 3px rgba(232, 96, 10, 0.45), 0 8px 20px -8px rgba(0, 26, 51, 0.55);
+    box-shadow: 0 0 0 3px rgba(232, 96, 10, 0.45), 0 10px 24px -8px rgba(0, 26, 51, 0.55);
   }
   .wpwl-button-pay:disabled,
   .wpwl-button-pay.wpwl-disabled {
@@ -122,13 +146,13 @@ const WIDGET_CSS = `
      (e.g. Private Label) when it can't be auto-detected from the PAN alone. */
   .wpwl-wrapper-brand {
     display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.1rem;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
     flex-wrap: wrap;
   }
   .wpwl-wrapper-brand .wpwl-brand-card {
-    width: 2.85rem;
-    height: 1.85rem;
+    width: 3rem;
+    height: 1.95rem;
     background: #fff;
     border: 1.5px solid #e5e7eb;
     border-radius: 0.5rem;
@@ -150,14 +174,14 @@ const WIDGET_CSS = `
   /* Validation error messages from widget */
   .wpwl-hint {
     display: block;
-    margin-top: 0.4rem;
-    padding: 0.35rem 0.65rem;
+    margin-top: 0.45rem;
+    padding: 0.4rem 0.7rem;
     font-size: 0.75rem;
     font-weight: 500;
     color: #b91c1c;
     background: #fef2f2;
     border-left: 3px solid #ef4444;
-    border-radius: 0 0.375rem 0.375rem 0;
+    border-radius: 0 0.5rem 0.5rem 0;
   }
 
   /* Highlight field with error */
