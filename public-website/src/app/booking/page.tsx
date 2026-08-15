@@ -5,66 +5,88 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import FooterSection from "@/components/FooterSection";
 import BookingModal from "@/components/BookingModal";
-import { FaWhatsapp, FaPhone, FaEnvelope, FaSun, FaMoon } from "react-icons/fa";
+import { fetchTours, tourPriceUsd, type Tour } from "@/lib/tours";
+import { FaWhatsapp, FaPhone, FaEnvelope, FaSun, FaMoon, FaShip, FaMapMarkerAlt } from "react-icons/fa";
 import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
 import { MdCelebration } from "react-icons/md";
+import type { IconType } from "react-icons";
 
-const cruises = [
-  {
-    title: "Sunrise Cruise",
-    time: "06:00 AM — 08:00 AM",
-    amountUsd: 25,
-    price: "From $25",
-    image: "/images/sunrise.jpeg",
-    description: "Start your day with the peaceful sounds of the Zambezi as hippos yawn and fish eagles call.",
-    Icon: BsSunriseFill,
-  },
-  {
-    title: "Lunch Cruise",
-    time: "12:00 PM — 02:00 PM",
-    amountUsd: 25,
-    price: "From $25",
-    image: "/images/work_no_play.jpeg",
-    description: "A relaxing midday cruise along the river with stunning views and refreshing breezes.",
-    Icon: FaSun,
-  },
-  {
-    title: "Sunset Cruise",
-    time: "04:00 PM — After Sunset",
-    amountUsd: 25,
-    price: "From $25",
-    image: "/images/sunset.jpeg",
-    description: "The most popular cruise — watch the African sun set over the Zambezi in golden splendour.",
-    Icon: BsSunsetFill,
-  },
-  {
-    title: "Dinner Cruise",
-    time: "Evening (by arrangement)",
-    amountUsd: 75,
-    price: "From $75",
-    image: "/images/Kalai Sunset background shot.jpeg",
-    description: "An exclusive evening on the river, complete with a gourmet dinner under the stars.",
-    Icon: FaMoon,
-  },
-  {
-    title: "Jetty Venue Hire",
-    time: "Flexible",
-    amountUsd: 70,
-    price: "Contact us",
-    image: "/images/jetty_venue.jpg",
-    description: "Host your wedding, conference, or cocktail event at our beautiful riverside jetty.",
-    Icon: MdCelebration,
-  },
+// Decorative fallback images for tours that don't have a photo uploaded on
+// the backend yet. Cycled by list position, matched by name where possible.
+const FALLBACK_IMAGES = [
+  "/images/sunrise.jpeg",
+  "/images/work_no_play.jpeg",
+  "/images/sunset.jpeg",
+  "/images/Kalai Sunset background shot.jpeg",
+  "/images/jetty_venue.jpg",
 ];
+
+function getTourImage(tour: Tour, index: number): string {
+  if (tour.image_url) {
+    return tour.image_url;
+  }
+  const name = tour.name.toLowerCase();
+  if (name.includes("sunrise")) return "/images/sunrise.jpeg";
+  if (name.includes("sunset")) return "/images/sunset.jpeg";
+  if (name.includes("dinner") || name.includes("evening")) return "/images/Kalai Sunset background shot.jpeg";
+  if (name.includes("lunch")) return "/images/work_no_play.jpeg";
+  if (name.includes("jetty") || name.includes("venue")) return "/images/jetty_venue.jpg";
+  return FALLBACK_IMAGES[index % FALLBACK_IMAGES.length];
+}
+
+function getTourIcon(tour: Tour): IconType {
+  const name = tour.name.toLowerCase();
+  if (name.includes("sunrise")) return BsSunriseFill;
+  if (name.includes("sunset")) return BsSunsetFill;
+  if (name.includes("dinner") || name.includes("evening")) return FaMoon;
+  if (name.includes("lunch")) return FaSun;
+  if (name.includes("jetty") || name.includes("venue")) return MdCelebration;
+  return FaShip;
+}
 
 type PageStep = 'select' | 'booking';
 
 function BookingPageContent() {
   const searchParams = useSearchParams();
   const [pageStep, setPageStep] = useState<PageStep>('select');
-  const [selectedCruise, setSelectedCruise] = useState(cruises[0].title);
-  const [selectedAmountUsd, setSelectedAmountUsd] = useState(cruises[0].amountUsd);
+  const [tours, setTours] = useState<Tour[]>([]);
+  const [toursLoading, setToursLoading] = useState(true);
+  const [toursError, setToursError] = useState(false);
+  const [selectedCruise, setSelectedCruise] = useState('');
+  const [selectedAmountUsd, setSelectedAmountUsd] = useState(0);
   const [isPaymentScreen, setIsPaymentScreen] = useState(false);
+
+  // Live tour catalogue — same Tour + seasonal pricing data the WhatsApp
+  // "View Available Tours" flow reads, so the website never lists a trip
+  // that doesn't actually exist in the backend.
+  useEffect(() => {
+    let isCancelled = false;
+
+    const loadTours = async () => {
+      setToursLoading(true);
+      setToursError(false);
+      try {
+        const data = await fetchTours();
+        if (isCancelled) return;
+        setTours(data);
+        setSelectedCruise((current) => current || (data[0]?.name ?? ''));
+        setSelectedAmountUsd((current) => current || tourPriceUsd(data[0] ?? { price_per_adult: '0', base_price: '0' } as Tour));
+      } catch {
+        if (!isCancelled) {
+          setToursError(true);
+        }
+      } finally {
+        if (!isCancelled) {
+          setToursLoading(false);
+        }
+      }
+    };
+
+    void loadTours();
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   const queryBookingReference = useMemo(() => searchParams.get('booking_reference') ?? '', [searchParams]);
   const queryPaymentMode = useMemo(() => (searchParams.get('payment_mode') ?? '').toLowerCase(), [searchParams]);
@@ -155,41 +177,82 @@ function BookingPageContent() {
           </div>
 
           <div className="container mx-auto px-6 relative">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
-              {cruises.map((cruise, index) => (
-                <div
-                  key={index}
-                  className="group relative bg-white/80 backdrop-blur-lg border border-white/60 shadow-lg rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl"
-                >
-                  <div className="relative h-48 overflow-hidden">
-                    <Image
-                      src={cruise.image}
-                      alt={cruise.title}
-                      fill
-                      className="object-cover group-hover:scale-110 transition-transform duration-500"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-                    <div className="absolute bottom-3 left-3">
-                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-[#C8102E] to-[#E8600A] text-white shadow-sm">
-                        <cruise.Icon size={12} /> {cruise.price}
-                      </span>
+            {toursLoading && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12" aria-label="Loading tours">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="rounded-2xl border border-white/60 bg-white/70 shadow-lg overflow-hidden animate-pulse">
+                    <div className="h-48 bg-gray-200" />
+                    <div className="p-5 space-y-3">
+                      <div className="h-5 w-2/3 rounded bg-gray-200" />
+                      <div className="h-3 w-1/3 rounded bg-gray-200" />
+                      <div className="h-3 w-full rounded bg-gray-200" />
+                      <div className="h-3 w-4/5 rounded bg-gray-200" />
+                      <div className="h-10 w-full rounded-full bg-gray-200 mt-4" />
                     </div>
                   </div>
+                ))}
+              </div>
+            )}
 
-                  <div className="p-5">
-                    <h3 className="text-xl font-bold text-gray-900 mb-1">{cruise.title}</h3>
-                    <p className="text-sm text-[#E8600A] font-medium mb-3">{cruise.time}</p>
-                    <p className="text-gray-600 text-sm leading-relaxed mb-4">{cruise.description}</p>
-                    <button
-                      onClick={() => handleBookClick(cruise.title, cruise.amountUsd)}
-                      className="w-full rounded-full bg-gradient-to-r from-[#C8102E] to-[#E8600A] hover:from-[#E8173A] hover:to-[#F47B1A] text-white font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5"
+            {!toursLoading && (toursError || tours.length === 0) && (
+              <div className="max-w-xl mx-auto mb-12 text-center bg-white/80 backdrop-blur-lg border border-white/60 shadow-lg rounded-2xl p-8">
+                <p className="text-lg font-semibold text-gray-900 mb-2">
+                  We&apos;re updating our tour packages
+                </p>
+                <p className="text-gray-600">
+                  Please check back shortly, or reach out below and one of our agents will help you book a custom tour.
+                </p>
+              </div>
+            )}
+
+            {!toursLoading && !toursError && tours.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+                {tours.map((tour, index) => {
+                  const Icon = getTourIcon(tour);
+                  const price = tourPriceUsd(tour);
+                  return (
+                    <div
+                      key={tour.id}
+                      className="group relative bg-white/80 backdrop-blur-lg border border-white/60 shadow-lg rounded-2xl overflow-hidden transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl"
                     >
-                      Book This Cruise →
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                      <div className="relative h-48 overflow-hidden">
+                        <Image
+                          src={getTourImage(tour, index)}
+                          alt={tour.name}
+                          fill
+                          className="object-cover group-hover:scale-110 transition-transform duration-500"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+                        <div className="absolute bottom-3 left-3">
+                          <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold bg-gradient-to-r from-[#C8102E] to-[#E8600A] text-white shadow-sm">
+                            <Icon size={12} /> From ${price.toFixed(0)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-5">
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">{tour.name}</h3>
+                        <p className="text-sm text-[#E8600A] font-medium mb-3 flex items-center gap-2 flex-wrap">
+                          <span>{tour.duration_display}</span>
+                          {tour.location && (
+                            <span className="inline-flex items-center gap-1 text-gray-500 font-normal">
+                              <FaMapMarkerAlt size={11} /> {tour.location}
+                            </span>
+                          )}
+                        </p>
+                        <p className="text-gray-600 text-sm leading-relaxed mb-4 line-clamp-3">{tour.description}</p>
+                        <button
+                          onClick={() => handleBookClick(tour.name, price)}
+                          className="w-full rounded-full bg-gradient-to-r from-[#C8102E] to-[#E8600A] hover:from-[#E8173A] hover:to-[#F47B1A] text-white font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:-translate-y-0.5"
+                        >
+                          Book This Cruise →
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             {/* Contact Methods */}
             <div className="max-w-3xl mx-auto">

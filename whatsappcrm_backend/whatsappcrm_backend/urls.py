@@ -30,6 +30,9 @@ urlpatterns = [
     
     path('crm-api/conversations/', include('conversations.urls', namespace='conversations_api')),
 path('crm-api/customer-data/', include('customer_data.urls', namespace='customer_data_api')),
+    # Public, read-only tour package listing — same Tour/SeasonalTourPrice
+    # data the WhatsApp bot reads, exposed for the marketing website.
+    path('crm-api/tours/', include('products_and_services.urls', namespace='products_and_services_api')),
     path('crm-api/stats/', include('stats.urls', namespace='stats_api')),
     # API endpoints for 'flows' application
     # This includes DRF APIs for Flows, FlowSteps, etc. (e.g., /crm-api/flows/flows/)

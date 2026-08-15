@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
-import { FaArrowRight } from 'react-icons/fa';
-import { FaCcAmex, FaCcDinersClub, FaCcDiscover, FaCcJcb, FaCcMastercard, FaCcVisa, FaCreditCard } from 'react-icons/fa';
+import {
+  FaArrowRight, FaArrowLeft,
+  FaCcAmex, FaCcDinersClub, FaCcDiscover, FaCcJcb, FaCcMastercard, FaCcVisa, FaCreditCard,
+  FaLock, FaShieldAlt, FaCheckCircle,
+  FaUser, FaEnvelope, FaPhone, FaGlobeAmericas, FaCalendarAlt, FaUsers, FaMobileAlt,
+  FaIdCard, FaNotesMedical, FaFileUpload,
+} from 'react-icons/fa';
 import type { IconType } from 'react-icons';
 
 interface BookingModalProps {
@@ -335,6 +340,10 @@ export default function BookingModal({
   }, [cardProvider, isCbzDirectAvailable, isCopyAndPayAvailable]);
 
   const sanitizePan = (raw: string) => raw.replace(/\D/g, '');
+
+  // Display-only grouping (1234 5678 ...) — the underlying `card.cardNumber`
+  // state stays digits-only and is what actually gets sanitized/submitted.
+  const formatCardNumberDisplay = (digits: string) => digits.replace(/(.{4})/g, '$1 ').trim();
 
   const detectCardBrand = (pan: string): CardBrand => {
     if (!pan) {
@@ -1085,13 +1094,17 @@ export default function BookingModal({
     return null;
   }
 
+  const inputBase = 'w-full rounded-xl border border-gray-200 bg-gray-50/60 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 transition focus:border-[#E8600A] focus:bg-white focus:outline-none focus:ring-4 focus:ring-[#E8600A]/10';
+  const inputWithIcon = `${inputBase} pl-11`;
+  const labelBase = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.06em] text-gray-500';
+
   return (
     <div className={isPagePresentation ? 'w-full' : 'fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-fade-in'}>
       <div className={`relative bg-white rounded-2xl shadow-2xl w-full overflow-y-auto ${isPagePresentation ? 'max-w-5xl mx-auto min-h-[70vh]' : 'max-w-md max-h-[90vh]'}`}>
         {!isPagePresentation && (
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition"
+            className="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-600 transition"
             aria-label="Close modal"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1102,502 +1115,598 @@ export default function BookingModal({
 
         {/* Modal content */}
         <div className="p-6 md:p-8 lg:p-10">
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-linear-to-r from-[#E09A18] to-[#E8600A] mb-4">
-              <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </div>
-            <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-2">
-              {checkoutStep === 'details' ? 'Your Details' : 'Secure Payment'}
-            </h2>
-            <p className="text-gray-600">
-              {cruiseType}
-            </p>
-          </div>
-
-          {isPagePresentation && (
-            <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
-              <span className="rounded-full bg-gray-100 text-gray-500 px-3 py-1 line-through">1. Choose Cruise</span>
-              <span className="text-gray-400"><FaArrowRight size={12} /></span>
-              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-500 line-through'}`}>
-                2. Your Details
-              </span>
-              <span className="text-gray-400"><FaArrowRight size={12} /></span>
-              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-400'}`}>
-                3. Payment
-              </span>
-            </div>
-          )}
-          {!isPagePresentation && (
-            <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
-              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'}`}>
-                1. Your Details
-              </span>
-              <span className="text-gray-400"><FaArrowRight size={12} /></span>
-              <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'}`}>
-                2. Payment
-              </span>
-            </div>
-          )}
-
-          {isTestMode && (
-            <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              Payments are currently running in iVeri Test mode. Any approval shown here is sandbox-only and does not charge a real customer card or wallet.
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-5">
-            {checkoutStep === 'details' && (
-              <>
-                <div ref={detailsFormAnchorRef} />
-                <div>
-                  <label htmlFor="date" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Preferred Date
-                  </label>
-                  <input
-                    type="date"
-                    id="date"
-                    ref={detailsDateInputRef}
-                    value={selectedDate}
-                    onChange={(e) => setSelectedDate(e.target.value)}
-                    min={new Date().toISOString().split('T')[0]}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                  />
+          <div className={isPagePresentation ? 'lg:grid lg:grid-cols-[1fr_320px] lg:gap-10 lg:items-start' : ''}>
+            <div className="min-w-0">
+              <div className="text-center lg:text-left mb-6">
+                <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-linear-to-r from-[#E09A18] to-[#E8600A] mb-4 shadow-lg shadow-orange-200/60">
+                  {checkoutStep === 'details' ? (
+                    <FaUser className="w-6 h-6 text-white" />
+                  ) : (
+                    <FaLock className="w-6 h-6 text-white" />
+                  )}
                 </div>
+                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 mb-1">
+                  {checkoutStep === 'details' ? 'Your Details' : 'Secure Payment'}
+                </h2>
+                <p className="text-gray-500">
+                  {cruiseType}
+                </p>
+              </div>
 
-                <div>
-                  <label htmlFor="people" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Number of People
-                  </label>
-                  <input
-                    type="number"
-                    id="people"
-                    value={numberOfPeople}
-                    onChange={(e) => setNumberOfPeople(e.target.value)}
-                    min="1"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                  />
+              {isPagePresentation && (
+                <div className="mb-6 flex items-center justify-center lg:justify-start gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 text-gray-400 px-3 py-1">
+                    <FaCheckCircle size={11} /> Cruise
+                  </span>
+                  <span className="text-gray-300"><FaArrowRight size={11} /></span>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                    {checkoutStep === 'payment' && <FaCheckCircle size={11} />} Details
+                  </span>
+                  <span className="text-gray-300"><FaArrowRight size={11} /></span>
+                  <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                    Payment
+                  </span>
                 </div>
-
-                <div className="grid grid-cols-1 gap-3 rounded-lg border border-gray-200 p-4">
-                  <p className="text-sm font-semibold text-gray-800">Traveler & Contact Details</p>
-                  <input
-                    type="text"
-                    placeholder="Full name"
-                    value={traveler.fullName}
-                    onChange={(e) => setTraveler((prev) => ({ ...prev, fullName: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                  />
-                  <input
-                    type="email"
-                    placeholder="Email address"
-                    value={traveler.email}
-                    onChange={(e) => setTraveler((prev) => ({ ...prev, email: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Phone / WhatsApp number"
-                    value={traveler.phone}
-                    onChange={(e) => setTraveler((prev) => ({ ...prev, phone: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Country (optional)"
-                    value={traveler.country}
-                    onChange={(e) => setTraveler((prev) => ({ ...prev, country: e.target.value }))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                  />
-                  <textarea
-                    placeholder="Special requests (dietary, accessibility, occasion, pickup details)"
-                    value={traveler.specialRequests}
-                    onChange={(e) => setTraveler((prev) => ({ ...prev, specialRequests: e.target.value }))}
-                    rows={3}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                  />
-                  <label className="flex items-start gap-2 text-sm text-gray-700">
-                    <input
-                      type="checkbox"
-                      checked={traveler.agreeToTerms}
-                      onChange={(e) => setTraveler((prev) => ({ ...prev, agreeToTerms: e.target.checked }))}
-                      className="mt-1"
-                    />
-                    <span>I confirm these details are accurate and I authorize secure payment processing for this booking.</span>
-                  </label>
+              )}
+              {!isPagePresentation && (
+                <div className="mb-6 flex items-center justify-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
+                  <span className={`rounded-full px-3 py-1 ${checkoutStep === 'details' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    1. Your Details
+                  </span>
+                  <span className="text-gray-400"><FaArrowRight size={12} /></span>
+                  <span className={`rounded-full px-3 py-1 ${checkoutStep === 'payment' ? 'bg-[#C8102E] text-white' : 'bg-gray-100 text-gray-600'}`}>
+                    2. Payment
+                  </span>
                 </div>
+              )}
 
-                <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-                  <p className="text-sm font-semibold text-gray-800">Traveler Details</p>
-                  {travelers.map((item, index) => (
-                    <div key={index} className="rounded-lg border border-gray-200 p-3 space-y-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.15em] text-gray-500">Traveler {index + 1}</p>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {isTestMode && (
+                <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Payments are currently running in iVeri Test mode. Any approval shown here is sandbox-only and does not charge a real customer card or wallet.
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {checkoutStep === 'details' && (
+                  <>
+                    <div ref={detailsFormAnchorRef} />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="date" className={labelBase}>
+                          <FaCalendarAlt className="text-[#E8600A]" size={12} /> Preferred Date
+                        </label>
+                        <input
+                          type="date"
+                          id="date"
+                          ref={detailsDateInputRef}
+                          value={selectedDate}
+                          onChange={(e) => setSelectedDate(e.target.value)}
+                          min={new Date().toISOString().split('T')[0]}
+                          className={inputBase}
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="people" className={labelBase}>
+                          <FaUsers className="text-[#E8600A]" size={12} /> Number of People
+                        </label>
+                        <input
+                          type="number"
+                          id="people"
+                          value={numberOfPeople}
+                          onChange={(e) => setNumberOfPeople(e.target.value)}
+                          min="1"
+                          className={inputBase}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-200 p-5 space-y-4">
+                      <p className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                        <FaUser className="text-[#E8600A]" /> Contact Details
+                      </p>
+                      <div className="relative">
+                        <FaUser className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                         <input
                           type="text"
                           placeholder="Full name"
-                          value={item.name}
-                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, name: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
+                          value={traveler.fullName}
+                          onChange={(e) => setTraveler((prev) => ({ ...prev, fullName: e.target.value }))}
+                          className={inputWithIcon}
                         />
-                        <input
-                          type="number"
-                          placeholder="Age"
-                          min="1"
-                          value={item.age}
-                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, age: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Nationality"
-                          value={item.nationality}
-                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Gender"
-                          value={item.gender}
-                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, gender: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                        />
-                        <input
-                          type="text"
-                          placeholder="ID / Passport number"
-                          value={item.idNumber}
-                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, idNumber: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition sm:col-span-2"
-                        />
-                        <select
-                          value={item.travelerType}
-                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, travelerType: e.target.value as 'adult' | 'child' } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                        >
-                          <option value="adult">Adult</option>
-                          <option value="child">Child</option>
-                        </select>
-                        <input
-                          type="text"
-                          placeholder="Medical / Dietary requirements (optional)"
-                          value={item.medicalDietaryRequirements}
-                          onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, medicalDietaryRequirements: e.target.value } : row)))}
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                        />
-                        <div className="sm:col-span-2">
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            ID / Passport Document (optional, JPG/PNG/PDF, max 5MB)
-                          </label>
-                          <input
-                            type="file"
-                            accept=".jpg,.jpeg,.png,.pdf"
-                            onChange={(e) => handleTravelerDocumentChange(index, e.target.files?.[0] || null)}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                          />
-                          {item.idDocumentName && (
-                            <p className="mt-2 text-xs text-gray-500">Attached: {item.idDocumentName}</p>
-                          )}
-                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-
-                {detailsMessage && (
-                  <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-                    {detailsMessage}
-                  </div>
-                )}
-              </>
-            )}
-
-            <div className="bg-linear-to-r from-[#FFF9F5] to-[#FFE0C8] border border-[#E09A18]/30 rounded-lg p-4">
-              <p className="text-sm text-gray-700">
-                <strong className="text-gray-900">Estimated total:</strong> USD {totalAmount.toFixed(2)}
-              </p>
-            </div>
-
-            {checkoutStep === 'payment' && (
-              <div className="rounded-lg border border-[#c8e6c9] bg-[#f2fff3] p-4 text-sm text-[#1b5e20]">
-                <p className="font-semibold">Secure checkout enabled</p>
-                <p className="mt-1">Card entry supports 3DS challenge flow when required by your bank. Booking details are attached to your payment reference for support and reconciliation.</p>
-              </div>
-            )}
-
-            {checkoutStep === 'payment' && (
-              <div className="rounded-lg border border-[#dbeafe] bg-[#eff6ff] p-4 text-sm text-[#1e3a8a]">
-                <p className="font-semibold">256-bit TLS Encryption + Fraud Detection</p>
-                <p className="mt-1">Your payment data is encrypted in transit and monitored with fraud-risk checks before gateway authorisation.</p>
-              </div>
-            )}
-
-            {checkoutStep === 'payment' && (
-              <div className="rounded-lg border border-gray-200 bg-white p-3">
-                <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${paymentModePill.className}`}>
-                  {paymentModePill.label}
-                </span>
-              </div>
-            )}
-
-            {checkoutStep === 'payment' && (
-            <div className="grid grid-cols-2 gap-2 p-1 rounded-lg bg-gray-100">
-              <button
-                type="button"
-                onClick={() => setPaymentMode('ecocash')}
-                className={`rounded-md py-2 text-sm font-semibold transition ${
-                  paymentMode === 'ecocash' ? 'bg-white shadow text-gray-900' : 'text-gray-600'
-                }`}
-              >
-                EcoCash
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaymentMode('card')}
-                className={`rounded-md py-2 text-sm font-semibold transition ${
-                  paymentMode === 'card' ? 'bg-white shadow text-gray-900' : 'text-gray-600'
-                }`}
-              >
-                Pay by Card
-              </button>
-            </div>
-            )}
-
-            {checkoutStep === 'payment' && paymentMode === 'ecocash' && (
-              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-                <div>
-                  <label htmlFor="ecocashNumber" className="block text-sm font-semibold text-gray-700 mb-2">
-                    EcoCash Number
-                  </label>
-                  <input
-                    type="text"
-                    id="ecocashNumber"
-                    value={ecocash.msisdn}
-                    onChange={(e) => setEcocash({ msisdn: sanitizeMsisdn(e.target.value) })}
-                    inputMode="numeric"
-                    placeholder="263771234567 or 0771234567"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                  />
-                  <p className="mt-2 text-xs text-gray-500">
-                    Accepted formats: {(paymentConfig?.ecocash.accepted_formats || ['2637XXXXXXXX', '07XXXXXXXX']).join(' or ')}
-                  </p>
-                </div>
-                {paymentConfig?.mode === 'Test' && paymentConfig.ecocash.test_msisdns.length > 0 && (
-                  <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Configured test numbers</p>
-                    <div className="flex flex-wrap gap-2">
-                      {paymentConfig.ecocash.test_msisdns.map((testMsisdn) => (
-                        <button
-                          key={testMsisdn}
-                          type="button"
-                          onClick={() => setEcocash({ msisdn: testMsisdn })}
-                          className="rounded-full border border-[#E8600A] px-3 py-1 text-xs font-semibold text-[#E8600A] transition hover:bg-[#FFF3E8]"
-                        >
-                          {testMsisdn}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={checkEcoCashPaymentStatus}
-                  disabled={isSubmitting || !lastMerchantReference || lastPaymentChannel !== 'ecocash'}
-                  className="w-full rounded-full border border-[#E8600A] text-[#E8600A] font-semibold py-2.5 hover:bg-[#FFF3E8] transition disabled:opacity-50"
-                >
-                  Check EcoCash Status
-                </button>
-                {lastMerchantReference && lastPaymentChannel === 'ecocash' && (
-                  <a
-                    href={`/booking/payment-status?channel=ecocash&ref=${encodeURIComponent(lastMerchantReference)}`}
-                    className="block w-full rounded-full border border-gray-300 text-gray-700 text-center font-semibold py-2.5 hover:bg-gray-50 transition"
-                  >
-                    Open Full Status Page
-                  </a>
-                )}
-              </div>
-            )}
-
-            {checkoutStep === 'payment' && paymentMode === 'card' && (
-              <div className="space-y-3 rounded-lg border border-gray-200 p-4">
-                {(isCopyAndPayAvailable || isCbzDirectAvailable) && (
-                  <div className="grid grid-cols-2 gap-2 rounded-lg bg-gray-100 p-1">
-                    {isCopyAndPayAvailable && (
-                      <button
-                        type="button"
-                        onClick={() => setCardProvider('copyandpay')}
-                        className={`rounded-md py-2 text-xs font-semibold transition ${cardProvider === 'copyandpay' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
-                      >
-                        COPYandPAY (Hosted)
-                      </button>
-                    )}
-                    {isCbzDirectAvailable && (
-                      <button
-                        type="button"
-                        onClick={() => setCardProvider('cbz_direct')}
-                        className={`rounded-md py-2 text-xs font-semibold transition ${cardProvider === 'cbz_direct' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
-                      >
-                        CBZ Direct Card
-                      </button>
-                    )}
-                  </div>
-                )}
-                {!isCopyAndPayAvailable && !isCbzDirectAvailable && (
-                  <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-700">
-                    Card payments are temporarily unavailable. Please use EcoCash or contact support.
-                  </div>
-                )}
-                {cardProvider === 'copyandpay' && (
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                    Card details are captured on the next hosted secure page (COPYandPAY). Click <strong>Pay Securely</strong> to continue.
-                  </div>
-                )}
-                {paymentConfig?.mode === 'Test' && (paymentConfig.card.test_pans ?? []).length > 0 && (
-                  <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Test cards (iVeri)</p>
-                    <div className="flex flex-wrap gap-2">
-                      {(paymentConfig.card.test_pans ?? []).map((testPan) => (
-                        <button
-                          key={testPan}
-                          type="button"
-                          onClick={() => setCard((prev) => ({ ...prev, cardNumber: testPan, expiry: '02/28', cvv: '123' }))}
-                          className="rounded-full border border-[#E8600A] px-3 py-1 text-xs font-semibold text-[#E8600A] transition hover:bg-[#FFF3E8]"
-                        >
-                          {`${testPan.slice(0, 4)} **** **** ${testPan.slice(-4)}`}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {cardProvider === 'cbz_direct' && (
-                  <>
-                    <div>
-                      <label htmlFor="cardNumber" className="block text-sm font-semibold text-gray-700 mb-2">
-                        Card Number
-                      </label>
                       <div className="relative">
+                        <FaEnvelope className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <input
+                          type="email"
+                          placeholder="Email address"
+                          value={traveler.email}
+                          onChange={(e) => setTraveler((prev) => ({ ...prev, email: e.target.value }))}
+                          className={inputWithIcon}
+                        />
+                      </div>
+                      <div className="relative">
+                        <FaPhone className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
                         <input
                           type="text"
-                          id="cardNumber"
-                          value={card.cardNumber}
-                          onChange={(e) => setCard((prev) => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 19) }))}
-                          inputMode="numeric"
-                          autoComplete="cc-number"
-                          placeholder="5413330089020020"
-                          className="w-full px-4 py-3 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
+                          placeholder="Phone / WhatsApp number"
+                          value={traveler.phone}
+                          onChange={(e) => setTraveler((prev) => ({ ...prev, phone: e.target.value }))}
+                          className={inputWithIcon}
                         />
-                        {sanitizePan(card.cardNumber).length >= 4 && (
-                          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-2xl" aria-hidden="true">
-                            {cardBrandVisual}
-                          </span>
-                        )}
                       </div>
-                      {sanitizePan(card.cardNumber).length >= 4 && (
-                        !cardBrandMeta.icon ? (
-                          <p className="mt-2 text-xs font-semibold uppercase tracking-[0.15em] text-amber-700">
-                            Detected card type: {cardBrandMeta.label}
+                      <div className="relative">
+                        <FaGlobeAmericas className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <input
+                          type="text"
+                          placeholder="Country (optional)"
+                          value={traveler.country}
+                          onChange={(e) => setTraveler((prev) => ({ ...prev, country: e.target.value }))}
+                          className={inputWithIcon}
+                        />
+                      </div>
+                      <textarea
+                        placeholder="Special requests (dietary, accessibility, occasion, pickup details)"
+                        value={traveler.specialRequests}
+                        onChange={(e) => setTraveler((prev) => ({ ...prev, specialRequests: e.target.value }))}
+                        rows={3}
+                        className={inputBase}
+                      />
+                      <label className="flex items-start gap-2 text-sm text-gray-600 bg-gray-50 rounded-xl p-3">
+                        <input
+                          type="checkbox"
+                          checked={traveler.agreeToTerms}
+                          onChange={(e) => setTraveler((prev) => ({ ...prev, agreeToTerms: e.target.checked }))}
+                          className="mt-1 accent-[#E8600A]"
+                        />
+                        <span>I confirm these details are accurate and I authorize secure payment processing for this booking.</span>
+                      </label>
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-200 p-5 space-y-3">
+                      <p className="flex items-center gap-2 text-sm font-bold text-gray-800">
+                        <FaIdCard className="text-[#E8600A]" /> Traveler Details
+                      </p>
+                      {travelers.map((item, index) => (
+                        <div key={index} className="rounded-xl border border-gray-200 bg-gray-50/50 p-4 space-y-3">
+                          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.15em] text-gray-500">
+                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#E8600A]/10 text-[#E8600A]">
+                              {index + 1}
+                            </span>
+                            Traveler {index + 1}
                           </p>
-                        ) : null
-                      )}
+                          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <input
+                              type="text"
+                              placeholder="Full name"
+                              value={item.name}
+                              onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, name: e.target.value } : row)))}
+                              className={inputBase}
+                            />
+                            <input
+                              type="number"
+                              placeholder="Age"
+                              min="1"
+                              value={item.age}
+                              onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, age: e.target.value } : row)))}
+                              className={inputBase}
+                            />
+                            <input
+                              type="text"
+                              placeholder="Nationality"
+                              value={item.nationality}
+                              onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
+                              className={inputBase}
+                            />
+                            <input
+                              type="text"
+                              placeholder="Gender"
+                              value={item.gender}
+                              onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, gender: e.target.value } : row)))}
+                              className={inputBase}
+                            />
+                            <input
+                              type="text"
+                              placeholder="ID / Passport number"
+                              value={item.idNumber}
+                              onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, idNumber: e.target.value } : row)))}
+                              className={`${inputBase} sm:col-span-2`}
+                            />
+                            <select
+                              value={item.travelerType}
+                              onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, travelerType: e.target.value as 'adult' | 'child' } : row)))}
+                              className={inputBase}
+                            >
+                              <option value="adult">Adult</option>
+                              <option value="child">Child</option>
+                            </select>
+                            <div className="relative">
+                              <FaNotesMedical className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={13} />
+                              <input
+                                type="text"
+                                placeholder="Medical / Dietary requirements (optional)"
+                                value={item.medicalDietaryRequirements}
+                                onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, medicalDietaryRequirements: e.target.value } : row)))}
+                                className={inputWithIcon}
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className={labelBase}>
+                                <FaFileUpload className="text-[#E8600A]" size={12} /> ID / Passport Document (optional, JPG/PNG/PDF, max 5MB)
+                              </label>
+                              <input
+                                type="file"
+                                accept=".jpg,.jpeg,.png,.pdf"
+                                onChange={(e) => handleTravelerDocumentChange(index, e.target.files?.[0] || null)}
+                                className="w-full rounded-xl border border-dashed border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-600 transition file:mr-3 file:rounded-full file:border-0 file:bg-[#FFF3E8] file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#E8600A] hover:border-[#E8600A]/40 focus:outline-none focus:ring-4 focus:ring-[#E8600A]/10"
+                              />
+                              {item.idDocumentName && (
+                                <p className="mt-2 flex items-center gap-1.5 text-xs text-gray-500">
+                                  <FaCheckCircle className="text-emerald-500" size={11} /> Attached: {item.idDocumentName}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label htmlFor="expiry" className="block text-sm font-semibold text-gray-700 mb-2">
-                          Expiry (MM/YY)
-                        </label>
-                        <input
-                          type="text"
-                          id="expiry"
-                          value={card.expiry}
-                          onChange={(e) => setCard((prev) => ({ ...prev, expiry: toExpiryMMyy(e.target.value) }))}
-                          inputMode="numeric"
-                          autoComplete="cc-exp"
-                          placeholder="02/28"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                        />
+
+                    {detailsMessage && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {detailsMessage}
                       </div>
-                      <div>
-                        <label htmlFor="cvv" className="block text-sm font-semibold text-gray-700 mb-2">
-                          CVV
-                        </label>
-                        <input
-                          type="password"
-                          id="cvv"
-                          value={card.cvv}
-                          onChange={(e) => setCard((prev) => ({ ...prev, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                          inputMode="numeric"
-                          autoComplete="cc-csc"
-                          placeholder="123"
-                          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#E8600A] focus:border-transparent transition"
-                        />
-                      </div>
-                    </div>
+                    )}
                   </>
                 )}
-                {cardProvider === 'cbz_direct' && (lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY)) && (
+
+                <div className={`rounded-xl bg-linear-to-r from-[#FFF9F5] to-[#FFE0C8] border border-[#E09A18]/30 p-4 ${isPagePresentation ? 'lg:hidden' : ''}`}>
+                  <p className="text-sm text-gray-700">
+                    <strong className="text-gray-900">Estimated total:</strong> USD {totalAmount.toFixed(2)}
+                  </p>
+                </div>
+
+                {checkoutStep === 'payment' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-2xl border border-gray-200 bg-gray-50/60 p-3">
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <FaLock className="text-emerald-600 flex-shrink-0" /> 256-bit TLS encryption
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <FaShieldAlt className="text-emerald-600 flex-shrink-0" /> 3D Secure &amp; fraud checks
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-600">
+                      <FaCheckCircle className="text-emerald-600 flex-shrink-0" /> Reconciled to your booking ref
+                    </div>
+                  </div>
+                )}
+
+                {checkoutStep === 'payment' && (
+                  <div className="rounded-xl border border-gray-200 bg-white p-3">
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${paymentModePill.className}`}>
+                      {paymentModePill.label}
+                    </span>
+                  </div>
+                )}
+
+                {checkoutStep === 'payment' && (
+                <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-gray-100">
                   <button
                     type="button"
-                    onClick={() => void complete3DSPayment()}
-                    disabled={isSubmitting}
-                    className="w-full rounded-full border border-[#E8600A] text-[#E8600A] font-semibold py-2.5 hover:bg-[#FFF3E8] transition disabled:opacity-50"
+                    onClick={() => setPaymentMode('ecocash')}
+                    className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
+                      paymentMode === 'ecocash' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
+                    }`}
                   >
-                    Retry 3DS Status Check
+                    <FaMobileAlt size={14} /> EcoCash
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode('card')}
+                    className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
+                      paymentMode === 'card' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
+                    }`}
+                  >
+                    <FaCreditCard size={14} /> Pay by Card
+                  </button>
+                </div>
                 )}
-              </div>
-            )}
 
-            {paymentMessage && (
-              <div className="rounded-lg border border-[#E09A18]/40 bg-[#FFF9F5] p-3 text-sm text-gray-700">
-                {paymentMessage}
-              </div>
-            )}
+                {checkoutStep === 'payment' && paymentMode === 'ecocash' && (
+                  <div className="space-y-3 rounded-2xl border border-gray-200 p-5">
+                    <div>
+                      <label htmlFor="ecocashNumber" className={labelBase}>
+                        <FaMobileAlt className="text-[#E8600A]" size={12} /> EcoCash Number
+                      </label>
+                      <input
+                        type="text"
+                        id="ecocashNumber"
+                        value={ecocash.msisdn}
+                        onChange={(e) => setEcocash({ msisdn: sanitizeMsisdn(e.target.value) })}
+                        inputMode="numeric"
+                        placeholder="263771234567 or 0771234567"
+                        className={inputBase}
+                      />
+                      <p className="mt-2 text-xs text-gray-500">
+                        Accepted formats: {(paymentConfig?.ecocash.accepted_formats || ['2637XXXXXXXX', '07XXXXXXXX']).join(' or ')}
+                      </p>
+                    </div>
+                    {paymentConfig?.mode === 'Test' && paymentConfig.ecocash.test_msisdns.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Configured test numbers</p>
+                        <div className="flex flex-wrap gap-2">
+                          {paymentConfig.ecocash.test_msisdns.map((testMsisdn) => (
+                            <button
+                              key={testMsisdn}
+                              type="button"
+                              onClick={() => setEcocash({ msisdn: testMsisdn })}
+                              className="rounded-full border border-[#E8600A] px-3 py-1 text-xs font-semibold text-[#E8600A] transition hover:bg-[#FFF3E8]"
+                            >
+                              {testMsisdn}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={checkEcoCashPaymentStatus}
+                      disabled={isSubmitting || !lastMerchantReference || lastPaymentChannel !== 'ecocash'}
+                      className="w-full rounded-full border border-[#E8600A] text-[#E8600A] font-semibold py-2.5 hover:bg-[#FFF3E8] transition disabled:opacity-50"
+                    >
+                      Check EcoCash Status
+                    </button>
+                    {lastMerchantReference && lastPaymentChannel === 'ecocash' && (
+                      <a
+                        href={`/booking/payment-status?channel=ecocash&ref=${encodeURIComponent(lastMerchantReference)}`}
+                        className="block w-full rounded-full border border-gray-300 text-gray-700 text-center font-semibold py-2.5 hover:bg-gray-50 transition"
+                      >
+                        Open Full Status Page
+                      </a>
+                    )}
+                  </div>
+                )}
 
-            {launchedFromWhatsApp && canReturnToWhatsApp && (
-              <a
-                href={buildReturnToWhatsAppHref(activeBookingReference, lastMerchantReference)}
-                target="_blank"
-                rel="noreferrer"
-                className="block rounded-full border border-green-500 bg-green-50 px-4 py-3 text-center text-sm font-semibold text-green-700 transition hover:bg-green-100"
-              >
-                Return to WhatsApp
-              </a>
-            )}
+                {checkoutStep === 'payment' && paymentMode === 'card' && (
+                  <div className="space-y-3 rounded-2xl border border-gray-200 p-5">
+                    {(isCopyAndPayAvailable || isCbzDirectAvailable) && (
+                      <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
+                        {isCopyAndPayAvailable && (
+                          <button
+                            type="button"
+                            onClick={() => setCardProvider('copyandpay')}
+                            className={`rounded-lg py-2 text-xs font-semibold transition ${cardProvider === 'copyandpay' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+                          >
+                            COPYandPAY (Hosted)
+                          </button>
+                        )}
+                        {isCbzDirectAvailable && (
+                          <button
+                            type="button"
+                            onClick={() => setCardProvider('cbz_direct')}
+                            className={`rounded-lg py-2 text-xs font-semibold transition ${cardProvider === 'cbz_direct' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
+                          >
+                            CBZ Direct Card
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {!isCopyAndPayAvailable && !isCbzDirectAvailable && (
+                      <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                        Card payments are temporarily unavailable. Please use EcoCash or contact support.
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        <FaLock size={10} className="text-emerald-600" /> Card details never stored on our servers
+                      </span>
+                      <span className="flex items-center gap-1.5 text-lg text-gray-300">
+                        <FaCcVisa /> <FaCcMastercard /> <FaCcAmex />
+                      </span>
+                    </div>
+                    {cardProvider === 'copyandpay' && (
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                        Card details are captured on the next hosted secure page (COPYandPAY). Click <strong>Pay Securely</strong> to continue.
+                      </div>
+                    )}
+                    {paymentConfig?.mode === 'Test' && (paymentConfig.card.test_pans ?? []).length > 0 && (
+                      <div>
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Test cards (iVeri)</p>
+                        <div className="flex flex-wrap gap-2">
+                          {(paymentConfig.card.test_pans ?? []).map((testPan) => (
+                            <button
+                              key={testPan}
+                              type="button"
+                              onClick={() => setCard((prev) => ({ ...prev, cardNumber: testPan, expiry: '02/28', cvv: '123' }))}
+                              className="rounded-full border border-[#E8600A] px-3 py-1 text-xs font-semibold text-[#E8600A] transition hover:bg-[#FFF3E8]"
+                            >
+                              {`${testPan.slice(0, 4)} **** **** ${testPan.slice(-4)}`}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {cardProvider === 'cbz_direct' && (
+                      <>
+                        <div>
+                          <label htmlFor="cardNumber" className={labelBase}>
+                            <FaCreditCard className="text-[#E8600A]" size={12} /> Card Number
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="text"
+                              id="cardNumber"
+                              value={formatCardNumberDisplay(card.cardNumber)}
+                              onChange={(e) => setCard((prev) => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 19) }))}
+                              inputMode="numeric"
+                              autoComplete="cc-number"
+                              placeholder="5413 3300 8902 0020"
+                              className={`${inputBase} pr-12 font-mono tracking-wider`}
+                            />
+                            {sanitizePan(card.cardNumber).length >= 4 && (
+                              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-2xl" aria-hidden="true">
+                                {cardBrandVisual}
+                              </span>
+                            )}
+                          </div>
+                          {sanitizePan(card.cardNumber).length >= 4 && (
+                            !cardBrandMeta.icon ? (
+                              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.15em] text-amber-700">
+                                Detected card type: {cardBrandMeta.label}
+                              </p>
+                            ) : null
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label htmlFor="expiry" className={labelBase}>
+                              <FaCalendarAlt className="text-[#E8600A]" size={12} /> Expiry (MM/YY)
+                            </label>
+                            <input
+                              type="text"
+                              id="expiry"
+                              value={card.expiry}
+                              onChange={(e) => setCard((prev) => ({ ...prev, expiry: toExpiryMMyy(e.target.value) }))}
+                              inputMode="numeric"
+                              autoComplete="cc-exp"
+                              placeholder="02/28"
+                              className={`${inputBase} font-mono`}
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="cvv" className={labelBase}>
+                              <FaLock className="text-[#E8600A]" size={12} /> CVV
+                            </label>
+                            <input
+                              type="password"
+                              id="cvv"
+                              value={card.cvv}
+                              onChange={(e) => setCard((prev) => ({ ...prev, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
+                              inputMode="numeric"
+                              autoComplete="cc-csc"
+                              placeholder="123"
+                              className={`${inputBase} font-mono`}
+                            />
+                          </div>
+                        </div>
+                      </>
+                    )}
+                    {cardProvider === 'cbz_direct' && (lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY)) && (
+                      <button
+                        type="button"
+                        onClick={() => void complete3DSPayment()}
+                        disabled={isSubmitting}
+                        className="w-full rounded-full border border-[#E8600A] text-[#E8600A] font-semibold py-2.5 hover:bg-[#FFF3E8] transition disabled:opacity-50"
+                      >
+                        Retry 3DS Status Check
+                      </button>
+                    )}
+                  </div>
+                )}
 
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-full hover:bg-gray-50 transition"
-              >
-                {isPagePresentation && checkoutStep === 'details' ? '← Back to Cruises' : 'Cancel'}
-              </button>
-              {checkoutStep === 'payment' && !hasExistingBooking && (
-                <button
-                  type="button"
-                  onClick={() => setCheckoutStep('details')}
-                  className="flex-1 px-6 py-3 border border-[#E8600A] text-[#E8600A] font-semibold rounded-full hover:bg-[#FFF3E8] transition"
-                >
-                  Back to Details
-                </button>
-              )}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="flex-1 px-6 py-3 bg-linear-to-r from-[#E09A18] to-[#E8600A] hover:from-[#E8600A] hover:to-[#F47B1A] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300"
-              >
-                {isSubmitting
-                  ? 'Processing...'
-                  : checkoutStep === 'details'
-                    ? 'Continue to Secure Payment'
-                    : paymentMode === 'card'
-                      ? (cardProvider === 'copyandpay'
-                          ? (isTestMode ? 'Pay with COPYandPAY (Test Mode)' : 'Pay with COPYandPAY')
-                          : (isTestMode ? 'Pay with CBZ Direct (Test Mode)' : 'Pay with CBZ Direct'))
-                      : (isTestMode ? 'Start EcoCash Payment (Test Mode)' : 'Start EcoCash Payment')}
-              </button>
+                {paymentMessage && (
+                  <div className="rounded-xl border border-[#E09A18]/40 bg-[#FFF9F5] px-4 py-3 text-sm text-gray-700">
+                    {paymentMessage}
+                  </div>
+                )}
+
+                {launchedFromWhatsApp && canReturnToWhatsApp && (
+                  <a
+                    href={buildReturnToWhatsAppHref(activeBookingReference, lastMerchantReference)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block rounded-full border border-green-500 bg-green-50 px-4 py-3 text-center text-sm font-semibold text-green-700 transition hover:bg-green-100"
+                  >
+                    Return to WhatsApp
+                  </a>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 border border-gray-300 text-gray-700 font-semibold rounded-full hover:bg-gray-50 transition"
+                  >
+                    {isPagePresentation && checkoutStep === 'details' && <FaArrowLeft size={12} />}
+                    {isPagePresentation && checkoutStep === 'details' ? 'Back to Cruises' : 'Cancel'}
+                  </button>
+                  {checkoutStep === 'payment' && !hasExistingBooking && (
+                    <button
+                      type="button"
+                      onClick={() => setCheckoutStep('details')}
+                      className="flex-1 px-6 py-3 border border-[#E8600A] text-[#E8600A] font-semibold rounded-full hover:bg-[#FFF3E8] transition"
+                    >
+                      Back to Details
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-linear-to-r from-[#E09A18] to-[#E8600A] hover:from-[#E8600A] hover:to-[#F47B1A] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-70"
+                  >
+                    {checkoutStep === 'payment' && !isSubmitting && <FaLock size={13} />}
+                    {isSubmitting
+                      ? 'Processing...'
+                      : checkoutStep === 'details'
+                        ? 'Continue to Secure Payment'
+                        : paymentMode === 'card'
+                          ? (cardProvider === 'copyandpay'
+                              ? (isTestMode ? 'Pay with COPYandPAY (Test Mode)' : 'Pay with COPYandPAY')
+                              : (isTestMode ? 'Pay with CBZ Direct (Test Mode)' : 'Pay with CBZ Direct'))
+                          : (isTestMode ? 'Start EcoCash Payment (Test Mode)' : 'Start EcoCash Payment')}
+                  </button>
+                </div>
+              </form>
             </div>
-          </form>
+
+            {isPagePresentation && (
+              <aside className="hidden lg:block mt-2">
+                <div className="sticky top-6 rounded-2xl border border-gray-200 bg-gray-50/70 p-6 space-y-5">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-gray-400 mb-1">Order Summary</p>
+                    <p className="text-lg font-bold text-gray-900 leading-snug">{cruiseType}</p>
+                  </div>
+
+                  <div className="space-y-2 text-sm text-gray-600 border-t border-gray-200 pt-4">
+                    {selectedDate && (
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5"><FaCalendarAlt size={12} className="text-[#E8600A]" /> Date</span>
+                        <span className="font-medium text-gray-800">{selectedDate}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between">
+                      <span className="flex items-center gap-1.5"><FaUsers size={12} className="text-[#E8600A]" /> Travelers</span>
+                      <span className="font-medium text-gray-800">{hasExistingBooking ? '—' : Math.max(Number(numberOfPeople || '1') || 1, 1)}</span>
+                    </div>
+                    {activeBookingReference && (
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5"><FaIdCard size={12} className="text-[#E8600A]" /> Booking Ref</span>
+                        <span className="font-mono text-xs font-semibold text-gray-800">{activeBookingReference}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="border-t border-gray-200 pt-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">Estimated total</span>
+                      <span className="text-2xl font-black text-gray-900">${totalAmount.toFixed(2)}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-400">USD, excludes applicable park fees</p>
+                  </div>
+
+                  <div className="border-t border-gray-200 pt-4 space-y-2.5">
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <FaLock className="text-emerald-600 flex-shrink-0" size={12} /> 256-bit TLS encrypted checkout
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <FaShieldAlt className="text-emerald-600 flex-shrink-0" size={12} /> 3D Secure &amp; fraud monitoring
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      <FaCheckCircle className="text-emerald-600 flex-shrink-0" size={12} /> PCI DSS compliant gateway
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            )}
+          </div>
         </div>
       </div>
     </div>
