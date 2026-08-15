@@ -142,33 +142,14 @@ const WIDGET_CSS = `
     transform: none;
   }
 
-  /* Brand selector row — lets the cardholder explicitly pick their card type
-     (e.g. Private Label) when it can't be auto-detected from the PAN alone. */
+  /* Brand selector — hidden. This merchant entityId is provisioned as
+     PRIVATE_LABEL only (see CBZConfig.copyandpay_brands), so letting the
+     cardholder pick a different brand icon here has nothing to select
+     between and only invites confusion. */
+  .wpwl-group-brand,
+  .wpwl-label-brand,
   .wpwl-wrapper-brand {
-    display: flex;
-    gap: 0.6rem;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-  }
-  .wpwl-wrapper-brand .wpwl-brand-card {
-    width: 3rem;
-    height: 1.95rem;
-    background: #fff;
-    border: 1.5px solid #e5e7eb;
-    border-radius: 0.5rem;
-    cursor: pointer;
-    opacity: 0.55;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
-    transition: opacity 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.1s;
-  }
-  .wpwl-wrapper-brand .wpwl-brand-card:hover {
-    opacity: 0.85;
-    transform: translateY(-1px);
-  }
-  .wpwl-wrapper-brand .wpwl-brand-card.wpwl-selected-brand {
-    opacity: 1;
-    border-color: #E8600A;
-    box-shadow: 0 0 0 3px rgba(232, 96, 10, 0.15);
+    display: none !important;
   }
 
   /* Validation error messages from widget */
