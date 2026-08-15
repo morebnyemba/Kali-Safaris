@@ -208,7 +208,7 @@ function PaymentStatusPageContent() {
         setStatus('approved');
         setMessage(
           result.gateway_mode === 'Test'
-            ? `Sandbox approval only. ${cardProvider === 'copyandpay' ? 'COPYandPAY' : 'iVeri'} is in Test mode, so no real customer charge was made. Reference: ${result.merchant_reference || reference}`
+            ? `Sandbox approval only. ${cardProvider === 'copyandpay' ? 'ZimSwitch' : 'iVeri'} is in Test mode, so no real customer charge was made. Reference: ${result.merchant_reference || reference}`
             : (result.message || `Payment approved. Reference: ${result.merchant_reference || reference}`)
         );
         window.sessionStorage.removeItem(PENDING_3DS_REF_KEY);
@@ -324,7 +324,7 @@ function PaymentStatusPageContent() {
 
         {gatewayMode === 'Test' && (
           <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            This transaction was processed against the {cardProvider === 'copyandpay' ? 'COPYandPAY' : 'iVeri'} sandbox. Use live gateway credentials before treating approvals as real payments.
+            This transaction was processed against the {cardProvider === 'copyandpay' ? 'ZimSwitch' : 'iVeri'} sandbox. Use live gateway credentials before treating approvals as real payments.
           </div>
         )}
 
