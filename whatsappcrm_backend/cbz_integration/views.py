@@ -160,14 +160,19 @@ def _get_copyandpay_config() -> Dict[str, str]:
             or getattr(settings, 'COPYANDPAY_BEARER_TOKEN', '')
             or os.getenv('COPYANDPAY_BEARER_TOKEN', '')
         ).strip(),
+        # NOTE: testMode must never be sent on LIVE — OPPWA rejects live
+        # transactions with "test mode not allowed" if it's present. Gate the
+        # whole lookup on `mode == 'Test'` so a leftover COPYANDPAY_TEST_MODE
+        # env var (e.g. EXTERNAL, set for UAT) can't leak into production
+        # just because the DB config field is blank.
         'test_mode': (
             (
                 (getattr(config, 'copyandpay_test_mode', '') if config else '')
                 or getattr(settings, 'COPYANDPAY_TEST_MODE', '')
                 or os.getenv('COPYANDPAY_TEST_MODE', '')
             ).strip()
-            or ('EXTERNAL' if mode == 'Test' else '')
-        ),
+            or 'EXTERNAL'
+        ) if mode == 'Test' else '',
         'brands': (
             (getattr(config, 'copyandpay_brands', '') if config else '')
             or getattr(settings, 'COPYANDPAY_BRANDS', '')
