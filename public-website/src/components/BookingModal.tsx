@@ -1053,11 +1053,11 @@ export default function BookingModal({
 
   const submitCardPayment = async () => {
     if (cardProvider === 'copyandpay' && !isCopyAndPayAvailable) {
-      setPaymentMessage('COPYandPAY is not configured at the moment. Please use CBZ Direct Card.');
+      setPaymentMessage('ZimSwitch is not configured at the moment. Please use CBZ Direct Card.');
       return;
     }
     if (cardProvider === 'cbz_direct' && !isCbzDirectAvailable) {
-      setPaymentMessage('CBZ Direct Card is not configured at the moment. Please use COPYandPAY.');
+      setPaymentMessage('CBZ Direct Card is not configured at the moment. Please use ZimSwitch.');
       return;
     }
 
@@ -1475,7 +1475,7 @@ export default function BookingModal({
                             onClick={() => setCardProvider('copyandpay')}
                             className={`rounded-lg py-2 text-xs font-semibold transition ${cardProvider === 'copyandpay' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
                           >
-                            COPYandPAY (Hosted)
+                            ZimSwitch (Hosted)
                           </button>
                         )}
                         {isCbzDirectAvailable && (
@@ -1504,7 +1504,7 @@ export default function BookingModal({
                     </div>
                     {cardProvider === 'copyandpay' && (
                       <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                        Card details are captured on the next hosted secure page (COPYandPAY). Click <strong>Pay Securely</strong> to continue.
+                        Card details are captured on the next hosted secure ZimSwitch page. Click <strong>Pay Securely</strong> to continue.
                       </div>
                     )}
                     {paymentConfig?.mode === 'Test' && (paymentConfig.card.test_pans ?? []).length > 0 && (
@@ -1649,7 +1649,7 @@ export default function BookingModal({
                         ? 'Continue to Secure Payment'
                         : paymentMode === 'card'
                           ? (cardProvider === 'copyandpay'
-                              ? (isTestMode ? 'Pay with COPYandPAY (Test Mode)' : 'Pay with COPYandPAY')
+                              ? (isTestMode ? 'Pay with ZimSwitch (Test Mode)' : 'Pay with ZimSwitch')
                               : (isTestMode ? 'Pay with CBZ Direct (Test Mode)' : 'Pay with CBZ Direct'))
                           : (isTestMode ? 'Start EcoCash Payment (Test Mode)' : 'Start EcoCash Payment')}
                   </button>
