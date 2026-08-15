@@ -6,7 +6,7 @@ import {
   FaArrowRight, FaArrowLeft,
   FaCcAmex, FaCcDinersClub, FaCcDiscover, FaCcJcb, FaCcMastercard, FaCcVisa, FaCreditCard,
   FaLock, FaShieldAlt, FaCheckCircle,
-  FaUser, FaEnvelope, FaPhone, FaGlobeAmericas, FaCalendarAlt, FaUsers, FaMobileAlt,
+  FaUser, FaEnvelope, FaPhone, FaGlobeAmericas, FaCalendarAlt, FaUsers, FaMobileAlt, FaWallet,
   FaIdCard, FaNotesMedical, FaFileUpload,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
@@ -24,10 +24,10 @@ interface BookingModalProps {
   onCheckoutStepChange?: (step: CheckoutStep) => void;
 }
 
-type PaymentMode = 'ecocash' | 'card';
+type PaymentMode = 'ecocash' | 'card' | 'omari';
 type CardProvider = 'copyandpay' | 'cbz_direct';
 
-type PaymentChannel = 'ecocash' | 'card';
+type PaymentChannel = 'ecocash' | 'card' | 'omari';
 
 interface CardPaymentState {
   cardNumber: string;
@@ -38,6 +38,13 @@ interface CardPaymentState {
 interface EcoCashPaymentState {
   msisdn: string;
 }
+
+interface OmariPaymentState {
+  msisdn: string;
+  otp: string;
+}
+
+type OmariStep = 'phone' | 'otp';
 
 interface TravelerDetails {
   fullName: string;
@@ -102,6 +109,11 @@ interface PaymentConfig {
   };
 }
 
+interface OmariConfig {
+  available: boolean;
+  mode: string;
+}
+
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_BASE ?? '';
 const PENDING_3DS_REF_KEY = 'kalai_pending_3ds_reference';
 const PENDING_PAYMENT_CHANNEL_KEY = 'kalai_pending_payment_channel';
@@ -163,11 +175,14 @@ export default function BookingModal({
   const [ecocash, setEcocash] = useState<EcoCashPaymentState>({ msisdn: '' });
   const [card, setCard] = useState<CardPaymentState>({ cardNumber: '', expiry: '', cvv: '' });
   const [cardProvider, setCardProvider] = useState<CardProvider>('copyandpay');
+  const [omari, setOmari] = useState<OmariPaymentState>({ msisdn: '', otp: '' });
+  const [omariStep, setOmariStep] = useState<OmariStep>('phone');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState('');
   const [lastMerchantReference, setLastMerchantReference] = useState('');
   const [lastPaymentChannel, setLastPaymentChannel] = useState<PaymentChannel>('card');
   const [paymentConfig, setPaymentConfig] = useState<PaymentConfig | null>(null);
+  const [omariConfig, setOmariConfig] = useState<OmariConfig | null>(null);
   const [activeBookingReference, setActiveBookingReference] = useState(initialBookingReference ?? '');
   const [canReturnToWhatsApp, setCanReturnToWhatsApp] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState<CheckoutStep>('details');
@@ -223,6 +238,27 @@ export default function BookingModal({
       className: 'border-slate-200 bg-slate-50 text-slate-700',
     };
   }, [paymentConfig?.mode]);
+  const isOmariAvailable = useMemo(() => (omariConfig ? omariConfig.available : true), [omariConfig]);
+  const isOmariTestMode = useMemo(() => omariConfig?.mode === 'Test', [omariConfig]);
+  const omariModePill = useMemo(() => {
+    const mode = (omariConfig?.mode || '').toUpperCase();
+    if (mode === 'LIVE') {
+      return {
+        label: 'Omari Mode: LIVE',
+        className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+      };
+    }
+    if (mode === 'TEST') {
+      return {
+        label: 'Omari Mode: TEST',
+        className: 'border-amber-200 bg-amber-50 text-amber-800',
+      };
+    }
+    return {
+      label: 'Omari Mode: UNKNOWN',
+      className: 'border-slate-200 bg-slate-50 text-slate-700',
+    };
+  }, [omariConfig?.mode]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -255,6 +291,8 @@ export default function BookingModal({
     setCheckoutStep(initialBookingReference ? 'payment' : 'details');
     setDetailsMessage('');
     setAuto3DSCheckedReference('');
+    setOmari({ msisdn: '', otp: '' });
+    setOmariStep('phone');
     if (!initialBookingReference) {
       const count = Math.max(Number(numberOfPeople || '1') || 1, 1);
       setTravelers(Array.from({ length: count }, () => createEmptyTraveler()));
@@ -303,6 +341,25 @@ export default function BookingModal({
     };
 
     void loadPaymentConfig();
+
+    const loadOmariConfig = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/crm-api/payments/omari/config/`, {
+          cache: 'no-store',
+        });
+        const result = await response.json();
+
+        if (!isCancelled && result.success && result.config) {
+          setOmariConfig(result.config);
+        }
+      } catch {
+        if (!isCancelled) {
+          setOmariConfig(null);
+        }
+      }
+    };
+
+    void loadOmariConfig();
 
     // Only restore a pending 3DS state when the modal is opened with an existing
     // booking reference (i.e. the user returned from ACS/bank). A fresh "Book Now"
@@ -880,6 +937,143 @@ export default function BookingModal({
     }
   };
 
+  const buildOmariApprovalMessage = useCallback((reference: string) => {
+    if (isOmariTestMode) {
+      return `Sandbox approval only. Omari is running in Test mode, so no real customer charge was made. Ref: ${reference}`;
+    }
+    return `Omari payment approved. Ref: ${reference}`;
+  }, [isOmariTestMode]);
+
+  const submitOmariAuth = async () => {
+    const msisdn = normalizeEcoCashMsisdn(omari.msisdn);
+
+    if (!isValidEcoCashMsisdn(omari.msisdn)) {
+      setPaymentMessage('Enter a valid Omari-linked mobile number in 2637XXXXXXXX or 07XXXXXXXX format.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setPaymentMessage('Sending your Omari OTP...');
+
+      const response = await fetch(`${API_BASE}/crm-api/payments/omari/auth/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          msisdn,
+          amount: totalAmount,
+          currency: 'USD',
+          channel: 'WEB',
+          booking_reference: initialBookingReference,
+          booking_details: buildBookingDetailsPayload(),
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.booking_reference) {
+        setActiveBookingReference(result.booking_reference);
+        setSessionItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
+      }
+
+      if (!result.error && result.reference) {
+        setLastMerchantReference(result.reference);
+        setLastPaymentChannel('omari');
+        setOmariStep('otp');
+        setPaymentMessage(result.message || 'OTP sent. Enter the code you received by SMS to confirm your payment.');
+        return;
+      }
+
+      setPaymentMessage(result.message || 'Unable to start Omari payment. Please try another payment method.');
+    } catch {
+      setPaymentMessage('Omari payment initiation failed. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const submitOmariOtp = async () => {
+    const otp = omari.otp.trim();
+    if (!otp) {
+      setPaymentMessage('Enter the OTP you received to confirm your Omari payment.');
+      return;
+    }
+
+    const reference = lastMerchantReference;
+    if (!reference) {
+      setPaymentMessage('No pending Omari payment found. Please request a new OTP.');
+      setOmariStep('phone');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setPaymentMessage('Confirming your Omari payment...');
+
+      const response = await fetch(`${API_BASE}/crm-api/payments/omari/request/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          msisdn: normalizeEcoCashMsisdn(omari.msisdn),
+          reference,
+          otp,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.booking_reference) {
+        setActiveBookingReference(result.booking_reference);
+        setSessionItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
+      }
+
+      if (!result.error && result.responseCode === '000') {
+        setCanReturnToWhatsApp(launchedFromWhatsApp);
+        setPaymentMessage(buildOmariApprovalMessage(result.paymentReference || reference));
+        return;
+      }
+
+      setPaymentMessage(result.message || 'Omari payment was not approved.');
+    } catch {
+      setPaymentMessage('Unable to confirm Omari payment. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const checkOmariPaymentStatus = async () => {
+    const reference = lastMerchantReference;
+    if (!reference) {
+      setPaymentMessage('No pending Omari payment reference found.');
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      setPaymentMessage('Checking Omari payment status...');
+
+      const response = await fetch(`${API_BASE}/crm-api/payments/omari/query/${reference}/`, {
+        cache: 'no-store',
+      });
+      const result = await response.json();
+
+      if (!result.error && (result.status || '').toLowerCase() === 'success') {
+        setPaymentMessage(buildOmariApprovalMessage(result.paymentReference || reference));
+        return;
+      }
+
+      setPaymentMessage(result.message || 'Omari payment is still pending or was not approved.');
+    } catch {
+      setPaymentMessage('Unable to check Omari payment status right now. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const submitCardPaymentHosted = async () => {
     try {
       setIsSubmitting(true);
@@ -1084,6 +1278,15 @@ export default function BookingModal({
 
     if (paymentMode === 'card') {
       void submitCardPayment();
+      return;
+    }
+
+    if (paymentMode === 'omari') {
+      if (omariStep === 'phone') {
+        void submitOmariAuth();
+      } else {
+        void submitOmariOtp();
+      }
       return;
     }
 
@@ -1379,7 +1582,7 @@ export default function BookingModal({
                   </div>
                 )}
 
-                {checkoutStep === 'payment' && (
+                {checkoutStep === 'payment' && paymentMode !== 'omari' && (
                   <div className="rounded-xl border border-gray-200 bg-white p-3">
                     <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${paymentModePill.className}`}>
                       {paymentModePill.label}
@@ -1387,8 +1590,16 @@ export default function BookingModal({
                   </div>
                 )}
 
+                {checkoutStep === 'payment' && paymentMode === 'omari' && (
+                  <div className="rounded-xl border border-gray-200 bg-white p-3">
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${omariModePill.className}`}>
+                      {omariModePill.label}
+                    </span>
+                  </div>
+                )}
+
                 {checkoutStep === 'payment' && (
-                <div className="grid grid-cols-2 gap-2 p-1.5 rounded-2xl bg-gray-100">
+                <div className={`grid gap-2 p-1.5 rounded-2xl bg-gray-100 ${isOmariAvailable ? 'grid-cols-3' : 'grid-cols-2'}`}>
                   <button
                     type="button"
                     onClick={() => setPaymentMode('ecocash')}
@@ -1407,6 +1618,17 @@ export default function BookingModal({
                   >
                     <FaCreditCard size={14} /> Pay by Card
                   </button>
+                  {isOmariAvailable && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentMode('omari')}
+                      className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
+                        paymentMode === 'omari' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
+                      }`}
+                    >
+                      <FaWallet size={14} /> Omari
+                    </button>
+                  )}
                 </div>
                 )}
 
@@ -1461,6 +1683,70 @@ export default function BookingModal({
                       >
                         Open Full Status Page
                       </a>
+                    )}
+                  </div>
+                )}
+
+                {checkoutStep === 'payment' && paymentMode === 'omari' && (
+                  <div className="space-y-3 rounded-2xl border border-gray-200 p-5">
+                    {omariStep === 'phone' && (
+                      <div>
+                        <label htmlFor="omariNumber" className={labelBase}>
+                          <FaWallet className="text-[#E8600A]" size={12} /> Omari Mobile Number
+                        </label>
+                        <input
+                          type="text"
+                          id="omariNumber"
+                          value={omari.msisdn}
+                          onChange={(e) => setOmari((prev) => ({ ...prev, msisdn: sanitizeMsisdn(e.target.value) }))}
+                          inputMode="numeric"
+                          placeholder="263771234567 or 0771234567"
+                          className={inputBase}
+                        />
+                        <p className="mt-2 text-xs text-gray-500">
+                          You&apos;ll receive an OTP by SMS to confirm this payment. Your number must be linked to an Omari account.
+                        </p>
+                      </div>
+                    )}
+                    {omariStep === 'otp' && (
+                      <>
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
+                          OTP sent to {omari.msisdn || 'your phone'}. Enter it below to confirm payment.
+                        </div>
+                        <div>
+                          <label htmlFor="omariOtp" className={labelBase}>
+                            <FaLock className="text-[#E8600A]" size={12} /> OTP Code
+                          </label>
+                          <input
+                            type="text"
+                            id="omariOtp"
+                            value={omari.otp}
+                            onChange={(e) => setOmari((prev) => ({ ...prev, otp: e.target.value.replace(/\D/g, '').slice(0, 8) }))}
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            placeholder="Enter the code you received"
+                            className={`${inputBase} font-mono tracking-widest`}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOmariStep('phone');
+                            setPaymentMessage('');
+                          }}
+                          className="w-full rounded-full border border-gray-300 text-gray-600 font-semibold py-2.5 hover:bg-gray-50 transition"
+                        >
+                          Didn&apos;t get a code? Resend OTP
+                        </button>
+                        <button
+                          type="button"
+                          onClick={checkOmariPaymentStatus}
+                          disabled={isSubmitting || !lastMerchantReference || lastPaymentChannel !== 'omari'}
+                          className="w-full rounded-full border border-[#E8600A] text-[#E8600A] font-semibold py-2.5 hover:bg-[#FFF3E8] transition disabled:opacity-50"
+                        >
+                          Check Payment Status
+                        </button>
+                      </>
                     )}
                   </div>
                 )}
@@ -1651,7 +1937,11 @@ export default function BookingModal({
                           ? (cardProvider === 'copyandpay'
                               ? (isTestMode ? 'Pay with COPYandPAY (Test Mode)' : 'Pay with COPYandPAY')
                               : (isTestMode ? 'Pay with CBZ Direct (Test Mode)' : 'Pay with CBZ Direct'))
-                          : (isTestMode ? 'Start EcoCash Payment (Test Mode)' : 'Start EcoCash Payment')}
+                          : paymentMode === 'omari'
+                            ? (omariStep === 'phone'
+                                ? (isOmariTestMode ? 'Send Omari OTP (Test Mode)' : 'Send Omari OTP')
+                                : (isOmariTestMode ? 'Confirm Omari Payment (Test Mode)' : 'Confirm Omari Payment'))
+                            : (isTestMode ? 'Start EcoCash Payment (Test Mode)' : 'Start EcoCash Payment')}
                   </button>
                 </div>
               </form>

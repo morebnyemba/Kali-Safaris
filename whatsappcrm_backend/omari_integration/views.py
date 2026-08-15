@@ -1,6 +1,7 @@
 import json
 import logging
 import uuid
+from decimal import Decimal, InvalidOperation
 from django.utils import timezone
 
 from django.http import JsonResponse, HttpRequest
@@ -9,7 +10,7 @@ from django.views.decorators.http import require_http_methods
 from django.db import transaction as db_transaction
 
 from .services import OmariClient
-from .models import OmariTransaction
+from .models import OmariConfig, OmariTransaction
 from customer_data.models import Booking, Payment
 
 
@@ -19,6 +20,22 @@ logger = logging.getLogger(__name__)
 def _build_client() -> OmariClient:
     """Build Omari client from database configuration."""
     return OmariClient()
+
+
+@require_http_methods(["GET"])
+def omari_public_config_view(request: HttpRequest) -> JsonResponse:
+    """
+    GET /crm-api/payments/omari/config/
+
+    Exposes non-sensitive Omari availability/mode for frontend checkout UX,
+    mirroring cbz_public_config_view. No credentials are returned.
+    """
+    active_config = OmariConfig.get_active_config()
+    config = {
+        'available': active_config is not None,
+        'mode': 'Live' if (active_config and active_config.is_production) else 'Test',
+    }
+    return JsonResponse({'success': True, 'config': config})
 
 
 @csrf_exempt
@@ -35,7 +52,9 @@ def omari_auth_view(request: HttpRequest) -> JsonResponse:
       "reference": "<UUID>",  # optional, will be generated if missing
       "amount": 3.50,
       "currency": "USD",
-      "channel": "WEB"  # optional, defaults to WEB
+      "channel": "WEB",  # optional, defaults to WEB
+      "booking_reference": "KS-ABC123",  # optional — website checkout only
+      "booking_details": { ... }  # optional — website checkout only, see cbz_integration
     }
 
     Response:
@@ -44,7 +63,8 @@ def omari_auth_view(request: HttpRequest) -> JsonResponse:
       "message": "Auth Success",
       "responseCode": "000",
       "otpReference": "ETDC",
-      "reference": "<UUID>"  # echoed back for client tracking
+      "reference": "<UUID>",  # echoed back for client tracking
+      "booking_reference": "KS-ABC123"  # resolved/created booking, if any
     }
     """
     try:
@@ -58,16 +78,34 @@ def omari_auth_view(request: HttpRequest) -> JsonResponse:
     if missing:
         return JsonResponse({"error": True, "message": f"Missing fields: {', '.join(missing)}"}, status=400)
 
+    try:
+        amount = Decimal(str(payload['amount']))
+        if amount <= 0:
+            raise ValueError("Amount must be positive")
+    except (InvalidOperation, ValueError) as e:
+        return JsonResponse({"error": True, "message": f"Invalid amount: {str(e)}"}, status=400)
+
     # Generate reference if not provided
     reference = payload.get('reference') or str(uuid.uuid4())
     channel = payload.get('channel', 'WEB')
+
+    # Resolve existing booking reference, or create a website draft booking —
+    # same helper the CBZ EcoCash/card endpoints use, so an Omari payment made
+    # here always attaches to a Booking, same as the other payment channels.
+    # Returns None gracefully when neither field is present in the payload.
+    try:
+        from cbz_integration.views import _resolve_or_create_booking
+        booking = _resolve_or_create_booking(payload, amount)
+    except Exception as e:
+        logger.warning("Error resolving/creating booking for Omari payment: %s", e)
+        booking = None
 
     client = _build_client()
     try:
         result = client.auth(
             msisdn=payload['msisdn'],
             reference=reference,
-            amount=payload['amount'],
+            amount=float(amount),
             currency=payload['currency'],
             channel=channel,
         )
@@ -75,16 +113,18 @@ def omari_auth_view(request: HttpRequest) -> JsonResponse:
         OmariTransaction.objects.create(
             reference=reference,
             msisdn=payload['msisdn'],
-            amount=payload['amount'],
+            amount=amount,
             currency=payload['currency'],
             channel=channel,
             otp_reference=result.get('otpReference'),
             status='OTP_SENT' if not result.get('error') else 'FAILED',
             response_code=result.get('responseCode'),
             response_message=result.get('message'),
+            booking=booking,
         )
-        # Add reference to response for client tracking
+        # Add reference/booking info to response for client tracking
         result['reference'] = reference
+        result['booking_reference'] = booking.booking_reference if booking else None
         return JsonResponse(result, status=200)
     except Exception as e:
         logger.exception("Failed to initiate Omari auth")
@@ -92,11 +132,12 @@ def omari_auth_view(request: HttpRequest) -> JsonResponse:
         OmariTransaction.objects.create(
             reference=reference,
             msisdn=payload['msisdn'],
-            amount=payload['amount'],
+            amount=amount,
             currency=payload['currency'],
             channel=channel,
             status='FAILED',
             response_message=str(e),
+            booking=booking,
         )
         return JsonResponse({"error": True, "message": str(e)}, status=502)
 
@@ -210,6 +251,8 @@ def omari_request_view(request: HttpRequest) -> JsonResponse:
             else:
                 txn.status = 'FAILED'
             txn.save()
+            txn.refresh_from_db(fields=['booking'])
+            result['booking_reference'] = txn.booking.booking_reference if txn.booking else None
         return JsonResponse(result, status=200)
     except Exception as e:
         logger.exception("Failed to complete Omari payment request")
