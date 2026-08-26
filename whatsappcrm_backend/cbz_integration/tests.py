@@ -7,6 +7,7 @@ from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
 from django.contrib.admin.sites import AdminSite
+from django.core import signing
 from django.test import TestCase, RequestFactory
 from django.utils import timezone
 
@@ -24,6 +25,7 @@ from .views import (
     cbz_card_3ds_return_view,
     cbz_certificate_generate_view,
     cbz_certificate_renew_view,
+    _3DS_PAN_SALT,
 )
 from .constants import (
     ECOCASH_PAN_PREFIX, ECOCASH_DEFAULT_EXPIRY,
@@ -860,6 +862,50 @@ class CBZCard3DSViewTests(TestCase):
         self.assertEqual(txn.status, CBZTransaction.TransactionStatus.DECLINED)
         self.assertEqual(txn.result_code, '255')
         mock_client.debit_card.assert_not_called()
+
+    @patch('cbz_integration.views._build_client')
+    def test_3ds_return_proceeds_without_3ds_when_enrollment_unable_to_verify(self, mock_build_client):
+        """When iVeri reports ThreeDSecure_VEResEnrolled='U' (unable to verify,
+        as opposed to a confirmed 'N'), business decision is to proceed with a
+        plain non-3DS Debit rather than decline outright."""
+        mock_client = MagicMock()
+        mock_client.debit_card.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
+        mock_build_client.return_value = mock_client
+
+        signed_card = signing.dumps(
+            {'pan': '4070427646039018', 'expiry': '1230', 'cvv': '123'},
+            salt=_3DS_PAN_SALT,
+        )
+        txn = CBZTransaction.objects.create(
+            merchant_reference='KS-3DS-UNABLE-TO-VERIFY',
+            payment_type=CBZTransaction.PaymentType.CARD,
+            masked_pan='4070****9018',
+            amount=Decimal('25.00'),
+            currency='USD',
+            command='Debit',
+            status=CBZTransaction.TransactionStatus.PENDING,
+            gateway_response={'_signed_card': signed_card},
+        )
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/card/3ds/return/',
+            data={
+                'MerchantReference': txn.merchant_reference,
+                'ResultCode': '0',
+                'ElectronicCommerceIndicator': '07',
+                'ThreeDSecure_VEResEnrolled': 'U',
+                'ThreeDSecure_RequestID': 'REQ-2',
+            },
+        )
+
+        response = cbz_card_3ds_return_view(request)
+        txn.refresh_from_db()
+
+        self.assertEqual(response.status_code, 302)
+        self.assertNotIn('error=3ds_not_enrolled', response.url)
+        mock_client.debit_card.assert_called_once()
+        self.assertIsNone(mock_client.debit_card.call_args.kwargs['threed_secure_data'])
+        self.assertEqual(txn.status, CBZTransaction.TransactionStatus.APPROVED)
 
 
 class IVeriCertificateClientTests(TestCase):
