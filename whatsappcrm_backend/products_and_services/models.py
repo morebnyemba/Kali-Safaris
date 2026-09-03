@@ -165,3 +165,27 @@ class SeasonalTourPrice(models.Model):
         ordering = ['tour', 'start_date']
         verbose_name = _("Seasonal Tour Price")
         verbose_name_plural = _("Seasonal Tour Prices")
+
+
+def resolve_tour_price(tour: Tour, on_date):
+    """
+    Single source of truth for what a tour costs on a given date: the active
+    SeasonalTourPrice covering `on_date` if one exists, else the tour's
+    base_price. Used both by the public tour listing (so the website shows
+    the live price) and by payment endpoints (so what gets charged is
+    computed here, not trusted from the client).
+
+    Returns (price_per_adult, price_per_child_or_none).
+    """
+    seasonal = (
+        tour.seasonal_prices.filter(
+            start_date__lte=on_date,
+            end_date__gte=on_date,
+            is_active=True,
+        )
+        .order_by('-start_date')
+        .first()
+    )
+    if seasonal and seasonal.price_per_adult is not None:
+        return seasonal.price_per_adult, seasonal.price_per_child
+    return tour.base_price, None
