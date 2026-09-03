@@ -32,7 +32,7 @@ from django.core.files.base import ContentFile
 
 from customer_data.models import Booking, Payment, Traveler, CustomerProfile
 from conversations.models import Contact
-from products_and_services.models import Tour
+from products_and_services.models import Tour, resolve_tour_price
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
 from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED, IVERI_STATUS_MAP, IVERI_RETRIABLE_CODES
@@ -394,18 +394,50 @@ def _scrub_pci_fields(response: Dict[str, Any]) -> Dict[str, Any]:
     return _clean(response)
 
 
-def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Optional[Booking]:
+class PricingError(Exception):
+    """
+    Raised when a payment request cannot be authoritatively priced, or asks
+    for more than it's entitled to. The message is safe to return to the
+    client as-is.
+    """
+
+
+def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) -> tuple[Optional[Booking], Decimal]:
     """
     Resolve a booking by reference, or create a website draft booking when
     booking details are supplied without a booking reference.
+
+    The client-submitted `amount` is never trusted outright — it's the
+    caller's responsibility to actually charge/record the returned
+    `authoritative_amount`, not `client_amount`:
+    - With a booking_reference: authoritative_amount is client_amount, but
+      only after confirming it doesn't exceed the booking's real outstanding
+      balance (total_amount - amount_paid), so a stale or tampered amount
+      can never over-charge past what's owed.
+    - Without one (a fresh website booking): authoritative_amount is
+      computed here from the live Tour price catalogue (base price + any
+      active seasonal pricing, same resolution the public tour listing
+      uses) — the client's amount must match it, or the request is rejected
+      so a stale price on the page (or a tampered request) never gets
+      charged.
+
+    Raises PricingError — safe to surface to the client — when the request
+    can't be priced this way or the amount isn't authorised.
     """
     booking_ref = payload.get('booking_reference')
     if booking_ref:
         booking = Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at').first()
-        if booking:
-            return booking
-        logger.warning("Booking %s not found for CBZ payment", booking_ref)
-        return None
+        if not booking:
+            raise PricingError(f"Booking {booking_ref} not found.")
+
+        balance_due = (booking.total_amount - booking.amount_paid).quantize(Decimal('0.01'))
+        if balance_due <= 0:
+            raise PricingError("This booking has already been paid in full.")
+        if client_amount > balance_due + Decimal('0.01'):
+            raise PricingError(
+                f"Amount ${client_amount} exceeds the outstanding balance of ${balance_due} for this booking."
+            )
+        return booking, client_amount
 
     details = payload.get('booking_details') if isinstance(payload.get('booking_details'), dict) else {}
     tour_name = details.get('tour_name') or payload.get('tour_name')
@@ -413,133 +445,154 @@ def _resolve_or_create_booking(payload: Dict[str, Any], amount: Decimal) -> Opti
     number_of_people = details.get('number_of_people') or payload.get('number_of_people') or 1
 
     if not tour_name or not selected_date:
-        return None
+        raise PricingError("Missing tour or travel date — cannot price this booking.")
 
     try:
         start_date = date.fromisoformat(str(selected_date))
     except (TypeError, ValueError):
-        logger.warning("Invalid selected_date in website payment payload: %s", selected_date)
-        return None
+        raise PricingError("Invalid selected_date.")
 
     try:
         adults = max(int(number_of_people), 1)
     except (TypeError, ValueError):
         adults = 1
 
-    customer_details = details.get('customer') if isinstance(details.get('customer'), dict) else {}
-    customer_name = str(customer_details.get('full_name') or '').strip()
-    customer_email = str(customer_details.get('email') or '').strip()
-    customer_phone = str(customer_details.get('phone') or '').strip()
-    customer_country = str(customer_details.get('country') or '').strip()
-    customer_requests = str(customer_details.get('special_requests') or '').strip()
+    tour = Tour.objects.filter(name__iexact=str(tour_name).strip(), is_active=True).first()
+    if not tour:
+        raise PricingError(f"Unknown or inactive tour: {tour_name}")
 
-    note_parts = [
-        f"Website checkout draft booking. People: {adults}.",
-        f"Traveler: {customer_name}" if customer_name else '',
-        f"Email: {customer_email}" if customer_email else '',
-        f"Phone: {customer_phone}" if customer_phone else '',
-        f"Country: {customer_country}" if customer_country else '',
-        f"Special requests: {customer_requests}" if customer_requests else '',
-    ]
-
-    # Find or create CustomerProfile to link to booking
-    customer_profile = None
-    if customer_email or customer_name:
-        # Try to find existing customer by email
-        if customer_email:
-            customer_profile = CustomerProfile.objects.filter(email=customer_email).first()
-        
-        # If not found, try to find by name (loose match)
-        if not customer_profile and customer_name:
-            customer_profile = CustomerProfile.objects.filter(
-                first_name__iexact=str(customer_name).split()[0]
-            ).first() if len(str(customer_name).split()) > 0 else None
-        
-        # If still not found, create new customer
-        if not customer_profile:
-            try:
-                # Create Contact first (required by CustomerProfile)
-                contact = Contact.objects.create(
-                    phone_number=customer_phone,
-                    name=customer_name or 'Unknown'
-                )
-                # Create CustomerProfile linked to Contact
-                names = str(customer_name).split(' ', 1) if customer_name else ['', '']
-                customer_profile = CustomerProfile.objects.create(
-                    contact=contact,
-                    first_name=names[0],
-                    last_name=names[1] if len(names) > 1 else '',
-                    email=customer_email,
-                    country=customer_country,
-                )
-            except Exception as e:
-                logger.warning("Failed to create customer profile for CBZ payment: %s", e)
-                customer_profile = None
-
-    tour = Tour.objects.filter(name__iexact=str(tour_name).strip()).first()
-    booking = Booking.objects.create(
-        booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
-        tour=tour,
-        tour_name=str(tour_name).strip(),
-        start_date=start_date,
-        end_date=start_date,
-        number_of_adults=adults,
-        number_of_children=0,
-        total_amount=amount,
-        payment_status=Booking.PaymentStatus.PENDING,
-        source=Booking.BookingSource.MANUAL_ENTRY,
-        customer=customer_profile,  # NOW linking the customer!
-        notes='\n'.join(part for part in note_parts if part),
-        booking_details_payload=details or None,
-    )
-
-    travelers_payload = details.get('travelers') if isinstance(details.get('travelers'), list) else []
-    for traveler in travelers_payload:
-        if not isinstance(traveler, dict):
-            continue
-
-        name = str(traveler.get('name') or '').strip()
-        nationality = str(traveler.get('nationality') or '').strip()
-        gender = str(traveler.get('gender') or '').strip()
-        id_number = str(traveler.get('id_number') or '').strip()
-        traveler_type = str(traveler.get('type') or Traveler.TravelerType.ADULT).strip().lower()
-        medical = str(traveler.get('medical') or '').strip()
-        id_document_data_url = str(traveler.get('id_document_data_url') or '').strip()
-        id_document_name = str(traveler.get('id_document_name') or '').strip()
-        id_document_mime_type = str(traveler.get('id_document_mime_type') or '').strip()
-
-        try:
-            age = int(traveler.get('age') or 0)
-        except (TypeError, ValueError):
-            age = 0
-
-        if not name or age <= 0 or not nationality or not gender or not id_number:
-            continue
-
-        if traveler_type not in {Traveler.TravelerType.ADULT, Traveler.TravelerType.CHILD}:
-            traveler_type = Traveler.TravelerType.ADULT
-
-        traveler_obj = Traveler.objects.create(
-            booking=booking,
-            name=name,
-            age=age,
-            nationality=nationality,
-            gender=gender,
-            id_number=id_number,
-            traveler_type=traveler_type,
-            medical_dietary_requirements=medical or None,
+    # Priced the same way the public tour listing prices it (today's date,
+    # not the future trip date) — so this matches whatever price the
+    # customer actually saw on the booking screen.
+    price_per_adult, _price_per_child = resolve_tour_price(tour, date.today())
+    authoritative_amount = (price_per_adult * adults).quantize(Decimal('0.01'))
+    if abs(client_amount - authoritative_amount) > Decimal('0.01'):
+        raise PricingError(
+            f"Pricing for {tour.name} has changed — it's now ${authoritative_amount} for "
+            f"{adults} traveler(s) (you were quoted ${client_amount}). Please refresh and try again."
         )
 
-        if id_document_data_url:
-            _save_traveler_document_from_data_url(
-                traveler_obj,
-                id_document_data_url,
-                fallback_name=id_document_name,
-                declared_mime=id_document_mime_type,
-            )
-            traveler_obj.save(update_fields=['id_document', 'updated_at'])
+    # Everything below is best-effort record-keeping around the booking we've
+    # already priced above — a failure here (a bad traveler payload, a
+    # customer-lookup hiccup) shouldn't block a correctly-priced payment, so
+    # it's swallowed and just leaves `booking` unlinked rather than raising.
+    try:
+        customer_details = details.get('customer') if isinstance(details.get('customer'), dict) else {}
+        customer_name = str(customer_details.get('full_name') or '').strip()
+        customer_email = str(customer_details.get('email') or '').strip()
+        customer_phone = str(customer_details.get('phone') or '').strip()
+        customer_country = str(customer_details.get('country') or '').strip()
+        customer_requests = str(customer_details.get('special_requests') or '').strip()
 
-    return booking
+        note_parts = [
+            f"Website checkout draft booking. People: {adults}.",
+            f"Traveler: {customer_name}" if customer_name else '',
+            f"Email: {customer_email}" if customer_email else '',
+            f"Phone: {customer_phone}" if customer_phone else '',
+            f"Country: {customer_country}" if customer_country else '',
+            f"Special requests: {customer_requests}" if customer_requests else '',
+        ]
+
+        # Find or create CustomerProfile to link to booking
+        customer_profile = None
+        if customer_email or customer_name:
+            # Try to find existing customer by email
+            if customer_email:
+                customer_profile = CustomerProfile.objects.filter(email=customer_email).first()
+
+            # If not found, try to find by name (loose match)
+            if not customer_profile and customer_name:
+                customer_profile = CustomerProfile.objects.filter(
+                    first_name__iexact=str(customer_name).split()[0]
+                ).first() if len(str(customer_name).split()) > 0 else None
+
+            # If still not found, create new customer
+            if not customer_profile:
+                try:
+                    # Create Contact first (required by CustomerProfile)
+                    contact = Contact.objects.create(
+                        phone_number=customer_phone,
+                        name=customer_name or 'Unknown'
+                    )
+                    # Create CustomerProfile linked to Contact
+                    names = str(customer_name).split(' ', 1) if customer_name else ['', '']
+                    customer_profile = CustomerProfile.objects.create(
+                        contact=contact,
+                        first_name=names[0],
+                        last_name=names[1] if len(names) > 1 else '',
+                        email=customer_email,
+                        country=customer_country,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to create customer profile for CBZ payment: %s", e)
+                    customer_profile = None
+
+        booking = Booking.objects.create(
+            booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
+            tour=tour,
+            tour_name=str(tour_name).strip(),
+            start_date=start_date,
+            end_date=start_date,
+            number_of_adults=adults,
+            number_of_children=0,
+            total_amount=authoritative_amount,
+            payment_status=Booking.PaymentStatus.PENDING,
+            source=Booking.BookingSource.MANUAL_ENTRY,
+            customer=customer_profile,  # NOW linking the customer!
+            notes='\n'.join(part for part in note_parts if part),
+            booking_details_payload=details or None,
+        )
+
+        travelers_payload = details.get('travelers') if isinstance(details.get('travelers'), list) else []
+        for traveler in travelers_payload:
+            if not isinstance(traveler, dict):
+                continue
+
+            name = str(traveler.get('name') or '').strip()
+            nationality = str(traveler.get('nationality') or '').strip()
+            gender = str(traveler.get('gender') or '').strip()
+            id_number = str(traveler.get('id_number') or '').strip()
+            traveler_type = str(traveler.get('type') or Traveler.TravelerType.ADULT).strip().lower()
+            medical = str(traveler.get('medical') or '').strip()
+            id_document_data_url = str(traveler.get('id_document_data_url') or '').strip()
+            id_document_name = str(traveler.get('id_document_name') or '').strip()
+            id_document_mime_type = str(traveler.get('id_document_mime_type') or '').strip()
+
+            try:
+                age = int(traveler.get('age') or 0)
+            except (TypeError, ValueError):
+                age = 0
+
+            if not name or age <= 0 or not nationality or not gender or not id_number:
+                continue
+
+            if traveler_type not in {Traveler.TravelerType.ADULT, Traveler.TravelerType.CHILD}:
+                traveler_type = Traveler.TravelerType.ADULT
+
+            traveler_obj = Traveler.objects.create(
+                booking=booking,
+                name=name,
+                age=age,
+                nationality=nationality,
+                gender=gender,
+                id_number=id_number,
+                traveler_type=traveler_type,
+                medical_dietary_requirements=medical or None,
+            )
+
+            if id_document_data_url:
+                _save_traveler_document_from_data_url(
+                    traveler_obj,
+                    id_document_data_url,
+                    fallback_name=id_document_name,
+                    declared_mime=id_document_mime_type,
+                )
+                traveler_obj.save(update_fields=['id_document', 'updated_at'])
+    except Exception as exc:
+        logger.warning("Error creating draft booking for website payment: %s", exc)
+        booking = None
+
+    return booking, authoritative_amount
 
 
 def _finalize_booking_reference_if_temporary(booking: Optional[Booking]) -> Optional[Booking]:
@@ -638,12 +691,13 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
     currency = payload['currency']
     msisdn = payload['msisdn']
 
-    # Resolve existing booking reference, or create a website draft booking.
+    # Resolve existing booking reference, or create a website draft booking —
+    # and get back the amount actually authorised to charge (never the raw
+    # client-submitted one).
     try:
-        booking = _resolve_or_create_booking(payload, amount)
-    except Exception as e:
-        logger.warning("Error resolving/creating booking for EcoCash payment: %s", e)
-        booking = None
+        booking, amount = _resolve_or_create_booking(payload, amount)
+    except PricingError as exc:
+        return JsonResponse({"success": False, "message": str(exc)}, status=400)
 
     # Create transaction record
     txn = CBZTransaction.objects.create(
@@ -806,12 +860,13 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
     merchant_ref = f"KS-{uuid.uuid4().hex[:12].upper()}"
     masked_pan = f"{pan[:4]}****{pan[-4:]}" if len(pan) >= 8 else "****"
 
-    # Resolve existing booking reference, or create a website draft booking.
+    # Resolve existing booking reference, or create a website draft booking —
+    # and get back the amount actually authorised to charge (never the raw
+    # client-submitted one).
     try:
-        booking = _resolve_or_create_booking(payload, amount)
-    except Exception as e:
-        logger.warning("Error resolving/creating booking for card payment: %s", e)
-        booking = None
+        booking, amount = _resolve_or_create_booking(payload, amount)
+    except PricingError as exc:
+        return JsonResponse({"success": False, "message": str(exc)}, status=400)
 
     # Create transaction record (never store raw card number)
     txn = CBZTransaction.objects.create(
@@ -975,11 +1030,13 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
     merchant_ref = f"KS-{uuid.uuid4().hex[:12].upper()}"
     currency = str(payload.get('currency', 'USD')).upper()
 
+    # Resolve existing booking reference, or create a website draft booking —
+    # and get back the amount actually authorised to charge (never the raw
+    # client-submitted one).
     try:
-        booking = _resolve_or_create_booking(payload, amount)
-    except Exception as exc:
-        logger.warning("Error resolving/creating booking for COPYandPAY prepare: %s", exc)
-        booking = None
+        booking, amount = _resolve_or_create_booking(payload, amount)
+    except PricingError as exc:
+        return JsonResponse({"success": False, "message": str(exc)}, status=400)
 
     txn = CBZTransaction.objects.create(
         merchant_reference=merchant_ref,
@@ -1759,11 +1816,13 @@ def cbz_card_3ds_enroll_view(request: HttpRequest) -> JsonResponse:
             status=503,
         )
 
+    # Resolve existing booking reference, or create a website draft booking —
+    # and get back the amount actually authorised to charge (never the raw
+    # client-submitted one).
     try:
-        booking = _resolve_or_create_booking(payload, amount)
-    except Exception as e:
-        logger.warning("Error resolving/creating booking for 3DS enrollment: %s", e)
-        booking = None
+        booking, amount = _resolve_or_create_booking(payload, amount)
+    except PricingError as exc:
+        return JsonResponse({"success": False, "message": str(exc)}, status=400)
 
     txn = CBZTransaction.objects.create(
         merchant_reference=merchant_ref,

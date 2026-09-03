@@ -13,28 +13,11 @@ from datetime import date
 from django.http import HttpRequest, JsonResponse
 from django.views.decorators.http import require_http_methods
 
-from .models import SeasonalTourPrice, Tour
-
-
-def _resolve_display_price(tour: Tour, today: date):
-    """Mirrors the seasonal price resolution used by the WhatsApp tour flow."""
-    seasonal = (
-        SeasonalTourPrice.objects.filter(
-            tour=tour,
-            start_date__lte=today,
-            end_date__gte=today,
-            is_active=True,
-        )
-        .order_by('-start_date')
-        .first()
-    )
-    if seasonal and seasonal.price_per_adult is not None:
-        return seasonal.price_per_adult, seasonal.price_per_child
-    return tour.base_price, None
+from .models import Tour, resolve_tour_price
 
 
 def _serialize_tour(tour: Tour, today: date, request: HttpRequest) -> dict:
-    price_per_adult, price_per_child = _resolve_display_price(tour, today)
+    price_per_adult, price_per_child = resolve_tour_price(tour, today)
     image_url = request.build_absolute_uri(tour.image.url) if tour.image else None
 
     return {
