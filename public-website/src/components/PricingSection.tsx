@@ -5,28 +5,24 @@ import { useRouter } from "next/navigation";
 const pricingOptions = [
   {
     price: "$15.00",
-    amountUsd: 15,
     description: "Per person",
     subtitle: "School Children/Learners Special Cruise package",
     tag: "Best for Learners",
   },
   {
     price: "$25.00",
-    amountUsd: 25,
     description: "Per person with cash bar",
     subtitle: "",
     tag: "Value",
   },
   {
     price: "$55.00",
-    amountUsd: 55,
     description: "Per person including beverages and food depending on Breakfast, lunch or sunset",
     subtitle: "",
     tag: "Popular",
   },
   {
     price: "$75.00",
-    amountUsd: 75,
     description: "Per person for dinner cruise",
     subtitle: "",
     tag: "Evening Luxury",
@@ -36,8 +32,12 @@ const pricingOptions = [
 export default function PricingSection() {
   const router = useRouter();
 
-  const handleBookClick = (packageName: string, amountUsd: number) => {
-    router.push(`/booking?tour_name=${encodeURIComponent(packageName)}&amount=${amountUsd}`);
+  // These tiles are illustrative pricing, not tied to a specific Tour row —
+  // "Book this cruise" sends visitors to the live cruise picker (same
+  // /crm-api/tours/-backed list as the rest of the site) rather than
+  // deep-linking a made-up tour_name/amount the backend can't price.
+  const handleBookClick = () => {
+    router.push('/booking');
   };
 
   return (
@@ -94,7 +94,7 @@ export default function PricingSection() {
 
               <div className="relative flex justify-center mt-auto">
                 <button
-                  onClick={() => handleBookClick(`${option.tag} Package - ${option.price}`, option.amountUsd)}
+                  onClick={handleBookClick}
                   className="w-full rounded-full bg-[#C8102E] hover:bg-[#E8173A] text-white font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:shadow-red-600/25 hover:-translate-y-0.5"
                 >
                   Book this cruise

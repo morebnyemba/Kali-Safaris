@@ -56,6 +56,16 @@ function BookingPageContent() {
   const [selectedAmountUsd, setSelectedAmountUsd] = useState(0);
   const [isPaymentScreen, setIsPaymentScreen] = useState(false);
 
+  const queryBookingReference = useMemo(() => searchParams.get('booking_reference') ?? '', [searchParams]);
+  const queryPaymentMode = useMemo(() => (searchParams.get('payment_mode') ?? '').toLowerCase(), [searchParams]);
+  const querySource = useMemo(() => (searchParams.get('source') ?? '').toLowerCase(), [searchParams]);
+  const queryTourName = useMemo(() => searchParams.get('tour_name') ?? '', [searchParams]);
+  const queryAmountUsd = useMemo(() => {
+    const raw = searchParams.get('amount') ?? '';
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }, [searchParams]);
+
   // Live tour catalogue — same Tour + seasonal pricing data the WhatsApp
   // "View Available Tours" flow reads, so the website never lists a trip
   // that doesn't actually exist in the backend.
@@ -69,8 +79,21 @@ function BookingPageContent() {
         const data = await fetchTours();
         if (isCancelled) return;
         setTours(data);
-        setSelectedCruise((current) => current || (data[0]?.name ?? ''));
-        setSelectedAmountUsd((current) => current || tourPriceUsd(data[0] ?? { price_per_adult: '0', base_price: '0' } as Tour));
+
+        // A tour_name deep link (from the homepage's cruise cards) is priced
+        // from this live catalogue, never from a client-supplied `amount` —
+        // the backend won't accept a guessed/stale one either, so resolving
+        // it here keeps what's shown in sync with what actually gets charged.
+        const deepLinkedTour = queryTourName
+          ? data.find((t) => t.name.toLowerCase() === queryTourName.toLowerCase())
+          : undefined;
+
+        setSelectedCruise((current) => current || deepLinkedTour?.name || data[0]?.name || '');
+        if (deepLinkedTour) {
+          setSelectedAmountUsd(tourPriceUsd(deepLinkedTour));
+        } else {
+          setSelectedAmountUsd((current) => current || tourPriceUsd(data[0] ?? { price_per_adult: '0', base_price: '0' } as Tour));
+        }
       } catch {
         if (!isCancelled) {
           setToursError(true);
@@ -86,17 +109,7 @@ function BookingPageContent() {
     return () => {
       isCancelled = true;
     };
-  }, []);
-
-  const queryBookingReference = useMemo(() => searchParams.get('booking_reference') ?? '', [searchParams]);
-  const queryPaymentMode = useMemo(() => (searchParams.get('payment_mode') ?? '').toLowerCase(), [searchParams]);
-  const querySource = useMemo(() => (searchParams.get('source') ?? '').toLowerCase(), [searchParams]);
-  const queryTourName = useMemo(() => searchParams.get('tour_name') ?? '', [searchParams]);
-  const queryAmountUsd = useMemo(() => {
-    const raw = searchParams.get('amount') ?? '';
-    const parsed = Number(raw);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-  }, [searchParams]);
+  }, [queryTourName]);
 
   // Deep-links from WhatsApp or from cruise cards on other pages skip straight to booking form
   useEffect(() => {
@@ -109,7 +122,11 @@ function BookingPageContent() {
       } else if (querySource === 'whatsapp') {
         setSelectedCruise('WhatsApp Booking');
       }
-      if (queryAmountUsd !== null) {
+      // Only trust a URL amount when it's backing an existing booking
+      // (booking_reference) — the backend already priced and caps that one.
+      // A fresh tour_name-only deep link is priced from the live tour
+      // catalogue instead (see the tours-loading effect above).
+      if (queryBookingReference && queryAmountUsd !== null) {
         setSelectedAmountUsd(queryAmountUsd);
       }
       setPageStep('booking');
@@ -327,7 +344,10 @@ function BookingPageContent() {
             amountUsd={selectedAmountUsd}
             initialPaymentMode={queryPaymentMode === 'card' ? 'card' : undefined}
             initialBookingReference={queryBookingReference || undefined}
-            fixedAmountUsd={queryAmountUsd ?? undefined}
+            // Only an existing booking's URL amount is trustworthy (the backend
+            // already priced and caps it); a fresh tour_name-only deep link is
+            // priced from the live tour catalogue via `amountUsd` above instead.
+            fixedAmountUsd={queryBookingReference ? (queryAmountUsd ?? undefined) : undefined}
             launchedFromWhatsApp={querySource === 'whatsapp'}
             presentation="page"
             onCheckoutStepChange={(step) => setIsPaymentScreen(step === 'payment')}
