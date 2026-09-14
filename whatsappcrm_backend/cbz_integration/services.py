@@ -33,6 +33,7 @@ from .constants import (
     ECI_3DS_ATTEMPTED,
     ECI_3DS2_AUTHENTICATED,
     ECI_3DS2_ATTEMPTED,
+    ECI_3DS2_SECURE_CHANNEL,
     ECI_NUMERIC_TO_3DS2,
     RESULT_CODE_SUCCESS,
     STATUS_PENDING,
@@ -553,7 +554,10 @@ class IVeriClient:
                 CardHolderAuthenticationData, CardHolderAuthenticationID,
                 ElectronicCommerceIndicator, ThreeDSecure_DSTransID,
                 ThreeDSecure_ProtocolVersion, ThreeDSecure_AuthenticationType,
-                ThreeDSecure_VEResEnrolled, ThreeDSecure_RequestID
+                ThreeDSecure_VEResEnrolled, ThreeDSecure_RequestID,
+                ThreeDSecure_ServerTransID, ThreeDSecure_ChallengeRequired —
+                the last two are flagged by iVeri as possibly required by the
+                acquiring bank, so they're forwarded whenever present
 
         Returns:
             iVeri API response dict
@@ -572,19 +576,19 @@ class IVeriClient:
         # Include 3DS 2 authentication data if provided. iVeri's Enterprise Debit
         # takes these FLAT at the transaction level (ThreeDSecure_DSTransID,
         # ThreeDSecure_ProtocolVersion, ...), and ElectronicCommerceIndicator is a
-        # STRING enum — "ThreeDSecure" (ECI 05/02) or "ThreeDSecureAttempted"
-        # (06/01) — NOT the numeric ECI the ReturnUrl relays. Sending the numeric
-        # value gives "ElectronicCommerceIndicator ThreeDSecure or
-        # ThreeDSecureAttempted required". Ref: iVeri "3D Secure" guide.
+        # STRING enum — "ThreeDSecure" (ECI 05/02), "ThreeDSecureAttempted"
+        # (06/01), or "SecureChannel" (ECI 07) — NOT the numeric ECI the
+        # ReturnUrl relays. Sending the numeric value gives "ElectronicCommerceIndicator
+        # ThreeDSecure or ThreeDSecureAttempted required". Ref: iVeri "3D Secure" guide.
         #
         # Cards that aren't enrolled in 3DS (ThreeDSecure_VEResEnrolled != 'Y')
         # skip the cardholder challenge entirely, so the ReturnUrl relays an ECI
-        # outside the known 05/02/06/01 set (or none at all). Forwarding that
+        # outside the known 05/02/06/01/07 set (or none at all). Forwarding that
         # raw/unrecognised value causes the same "...required" rejection, so
         # fall back to the enrolment status instead of passing it through.
         if threed_secure_data:
             three_ds = dict(threed_secure_data)
-            known_enums = {ECI_3DS2_AUTHENTICATED, ECI_3DS2_ATTEMPTED}
+            known_enums = {ECI_3DS2_AUTHENTICATED, ECI_3DS2_ATTEMPTED, ECI_3DS2_SECURE_CHANNEL}
             eci = str(three_ds.get('ElectronicCommerceIndicator') or '').strip()
             enrolled = str(three_ds.get('ThreeDSecure_VEResEnrolled') or '').strip().upper()
             if eci in ECI_NUMERIC_TO_3DS2:
