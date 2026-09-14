@@ -804,26 +804,36 @@ class IVeriClient:
 
     def void_transaction(
         self,
-        transaction_index: str,
         merchant_reference: str,
+        transaction_index: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Void a pending/authorised transaction.
 
+        Identifies the original transaction primarily via OriginalMerchantTrace
+        (the merchant-managed MerchantReference from the original Debit), not
+        the gateway-issued TransactionIndex. If the original Debit request
+        timed out, the merchant never received a TransactionIndex from iVeri,
+        so relying on it to void would be impossible — MerchantReference is
+        always known to the merchant regardless of whether a response arrived.
+
         Args:
-            transaction_index: TransactionIndex of the transaction to void
-            merchant_reference: Original merchant reference
+            merchant_reference: MerchantReference of the original transaction
+            transaction_index: TransactionIndex of the original transaction,
+                if known. Included when available, but not required.
 
         Returns:
             iVeri API response dict
         """
         transaction_data = {
-            'TransactionIndex': transaction_index,
             'MerchantReference': merchant_reference,
+            'OriginalMerchantTrace': merchant_reference,
         }
+        if transaction_index:
+            transaction_data['TransactionIndex'] = transaction_index
 
         payload = self._build_payload(COMMAND_VOID, transaction_data)
-        logger.info("Void | txn=%s ref=%s", transaction_index, merchant_reference)
+        logger.info("Void | ref=%s txn=%s", merchant_reference, transaction_index)
 
         return self._execute(payload)
 

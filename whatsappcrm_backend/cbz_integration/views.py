@@ -1948,7 +1948,6 @@ def cbz_card_3ds_return_view(request: HttpRequest) -> HttpResponseRedirect:
         'ThreeDSecure_AuthenticationType',
         'ThreeDSecure_VEResEnrolled',
         'ThreeDSecure_RequestID',
-        'JWT',
     ):
         value = payload.get(field)
         if value:
