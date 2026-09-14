@@ -7,6 +7,7 @@ from decimal import Decimal
 from unittest.mock import patch, MagicMock
 
 from django.contrib.admin.sites import AdminSite
+from django.core import signing
 from django.test import TestCase, RequestFactory
 from django.utils import timezone
 
@@ -24,6 +25,7 @@ from .views import (
     cbz_card_3ds_return_view,
     cbz_certificate_generate_view,
     cbz_certificate_renew_view,
+    _3DS_PAN_SALT,
 )
 from .constants import (
     ECOCASH_PAN_PREFIX, ECOCASH_DEFAULT_EXPIRY,
@@ -183,9 +185,55 @@ class IVeriClientPayloadTest(TestCase):
             self.assertEqual(txn['ThreeDSecure_ProtocolVersion'], '2.1.0')
 
     @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
+    def test_debit_card_3ds_eci_07_maps_to_secure_channel(self, mock_db):
+        """ECI 07 is iVeri's defined "SecureChannel" enum, not an unrecognised
+        value — it must be translated to the SecureChannel string, not folded
+        into ThreeDSecureAttempted."""
+        client = IVeriClient(config=self.config)
+        with patch.object(client, '_execute') as mock_execute:
+            mock_execute.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
+            client.debit_card(
+                pan='5189000000009697', expiry_date='1230', cvv='123',
+                amount=Decimal('25.00'), currency='USD',
+                merchant_reference='KS-3DS-SECURE-CHANNEL',
+                threed_secure_data={
+                    'ElectronicCommerceIndicator': '07',
+                    'ThreeDSecure_VEResEnrolled': 'N',
+                    'ThreeDSecure_RequestID': 'REQ-1',
+                },
+            )
+            txn = mock_execute.call_args[0][0]['Transaction']
+            self.assertEqual(txn['ElectronicCommerceIndicator'], 'SecureChannel')
+
+    @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
+    def test_debit_card_forwards_server_trans_id_and_challenge_required(self, mock_db):
+        """ThreeDSecure_ServerTransID and ThreeDSecure_ChallengeRequired are
+        flagged by iVeri as possibly required by the acquiring bank — when
+        present in the 3DS result, they must reach the Debit request."""
+        client = IVeriClient(config=self.config)
+        with patch.object(client, '_execute') as mock_execute:
+            mock_execute.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
+            client.debit_card(
+                pan='4070427646039018', expiry_date='1230', cvv='123',
+                amount=Decimal('25.00'), currency='USD',
+                merchant_reference='KS-3DS-SERVER-TRANS-ID',
+                threed_secure_data={
+                    'CardHolderAuthenticationData': 'AAABCHIkAQAAAANWlyQBAAAAAAA=',
+                    'ElectronicCommerceIndicator': 'ThreeDSecure',
+                    'ThreeDSecure_DSTransID': 'ae434952-8c32-5142-8000-00000f47a39d',
+                    'ThreeDSecure_ProtocolVersion': '2.3.1',
+                    'ThreeDSecure_ServerTransID': '4baaee3a-f641-4d68-8ca5-26b8a5363faa',
+                    'ThreeDSecure_ChallengeRequired': 'Y',
+                },
+            )
+            txn = mock_execute.call_args[0][0]['Transaction']
+            self.assertEqual(txn['ThreeDSecure_ServerTransID'], '4baaee3a-f641-4d68-8ca5-26b8a5363faa')
+            self.assertEqual(txn['ThreeDSecure_ChallengeRequired'], 'Y')
+
+    @patch('cbz_integration.services.IVeriClient._load_config_from_db', return_value=None)
     def test_debit_card_3ds_not_enrolled_falls_back_to_attempted(self, mock_db):
         """When the card isn't 3DS-enrolled, iVeri's ReturnUrl relays an ECI
-        outside the known 05/02/06/01 set (or omits it). Forwarding that raw
+        outside the known 05/02/06/01/07 set (or omits it). Forwarding that raw
         value causes "ElectronicCommerceIndicator ThreeDSecure or
         ThreeDSecureAttempted required", so it should fall back to the
         "attempted" enum instead."""
@@ -197,7 +245,7 @@ class IVeriClientPayloadTest(TestCase):
                 amount=Decimal('25.00'), currency='USD',
                 merchant_reference='KS-3DS-NOT-ENROLLED',
                 threed_secure_data={
-                    'ElectronicCommerceIndicator': '07',  # unrecognised/not-3DS ECI
+                    'ElectronicCommerceIndicator': '99',  # genuinely unrecognised ECI
                     'ThreeDSecure_VEResEnrolled': 'N',
                     'ThreeDSecure_RequestID': 'REQ-1',
                 },
@@ -860,6 +908,49 @@ class CBZCard3DSViewTests(TestCase):
         self.assertEqual(txn.status, CBZTransaction.TransactionStatus.DECLINED)
         self.assertEqual(txn.result_code, '255')
         mock_client.debit_card.assert_not_called()
+
+    @patch('cbz_integration.views._build_client')
+    def test_3ds_return_forwards_server_trans_id_and_challenge_required(self, mock_build_client):
+        """ThreeDSecure_ServerTransID and ThreeDSecure_ChallengeRequired posted
+        by iVeri to the ReturnUrl must reach the Debit call, since iVeri flags
+        them as possibly required by the acquiring bank."""
+        mock_client = MagicMock()
+        mock_client.debit_card.return_value = {'Transaction': {'ResultCode': '0', 'Status': 'Approved'}}
+        mock_build_client.return_value = mock_client
+
+        signed_card = signing.dumps({'pan': '4070427646039018', 'expiry': '1230', 'cvv': '123'}, salt=_3DS_PAN_SALT)
+        txn = CBZTransaction.objects.create(
+            merchant_reference='KS-3DS-SERVER-TRANS-ID-RET',
+            payment_type=CBZTransaction.PaymentType.CARD,
+            masked_pan='4070****9018',
+            amount=Decimal('25.00'),
+            currency='USD',
+            command='Debit',
+            status=CBZTransaction.TransactionStatus.PENDING,
+            gateway_response={'_signed_card': signed_card},
+        )
+
+        request = self.factory.post(
+            '/crm-api/payments/cbz/card/3ds/return/',
+            data={
+                'MerchantReference': txn.merchant_reference,
+                'ResultCode': '0',
+                'CardHolderAuthenticationData': 'AAABCHIkAQAAAANWlyQBAAAAAAA=',
+                'ElectronicCommerceIndicator': 'ThreeDSecure',
+                'ThreeDSecure_DSTransID': 'ae434952-8c32-5142-8000-00000f47a39d',
+                'ThreeDSecure_ProtocolVersion': '2.3.1',
+                'ThreeDSecure_ServerTransID': '4baaee3a-f641-4d68-8ca5-26b8a5363faa',
+                'ThreeDSecure_ChallengeRequired': 'Y',
+            },
+        )
+
+        response = cbz_card_3ds_return_view(request)
+
+        self.assertEqual(response.status_code, 302)
+        mock_client.debit_card.assert_called_once()
+        forwarded = mock_client.debit_card.call_args.kwargs['threed_secure_data']
+        self.assertEqual(forwarded['ThreeDSecure_ServerTransID'], '4baaee3a-f641-4d68-8ca5-26b8a5363faa')
+        self.assertEqual(forwarded['ThreeDSecure_ChallengeRequired'], 'Y')
 
 
 class IVeriCertificateClientTests(TestCase):

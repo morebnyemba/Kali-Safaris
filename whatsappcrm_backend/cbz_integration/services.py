@@ -33,6 +33,7 @@ from .constants import (
     ECI_3DS_ATTEMPTED,
     ECI_3DS2_AUTHENTICATED,
     ECI_3DS2_ATTEMPTED,
+    ECI_3DS2_SECURE_CHANNEL,
     ECI_NUMERIC_TO_3DS2,
     RESULT_CODE_SUCCESS,
     STATUS_PENDING,
@@ -553,7 +554,10 @@ class IVeriClient:
                 CardHolderAuthenticationData, CardHolderAuthenticationID,
                 ElectronicCommerceIndicator, ThreeDSecure_DSTransID,
                 ThreeDSecure_ProtocolVersion, ThreeDSecure_AuthenticationType,
-                ThreeDSecure_VEResEnrolled, ThreeDSecure_RequestID
+                ThreeDSecure_VEResEnrolled, ThreeDSecure_RequestID,
+                ThreeDSecure_ServerTransID, ThreeDSecure_ChallengeRequired —
+                the last two are flagged by iVeri as possibly required by the
+                acquiring bank, so they're forwarded whenever present
 
         Returns:
             iVeri API response dict
@@ -572,19 +576,19 @@ class IVeriClient:
         # Include 3DS 2 authentication data if provided. iVeri's Enterprise Debit
         # takes these FLAT at the transaction level (ThreeDSecure_DSTransID,
         # ThreeDSecure_ProtocolVersion, ...), and ElectronicCommerceIndicator is a
-        # STRING enum — "ThreeDSecure" (ECI 05/02) or "ThreeDSecureAttempted"
-        # (06/01) — NOT the numeric ECI the ReturnUrl relays. Sending the numeric
-        # value gives "ElectronicCommerceIndicator ThreeDSecure or
-        # ThreeDSecureAttempted required". Ref: iVeri "3D Secure" guide.
+        # STRING enum — "ThreeDSecure" (ECI 05/02), "ThreeDSecureAttempted"
+        # (06/01), or "SecureChannel" (ECI 07) — NOT the numeric ECI the
+        # ReturnUrl relays. Sending the numeric value gives "ElectronicCommerceIndicator
+        # ThreeDSecure or ThreeDSecureAttempted required". Ref: iVeri "3D Secure" guide.
         #
         # Cards that aren't enrolled in 3DS (ThreeDSecure_VEResEnrolled != 'Y')
         # skip the cardholder challenge entirely, so the ReturnUrl relays an ECI
-        # outside the known 05/02/06/01 set (or none at all). Forwarding that
+        # outside the known 05/02/06/01/07 set (or none at all). Forwarding that
         # raw/unrecognised value causes the same "...required" rejection, so
         # fall back to the enrolment status instead of passing it through.
         if threed_secure_data:
             three_ds = dict(threed_secure_data)
-            known_enums = {ECI_3DS2_AUTHENTICATED, ECI_3DS2_ATTEMPTED}
+            known_enums = {ECI_3DS2_AUTHENTICATED, ECI_3DS2_ATTEMPTED, ECI_3DS2_SECURE_CHANNEL}
             eci = str(three_ds.get('ElectronicCommerceIndicator') or '').strip()
             enrolled = str(three_ds.get('ThreeDSecure_VEResEnrolled') or '').strip().upper()
             if eci in ECI_NUMERIC_TO_3DS2:
@@ -804,26 +808,36 @@ class IVeriClient:
 
     def void_transaction(
         self,
-        transaction_index: str,
         merchant_reference: str,
+        transaction_index: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Void a pending/authorised transaction.
 
+        Identifies the original transaction primarily via OriginalMerchantTrace
+        (the merchant-managed MerchantReference from the original Debit), not
+        the gateway-issued TransactionIndex. If the original Debit request
+        timed out, the merchant never received a TransactionIndex from iVeri,
+        so relying on it to void would be impossible — MerchantReference is
+        always known to the merchant regardless of whether a response arrived.
+
         Args:
-            transaction_index: TransactionIndex of the transaction to void
-            merchant_reference: Original merchant reference
+            merchant_reference: MerchantReference of the original transaction
+            transaction_index: TransactionIndex of the original transaction,
+                if known. Included when available, but not required.
 
         Returns:
             iVeri API response dict
         """
         transaction_data = {
-            'TransactionIndex': transaction_index,
             'MerchantReference': merchant_reference,
+            'OriginalMerchantTrace': merchant_reference,
         }
+        if transaction_index:
+            transaction_data['TransactionIndex'] = transaction_index
 
         payload = self._build_payload(COMMAND_VOID, transaction_data)
-        logger.info("Void | txn=%s ref=%s", transaction_index, merchant_reference)
+        logger.info("Void | ref=%s txn=%s", merchant_reference, transaction_index)
 
         return self._execute(payload)
 
