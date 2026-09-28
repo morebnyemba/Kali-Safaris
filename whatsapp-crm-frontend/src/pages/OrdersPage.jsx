@@ -4,6 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogClose } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { toast } from 'sonner';
+import ManifestExportPanel from '@/components/ManifestExportPanel';
+import { toLocalIsoDate } from '@/lib/utils';
 
 
 export default function OrdersPage() {
@@ -25,6 +28,23 @@ export default function OrdersPage() {
     notes: '',
   });
   const [editingId, setEditingId] = useState(null);
+  const [manifestDate, setManifestDate] = useState(() => toLocalIsoDate(new Date()));
+  const [rowDownloading, setRowDownloading] = useState(null);
+
+  // Row shortcut: park manifest for that booking's tour date (covers every
+  // confirmed booking on the date, not just this one).
+  const downloadRowManifest = async (booking) => {
+    if (!booking.start_date) return;
+    setManifestDate(booking.start_date);
+    setRowDownloading(booking.id);
+    try {
+      await ordersApi.downloadManifest('park', booking.start_date, 'pdf');
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setRowDownloading(null);
+    }
+  };
 
   const fetchBookings = () => {
     setLoading(true);
@@ -97,7 +117,7 @@ export default function OrdersPage() {
       }
       setShowModal(false);
       fetchBookings();
-    } catch (err) {
+    } catch {
       alert('Failed to save booking.');
     }
   };
@@ -118,6 +138,7 @@ export default function OrdersPage() {
         <h1 className="text-2xl font-bold">Bookings</h1>
         <Button onClick={openAddModal} variant="primary">+ Add Booking</Button>
       </div>
+      <ManifestExportPanel date={manifestDate} onDateChange={setManifestDate} />
       {loading && <p>Loading...</p>}
       {error && <p className="text-red-500">{error}</p>}
       {!loading && !error && (
@@ -150,6 +171,15 @@ export default function OrdersPage() {
                   <td className="border px-2 py-1">{booking.created_at?.slice(0, 10)}</td>
                   <td className="border px-2 py-1 flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => openEditModal(booking)}>Edit</Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      disabled={!booking.start_date || rowDownloading === booking.id}
+                      onClick={() => downloadRowManifest(booking)}
+                      title={`Park manifest for all confirmed bookings on ${booking.start_date || 'this date'}`}
+                    >
+                      {rowDownloading === booking.id ? 'Preparing…' : 'Manifest'}
+                    </Button>
                     <Button size="sm" variant="destructive" onClick={() => handleDelete(booking.id)}>Delete</Button>
                   </td>
                 </tr>
