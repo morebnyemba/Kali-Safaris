@@ -143,7 +143,8 @@ class InteractionSerializer(serializers.ModelSerializer):
 
     # Writable fields for creating an interaction
     customer_id = serializers.PrimaryKeyRelatedField(
-        queryset=CustomerProfile.objects.all(), source='customer', write_only=True
+        queryset=CustomerProfile.objects.all(), source='customer', write_only=True,
+        required=False, allow_null=True,
     )
     agent_id = serializers.PrimaryKeyRelatedField(
         # Ensure only staff members can be assigned as agents
@@ -206,18 +207,62 @@ class BookingSerializer(serializers.ModelSerializer):
     )
 
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
+    traveler_count = serializers.SerializerMethodField()
+    traveler_details_problems = serializers.SerializerMethodField()
     source_display = serializers.CharField(source='get_source_display', read_only=True)
 
     class Meta:
         model = Booking
         fields = [
-            'booking_reference', 'customer', 'customer_id', 'tour', 'tour_id', 'tour_name',
+            'id', 'booking_reference', 'customer', 'customer_id', 'tour', 'tour_id', 'tour_name',
             'start_date', 'end_date', 'number_of_adults', 'number_of_children',
             'total_amount', 'amount_paid', 'payment_status', 'payment_status_display',
+            'held_payment_status', 'traveler_count', 'traveler_details_problems',
             'source', 'source_display', 'notes', 'assigned_agent', 'assigned_agent_id',
             'created_at', 'updated_at', 'payments'
         ]
-        read_only_fields = ('amount_paid', 'created_at', 'updated_at', 'payments')
+        read_only_fields = ('id', 'amount_paid', 'held_payment_status', 'created_at', 'updated_at', 'payments')
+
+    def _travelers(self, obj):
+        # Uses the viewset's prefetch; one list per booking.
+        return list(obj.travelers.all())
+
+    def get_traveler_count(self, obj):
+        return len(self._travelers(obj))
+
+    def get_traveler_details_problems(self, obj):
+        return obj.traveler_details_problems(self._travelers(obj))
+
+    def validate(self, attrs):
+        """
+        Staff can't confirm a booking (Paid / Deposit Paid) until every
+        passenger has complete details. Rejected explicitly here; the model's
+        save() guard only holds (never rejects) so payment callbacks can't fail.
+        """
+        attrs = super().validate(attrs)
+        status = attrs.get('payment_status', getattr(self.instance, 'payment_status', None))
+        if status == Booking.PaymentStatus.AWAITING_DETAILS and (
+            self.instance is None or self.instance.payment_status != status
+        ):
+            raise serializers.ValidationError({
+                'payment_status': "This status is set automatically when a payment arrives before passenger details are complete."
+            })
+        if status in Booking.CONFIRMED_PAYMENT_STATUSES:
+            booking = self.instance or Booking()
+            probe = Booking(
+                pk=booking.pk,
+                number_of_adults=attrs.get('number_of_adults', booking.number_of_adults),
+                number_of_children=attrs.get('number_of_children', booking.number_of_children),
+            )
+            problems = probe.traveler_details_problems()
+            if problems:
+                raise serializers.ValidationError({
+                    'payment_status': [
+                        "Add complete details for every passenger before confirming this booking.",
+                        *problems,
+                    ]
+                })
+        return attrs
 
 
 class TourInquirySerializer(serializers.ModelSerializer):
@@ -237,3 +282,114 @@ class TourInquirySerializer(serializers.ModelSerializer):
         model = TourInquiry
         fields = '__all__'
         read_only_fields = ('id', 'created_at', 'updated_at')
+
+# --- Traveler (passenger) Serializer ---
+
+from .models import Traveler  # noqa: E402
+from .traveler_validation import normalize_traveler  # noqa: E402
+
+ID_DOCUMENT_MAX_BYTES = 5 * 1024 * 1024
+ID_DOCUMENT_EXTENSIONS = {'.jpg', '.jpeg', '.png', '.pdf'}
+
+
+class TravelerSerializer(serializers.ModelSerializer):
+    """
+    Passenger CRUD for staff. Applies the same completeness rule as every
+    booking channel (customer_data.traveler_validation), and never lets a
+    booking hold more passengers than were booked.
+    """
+    booking = serializers.PrimaryKeyRelatedField(queryset=Booking.objects.all())
+    has_id_document = serializers.SerializerMethodField()
+    id_document = serializers.FileField(write_only=True, required=False, allow_null=True)
+    remove_id_document = serializers.BooleanField(write_only=True, required=False, default=False)
+
+    class Meta:
+        model = Traveler
+        fields = [
+            'id', 'booking', 'name', 'age', 'nationality', 'gender', 'id_number',
+            'traveler_type', 'medical_dietary_requirements',
+            'has_id_document', 'id_document', 'remove_id_document',
+            'created_at', 'updated_at',
+        ]
+        read_only_fields = ('id', 'created_at', 'updated_at')
+        extra_kwargs = {
+            # Validated as a whole by normalize_traveler below.
+            'id_number': {'required': False, 'allow_blank': True},
+            'medical_dietary_requirements': {'required': False, 'allow_blank': True, 'allow_null': True},
+        }
+
+    def get_has_id_document(self, obj):
+        return bool(obj.id_document)
+
+    def validate_booking(self, booking):
+        if self.instance and booking.pk != self.instance.booking_id:
+            raise serializers.ValidationError("A passenger can't be moved to another booking.")
+        return booking
+
+    def validate_id_document(self, upload):
+        if upload is None:
+            return upload
+        import os
+        extension = os.path.splitext(upload.name or '')[1].lower()
+        if extension not in ID_DOCUMENT_EXTENSIONS:
+            raise serializers.ValidationError("ID document must be a JPG, PNG or PDF file.")
+        if upload.size > ID_DOCUMENT_MAX_BYTES:
+            raise serializers.ValidationError("ID document must be 5MB or smaller.")
+        return upload
+
+    def validate(self, attrs):
+        current = self.instance
+        merged = {
+            field: attrs.get(field, getattr(current, field, None) if current else None)
+            for field in ('name', 'age', 'nationality', 'gender', 'id_number', 'medical_dietary_requirements')
+        }
+        merged['type'] = attrs.get('traveler_type', getattr(current, 'traveler_type', None) if current else None)
+        merged['medical'] = merged.pop('medical_dietary_requirements')
+
+        cleaned, error = normalize_traveler(merged, label='Passenger')
+        if error:
+            raise serializers.ValidationError(error)
+
+        booking = attrs.get('booking') or current.booking
+        if current is None:
+            booked = (booking.number_of_adults or 0) + (booking.number_of_children or 0)
+            if booking.travelers.count() >= booked:
+                raise serializers.ValidationError(
+                    f"This booking is for {booked} passenger(s) and already has {booked}. "
+                    "Change the booking's adults/children first to add more."
+                )
+
+        duplicate = booking.travelers.filter(
+            name__iexact=cleaned['name'], id_number__iexact=cleaned['id_number'],
+        )
+        if current:
+            duplicate = duplicate.exclude(pk=current.pk)
+        if duplicate.exists():
+            raise serializers.ValidationError(f"{cleaned['name']} is already on this booking.")
+
+        attrs.update(cleaned)
+        return attrs
+
+    def _apply_document(self, traveler, upload, remove):
+        if remove and traveler.id_document:
+            traveler.id_document.delete(save=False)
+            traveler.id_document = None
+        if upload:
+            import os
+            extension = os.path.splitext(upload.name)[1].lower()
+            traveler.id_document.save(f"id_document_{traveler.id}{extension}", upload, save=False)
+
+    def create(self, validated_data):
+        upload = validated_data.pop('id_document', None)
+        validated_data.pop('remove_id_document', None)
+        traveler = super().create(validated_data)
+        if upload:
+            self._apply_document(traveler, upload, remove=False)
+            traveler.save(update_fields=['id_document', 'updated_at'])
+        return traveler
+
+    def update(self, instance, validated_data):
+        upload = validated_data.pop('id_document', None)
+        remove = validated_data.pop('remove_id_document', False)
+        self._apply_document(instance, upload, remove)
+        return super().update(instance, validated_data)

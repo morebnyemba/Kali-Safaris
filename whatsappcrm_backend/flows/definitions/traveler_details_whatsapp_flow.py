@@ -78,8 +78,8 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "name": "traveler_age",
                         "label": "Age",
                         "required": True,
-                        "input-type": "text",
-                        "helper-text": "Enter the traveler's age"
+                        "input-type": "number",
+                        "helper-text": "Age in years (enter 0 for infants under 1)"
                     },
                     {
                         "type": "TextInput",
@@ -121,9 +121,9 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "type": "TextInput",
                         "name": "traveler_id_number",
                         "label": "ID/Passport Number",
-                        "required": True,
+                        "required": False,
                         "input-type": "text",
-                        "helper-text": "Enter ID or Passport number"
+                        "helper-text": "Required for age 12 and over; optional for younger children"
                     },
                     {
                         "type": "Footer",

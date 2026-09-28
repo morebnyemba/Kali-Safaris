@@ -630,6 +630,13 @@ def poll_zimswitch_payment_action(contact: Contact, flow_context: dict, params: 
                     _record_payment(txn, txn.booking)
             
             logger.info("ZimSwitch payment approved | contact=%s merchant_ref=%s", contact.id, merchant_ref)
+            closing = "Your booking is now confirmed. Thank you for choosing Kali Safaris!"
+            if txn.booking:
+                txn.booking.refresh_from_db(fields=['payment_status'])
+                if txn.booking.payment_status == Booking.PaymentStatus.AWAITING_DETAILS:
+                    closing = ("Your payment is received. To confirm your booking we still need complete "
+                               "details (name, age, nationality, gender, ID/passport) for every passenger — "
+                               "please send them here.")
             return [{
                 'type': 'send_text',
                 'text': f"""✅ *Payment Successful!*
@@ -640,7 +647,7 @@ Booking: *{txn.booking.booking_reference if txn.booking else 'N/A'}*
 Amount: *${txn.amount}* {txn.currency}
 Reference: {merchant_ref}
 
-Your booking is now confirmed. Thank you for choosing Kali Safaris!"""
+{closing}"""
             }]
         
         elif is_pending:

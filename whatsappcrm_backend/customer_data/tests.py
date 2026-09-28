@@ -1,8 +1,11 @@
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
+from io import BytesIO
+import openpyxl
 from .reference_generator import generate_booking_reference, generate_inquiry_reference
-from .models import Booking, TourInquiry, CustomerProfile
+from .models import Booking, TourInquiry, CustomerProfile, Traveler
 from conversations.models import Contact
 
 
@@ -163,15 +166,17 @@ class BookingReferenceUpdateTestCase(TestCase):
             name="Victoria Falls Safari",
             description="3-day safari tour",
             duration_days=3,
-            price_per_person=500.00
+            base_price=500.00
         )
     
     def test_update_to_shared_reference_with_tour(self):
         """Test that booking reference updates to shared format when tour exists"""
         start_date = timezone.now().date() + timedelta(days=7)
         
-        # Create booking with random reference
+        # Create booking with a legacy random reference (save() would otherwise
+        # already assign the shared one for tour bookings)
         booking = Booking.objects.create(
+            booking_reference=generate_booking_reference(),
             customer=self.customer_profile,
             tour=self.tour,
             tour_name=self.tour.name,
@@ -309,7 +314,7 @@ class PassengerManifestSummaryTestCase(TestCase):
             name="Test Safari",
             description="Test tour",
             duration_days=3,
-            price_per_person=100.00
+            base_price=100.00
         )
         
         # Create test date
@@ -478,8 +483,315 @@ class PassengerManifestSummaryTestCase(TestCase):
         
         # Should still generate a report (with "no bookings" message)
         response = export_passenger_manifest_summary_pdf(future_date)
-        
+
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertGreater(len(response.content), 0)
 
+    def test_manifest_groups_only_confirmed_and_complete(self):
+        """Pending/cancelled excluded; a paid booking without full details is held, not listed."""
+        from .manifests import collect_manifest_groups
 
+        Booking.objects.create(
+            customer=self.customer2, tour=self.tour, tour_name=self.tour.name,
+            start_date=self.test_date, end_date=self.test_date,
+            number_of_adults=4, payment_status=Booking.PaymentStatus.CANCELLED,
+        )
+        # Paid for 4, only 1 traveler captured -> held, never on the manifest.
+        partial = Booking.objects.create(
+            customer=None, tour=self.tour, tour_name=self.tour.name,
+            start_date=self.test_date, end_date=self.test_date,
+            number_of_adults=3, number_of_children=1, payment_status=Booking.PaymentStatus.PAID,
+            booking_details_payload={'customer': {'full_name': 'Web Walk-in'}},
+        )
+        Traveler.objects.create(
+            booking=partial, name="Infant Walk-in", age=0, nationality="Zimbabwean",
+            gender="Female", id_number="BC123", traveler_type="child",
+        )
+        partial.refresh_from_db()
+        self.assertEqual(partial.payment_status, Booking.PaymentStatus.AWAITING_DETAILS)
+
+        groups, totals = collect_manifest_groups(self.test_date)
+        by_id = {g['booking'].pk: g for g in groups}
+
+        self.assertEqual(set(by_id), {self.booking1.pk, self.booking2.pk})
+        self.assertEqual(by_id[self.booking1.pk]['name'], 'John Chakanya')
+        self.assertEqual(by_id[self.booking1.pk]['headcount'], 3)
+        self.assertEqual(totals['passengers'], 5)
+        self.assertEqual([h['reference'] for h in totals['held']], [partial.booking_reference])
+        self.assertEqual(totals['held'][0]['pax'], 4)
+
+    def test_manifest_refuses_legacy_incomplete_confirmed_booking(self):
+        """Data confirmed before the rule (bypassing save) blocks the manifest instead of printing gaps."""
+        from .manifests import ManifestIncompleteError, collect_manifest_groups
+
+        legacy = Booking.objects.create(
+            tour=self.tour, tour_name=self.tour.name, start_date=self.test_date, end_date=self.test_date,
+            number_of_adults=2,
+        )
+        Booking.objects.filter(pk=legacy.pk).update(payment_status=Booking.PaymentStatus.PAID)
+
+        with self.assertRaises(ManifestIncompleteError) as ctx:
+            collect_manifest_groups(self.test_date)
+        self.assertEqual(ctx.exception.bookings[0][0], legacy.booking_reference)
+
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(get_user_model().objects.create_user(username='ops2', password='pw', is_staff=True))
+        response = client.get(reverse('customer_data_api:export_booking_manifest'), {'date': self.test_date.isoformat()})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn(legacy.booking_reference, response.json()['error'])
+
+    def test_park_manifest_pdf_and_excel(self):
+        """Park manifest renders (incl. markup-unsafe names) in both formats."""
+        from .exports import export_booking_manifest_pdf, export_booking_manifest_excel
+
+        Traveler.objects.filter(booking=self.booking2, name="Peter Nyemba").update(name="Peter <Tafadzwa> & Co")
+
+        pdf = export_booking_manifest_pdf(self.test_date)
+        self.assertEqual(pdf['Content-Type'], 'application/pdf')
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
+
+        xlsx = export_booking_manifest_excel(self.test_date)
+        workbook = openpyxl.load_workbook(BytesIO(xlsx.content))
+        names = [row[4] for row in workbook.active.iter_rows(min_row=7, values_only=True)]
+        self.assertIn("Peter <Tafadzwa> & Co", names)
+        self.assertEqual(len([n for n in names if n]), 5)  # 3 + 2 confirmed travelers
+
+    def test_manifest_endpoint_accepts_format_excel(self):
+        """`format` is reserved by DRF content negotiation; the view must still honour it."""
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+
+        user = get_user_model().objects.create_user(username='ops', password='pw', is_staff=True)
+        client = APIClient()
+        client.force_authenticate(user)
+
+        for name in ('export_booking_manifest', 'export_passenger_summary'):
+            path = reverse(f'customer_data_api:{name}')
+            response = client.get(path, {'date': self.test_date.isoformat(), 'format': 'excel'})
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn('spreadsheetml', response['Content-Type'])
+
+            response = client.get(path, {'date': self.test_date.isoformat()})
+            self.assertEqual(response.status_code, 200, path)
+            self.assertEqual(response['Content-Type'], 'application/pdf')
+
+            response = client.get(path, {'date': 'not-a-date'})
+            self.assertEqual(response.status_code, 400, path)
+
+
+class PassengerDetailsInvariantTests(TestCase):
+    """A booking is Paid / Deposit Paid only while every passenger has complete details."""
+
+    def setUp(self):
+        start = timezone.now().date() + timedelta(days=10)
+        self.booking = Booking.objects.create(
+            booking_reference='BK-RULE-0001', tour_name='Sunset Cruise', start_date=start, end_date=start,
+            number_of_adults=2, total_amount=100, amount_paid=0,
+        )
+
+    def _add(self, name, **extra):
+        data = dict(booking=self.booking, name=name, age=30, nationality='Zimbabwean', gender='Female',
+                    id_number=f'ID-{name}', traveler_type='adult')
+        data.update(extra)
+        return Traveler.objects.create(**data)
+
+    def _status(self):
+        self.booking.refresh_from_db()
+        return self.booking.payment_status, self.booking.held_payment_status
+
+    def test_payment_before_details_is_held_then_auto_confirmed(self):
+        # Gateway-style save with update_fields that doesn't mention held_payment_status.
+        self.booking.payment_status = Booking.PaymentStatus.DEPOSIT_PAID
+        self.booking.save(update_fields=['payment_status', 'updated_at'])
+        self.assertEqual(self._status(), ('awaiting_details', 'deposit_paid'))
+
+        self._add('Ann')
+        self.assertEqual(self._status()[0], 'awaiting_details')  # 1 of 2
+        self._add('Ben')
+        self.assertEqual(self._status(), ('deposit_paid', ''))   # promoted to what was paid
+
+    def test_incomplete_passenger_blocks_confirmation(self):
+        self._add('Ann')
+        bad = self._add('Ben', id_number='')
+        self.booking.payment_status = Booking.PaymentStatus.PAID
+        self.booking.save()
+        self.assertEqual(self._status(), ('awaiting_details', 'paid'))
+
+        bad.id_number = 'P1234567'
+        bad.save()
+        self.assertEqual(self._status(), ('paid', ''))
+
+    def test_removing_a_passenger_unconfirms(self):
+        self._add('Ann')
+        ben = self._add('Ben')
+        self.booking.payment_status = Booking.PaymentStatus.PAID
+        self.booking.save()
+        self.assertEqual(self._status()[0], 'paid')
+
+        ben.delete()
+        self.assertEqual(self._status(), ('awaiting_details', 'paid'))
+
+    def test_deleting_booking_with_travelers_works(self):
+        self._add('Ann')
+        self._add('Ben')
+        self.booking.delete()
+        self.assertFalse(Traveler.objects.exists())
+
+    def test_api_rejects_confirming_incomplete_booking(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(get_user_model().objects.create_user(username='staff', password='pw', is_staff=True))
+        url = reverse('customer_data_api:booking-detail', args=[self.booking.pk])
+
+        response = client.patch(url, {'payment_status': 'paid'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('0 of 2 passenger(s) have details recorded.', response.json()['payment_status'])
+        self.assertEqual(self._status()[0], 'pending')
+
+        response = client.patch(url, {'payment_status': 'awaiting_details'}, format='json')
+        self.assertEqual(response.status_code, 400)
+
+        self._add('Ann')
+        self._add('Ben')
+        response = client.patch(url, {'payment_status': 'paid'}, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['traveler_count'], 2)
+        self.assertEqual(response.json()['traveler_details_problems'], [])
+
+    def test_audit_command_holds_legacy_bookings(self):
+        from io import StringIO
+        from django.core.management import call_command
+
+        Booking.objects.filter(pk=self.booking.pk).update(payment_status=Booking.PaymentStatus.PAID)
+        out = StringIO()
+        call_command('audit_traveler_details', stdout=out)
+        self.assertIn('BK-RULE-0001', out.getvalue())
+        self.assertEqual(self._status()[0], 'paid')  # report only
+
+        call_command('audit_traveler_details', '--apply', stdout=StringIO())
+        self.assertEqual(self._status(), ('awaiting_details', 'paid'))
+
+
+class UnderTwelveIdRuleTests(TestCase):
+    def test_id_optional_only_under_12(self):
+        from .traveler_validation import normalize_traveler
+        base = {'name': 'Kid Moyo', 'nationality': 'Zimbabwean', 'gender': 'F', 'id_number': ''}
+
+        cleaned, error = normalize_traveler({**base, 'age': 11})
+        self.assertIsNone(error)
+        self.assertEqual(cleaned['id_number'], '')
+
+        _, error = normalize_traveler({**base, 'age': 12})
+        self.assertIn('age 12 and over', error)
+
+        _, error = normalize_traveler({**base, 'age': 5, 'id_number': 'x'})
+        self.assertIn('too short', error)
+
+        cleaned, error = normalize_traveler({**base, 'age': 0, 'id_number': 'NONE'})
+        self.assertIsNone(error)
+        self.assertEqual(cleaned['id_number'], '')
+
+
+class TravelerApiTests(TestCase):
+    """Dashboard passenger editor API: /crm-api/customer-data/travelers/."""
+
+    def setUp(self):
+        import tempfile
+        from django.contrib.auth import get_user_model
+        from django.test import override_settings
+        from rest_framework.test import APIClient
+
+        self._media = override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+        self._media.enable()
+        self.addCleanup(self._media.disable)
+
+        start = timezone.now().date() + timedelta(days=10)
+        self.booking = Booking.objects.create(
+            booking_reference='BK-API-0001', tour_name='Sunset Cruise', start_date=start, end_date=start,
+            number_of_adults=1, number_of_children=1, total_amount=100,
+        )
+        # Payment already in: held until both passengers are complete.
+        self.booking.payment_status = Booking.PaymentStatus.PAID
+        self.booking.save()
+        self.client = APIClient()
+        self.client.force_authenticate(get_user_model().objects.create_user(username='desk', password='pw', is_staff=True))
+        self.url = reverse('customer_data_api:traveler-list')
+
+    def _post(self, **data):
+        payload = {'booking': self.booking.pk, 'name': 'Ann Moyo', 'age': 34, 'nationality': 'Zimbabwean',
+                   'gender': 'Female', 'id_number': '63-111111-A-42', 'traveler_type': 'adult'}
+        payload.update(data)
+        return self.client.post(self.url, payload, format='multipart' if 'id_document' in data else 'json')
+
+    def test_add_passengers_confirms_held_booking(self):
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.payment_status, 'awaiting_details')
+
+        self.assertEqual(self._post().status_code, 201)
+        response = self._post(name='Tino Moyo', age=6, id_number='', traveler_type='child')
+        self.assertEqual(response.status_code, 201, response.content)
+
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.payment_status, 'paid')
+
+        # Booking was for 2: a third passenger is refused.
+        response = self._post(name='Extra Person', id_number='X999999')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('already has 2', str(response.json()))
+
+    def test_rejects_incomplete_passenger(self):
+        response = self._post(id_number='')  # adult without ID
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('age 12 and over', str(response.json()))
+        self.assertEqual(self.booking.travelers.count(), 0)
+
+    def test_edit_that_breaks_details_holds_booking_again(self):
+        self._post()
+        kid = self._post(name='Tino Moyo', age=6, id_number='', traveler_type='child').json()
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.payment_status, 'paid')
+
+        response = self.client.patch(f"{self.url}{kid['id']}/", {'age': 13}, format='json')
+        self.assertEqual(response.status_code, 400)  # now needs an ID
+        response = self.client.patch(f"{self.url}{kid['id']}/", {'age': 13, 'id_number': 'P7654321'}, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+
+        response = self.client.delete(f"{self.url}{kid['id']}/")
+        self.assertEqual(response.status_code, 204)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.payment_status, 'awaiting_details')
+
+    def test_id_document_upload_and_authenticated_download(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from rest_framework.test import APIClient
+
+        upload = SimpleUploadedFile('passport.png', b'\x89PNG fake', content_type='image/png')
+        response = self._post(id_document=upload)
+        self.assertEqual(response.status_code, 201, response.content)
+        traveler = response.json()
+        self.assertTrue(traveler['has_id_document'])
+        self.assertNotIn('id_document', traveler)  # never exposes a media URL
+
+        doc_url = reverse('customer_data_api:traveler-id-document', args=[traveler['id']])
+        response = self.client.get(doc_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b''.join(response.streaming_content), b'\x89PNG fake')
+        self.assertEqual(response['Cache-Control'], 'private, no-store')
+
+        self.assertEqual(APIClient().get(doc_url).status_code, 401)
+
+        bad = SimpleUploadedFile('passport.exe', b'MZ', content_type='application/octet-stream')
+        response = self.client.patch(f"{self.url}{traveler['id']}/", {'id_document': bad}, format='multipart')
+        self.assertEqual(response.status_code, 400)
+
+    def test_list_requires_booking_filter(self):
+        self._post()
+        body = self.client.get(self.url).json()
+        results = body['results'] if isinstance(body, dict) else body
+        self.assertEqual(results, [])
+        body = self.client.get(self.url, {'booking': self.booking.pk}).json()
+        results = body['results'] if isinstance(body, dict) else body
+        self.assertEqual([t['name'] for t in results], ['Ann Moyo'])

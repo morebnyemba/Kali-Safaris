@@ -3,18 +3,21 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.shortcuts import get_object_or_404
-from django.http import Http404
+from django.http import FileResponse, Http404
+from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 
 
 # New models and serializers
-from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry
+from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry, Traveler
 from .serializers import (
     CustomerProfileSerializer, 
     InteractionSerializer, 
     MyTokenObtainPairSerializer,
     BookingSerializer,
     PaymentSerializer,
-    TourInquirySerializer
+    TourInquirySerializer,
+    TravelerSerializer,
 )
 
 # Still need Contact for get_or_create logic
@@ -132,7 +135,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing Tour Bookings.
     """
-    queryset = Booking.objects.select_related('customer', 'tour', 'assigned_agent').prefetch_related('payments').all()
+    queryset = Booking.objects.select_related('customer', 'tour', 'assigned_agent').prefetch_related('payments', 'travelers').all()
     serializer_class = BookingSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
     filterset_fields = ['payment_status', 'source', 'customer', 'tour', 'assigned_agent']
@@ -147,6 +150,44 @@ class PaymentViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
     filterset_fields = ['status', 'payment_method', 'booking']
 
+class TravelerViewSet(viewsets.ModelViewSet):
+    """
+    Passengers on a booking: /travelers/?booking=<id>.
+    Saving or deleting a passenger re-checks the booking's passenger-details
+    rule, so a held booking confirms as soon as its list is complete.
+    """
+    queryset = Traveler.objects.select_related('booking').order_by('traveler_type', 'name')
+    serializer_class = TravelerSerializer
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+    filterset_fields = ['booking']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        booking_id = self.request.query_params.get('booking')
+        if self.action == 'list':
+            # Never dump every passenger's personal data in one call.
+            if not booking_id:
+                return queryset.none()
+            queryset = queryset.filter(booking_id=booking_id)
+        return queryset
+
+    @action(detail=True, methods=['get'], url_path='id-document')
+    def id_document(self, request, pk=None):
+        """Streams the ID/passport copy to an authenticated user (never via a public /media URL)."""
+        traveler = self.get_object()
+        if not traveler.id_document:
+            raise Http404("No ID document on file.")
+        import mimetypes
+        import os
+        content_type = mimetypes.guess_type(traveler.id_document.name)[0] or 'application/octet-stream'
+        response = FileResponse(traveler.id_document.open('rb'), content_type=content_type)
+        filename = f"{traveler.name}{os.path.splitext(traveler.id_document.name)[1]}".replace('"', '')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
+
 class TourInquiryViewSet(viewsets.ModelViewSet):
     queryset = TourInquiry.objects.select_related('customer', 'assigned_agent').all()
     serializer_class = TourInquirySerializer
@@ -154,67 +195,90 @@ class TourInquiryViewSet(viewsets.ModelViewSet):
     filterset_fields = ['status', 'customer', 'assigned_agent']
 
 # --- Booking Manifest Export View ---
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.negotiation import DefaultContentNegotiation
 from rest_framework.permissions import IsAuthenticated
-from django.http import HttpResponse
+from rest_framework.renderers import JSONRenderer
+from rest_framework.views import APIView
 from datetime import datetime
-from .exports import export_booking_manifest_pdf
-
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def export_booking_manifest(request):
-    """
-    Export booking manifest for a specific date.
-    Query parameter: date (format: YYYY-MM-DD)
-    """
-    date_str = request.GET.get('date')
-    if not date_str:
-        return Response(
-            {"error": "Date parameter is required (format: YYYY-MM-DD)"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    try:
-        booking_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    except ValueError:
-        return Response(
-            {"error": "Invalid date format. Use YYYY-MM-DD"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    return export_booking_manifest_pdf(booking_date)
+from .exports import (
+    ManifestIncompleteError,
+    export_booking_manifest_excel,
+    export_booking_manifest_pdf,
+    export_passenger_manifest_summary_excel,
+    export_passenger_manifest_summary_pdf,
+)
 
 
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def export_passenger_summary(request):
+class _FileExportNegotiation(DefaultContentNegotiation):
     """
-    Export passenger summary report for a specific date (operational planning).
-    Shows headcount per booking group for crew seating and park fees.
-    Query parameters:
-    - date (required, format: YYYY-MM-DD)
-    - format (optional: 'pdf' or 'excel', default: 'pdf')
+    DRF reserves the `format` query param for renderer selection and 404s on
+    unknown values such as `excel`. These views return files directly, so the
+    param is left for the view to interpret.
     """
-    from .exports import export_passenger_manifest_summary_pdf, export_passenger_manifest_summary_excel
-    
-    date_str = request.GET.get('date')
-    if not date_str:
-        return Response(
-            {"error": "Date parameter is required (format: YYYY-MM-DD)"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    try:
-        booking_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-    except ValueError:
-        return Response(
-            {"error": "Invalid date format. Use YYYY-MM-DD"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
-    
-    export_format = request.GET.get('format', 'pdf').lower()
-    
-    if export_format == 'excel':
-        return export_passenger_manifest_summary_excel(booking_date)
-    else:
-        return export_passenger_manifest_summary_pdf(booking_date)
+    def select_renderer(self, request, renderers, format_suffix=None):
+        renderer = renderers[0]
+        return renderer, renderer.media_type
+
+
+class _DatedFileExportView(APIView):
+    """
+    GET ?date=YYYY-MM-DD[&format=pdf|excel] -> file download.
+    Subclasses set `pdf_exporter` and `excel_exporter`.
+    """
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+    content_negotiation_class = _FileExportNegotiation
+    pdf_exporter = None
+    excel_exporter = None
+
+    def get(self, request):
+        date_str = request.query_params.get('date')
+        if not date_str:
+            return Response(
+                {"error": "Date parameter is required (format: YYYY-MM-DD)"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        try:
+            booking_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response(
+                {"error": "Invalid date format. Use YYYY-MM-DD"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        export_format = (request.query_params.get('format') or 'pdf').lower()
+        if export_format in ('excel', 'xlsx'):
+            exporter = type(self).excel_exporter
+        elif export_format == 'pdf':
+            exporter = type(self).pdf_exporter
+        else:
+            return Response(
+                {"error": "Invalid format. Use 'pdf' or 'excel'"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            return exporter(booking_date)
+        except ManifestIncompleteError as exc:
+            return Response(
+                {"error": str(exc), "bookings": [
+                    {"booking_reference": ref, "problems": problems} for ref, problems in exc.bookings
+                ]},
+                status=status.HTTP_409_CONFLICT,
+            )
+
+
+class BookingManifestExportView(_DatedFileExportView):
+    """Park entry (ZimParks) manifest: one row per confirmed passenger."""
+    pdf_exporter = staticmethod(export_booking_manifest_pdf)
+    excel_exporter = staticmethod(export_booking_manifest_excel)
+
+
+class PassengerSummaryExportView(_DatedFileExportView):
+    """Operational headcount per booking group for crew seating and park fees."""
+    pdf_exporter = staticmethod(export_passenger_manifest_summary_pdf)
+    excel_exporter = staticmethod(export_passenger_manifest_summary_excel)
+
+
+export_booking_manifest = BookingManifestExportView.as_view()
+export_passenger_summary = PassengerSummaryExportView.as_view()

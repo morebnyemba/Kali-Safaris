@@ -92,13 +92,14 @@ def omari_auth_view(request: HttpRequest) -> JsonResponse:
     # Resolve existing booking reference, or create a website draft booking —
     # same helper the CBZ EcoCash/card endpoints use, so an Omari payment made
     # here always attaches to a Booking, same as the other payment channels.
-    # Returns None gracefully when neither field is present in the payload.
+    # A PricingError (stale/tampered amount, missing traveler details) is
+    # returned to the client and nothing is charged; the authoritative amount
+    # from the helper — never the client's — is what gets charged.
+    from cbz_integration.views import PricingError, _resolve_or_create_booking
     try:
-        from cbz_integration.views import _resolve_or_create_booking
-        booking = _resolve_or_create_booking(payload, amount)
-    except Exception as e:
-        logger.warning("Error resolving/creating booking for Omari payment: %s", e)
-        booking = None
+        booking, amount = _resolve_or_create_booking(payload, amount)
+    except PricingError as exc:
+        return JsonResponse({"error": True, "message": str(exc)}, status=400)
 
     client = _build_client()
     try:

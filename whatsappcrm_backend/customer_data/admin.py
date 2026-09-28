@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.http import HttpResponse
 from django.utils import timezone
 from io import BytesIO
@@ -12,6 +12,7 @@ import zipfile
 import os
 from django.conf import settings
 from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry, Traveler
+from .manifests import ManifestIncompleteError
 
 class InteractionInline(admin.TabularInline):
     """
@@ -126,7 +127,10 @@ class BookingAdmin(admin.ModelAdmin):
             'fields': (('start_date', 'end_date'), ('number_of_adults', 'number_of_children'))
         }),
         ('Financials & Source', {
-            'fields': (('total_amount', 'amount_paid'), 'payment_status', 'source')
+            'fields': (('total_amount', 'amount_paid'), ('payment_status', 'held_payment_status'), 'source'),
+            'description': "A booking can only be Paid / Deposit Paid once every passenger below has complete "
+                           "details (name, age, nationality, gender, ID). Until then it is held as "
+                           "'Paid - Awaiting Passenger Details' and confirms itself automatically."
         }),
         ('Additional Details', {
             'fields': ('notes', 'booking_details_payload'),
@@ -135,6 +139,22 @@ class BookingAdmin(admin.ModelAdmin):
     )
     list_select_related = ('customer', 'tour', 'assigned_agent')
     
+    def get_readonly_fields(self, request, obj=None):
+        return tuple(super().get_readonly_fields(request, obj)) + ('held_payment_status',)
+
+    def save_related(self, request, form, formsets, change):
+        # Travelers (inline) are saved after the booking, and each save
+        # re-checks the passenger-details rule — so report the final state.
+        super().save_related(request, form, formsets, change)
+        booking = Booking.objects.get(pk=form.instance.pk)
+        if booking.payment_status == Booking.PaymentStatus.AWAITING_DETAILS:
+            self.message_user(
+                request,
+                f"{booking.booking_reference} is held as 'Awaiting Passenger Details' and is not on any manifest. "
+                f"Missing: {' '.join(booking.traveler_details_problems())}",
+                level=messages.WARNING,
+            )
+
     def get_traveler_count(self, obj):
         """Display the number of travelers for this booking."""
         return obj.travelers.count()
@@ -280,22 +300,36 @@ class BookingAdmin(admin.ModelAdmin):
         Uses the first booking's start_date from the selected queryset.
         """
         from .exports import export_booking_manifest_pdf
-        
-        if not queryset.exists():
-            self.message_user(request, "No bookings selected.", level='warning')
+
+        booking_date = self._single_selected_date(request, queryset)
+        if booking_date is None:
             return
-        
-        # Use the start_date from the first booking in the queryset
-        booking_date = queryset.first().start_date
-        
-        # Filter all bookings for that date (not just selected ones)
-        self.message_user(
-            request, 
-            f"Generating manifest for {booking_date.strftime('%B %d, %Y')} (all bookings on that date)...",
-            level='info'
-        )
-        
-        return export_booking_manifest_pdf(booking_date)
+        # Covers every confirmed booking on that date, not just the selected ones.
+        try:
+            return export_booking_manifest_pdf(booking_date)
+        except ManifestIncompleteError as exc:
+            self.message_user(request, str(exc), level=messages.ERROR)
+            return None
+
+    def _single_selected_date(self, request, queryset):
+        """
+        Manifests are per tour date. Returns the one start_date shared by the
+        selection, or None (with an admin message) when the selection is
+        empty or spans several dates.
+        """
+        dates = sorted(set(queryset.values_list('start_date', flat=True)))
+        if not dates:
+            self.message_user(request, "No bookings selected.", level=messages.WARNING)
+            return None
+        if len(dates) > 1:
+            listed = ", ".join(d.strftime('%d %b %Y') for d in dates[:5])
+            self.message_user(
+                request,
+                f"Select bookings from a single tour date — your selection spans {len(dates)} dates ({listed}).",
+                level=messages.ERROR,
+            )
+            return None
+        return dates[0]
     
     export_manifest_for_date.short_description = "Export Manifest for Booking Date (ZimParks Format)"
     
@@ -305,27 +339,15 @@ class BookingAdmin(admin.ModelAdmin):
         Shows headcount per booking group for crew planning and park fees.
         """
         from .exports import export_passenger_manifest_summary_pdf
-        
-        if not queryset.exists():
-            self.message_user(request, "No bookings selected.", level='warning')
+
+        booking_date = self._single_selected_date(request, queryset)
+        if booking_date is None:
             return
-        
-        # Use the start_date from the first booking in the queryset
-        booking_date = queryset.first().start_date
-        
-        # Filter to confirmed bookings for that date
-        confirmed_count = Booking.objects.filter(
-            start_date=booking_date,
-            payment_status__in=[Booking.PaymentStatus.PAID, Booking.PaymentStatus.DEPOSIT_PAID]
-        ).count()
-        
-        self.message_user(
-            request,
-            f"Generating passenger summary for {booking_date.strftime('%B %d, %Y')} ({confirmed_count} confirmed booking(s))...",
-            level='info'
-        )
-        
-        return export_passenger_manifest_summary_pdf(booking_date)
+        try:
+            return export_passenger_manifest_summary_pdf(booking_date)
+        except ManifestIncompleteError as exc:
+            self.message_user(request, str(exc), level=messages.ERROR)
+            return None
     
     export_passenger_summary_for_date.short_description = "Export Passenger Summary (Operational - Headcount)"
     
@@ -467,18 +489,19 @@ class PaymentAdmin(admin.ModelAdmin):
                                     f"Total: ${booking.total_amount:.2f}\n"
                                 )
                                 
-                                if booking.payment_status == Booking.PaymentStatus.PAID:
+                                if booking.amount_paid >= booking.total_amount:
                                     message_body += "\n✅ Your booking is now fully paid!\n"
                                 else:
                                     balance = booking.total_amount - booking.amount_paid
                                     message_body += f"\nBalance Due: ${balance:.2f}\n"
                                 
-                                # Check if travelers are recorded
-                                traveler_count = booking.travelers.count()
-                                if traveler_count == 0:
+                                # Payment is kept, but the booking only confirms
+                                # once every passenger's details are complete.
+                                if booking.payment_status == Booking.PaymentStatus.AWAITING_DETAILS:
                                     message_body += (
-                                        "\n📋 *Next Step:* Please provide traveler details for all passengers.\n"
-                                        "Reply with *traveler details* to get started."
+                                        "\n📋 *Next Step:* We still need complete details (name, age, nationality, "
+                                        "gender and ID/passport number) for every passenger before your booking "
+                                        "is confirmed. Please send them to us here."
                                     )
                                 
                                 send_whatsapp_message(

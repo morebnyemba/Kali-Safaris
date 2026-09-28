@@ -435,10 +435,32 @@ BOOKING_FLOW = {
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "traveler_confirmation"}
             },
             "transitions": [
-                {"to_step": "add_traveler_to_list", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_traveler"}},
+                {"to_step": "validate_current_traveler", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_traveler"}},
                 {"to_step": "query_traveler_details_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_traveler"}},
-                {"to_step": "add_traveler_to_list", "priority": 3, "condition_config": {"type": "always_true"}}
+                {"to_step": "validate_current_traveler", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
+        },
+        # Step 3f: Check this passenger right away (same rule as the final gate), so a
+        # problem is fixed for this passenger instead of re-entering everyone later.
+        {
+            "name": "validate_current_traveler",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{"action_type": "validate_current_traveler"}]
+            },
+            "transitions": [
+                {"to_step": "add_traveler_to_list", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "current_traveler_valid", "value": "yes"}},
+                {"to_step": "current_traveler_invalid", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "current_traveler_invalid",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "⚠️ {{ current_traveler_validation_error }}\n\nLet's re-enter the details for traveler {{ traveler_index }}."}
+            },
+            "transitions": [{"to_step": "query_traveler_details_whatsapp_flow", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "calculate_total_cost",
@@ -471,7 +493,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Let's get the details for {% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}.\n\nWhat is their full name?"}
+                    "text": {"body": "Let's get the details for {% if (traveler_index|int) <= (num_adults|int) %}Adult {{ traveler_index|int }} of {{ num_adults|int }}{% else %}Child {{ (traveler_index|int) - (num_adults|int) }} of {{ num_children|int }}{% endif %}.\n\nWhat is their full name?"}
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_name"},
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid name."}
@@ -515,7 +537,7 @@ BOOKING_FLOW = {
                     "message_type": "text",
                     "text": {"body": "What is the gender of *{{ current_traveler_name }}*? (Male/Female/Other)"}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_gender", "validation_regex": "^(?i)(male|female|other|m|f)$"},
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_gender", "validation_regex": "(?i)^(male|female|other|m|f)$"},
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid gender (Male, Female, Other, or M/F)."}
             },
             "transitions": [{"to_step": "ask_traveler_id_number", "condition_config": {"type": "always_true"}}]
@@ -527,10 +549,10 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "What is the ID or Passport number for *{{ current_traveler_name }}*?"}
+                    "text": {"body": "What is the ID or Passport number for *{{ current_traveler_name }}*?{% if (current_traveler_age|int) < 12 %}\n\n(Children under 12 don't need one — reply *NONE* if they don't have one.){% endif %}"}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_id_number", "validation_regex": "^[A-Za-z0-9]{5,20}$"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid ID or Passport number (5-20 alphanumeric characters)."}
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_id_number", "validation_regex": "(?i)^([A-Za-z0-9-]{3,20}|none)$"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid ID or Passport number (3-20 letters/numbers), or NONE for a child under 12."}
             },
             "transitions": [{"to_step": "ask_traveler_medical", "condition_config": {"type": "always_true"}}]
         },
@@ -551,6 +573,11 @@ BOOKING_FLOW = {
         # Note: This step tracks both overall traveler_index (1 to num_travelers) and separate
         # adult_index and child_index counters. Adults are collected first (traveler_index 1 to num_adults),
         # then children (traveler_index num_adults+1 to num_travelers).
+        # Actions run in order, so adult/child counters are updated BEFORE traveler_index is incremented
+        # (they must classify the traveler just added, not the next one). Every field is defaulted with
+        # `or ''`: an unset variable (e.g. no ID photo on the text path) would otherwise render as
+        # `Undefined` inside the list literal, the result would no longer parse as a list, and every
+        # traveler collected so far would be lost.
         {
             "name": "add_traveler_to_list",
             "type": "action",
@@ -559,12 +586,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age|string, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'id_document': current_traveler_id_document, 'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
-                    },
-                    {
-                        "action_type": "set_context_variable",
-                        "variable_name": "traveler_index",
-                        "value_template": "{{ (traveler_index|int) + 1 }}"
+                        "value_template": "{{ (travelers_details if travelers_details is sequence and travelers_details is not string else []) + [{'name': (current_traveler_name or '')|string|trim, 'age': (current_traveler_age if current_traveler_age is not none else '')|string|trim, 'nationality': (current_traveler_nationality or '')|string|trim, 'medical': (current_traveler_medical or '')|string|trim, 'gender': (current_traveler_gender or '')|string|trim, 'id_number': (current_traveler_id_number or '')|string|trim, 'id_document': (current_traveler_id_document or ''),'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
                     },
                     {
                         "action_type": "set_context_variable",
@@ -575,13 +597,53 @@ BOOKING_FLOW = {
                         "action_type": "set_context_variable",
                         "variable_name": "child_index",
                         "value_template": "{{ (child_index|int) + 1 if (traveler_index|int) > (num_adults|int) else (child_index|int) }}"
-                    }
+                    },
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "traveler_index",
+                        "value_template": "{{ (traveler_index|int) + 1 }}"
+                    },
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_document", "value_template": ""}
                 ]
             },
             "transitions": [
                 {"to_step": "query_traveler_details_whatsapp_flow", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers|int }}"}},
-                {"to_step": "ask_email", "priority": 2, "condition_config": {"type": "always_true"}}
+                {"to_step": "validate_travelers_before_booking", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
+        },
+        # Step 7: Gate — no Booking may be created without complete details for every passenger.
+        # Every create_model_instance(Booking) step in this flow is reachable only through here.
+        {
+            "name": "validate_travelers_before_booking",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "validate_travelers_details", "params_template": {"travelers_context_var": "travelers_details"}}
+                ]
+            },
+            "transitions": [
+                {"to_step": "ask_email", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "travelers_valid", "value": "yes"}},
+                {"to_step": "travelers_invalid_restart", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "travelers_invalid_restart",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "⚠️ We need complete details for every passenger before we can create your booking.\n\n{{ travelers_validation_error }}\n\nLet's re-enter the traveler details."}
+            },
+            "transitions": [{"to_step": "reset_travelers_for_reentry", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "reset_travelers_for_reentry",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "travelers_details", "value_template": []}
+                ]
+            },
+            "transitions": [{"to_step": "initialize_traveler_loop", "condition_config": {"type": "always_true"}}]
         },
         # Step 8: Ask for contact email
         {

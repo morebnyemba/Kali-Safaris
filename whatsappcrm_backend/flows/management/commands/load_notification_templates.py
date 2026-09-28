@@ -9,6 +9,19 @@ from notifications.models import NotificationTemplate
 # This makes them easy to manage and deploy.
 NOTIFICATION_TEMPLATES = [
     {
+        "name": "booking_awaiting_traveler_details",
+        "description": "Sent to staff when a payment arrives for a booking whose passenger details are incomplete.",
+        "template_type": "whatsapp",
+        "body": """Payment received — booking on hold ⚠️
+
+Booking *{{ booking_reference }}* ({{ tour_name }}, {{ start_date }}) was paid ({{ held_status }}) but is held as *Awaiting Passenger Details* and is NOT on the manifest.
+
+Missing:
+{{ problems }}
+
+Collect the details and add them to the booking — it confirms automatically once complete."""
+    },
+    {
         "name": "hanna_new_tour_inquiry",
         "description": "Sent to admins when a new tour inquiry is created.",
         "template_type": "whatsapp",

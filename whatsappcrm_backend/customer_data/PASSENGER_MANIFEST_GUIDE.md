@@ -79,9 +79,27 @@ GET /api/customer-data/export/passenger-summary/?date=2026-02-10&format=excel
 - CANCELLED bookings
 - REFUNDED bookings
 
-### Passenger Count Logic
-1. **Primary:** Counts actual traveler records in database
-2. **Fallback:** If no travelers recorded, uses `number_of_adults + number_of_children` from booking
+The ZimParks (park entry) manifest uses the **same** filter, so both documents
+always agree. Abandoned website checkout drafts (PENDING) and PENDING_MANUAL
+bookings never reach either document.
+
+### Passenger Details Rule
+A booking can only be **Paid** or **Deposit Paid** when every booked passenger
+(`number_of_adults + number_of_children`) has complete details: name, age,
+nationality, gender and ID/passport number.
+
+- Staff edits (Django admin, dashboard, CRM API) that try to confirm an
+  incomplete booking are rejected with the list of what is missing.
+- A payment that arrives first (Paynow, CBZ, Omari, manual approval) is always
+  recorded, but the booking is held as **Paid - Awaiting Passenger Details**,
+  staff are alerted, and it confirms itself automatically once the details are
+  complete.
+- Held bookings never appear on the park manifest; the passenger summary lists
+  them in an "are NOT included" box so the crew can chase the details.
+- Headcount = the confirmed passengers listed. There are no placeholder rows.
+- If older data breaks the rule (confirmed before it existed), the manifest
+  export is refused (HTTP 409) with the bookings to fix. Find them in advance:
+  `python manage.py audit_traveler_details` (add `--apply` to hold them).
 
 ### Grouping
 - Groups passengers by booking reference
@@ -239,7 +257,8 @@ Content-Type: application/json
 - **Purpose:** Detailed traveler information for ZimParks
 - **Includes:** Names, ID numbers, nationalities, ages
 - **Use Case:** Regulatory compliance, park entry
-- **Access:** Admin action or `/api/customer-data/export/manifest/`
+- **Access:** Admin action or `/api/customer-data/export/manifest/?date=YYYY-MM-DD[&format=excel]`
+- **Admin actions** require the selected bookings to share one tour date.
 
 ### Booking Travelers Export
 - **Purpose:** Complete traveler list across multiple bookings
