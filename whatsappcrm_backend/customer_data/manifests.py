@@ -36,10 +36,26 @@ from .models import Booking, Traveler
 
 logger = logging.getLogger(__name__)
 
-# Bookings that are actually travelling. Pending, pending-manual, cancelled and
-# refunded bookings (including abandoned website checkout drafts) never appear
-# on a manifest.
-MANIFEST_PAYMENT_STATUSES = (Booking.PaymentStatus.PAID, Booking.PaymentStatus.DEPOSIT_PAID)
+# Bookings that are actually travelling. Pending, pending-manual, awaiting-details,
+# cancelled and refunded bookings (including abandoned website checkout drafts)
+# never appear on a manifest.
+MANIFEST_PAYMENT_STATUSES = Booking.CONFIRMED_PAYMENT_STATUSES
+
+
+class ManifestIncompleteError(Exception):
+    """
+    A confirmed booking on the date lacks complete passenger details. Only
+    possible for data confirmed before the passenger-details rule existed and
+    not saved since; the manifest is refused rather than printed incomplete.
+    """
+
+    def __init__(self, bookings):
+        self.bookings = bookings  # [(reference, [problems])]
+        listed = "; ".join(f"{ref}: {' '.join(problems)}" for ref, problems in bookings)
+        super().__init__(
+            f"Cannot generate the manifest: {len(bookings)} confirmed booking(s) have incomplete "
+            f"passenger details. Complete them first — {listed}"
+        )
 
 # --- Palette ---
 PRIMARY = colors.HexColor('#1F3D2B')
@@ -98,31 +114,28 @@ def collect_manifest_groups(booking_date):
     """
     Returns (groups, totals) for confirmed bookings on `booking_date`.
 
-    Headcount per booking is max(booked pax, recorded travelers): a booking
-    whose traveler details are only partly captured still counts every paid
-    seat, and the gap is reported as "details pending" instead of silently
-    shrinking the headcount.
+    Confirmed bookings always carry complete passenger details (enforced by
+    Booking.save), so each group's headcount is its traveler list. Raises
+    ManifestIncompleteError if that invariant is broken by legacy data.
+    Paid bookings held as AWAITING_DETAILS are reported in totals['held'].
     """
+    traveler_prefetch = Prefetch('travelers', queryset=Traveler.objects.order_by('traveler_type', 'name'))
     bookings = (
         Booking.objects
         .filter(start_date=booking_date, payment_status__in=MANIFEST_PAYMENT_STATUSES)
         .select_related('customer__contact')
-        .prefetch_related(Prefetch('travelers', queryset=Traveler.objects.order_by('traveler_type', 'name')))
+        .prefetch_related(traveler_prefetch)
     )
 
-    groups = []
+    groups, incomplete = [], []
     for booking in bookings:
         travelers = list(booking.travelers.all())
-        booked = (booking.number_of_adults or 0) + (booking.number_of_children or 0)
-        recorded = len(travelers)
-        headcount = max(booked, recorded)
+        problems = booking.traveler_details_problems(travelers)
+        if problems:
+            incomplete.append((booking.booking_reference, problems))
+            continue
 
-        if recorded >= booked and recorded:
-            adults = sum(1 for t in travelers if t.traveler_type == Traveler.TravelerType.ADULT)
-            children = recorded - adults
-        else:
-            adults, children = booking.number_of_adults or 0, booking.number_of_children or 0
-
+        adults = sum(1 for t in travelers if t.traveler_type == Traveler.TravelerType.ADULT)
         groups.append({
             'booking': booking,
             'name': booking_group_name(booking, travelers),
@@ -130,35 +143,43 @@ def collect_manifest_groups(booking_date):
             'tour': booking.tour_name,
             'status': booking.get_payment_status_display(),
             'travelers': travelers,
-            'headcount': headcount,
-            'recorded': recorded,
-            'missing': headcount - recorded,
+            'headcount': len(travelers),
             'adults': adults,
-            'children': children,
+            'children': len(travelers) - adults,
             'id_docs': sum(1 for t in travelers if t.id_document),
         })
 
+    if incomplete:
+        raise ManifestIncompleteError(incomplete)
+
     groups.sort(key=lambda g: ((g['tour'] or '').lower(), g['name'].lower(), g['reference'] or ''))
+
+    held = [
+        {
+            'reference': b.booking_reference,
+            'name': booking_group_name(b),
+            'pax': (b.number_of_adults or 0) + (b.number_of_children or 0),
+            'problems': b.traveler_details_problems(),
+        }
+        for b in Booking.objects.filter(
+            start_date=booking_date, payment_status=Booking.PaymentStatus.AWAITING_DETAILS,
+        ).select_related('customer__contact')
+    ]
 
     nationalities = Counter(
         (t.nationality or '').strip().title() or 'Not provided'
         for g in groups for t in g['travelers']
     )
-    pending = sum(g['missing'] for g in groups)
-    nationality_breakdown = nationalities.most_common()
-    if pending:
-        nationality_breakdown.append(('Details pending', pending))
 
     totals = {
         'bookings': len(groups),
         'passengers': sum(g['headcount'] for g in groups),
-        'recorded': sum(g['recorded'] for g in groups),
-        'missing': pending,
         'adults': sum(g['adults'] for g in groups),
         'children': sum(g['children'] for g in groups),
         'id_docs': sum(g['id_docs'] for g in groups),
         'tours': sorted({g['tour'] for g in groups if g['tour']}),
-        'nationalities': nationality_breakdown,
+        'nationalities': nationalities.most_common(),
+        'held': held,
     }
     return groups, totals
 
@@ -445,21 +466,6 @@ def export_booking_manifest_pdf(booking_date):
             if not traveler.id_number:
                 style.append(('TEXTCOLOR', (2, row), (2, row), WARN))
 
-        for pending_idx in range(group['missing']):
-            seq += 1
-            row = len(data)
-            data.append([
-                str(seq),
-                Paragraph(
-                    f"Details pending — passenger {group['recorded'] + pending_idx + 1} of {group['headcount']}",
-                    styles['pending'],
-                ),
-                '', '', '', '', '', '',
-            ])
-            style += [
-                ('SPAN', (1, row), (-1, row)),
-                ('BACKGROUND', (0, row), (-1, row), colors.HexColor('#FFF7ED')),
-            ]
 
     table = Table(data, colWidths=col_widths, repeatRows=1, hAlign='LEFT')
     table.setStyle(TableStyle(style))
@@ -471,11 +477,6 @@ def export_booking_manifest_pdf(booking_date):
         "ID copy: <font color='#15803D'>On file</font> = ID/passport image received; "
         "<font color='#B45309'>Missing</font> = still to be collected.",
     ]
-    if totals['missing']:
-        notes.append(
-            f"<font color='#B45309'><b>{totals['missing']} passenger(s) have no details captured yet</b></font> — "
-            "collect them before departure."
-        )
     elements.append(Paragraph("<br/>".join(notes), styles['body']))
     elements.append(Spacer(1, 18))
     elements.append(KeepTogether([
@@ -515,6 +516,35 @@ def _signature_block(width, styles):
 
 # --- Operational passenger summary ---
 
+def _held_notice(totals, width, styles):
+    """Paid bookings on this date that are excluded until passenger details are complete."""
+    held = totals.get('held') or []
+    if not held:
+        return []
+    pax = sum(h['pax'] for h in held)
+    lines = [
+        f"<b>{len(held)} paid booking(s) ({pax} pax) are NOT included</b> — held until passenger details are "
+        "complete. Collect the details so they can travel:"
+    ]
+    for h in held:
+        lines.append(
+            f"• <b>{escape(h['reference'] or '—')}</b> {escape(h['name'])} ({h['pax']} pax): "
+            f"{escape(' '.join(h['problems']))}"
+        )
+    box = Table(
+        [[Paragraph("<br/>".join(lines), styles['body'])]],
+        colWidths=[width],
+        style=TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#FFF7ED')),
+            ('LINEBEFORE', (0, 0), (0, -1), 3, WARN),
+            ('TOPPADDING', (0, 0), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 8),
+            ('LEFTPADDING', (0, 0), (-1, -1), 10),
+        ]),
+    )
+    return [box, Spacer(1, 14)]
+
+
 def export_passenger_manifest_summary_pdf(booking_date):
     """
     Operational headcount per booking group for crew seating and park fees.
@@ -540,6 +570,7 @@ def export_passenger_manifest_summary_pdf(booking_date):
         ], width, styles),
         Spacer(1, 16),
     ]
+    elements += _held_notice(totals, width, styles)
 
     if not groups:
         elements.append(_empty_state(
@@ -564,8 +595,8 @@ def export_passenger_manifest_summary_pdf(booking_date):
     )
     elements += [copy_box, Spacer(1, 16), Paragraph("Breakdown by booking group", styles['section'])]
 
-    header = ['Group', 'Reference', 'Tour', 'Adults', 'Kids', 'Pax', 'Details', 'IDs']
-    col_widths = [118, 104, 118, 40, 34, 34, 46, 46]
+    header = ['Group', 'Reference', 'Tour', 'Adults', 'Kids', 'Pax', 'IDs']
+    col_widths = [130, 110, 130, 42, 40, 40, 48]
     data = [header]
     style = _base_table_style()
     style += [('ALIGN', (3, 0), (-1, -1), 'CENTER')]
@@ -578,20 +609,16 @@ def export_passenger_manifest_summary_pdf(booking_date):
             str(group['adults']),
             str(group['children']),
             str(group['headcount']),
-            f"{group['recorded']}/{group['headcount']}",
             f"{group['id_docs']}/{group['headcount']}",
         ])
         if idx % 2 == 0:
             style.append(('BACKGROUND', (0, idx), (-1, idx), ROW_ALT))
-        if group['missing']:
-            style.append(('TEXTCOLOR', (6, idx), (6, idx), WARN))
         if group['id_docs'] < group['headcount']:
-            style.append(('TEXTCOLOR', (7, idx), (7, idx), WARN))
+            style.append(('TEXTCOLOR', (6, idx), (6, idx), WARN))
 
     data.append([
         Paragraph('<b>Total</b>', styles['cell']), '', '',
         str(totals['adults']), str(totals['children']), str(totals['passengers']),
-        f"{totals['recorded']}/{totals['passengers']}",
         f"{totals['id_docs']}/{totals['passengers']}",
     ])
     style += [
@@ -606,9 +633,8 @@ def export_passenger_manifest_summary_pdf(booking_date):
     elements.append(Spacer(1, 14))
     elements.append(Paragraph(
         "<b>How to read this report</b><br/>"
-        "• <b>Pax</b> — seats to allocate for the group (booked count, or recorded travelers if higher).<br/>"
+        "• <b>Pax</b> — confirmed passengers in the group (every one has full details on file).<br/>"
         "• <b>Total</b> — use for park fees and vehicle/boat capacity.<br/>"
-        "• <b>Details</b> — travelers whose name/ID details have been captured.<br/>"
         "• <b>IDs</b> — travelers with an ID/passport image on file (WhatsApp or website).",
         styles['body'],
     ))
@@ -654,17 +680,31 @@ def _xl_header_row(sheet, row, headers, widths):
     sheet.freeze_panes = sheet.cell(row=row + 1, column=1)
 
 
+def _xl_held_sheet(workbook, totals):
+    """Second sheet listing paid bookings excluded until passenger details are complete."""
+    held = totals.get('held') or []
+    if not held:
+        return
+    sheet = workbook.create_sheet('Awaiting Details')
+    headers = ['Booking Reference', 'Group', 'Pax', 'What is missing']
+    _xl_header_row(sheet, 1, headers, [22, 28, 6, 80])
+    for row, h in enumerate(held, start=2):
+        for col, value in enumerate([h['reference'], h['name'], h['pax'], ' '.join(h['problems'])], start=1):
+            sheet.cell(row=row, column=col, value=value).border = _XL_BORDER
+
+
 def export_passenger_manifest_summary_excel(booking_date):
     """Excel version of the operational passenger summary."""
     groups, totals = collect_manifest_groups(booking_date)
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     sheet.title = 'Passenger Summary'
-    headers = ['Group', 'Booking Reference', 'Tour', 'Status', 'Adults', 'Children', 'Passengers', 'Details Captured', 'ID Docs']
+    headers = ['Group', 'Booking Reference', 'Tour', 'Status', 'Adults', 'Children', 'Passengers', 'ID Docs']
     _xl_heading(sheet, 'Passenger Summary', booking_date, len(headers))
 
     if not groups:
         sheet.cell(row=5, column=1, value=f"No confirmed bookings found for {booking_date.strftime('%B %d, %Y')}").font = _XL_WARN_FONT
+        _xl_held_sheet(workbook, totals)
         return _xl_response(workbook, f"passenger_summary_{booking_date.isoformat()}.xlsx")
 
     sheet.cell(row=5, column=1, value='Crew copy line').font = Font(bold=True)
@@ -673,13 +713,13 @@ def export_passenger_manifest_summary_excel(booking_date):
     sheet.merge_cells(start_row=6, start_column=1, end_row=6, end_column=len(headers))
 
     header_row = 8
-    _xl_header_row(sheet, header_row, headers, [28, 22, 30, 16, 9, 10, 12, 16, 10])
+    _xl_header_row(sheet, header_row, headers, [28, 22, 30, 16, 9, 10, 12, 10])
     row = header_row + 1
     for group in groups:
         values = [
             group['name'], group['reference'], group['tour'], group['status'],
             group['adults'], group['children'], group['headcount'],
-            f"{group['recorded']}/{group['headcount']}", f"{group['id_docs']}/{group['headcount']}",
+            f"{group['id_docs']}/{group['headcount']}",
         ]
         for col, value in enumerate(values, start=1):
             cell = sheet.cell(row=row, column=col, value=value)
@@ -688,12 +728,14 @@ def export_passenger_manifest_summary_excel(booking_date):
 
     total_values = {
         1: 'TOTAL', 5: totals['adults'], 6: totals['children'], 7: totals['passengers'],
-        8: f"{totals['recorded']}/{totals['passengers']}", 9: f"{totals['id_docs']}/{totals['passengers']}",
+        8: f"{totals['id_docs']}/{totals['passengers']}",
     }
     for col in range(1, len(headers) + 1):
         cell = sheet.cell(row=row, column=col, value=total_values.get(col))
         cell.font = Font(bold=True)
         cell.fill = _XL_TINT_FILL
+
+    _xl_held_sheet(workbook, totals)
 
     return _xl_response(workbook, f"passenger_summary_{booking_date.isoformat()}.xlsx")
 
@@ -731,16 +773,6 @@ def export_booking_manifest_excel(booking_date):
                       traveler.get_traveler_type_display(), 'On file' if traveler.id_document else 'Missing']
             for col, value in enumerate(values, start=1):
                 sheet.cell(row=row, column=col, value=value).border = _XL_BORDER
-            row += 1
-        for pending_idx in range(group['missing']):
-            seq += 1
-            values = [seq, *prefix,
-                      f"Details pending — passenger {group['recorded'] + pending_idx + 1} of {group['headcount']}"]
-            for col, value in enumerate(values, start=1):
-                cell = sheet.cell(row=row, column=col, value=value)
-                cell.border = _XL_BORDER
-                if col == 5:
-                    cell.font = _XL_WARN_FONT
             row += 1
 
     sheet.auto_filter.ref = f"A{header_row}:{get_column_letter(len(headers))}{row - 1}"

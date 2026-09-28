@@ -411,6 +411,7 @@ def export_givers_list_publication_pdf(queryset, period_name):
 
 from .manifests import (  # noqa: E402,F401
     MANIFEST_PAYMENT_STATUSES,
+    ManifestIncompleteError,
     export_booking_manifest_excel,
     export_booking_manifest_pdf,
     export_passenger_manifest_summary_excel,

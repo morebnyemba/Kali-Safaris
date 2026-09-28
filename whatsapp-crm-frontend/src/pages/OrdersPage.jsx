@@ -9,6 +9,25 @@ import ManifestExportPanel from '@/components/ManifestExportPanel';
 import { toLocalIsoDate } from '@/lib/utils';
 
 
+// Paid / Deposit Paid are only accepted by the API once every passenger has
+// complete details; "awaiting_details" is set by the system, never by hand.
+const PAYMENT_STATUS_OPTIONS = [
+  { value: 'pending', label: 'Pending' },
+  { value: 'pending_manual', label: 'Pending Manual Verification' },
+  { value: 'deposit_paid', label: 'Deposit Paid' },
+  { value: 'paid', label: 'Paid in Full' },
+  { value: 'refunded', label: 'Refunded' },
+  { value: 'cancelled', label: 'Cancelled' },
+];
+
+const apiErrorMessage = (err) => {
+  const data = err?.response?.data;
+  if (data && typeof data === 'object') {
+    return Object.values(data).flat().join(' ');
+  }
+  return err?.message || 'Failed to save booking.';
+};
+
 export default function OrdersPage() {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -28,6 +47,7 @@ export default function OrdersPage() {
     notes: '',
   });
   const [editingId, setEditingId] = useState(null);
+  const [formError, setFormError] = useState('');
   const [manifestDate, setManifestDate] = useState(() => toLocalIsoDate(new Date()));
   const [rowDownloading, setRowDownloading] = useState(null);
 
@@ -74,12 +94,13 @@ export default function OrdersPage() {
     });
     setModalMode('add');
     setEditingId(null);
+    setFormError('');
     setShowModal(true);
   };
 
   const openEditModal = (booking) => {
     setForm({
-      customer: booking.customer || '',
+      customer: booking.customer?.contact_id ?? booking.customer ?? '',
       tour_name: booking.tour_name || '',
       start_date: booking.start_date || '',
       end_date: booking.end_date || '',
@@ -92,6 +113,7 @@ export default function OrdersPage() {
     });
     setModalMode('edit');
     setEditingId(booking.id);
+    setFormError('');
     setShowModal(true);
   };
 
@@ -102,9 +124,10 @@ export default function OrdersPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const { customer, ...rest } = form;
       const payload = {
-        ...form,
-        customer: form.customer ? Number(form.customer) : null,
+        ...rest,
+        customer_id: customer ? Number(customer) : null,
         number_of_adults: Number(form.number_of_adults || 0),
         number_of_children: Number(form.number_of_children || 0),
         total_amount: form.total_amount === '' ? '0.00' : form.total_amount,
@@ -117,8 +140,8 @@ export default function OrdersPage() {
       }
       setShowModal(false);
       fetchBookings();
-    } catch {
-      alert('Failed to save booking.');
+    } catch (err) {
+      setFormError(apiErrorMessage(err));
     }
   };
 
@@ -165,8 +188,27 @@ export default function OrdersPage() {
                   <td className="border px-2 py-1">{booking.booking_reference || '-'}</td>
                   <td className="border px-2 py-1">{booking.tour_name || '-'}</td>
                   <td className="border px-2 py-1">{booking.start_date || '-'} - {booking.end_date || '-'}</td>
-                  <td className="border px-2 py-1">{booking.number_of_adults || 0}A / {booking.number_of_children || 0}C</td>
-                  <td className="border px-2 py-1">{booking.payment_status_display || booking.payment_status || '-'}</td>
+                  <td className="border px-2 py-1">
+                    {booking.number_of_adults || 0}A / {booking.number_of_children || 0}C
+                    {typeof booking.traveler_count === 'number' && (
+                      <span
+                        className={`block text-xs ${booking.traveler_details_problems?.length ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}`}
+                        title={(booking.traveler_details_problems || []).join(' ')}
+                      >
+                        {booking.traveler_details_problems?.length ? '⚠ ' : ''}{booking.traveler_count} with details
+                      </span>
+                    )}
+                  </td>
+                  <td className="border px-2 py-1">
+                    {booking.payment_status === 'awaiting_details' ? (
+                      <span
+                        className="inline-block rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
+                        title={(booking.traveler_details_problems || []).join(' ')}
+                      >
+                        Paid · awaiting passenger details
+                      </span>
+                    ) : (booking.payment_status_display || booking.payment_status || '-')}
+                  </td>
                   <td className="border px-2 py-1">{booking.total_amount || '0.00'}</td>
                   <td className="border px-2 py-1">{booking.created_at?.slice(0, 10)}</td>
                   <td className="border px-2 py-1 flex gap-2">
@@ -224,7 +266,21 @@ export default function OrdersPage() {
               </div>
               <div>
                 <Label htmlFor="payment_status">Payment Status</Label>
-                <Input id="payment_status" name="payment_status" value={form.payment_status} onChange={handleFormChange} required />
+                <select
+                  id="payment_status"
+                  name="payment_status"
+                  value={form.payment_status}
+                  onChange={handleFormChange}
+                  required
+                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30"
+                >
+                  {form.payment_status === 'awaiting_details' && (
+                    <option value="awaiting_details" disabled>Paid · awaiting passenger details (automatic)</option>
+                  )}
+                  {PAYMENT_STATUS_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>{o.label}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <Label htmlFor="source">Source</Label>
@@ -235,6 +291,11 @@ export default function OrdersPage() {
                 <Input id="notes" name="notes" value={form.notes} onChange={handleFormChange} />
               </div>
             </div>
+            {formError && (
+              <p role="alert" className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                {formError}
+              </p>
+            )}
             <div className="flex justify-end gap-2 pt-2">
               <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>

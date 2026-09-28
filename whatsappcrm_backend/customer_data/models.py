@@ -219,8 +219,16 @@ class Booking(models.Model):
         PENDING_MANUAL = 'pending_manual', _('Pending Manual Verification')
         DEPOSIT_PAID = 'deposit_paid', _('Deposit Paid')
         PAID = 'paid', _('Paid in Full')
+        # Money received, but the booking can't be confirmed until every
+        # passenger's details are complete. Promoted automatically.
+        AWAITING_DETAILS = 'awaiting_details', _('Paid - Awaiting Passenger Details')
         REFUNDED = 'refunded', _('Refunded')
         CANCELLED = 'cancelled', _('Cancelled')
+
+    # A booking in one of these statuses is travelling and appears on
+    # manifests. Invariant (enforced in save()): it has complete details for
+    # every booked passenger.
+    CONFIRMED_PAYMENT_STATUSES = (PaymentStatus.PAID, PaymentStatus.DEPOSIT_PAID)
 
     class BookingSource(models.TextChoices):
         WHATSAPP = 'whatsapp', _('WhatsApp')
@@ -254,6 +262,15 @@ class Booking(models.Model):
         choices=PaymentStatus.choices,
         default=PaymentStatus.PENDING,
         db_index=True
+    )
+    held_payment_status = models.CharField(
+        _("Held Payment Status"),
+        max_length=50,
+        choices=PaymentStatus.choices,
+        blank=True,
+        default='',
+        help_text=_("Status a payment tried to set while passenger details were incomplete; "
+                    "applied automatically once they are complete."),
     )
     source = models.CharField(_("Source"), max_length=20, choices=BookingSource.choices, default=BookingSource.MANUAL_ENTRY)
     
@@ -301,8 +318,105 @@ class Booking(models.Model):
                 # If we couldn't generate a unique reference after max attempts, raise an error
                 if not self.booking_reference:
                     raise ValueError(f"Failed to generate a unique booking reference after {max_attempts} attempts")
-        
+
+        changed_fields = self._enforce_traveler_details()
+        update_fields = kwargs.get('update_fields')
+        if changed_fields and update_fields is not None:
+            kwargs['update_fields'] = list(set(update_fields) | set(changed_fields))
+
         super().save(*args, **kwargs)
+
+    # --- Passenger-details invariant ---
+
+    def traveler_details_problems(self, travelers=None):
+        """
+        Returns customer/staff-readable reasons this booking's passenger list
+        is incomplete; empty list means every booked passenger has full details.
+        """
+        from .traveler_validation import normalize_traveler
+
+        booked = (self.number_of_adults or 0) + (self.number_of_children or 0)
+        if travelers is None:
+            # Query directly: a prefetched `travelers` cache may be stale here.
+            travelers = list(Traveler.objects.filter(booking_id=self.pk)) if self.pk else []
+
+        problems = []
+        if len(travelers) != booked:
+            problems.append(f"{len(travelers)} of {booked} passenger(s) have details recorded.")
+        for traveler in travelers:
+            _, error = normalize_traveler({
+                'name': traveler.name, 'age': traveler.age, 'nationality': traveler.nationality,
+                'gender': traveler.gender, 'id_number': traveler.id_number, 'type': traveler.traveler_type,
+            }, label='A passenger')
+            if error:
+                problems.append(error)
+        return problems
+
+    def _enforce_traveler_details(self):
+        """
+        Keeps the invariant: confirmed => complete passenger details.
+
+        - Confirmed but incomplete -> held as AWAITING_DETAILS; the intended
+          status is remembered and staff are alerted. Money is never refused:
+          payment records and amount_paid are untouched.
+        - AWAITING_DETAILS and now complete -> promoted to the held status.
+
+        Returns the fields it changed (so update_fields saves persist them).
+        """
+        status = self.payment_status
+        if status not in self.CONFIRMED_PAYMENT_STATUSES and status != self.PaymentStatus.AWAITING_DETAILS:
+            return []
+
+        problems = self.traveler_details_problems()
+
+        if status in self.CONFIRMED_PAYMENT_STATUSES and problems:
+            self.held_payment_status = status
+            self.payment_status = self.PaymentStatus.AWAITING_DETAILS
+            self._queue_awaiting_details_alert(problems)
+            return ['payment_status', 'held_payment_status']
+
+        if status == self.PaymentStatus.AWAITING_DETAILS and not problems:
+            self.payment_status = self.held_payment_status or self._status_for_amount_paid()
+            self.held_payment_status = ''
+            return ['payment_status', 'held_payment_status']
+
+        return []
+
+    def _status_for_amount_paid(self):
+        if self.total_amount and self.amount_paid >= self.total_amount:
+            return self.PaymentStatus.PAID
+        return self.PaymentStatus.DEPOSIT_PAID
+
+    def _queue_awaiting_details_alert(self, problems):
+        import logging
+        from django.db import transaction
+
+        logger = logging.getLogger(__name__)
+        logger.warning(
+            "Booking %s held as awaiting passenger details (intended %s): %s",
+            self.booking_reference, self.held_payment_status, " ".join(problems),
+        )
+
+        def _notify():
+            try:
+                from notifications.services import queue_notifications_to_users
+                contact = getattr(self.customer, 'contact', None) if self.customer_id else None
+                queue_notifications_to_users(
+                    template_name='booking_awaiting_traveler_details',
+                    group_names=["System Admins", "Sales Team"],
+                    related_contact=contact,
+                    template_context={
+                        'booking_reference': self.booking_reference,
+                        'tour_name': self.tour_name,
+                        'start_date': self.start_date.isoformat() if self.start_date else '',
+                        'held_status': self.get_held_payment_status_display(),
+                        'problems': "\n".join(f"- {p}" for p in problems),
+                    },
+                )
+            except Exception:
+                logger.exception("Failed to queue awaiting-details alert for booking %s", self.booking_reference)
+
+        transaction.on_commit(_notify)
 
     def __str__(self):
         return f"Booking {self.booking_reference} for {self.customer}"

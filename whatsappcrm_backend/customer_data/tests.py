@@ -487,8 +487,8 @@ class PassengerManifestSummaryTestCase(TestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertGreater(len(response.content), 0)
 
-    def test_manifest_groups_only_confirmed_and_headcount(self):
-        """Pending/cancelled bookings are excluded; headcount = max(booked, recorded)."""
+    def test_manifest_groups_only_confirmed_and_complete(self):
+        """Pending/cancelled excluded; a paid booking without full details is held, not listed."""
         from .manifests import collect_manifest_groups
 
         Booking.objects.create(
@@ -496,28 +496,51 @@ class PassengerManifestSummaryTestCase(TestCase):
             start_date=self.test_date, end_date=self.test_date,
             number_of_adults=4, payment_status=Booking.PaymentStatus.CANCELLED,
         )
-        # Booked for 4, only 1 traveler captured -> 3 pending seats still counted.
+        # Paid for 4, only 1 traveler captured -> held, never on the manifest.
         partial = Booking.objects.create(
             customer=None, tour=self.tour, tour_name=self.tour.name,
             start_date=self.test_date, end_date=self.test_date,
-            number_of_adults=4, payment_status=Booking.PaymentStatus.PAID,
+            number_of_adults=3, number_of_children=1, payment_status=Booking.PaymentStatus.PAID,
             booking_details_payload={'customer': {'full_name': 'Web Walk-in'}},
         )
         Traveler.objects.create(
             booking=partial, name="Infant Walk-in", age=0, nationality="Zimbabwean",
             gender="Female", id_number="BC123", traveler_type="child",
         )
+        partial.refresh_from_db()
+        self.assertEqual(partial.payment_status, Booking.PaymentStatus.AWAITING_DETAILS)
 
         groups, totals = collect_manifest_groups(self.test_date)
         by_id = {g['booking'].pk: g for g in groups}
 
-        self.assertNotIn(self.booking3.pk, by_id)  # pending
-        self.assertEqual(set(by_id), {self.booking1.pk, self.booking2.pk, partial.pk})
-        self.assertEqual(by_id[partial.pk]['headcount'], 4)
-        self.assertEqual(by_id[partial.pk]['missing'], 3)
-        self.assertEqual(by_id[partial.pk]['name'], 'Web Walk-in')
+        self.assertEqual(set(by_id), {self.booking1.pk, self.booking2.pk})
         self.assertEqual(by_id[self.booking1.pk]['name'], 'John Chakanya')
-        self.assertEqual(totals['passengers'], 3 + 2 + 4)
+        self.assertEqual(by_id[self.booking1.pk]['headcount'], 3)
+        self.assertEqual(totals['passengers'], 5)
+        self.assertEqual([h['reference'] for h in totals['held']], [partial.booking_reference])
+        self.assertEqual(totals['held'][0]['pax'], 4)
+
+    def test_manifest_refuses_legacy_incomplete_confirmed_booking(self):
+        """Data confirmed before the rule (bypassing save) blocks the manifest instead of printing gaps."""
+        from .manifests import ManifestIncompleteError, collect_manifest_groups
+
+        legacy = Booking.objects.create(
+            tour=self.tour, tour_name=self.tour.name, start_date=self.test_date, end_date=self.test_date,
+            number_of_adults=2,
+        )
+        Booking.objects.filter(pk=legacy.pk).update(payment_status=Booking.PaymentStatus.PAID)
+
+        with self.assertRaises(ManifestIncompleteError) as ctx:
+            collect_manifest_groups(self.test_date)
+        self.assertEqual(ctx.exception.bookings[0][0], legacy.booking_reference)
+
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(get_user_model().objects.create_user(username='ops2', password='pw', is_staff=True))
+        response = client.get(reverse('customer_data_api:export_booking_manifest'), {'date': self.test_date.isoformat()})
+        self.assertEqual(response.status_code, 409)
+        self.assertIn(legacy.booking_reference, response.json()['error'])
 
     def test_park_manifest_pdf_and_excel(self):
         """Park manifest renders (incl. markup-unsafe names) in both formats."""
@@ -558,3 +581,95 @@ class PassengerManifestSummaryTestCase(TestCase):
             self.assertEqual(response.status_code, 400, path)
 
 
+class PassengerDetailsInvariantTests(TestCase):
+    """A booking is Paid / Deposit Paid only while every passenger has complete details."""
+
+    def setUp(self):
+        start = timezone.now().date() + timedelta(days=10)
+        self.booking = Booking.objects.create(
+            booking_reference='BK-RULE-0001', tour_name='Sunset Cruise', start_date=start, end_date=start,
+            number_of_adults=2, total_amount=100, amount_paid=0,
+        )
+
+    def _add(self, name, **extra):
+        data = dict(booking=self.booking, name=name, age=30, nationality='Zimbabwean', gender='Female',
+                    id_number=f'ID-{name}', traveler_type='adult')
+        data.update(extra)
+        return Traveler.objects.create(**data)
+
+    def _status(self):
+        self.booking.refresh_from_db()
+        return self.booking.payment_status, self.booking.held_payment_status
+
+    def test_payment_before_details_is_held_then_auto_confirmed(self):
+        # Gateway-style save with update_fields that doesn't mention held_payment_status.
+        self.booking.payment_status = Booking.PaymentStatus.DEPOSIT_PAID
+        self.booking.save(update_fields=['payment_status', 'updated_at'])
+        self.assertEqual(self._status(), ('awaiting_details', 'deposit_paid'))
+
+        self._add('Ann')
+        self.assertEqual(self._status()[0], 'awaiting_details')  # 1 of 2
+        self._add('Ben')
+        self.assertEqual(self._status(), ('deposit_paid', ''))   # promoted to what was paid
+
+    def test_incomplete_passenger_blocks_confirmation(self):
+        self._add('Ann')
+        bad = self._add('Ben', id_number='')
+        self.booking.payment_status = Booking.PaymentStatus.PAID
+        self.booking.save()
+        self.assertEqual(self._status(), ('awaiting_details', 'paid'))
+
+        bad.id_number = 'P1234567'
+        bad.save()
+        self.assertEqual(self._status(), ('paid', ''))
+
+    def test_removing_a_passenger_unconfirms(self):
+        self._add('Ann')
+        ben = self._add('Ben')
+        self.booking.payment_status = Booking.PaymentStatus.PAID
+        self.booking.save()
+        self.assertEqual(self._status()[0], 'paid')
+
+        ben.delete()
+        self.assertEqual(self._status(), ('awaiting_details', 'paid'))
+
+    def test_deleting_booking_with_travelers_works(self):
+        self._add('Ann')
+        self._add('Ben')
+        self.booking.delete()
+        self.assertFalse(Traveler.objects.exists())
+
+    def test_api_rejects_confirming_incomplete_booking(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+        client = APIClient()
+        client.force_authenticate(get_user_model().objects.create_user(username='staff', password='pw', is_staff=True))
+        url = reverse('customer_data_api:booking-detail', args=[self.booking.pk])
+
+        response = client.patch(url, {'payment_status': 'paid'}, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('0 of 2 passenger(s) have details recorded.', response.json()['payment_status'])
+        self.assertEqual(self._status()[0], 'pending')
+
+        response = client.patch(url, {'payment_status': 'awaiting_details'}, format='json')
+        self.assertEqual(response.status_code, 400)
+
+        self._add('Ann')
+        self._add('Ben')
+        response = client.patch(url, {'payment_status': 'paid'}, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.json()['traveler_count'], 2)
+        self.assertEqual(response.json()['traveler_details_problems'], [])
+
+    def test_audit_command_holds_legacy_bookings(self):
+        from io import StringIO
+        from django.core.management import call_command
+
+        Booking.objects.filter(pk=self.booking.pk).update(payment_status=Booking.PaymentStatus.PAID)
+        out = StringIO()
+        call_command('audit_traveler_details', stdout=out)
+        self.assertIn('BK-RULE-0001', out.getvalue())
+        self.assertEqual(self._status()[0], 'paid')  # report only
+
+        call_command('audit_traveler_details', '--apply', stdout=StringIO())
+        self.assertEqual(self._status(), ('awaiting_details', 'paid'))

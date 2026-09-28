@@ -132,7 +132,7 @@ class BookingViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing Tour Bookings.
     """
-    queryset = Booking.objects.select_related('customer', 'tour', 'assigned_agent').prefetch_related('payments').all()
+    queryset = Booking.objects.select_related('customer', 'tour', 'assigned_agent').prefetch_related('payments', 'travelers').all()
     serializer_class = BookingSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
     filterset_fields = ['payment_status', 'source', 'customer', 'tour', 'assigned_agent']
@@ -160,6 +160,7 @@ from rest_framework.renderers import JSONRenderer
 from rest_framework.views import APIView
 from datetime import datetime
 from .exports import (
+    ManifestIncompleteError,
     export_booking_manifest_excel,
     export_booking_manifest_pdf,
     export_passenger_manifest_summary_excel,
@@ -207,13 +208,23 @@ class _DatedFileExportView(APIView):
 
         export_format = (request.query_params.get('format') or 'pdf').lower()
         if export_format in ('excel', 'xlsx'):
-            return type(self).excel_exporter(booking_date)
-        if export_format != 'pdf':
+            exporter = type(self).excel_exporter
+        elif export_format == 'pdf':
+            exporter = type(self).pdf_exporter
+        else:
             return Response(
                 {"error": "Invalid format. Use 'pdf' or 'excel'"},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        return type(self).pdf_exporter(booking_date)
+        try:
+            return exporter(booking_date)
+        except ManifestIncompleteError as exc:
+            return Response(
+                {"error": str(exc), "bookings": [
+                    {"booking_reference": ref, "problems": problems} for ref, problems in exc.bookings
+                ]},
+                status=status.HTTP_409_CONFLICT,
+            )
 
 
 class BookingManifestExportView(_DatedFileExportView):

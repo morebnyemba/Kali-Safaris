@@ -143,7 +143,8 @@ class InteractionSerializer(serializers.ModelSerializer):
 
     # Writable fields for creating an interaction
     customer_id = serializers.PrimaryKeyRelatedField(
-        queryset=CustomerProfile.objects.all(), source='customer', write_only=True
+        queryset=CustomerProfile.objects.all(), source='customer', write_only=True,
+        required=False, allow_null=True,
     )
     agent_id = serializers.PrimaryKeyRelatedField(
         # Ensure only staff members can be assigned as agents
@@ -206,18 +207,62 @@ class BookingSerializer(serializers.ModelSerializer):
     )
 
     payment_status_display = serializers.CharField(source='get_payment_status_display', read_only=True)
+    traveler_count = serializers.SerializerMethodField()
+    traveler_details_problems = serializers.SerializerMethodField()
     source_display = serializers.CharField(source='get_source_display', read_only=True)
 
     class Meta:
         model = Booking
         fields = [
-            'booking_reference', 'customer', 'customer_id', 'tour', 'tour_id', 'tour_name',
+            'id', 'booking_reference', 'customer', 'customer_id', 'tour', 'tour_id', 'tour_name',
             'start_date', 'end_date', 'number_of_adults', 'number_of_children',
             'total_amount', 'amount_paid', 'payment_status', 'payment_status_display',
+            'held_payment_status', 'traveler_count', 'traveler_details_problems',
             'source', 'source_display', 'notes', 'assigned_agent', 'assigned_agent_id',
             'created_at', 'updated_at', 'payments'
         ]
-        read_only_fields = ('amount_paid', 'created_at', 'updated_at', 'payments')
+        read_only_fields = ('id', 'amount_paid', 'held_payment_status', 'created_at', 'updated_at', 'payments')
+
+    def _travelers(self, obj):
+        # Uses the viewset's prefetch; one list per booking.
+        return list(obj.travelers.all())
+
+    def get_traveler_count(self, obj):
+        return len(self._travelers(obj))
+
+    def get_traveler_details_problems(self, obj):
+        return obj.traveler_details_problems(self._travelers(obj))
+
+    def validate(self, attrs):
+        """
+        Staff can't confirm a booking (Paid / Deposit Paid) until every
+        passenger has complete details. Rejected explicitly here; the model's
+        save() guard only holds (never rejects) so payment callbacks can't fail.
+        """
+        attrs = super().validate(attrs)
+        status = attrs.get('payment_status', getattr(self.instance, 'payment_status', None))
+        if status == Booking.PaymentStatus.AWAITING_DETAILS and (
+            self.instance is None or self.instance.payment_status != status
+        ):
+            raise serializers.ValidationError({
+                'payment_status': "This status is set automatically when a payment arrives before passenger details are complete."
+            })
+        if status in Booking.CONFIRMED_PAYMENT_STATUSES:
+            booking = self.instance or Booking()
+            probe = Booking(
+                pk=booking.pk,
+                number_of_adults=attrs.get('number_of_adults', booking.number_of_adults),
+                number_of_children=attrs.get('number_of_children', booking.number_of_children),
+            )
+            problems = probe.traveler_details_problems()
+            if problems:
+                raise serializers.ValidationError({
+                    'payment_status': [
+                        "Add complete details for every passenger before confirming this booking.",
+                        *problems,
+                    ]
+                })
+        return attrs
 
 
 class TourInquirySerializer(serializers.ModelSerializer):
