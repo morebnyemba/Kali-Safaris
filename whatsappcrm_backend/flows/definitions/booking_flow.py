@@ -586,8 +586,42 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "query_traveler_details_whatsapp_flow", "priority": 1, "condition_config": {"type": "variable_less_than_or_equal", "variable_name": "traveler_index", "value_template": "{{ num_travelers|int }}"}},
-                {"to_step": "ask_email", "priority": 2, "condition_config": {"type": "always_true"}}
+                {"to_step": "validate_travelers_before_booking", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
+        },
+        # Step 7: Gate — no Booking may be created without complete details for every passenger.
+        # Every create_model_instance(Booking) step in this flow is reachable only through here.
+        {
+            "name": "validate_travelers_before_booking",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "validate_travelers_details", "params_template": {"travelers_context_var": "travelers_details"}}
+                ]
+            },
+            "transitions": [
+                {"to_step": "ask_email", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "travelers_valid", "value": "yes"}},
+                {"to_step": "travelers_invalid_restart", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "travelers_invalid_restart",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "⚠️ We need complete details for every passenger before we can create your booking.\n\n{{ travelers_validation_error }}\n\nLet's re-enter the traveler details."}
+            },
+            "transitions": [{"to_step": "reset_travelers_for_reentry", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "reset_travelers_for_reentry",
+            "type": "action",
+            "config": {
+                "actions_to_run": [
+                    {"action_type": "set_context_variable", "variable_name": "travelers_details", "value_template": []}
+                ]
+            },
+            "transitions": [{"to_step": "initialize_traveler_loop", "condition_config": {"type": "always_true"}}]
         },
         # Step 8: Ask for contact email
         {

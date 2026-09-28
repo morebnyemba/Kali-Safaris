@@ -10,7 +10,7 @@ from django.utils import timezone
 
 from conversations.models import Contact
 from customer_data.models import Booking, Traveler
-from flows.actions import _extract_media_id, save_travelers_to_booking
+from flows.actions import _extract_media_id, save_travelers_to_booking, validate_travelers_details
 from flows.definitions.booking_flow import BOOKING_FLOW
 from flows.services import _coerce_literal, _resolve_value
 
@@ -131,7 +131,7 @@ class SaveTravelersToBookingTests(TestCase):
         self.assertEqual(self.booking.travelers.count(), 3)
 
     def test_never_exceeds_booked_passengers(self):
-        travelers = [self._traveler(n) for n in ('A', 'B', 'C', 'D', 'E')]
+        travelers = [self._traveler(n) for n in ('Ann', 'Ben', 'Cal', 'Dan', 'Eve')]
         self._save(travelers)
         self.assertEqual(self.booking.travelers.count(), 3)
 
@@ -146,3 +146,61 @@ class SaveTravelersToBookingTests(TestCase):
         mock_download.assert_called_once()
         self.assertEqual(mock_download.call_args[0][0], 'MEDIA42')
         self.assertTrue(self.booking.travelers.get().id_document)
+
+
+class BookingCreationGateTests(TestCase):
+    """No booking may be created in the WhatsApp flow without full traveler details."""
+
+    def _ctx(self, travelers, adults=2, children=0):
+        return {'travelers_details': travelers, 'num_adults': adults, 'num_children': children}
+
+    def _traveler(self, name, **extra):
+        data = {'name': name, 'age': '30', 'nationality': 'Zimbabwean', 'gender': 'male',
+                'id_number': f'ID-{name}', 'medical': '', 'type': 'adult'}
+        data.update(extra)
+        return data
+
+    def test_complete_details_pass(self):
+        ctx = validate_travelers_details(None, self._ctx([self._traveler('Ann'), self._traveler('Ben')]), {})
+        self.assertEqual(ctx['travelers_valid'], 'yes')
+        self.assertEqual(ctx['travelers_validation_error'], '')
+
+    def test_blocks_missing_count_fields_and_duplicates(self):
+        cases = [
+            [self._traveler('Ann')],                                    # 1 of 2
+            [self._traveler('Ann'), self._traveler('Ben', id_number='')],
+            [self._traveler('Ann'), self._traveler('Ben', nationality='None')],
+            [self._traveler('Ann'), self._traveler('Ben', age='thirty')],
+            [self._traveler('Ann'), self._traveler('Ben', gender='x')],
+            [self._traveler('Ann'), self._traveler('Ann')],             # duplicate
+            'not-a-list',
+        ]
+        for travelers in cases:
+            ctx = validate_travelers_details(None, self._ctx(travelers), {})
+            self.assertEqual(ctx['travelers_valid'], 'no', travelers)
+            self.assertTrue(ctx['travelers_validation_error'])
+
+    def test_every_booking_create_step_is_behind_the_gate(self):
+        """All paths to a Booking create step pass through validate_travelers_before_booking."""
+        steps = {s['name']: s for s in BOOKING_FLOW['steps']}
+        creates = {
+            name for name, s in steps.items()
+            if any(a.get('action_type') == 'create_model_instance' and a.get('model_name') == 'Booking'
+                   for a in s.get('config', {}).get('actions_to_run', []))
+        }
+        self.assertTrue(creates)
+
+        # Walk from the entry point without passing through the gate.
+        entry = next(n for n, s in steps.items() if s.get('is_entry_point'))
+        seen, stack = set(), [entry]
+        while stack:
+            name = stack.pop()
+            if name in seen or name == 'validate_travelers_before_booking' or name not in steps:
+                continue
+            seen.add(name)
+            stack.extend(t['to_step'] for t in steps[name].get('transitions', []))
+        self.assertFalse(creates & seen, f"Reachable without the traveler gate: {creates & seen}")
+
+        gate = steps['validate_travelers_before_booking']
+        self.assertEqual(gate['transitions'][0]['to_step'], 'ask_email')
+        self.assertEqual(gate['transitions'][0]['condition_config']['value'], 'yes')

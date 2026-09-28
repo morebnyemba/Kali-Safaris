@@ -139,12 +139,20 @@ class OmariViewTests(TestCase):
             'otpReference': 'ETDC'
         }
 
+        from datetime import date
+        from customer_data.models import Booking
+        booking = Booking.objects.create(
+            booking_reference='BK-OMARI-TEST', tour_name='Test Cruise',
+            start_date=date.today(), end_date=date.today(), total_amount=Decimal('10.00'),
+        )
+
         response = self.http_client.post(
             reverse('omari_integration:auth'),
             data=json.dumps({
                 'msisdn': '263774975187',
                 'amount': 3.50,
-                'currency': 'USD'
+                'currency': 'USD',
+                'booking_reference': booking.booking_reference,
             }),
             content_type='application/json'
         )
@@ -154,11 +162,23 @@ class OmariViewTests(TestCase):
         self.assertFalse(data['error'])
         self.assertIn('reference', data)
         
-        # Verify transaction was created
+        # Verify transaction was created and linked to the booking
         txn = OmariTransaction.objects.filter(reference=data['reference']).first()
         self.assertIsNotNone(txn)
         self.assertEqual(txn.status, 'OTP_SENT')
         self.assertEqual(txn.otp_reference, 'ETDC')
+        self.assertEqual(txn.booking_id, booking.pk)
+
+    @patch('omari_integration.views.OmariClient.auth')
+    def test_auth_view_rejects_payment_without_booking(self, mock_auth):
+        """An amount with no booking reference/details is never charged."""
+        response = self.http_client.post(
+            reverse('omari_integration:auth'),
+            data=json.dumps({'msisdn': '263774975187', 'amount': 3.50, 'currency': 'USD'}),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        mock_auth.assert_not_called()
 
     @patch('omari_integration.views.OmariClient.request')
     def test_request_view_updates_transaction(self, mock_request):

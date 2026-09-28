@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from customer_data.models import Booking, TourInquiry
+from customer_data.traveler_validation import normalize_traveler, validate_traveler_list
 from pdfs.services import generate_quote_pdf
 from paynow_integration.services import PaynowService
 from .utils import get_contact_from_context
@@ -280,6 +281,28 @@ def _extract_media_id(value) -> str:
     return str(value).strip()
 
 
+@register_flow_action('validate_travelers_details')
+def validate_travelers_details(contact, context: dict, params: dict) -> dict:
+    """
+    Gate run before any Booking is created in the booking flow: requires
+    complete details for every booked passenger.
+
+    Sets `travelers_valid` ('yes'/'no') and `travelers_validation_error`.
+    """
+    travelers_var = params.get('travelers_context_var', 'travelers_details')
+    try:
+        expected = int(context.get('num_adults') or 0) + int(context.get('num_children') or 0)
+    except (TypeError, ValueError):
+        expected = 0
+
+    _, error = validate_traveler_list(context.get(travelers_var), expected)
+    context['travelers_valid'] = 'no' if error else 'yes'
+    context['travelers_validation_error'] = error or ''
+    if error:
+        logger.warning(f"validate_travelers_details: blocking booking creation — {error}")
+    return context
+
+
 @register_flow_action('save_travelers_to_booking')
 def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
     """
@@ -304,11 +327,6 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
     
     contact = contact or get_contact_from_context(context)
 
-    def _clean(value):
-        # Flow templates can hand back None / 'None' for unanswered fields.
-        text = '' if value is None else str(value).strip()
-        return '' if text.lower() in ('none', 'null', 'undefined') else text
-
     try:
         booking = Booking.objects.get(pk=booking_data['id'])
 
@@ -327,36 +345,16 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
             if not isinstance(traveler_data, dict):
                 continue
 
-            # Extract traveler information
-            name = _clean(traveler_data.get('name'))
-            age = _clean(traveler_data.get('age'))
-            nationality = _clean(traveler_data.get('nationality'))
-            gender = _clean(traveler_data.get('gender'))
-            id_number = _clean(traveler_data.get('id_number'))
-            medical = _clean(traveler_data.get('medical'))
-            traveler_type = _clean(traveler_data.get('type')).lower()
+            cleaned, error = normalize_traveler(traveler_data)
+            if error:
+                # validate_travelers_details gates booking creation, so this
+                # only happens for data that bypassed the booking flow.
+                logger.warning(f"Skipping traveler on booking {booking.booking_reference}: {error}")
+                continue
+            name = cleaned['name']
             id_document_media_id = _extract_media_id(traveler_data.get('id_document'))
 
-            if traveler_type not in (Traveler.TravelerType.ADULT, Traveler.TravelerType.CHILD):
-                traveler_type = Traveler.TravelerType.ADULT
-            gender = {'m': 'Male', 'f': 'Female'}.get(gender.lower(), gender.title())
-
-            # Skip if essential fields are missing
-            if not name or age == '':
-                logger.warning(f"Skipping traveler with incomplete data: {traveler_data}")
-                continue
-
-            # Validate and convert age to integer
-            try:
-                age_int = int(float(age))
-                if age_int < 0 or age_int > 120:
-                    logger.warning(f"Skipping traveler {name} with invalid age: {age}")
-                    continue
-            except (ValueError, TypeError):
-                logger.warning(f"Skipping traveler {name} with non-numeric age: {age}")
-                continue
-
-            key = (name.lower(), id_number.lower())
+            key = (name.lower(), cleaned['id_number'].lower())
             if key in existing_keys:
                 logger.info(f"Traveler {name} already recorded on booking {booking.booking_reference}; skipping duplicate.")
                 continue
@@ -367,22 +365,7 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
                 )
                 break
 
-            # Process medical requirements
-            medical_requirements = ''
-            if medical.lower() not in ['none', 'no', 'n/a', 'na', 'nil', '']:
-                medical_requirements = medical
-
-            # Create Traveler instance
-            traveler = Traveler.objects.create(
-                booking=booking,
-                name=name,
-                age=age_int,
-                nationality=nationality,
-                gender=gender,
-                id_number=id_number,
-                medical_dietary_requirements=medical_requirements,
-                traveler_type=traveler_type
-            )
+            traveler = Traveler.objects.create(booking=booking, **cleaned)
             existing_keys.add(key)
             if remaining_slots is not None:
                 remaining_slots -= 1

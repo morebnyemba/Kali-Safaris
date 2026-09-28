@@ -31,6 +31,7 @@ from django.db import transaction as db_transaction
 from django.core.files.base import ContentFile
 
 from customer_data.models import Booking, Payment, Traveler, CustomerProfile
+from customer_data.traveler_validation import validate_traveler_list
 from conversations.models import Contact
 from products_and_services.models import Tour, resolve_tour_price
 from .models import CBZConfig, CBZTransaction
@@ -519,10 +520,18 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
             f"{adults} traveler(s) (you were quoted ${client_amount}). Please refresh and try again."
         )
 
-    # Everything below is best-effort record-keeping around the booking we've
-    # already priced above — a failure here (a bad traveler payload, a
-    # customer-lookup hiccup) shouldn't block a correctly-priced payment, so
-    # it's swallowed and just leaves `booking` unlinked rather than raising.
+    # A booking must never exist without complete details for every paid
+    # seat: reject before any payment is initiated. The message is shown to
+    # the customer as-is.
+    travelers_payload = details.get('travelers') if isinstance(details.get('travelers'), list) else []
+    travelers, traveler_error = validate_traveler_list(travelers_payload, adults)
+    if traveler_error:
+        raise PricingError(traveler_error)
+
+    # Everything below is record-keeping around a booking we've already priced
+    # and validated. Booking + travelers are written atomically, so a failure
+    # (e.g. a storage hiccup on an ID upload) leaves no booking at all rather
+    # than one without passengers; the payment then proceeds unlinked.
     try:
         customer_details = details.get('customer') if isinstance(details.get('customer'), dict) else {}
         customer_name = str(customer_details.get('full_name') or '').strip()
@@ -544,82 +553,34 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
             customer_name, customer_email, customer_phone, customer_country,
         )
 
-        booking = Booking.objects.create(
-            booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
-            tour=tour,
-            tour_name=str(tour_name).strip(),
-            start_date=start_date,
-            end_date=start_date,
-            number_of_adults=adults,
-            number_of_children=0,
-            total_amount=authoritative_amount,
-            payment_status=Booking.PaymentStatus.PENDING,
-            source=Booking.BookingSource.MANUAL_ENTRY,
-            customer=customer_profile,  # NOW linking the customer!
-            notes='\n'.join(part for part in note_parts if part),
-            booking_details_payload=details or None,
-        )
-
-        travelers_payload = details.get('travelers') if isinstance(details.get('travelers'), list) else []
-        if len(travelers_payload) > adults:
-            # Only `adults` seats were priced and paid for; extra traveler rows
-            # would put unpaid passengers on the park manifest.
-            logger.warning(
-                "Website booking %s submitted %s travelers for %s paid seat(s); keeping the first %s.",
-                booking.booking_reference, len(travelers_payload), adults, adults,
-            )
-            travelers_payload = travelers_payload[:adults]
-
-        for traveler in travelers_payload:
-            if not isinstance(traveler, dict):
-                continue
-
-            name = str(traveler.get('name') or '').strip()
-            nationality = str(traveler.get('nationality') or '').strip()
-            gender = str(traveler.get('gender') or '').strip()
-            id_number = str(traveler.get('id_number') or '').strip()
-            traveler_type = str(traveler.get('type') or Traveler.TravelerType.ADULT).strip().lower()
-            medical = str(traveler.get('medical') or '').strip()
-            id_document_data_url = str(traveler.get('id_document_data_url') or '').strip()
-            id_document_name = str(traveler.get('id_document_name') or '').strip()
-            id_document_mime_type = str(traveler.get('id_document_mime_type') or '').strip()
-
-            # Age 0 is valid (infant under one); only a missing/non-numeric age is rejected.
-            raw_age = traveler.get('age')
-            try:
-                age = int(raw_age) if raw_age not in (None, '') else -1
-            except (TypeError, ValueError):
-                age = -1
-
-            if not name or not (0 <= age <= 120) or not nationality or not gender or not id_number:
-                logger.warning(
-                    "Website booking %s: skipping traveler with incomplete details (name=%r).",
-                    booking.booking_reference, name,
-                )
-                continue
-
-            if traveler_type not in {Traveler.TravelerType.ADULT, Traveler.TravelerType.CHILD}:
-                traveler_type = Traveler.TravelerType.ADULT
-
-            traveler_obj = Traveler.objects.create(
-                booking=booking,
-                name=name,
-                age=age,
-                nationality=nationality,
-                gender=gender,
-                id_number=id_number,
-                traveler_type=traveler_type,
-                medical_dietary_requirements=medical or None,
+        with db_transaction.atomic():
+            booking = Booking.objects.create(
+                booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
+                tour=tour,
+                tour_name=str(tour_name).strip(),
+                start_date=start_date,
+                end_date=start_date,
+                number_of_adults=adults,
+                number_of_children=0,
+                total_amount=authoritative_amount,
+                payment_status=Booking.PaymentStatus.PENDING,
+                source=Booking.BookingSource.MANUAL_ENTRY,
+                customer=customer_profile,
+                notes='\n'.join(part for part in note_parts if part),
+                booking_details_payload=details or None,
             )
 
-            if id_document_data_url:
-                _save_traveler_document_from_data_url(
-                    traveler_obj,
-                    id_document_data_url,
-                    fallback_name=id_document_name,
-                    declared_mime=id_document_mime_type,
-                )
-                traveler_obj.save(update_fields=['id_document', 'updated_at'])
+            for cleaned, raw in zip(travelers, travelers_payload):
+                traveler_obj = Traveler.objects.create(booking=booking, **cleaned)
+                id_document_data_url = str(raw.get('id_document_data_url') or '').strip()
+                if id_document_data_url:
+                    _save_traveler_document_from_data_url(
+                        traveler_obj,
+                        id_document_data_url,
+                        fallback_name=str(raw.get('id_document_name') or '').strip(),
+                        declared_mime=str(raw.get('id_document_mime_type') or '').strip(),
+                    )
+                    traveler_obj.save(update_fields=['id_document', 'updated_at'])
     except Exception as exc:
         logger.warning("Error creating draft booking for website payment: %s", exc)
         booking = None
