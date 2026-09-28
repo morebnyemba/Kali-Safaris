@@ -243,6 +243,43 @@ def create_placeholder_order(contact, context: dict, params: dict) -> dict:
 
     return context
 
+def _extract_media_id(value) -> str:
+    """
+    Normalises an ID-document reference to a bare WhatsApp media id.
+
+    A WhatsApp Flows PhotoPicker returns a list of objects
+    (`[{"media_id": "...", "cdn_url": "...", "file_name": "..."}]`), which may
+    reach us as a list, a dict, or the list's string repr after templating.
+    The text-based path may hand us a plain media id string.
+    """
+    import ast
+    import json
+
+    if value is None:
+        return ''
+    if isinstance(value, str):
+        text = value.strip()
+        if not text or text.lower() in ('none', 'null', 'undefined'):
+            return ''
+        if text[0] in '[{':
+            for parser in (json.loads, ast.literal_eval):
+                try:
+                    return _extract_media_id(parser(text))
+                except (ValueError, SyntaxError, TypeError):
+                    continue
+            return ''
+        return text
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            media_id = _extract_media_id(item)
+            if media_id:
+                return media_id
+        return ''
+    if isinstance(value, dict):
+        return str(value.get('media_id') or value.get('id') or '').strip()
+    return str(value).strip()
+
+
 @register_flow_action('save_travelers_to_booking')
 def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
     """
@@ -265,47 +302,76 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
         logger.warning(f"save_travelers_to_booking: No traveler details found in context variable '{travelers_var}'.")
         return context
     
+    contact = contact or get_contact_from_context(context)
+
+    def _clean(value):
+        # Flow templates can hand back None / 'None' for unanswered fields.
+        text = '' if value is None else str(value).strip()
+        return '' if text.lower() in ('none', 'null', 'undefined') else text
+
     try:
         booking = Booking.objects.get(pk=booking_data['id'])
-        
+
+        # Never record more passengers than were booked (and paid for), and
+        # make re-running this action (flow retry / resumed session) idempotent.
+        booked_pax = (booking.number_of_adults or 0) + (booking.number_of_children or 0)
+        existing_keys = {
+            (n.strip().lower(), (i or '').strip().lower())
+            for n, i in booking.travelers.values_list('name', 'id_number')
+        }
+        remaining_slots = max(booked_pax - len(existing_keys), 0) if booked_pax else None
+
         # Create Traveler instances for each traveler in the list
         travelers_created = 0
         for traveler_data in travelers_details:
             if not isinstance(traveler_data, dict):
                 continue
-                
+
             # Extract traveler information
-            name = traveler_data.get('name', '')
-            age = traveler_data.get('age', 0)
-            nationality = traveler_data.get('nationality', '')
-            gender = traveler_data.get('gender', '')
-            id_number = traveler_data.get('id_number', '')
-            medical = traveler_data.get('medical', '')
-            traveler_type = traveler_data.get('type', 'adult')
-            id_document_media_id = traveler_data.get('id_document', '')
-            
+            name = _clean(traveler_data.get('name'))
+            age = _clean(traveler_data.get('age'))
+            nationality = _clean(traveler_data.get('nationality'))
+            gender = _clean(traveler_data.get('gender'))
+            id_number = _clean(traveler_data.get('id_number'))
+            medical = _clean(traveler_data.get('medical'))
+            traveler_type = _clean(traveler_data.get('type')).lower()
+            id_document_media_id = _extract_media_id(traveler_data.get('id_document'))
+
+            if traveler_type not in (Traveler.TravelerType.ADULT, Traveler.TravelerType.CHILD):
+                traveler_type = Traveler.TravelerType.ADULT
+            gender = {'m': 'Male', 'f': 'Female'}.get(gender.lower(), gender.title())
+
             # Skip if essential fields are missing
-            if not name or age is None or age == '':
+            if not name or age == '':
                 logger.warning(f"Skipping traveler with incomplete data: {traveler_data}")
                 continue
-            
+
             # Validate and convert age to integer
             try:
-                age_int = int(age)
-                if age_int < 0 or age_int > 150:
+                age_int = int(float(age))
+                if age_int < 0 or age_int > 120:
                     logger.warning(f"Skipping traveler {name} with invalid age: {age}")
                     continue
             except (ValueError, TypeError):
                 logger.warning(f"Skipping traveler {name} with non-numeric age: {age}")
                 continue
-            
+
+            key = (name.lower(), id_number.lower())
+            if key in existing_keys:
+                logger.info(f"Traveler {name} already recorded on booking {booking.booking_reference}; skipping duplicate.")
+                continue
+            if remaining_slots is not None and remaining_slots <= 0:
+                logger.warning(
+                    f"Booking {booking.booking_reference} already has {booked_pax} traveler(s); "
+                    f"not adding extra traveler {name}."
+                )
+                break
+
             # Process medical requirements
             medical_requirements = ''
-            if medical and isinstance(medical, str):
-                medical_lower = medical.lower()
-                if medical_lower not in ['none', 'no', 'n/a', '']:
-                    medical_requirements = medical
-            
+            if medical.lower() not in ['none', 'no', 'n/a', 'na', 'nil', '']:
+                medical_requirements = medical
+
             # Create Traveler instance
             traveler = Traveler.objects.create(
                 booking=booking,
@@ -317,9 +383,12 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
                 medical_dietary_requirements=medical_requirements,
                 traveler_type=traveler_type
             )
-            
+            existing_keys.add(key)
+            if remaining_slots is not None:
+                remaining_slots -= 1
+
             # Handle ID document if provided
-            if id_document_media_id:
+            if id_document_media_id and contact:
                 try:
                     from meta_integration.utils import download_whatsapp_media
                     from django.core.files.base import ContentFile
@@ -348,6 +417,11 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
         
         logger.info(f"Successfully created {travelers_created} traveler records for Booking {booking.booking_reference}.")
         context['travelers_saved_count'] = travelers_created
+        if booked_pax and booking.travelers.count() < booked_pax:
+            logger.warning(
+                f"Booking {booking.booking_reference}: only {booking.travelers.count()} of {booked_pax} "
+                f"traveler(s) have details recorded; manifest will show the rest as pending."
+            )
         
     except Booking.DoesNotExist:
         logger.error(f"save_travelers_to_booking: Booking with ID {booking_data['id']} not found.")

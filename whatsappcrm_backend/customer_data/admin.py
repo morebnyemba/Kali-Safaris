@@ -1,4 +1,4 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.http import HttpResponse
 from django.utils import timezone
 from io import BytesIO
@@ -280,22 +280,32 @@ class BookingAdmin(admin.ModelAdmin):
         Uses the first booking's start_date from the selected queryset.
         """
         from .exports import export_booking_manifest_pdf
-        
-        if not queryset.exists():
-            self.message_user(request, "No bookings selected.", level='warning')
+
+        booking_date = self._single_selected_date(request, queryset)
+        if booking_date is None:
             return
-        
-        # Use the start_date from the first booking in the queryset
-        booking_date = queryset.first().start_date
-        
-        # Filter all bookings for that date (not just selected ones)
-        self.message_user(
-            request, 
-            f"Generating manifest for {booking_date.strftime('%B %d, %Y')} (all bookings on that date)...",
-            level='info'
-        )
-        
+        # Covers every confirmed booking on that date, not just the selected ones.
         return export_booking_manifest_pdf(booking_date)
+
+    def _single_selected_date(self, request, queryset):
+        """
+        Manifests are per tour date. Returns the one start_date shared by the
+        selection, or None (with an admin message) when the selection is
+        empty or spans several dates.
+        """
+        dates = sorted(set(queryset.values_list('start_date', flat=True)))
+        if not dates:
+            self.message_user(request, "No bookings selected.", level=messages.WARNING)
+            return None
+        if len(dates) > 1:
+            listed = ", ".join(d.strftime('%d %b %Y') for d in dates[:5])
+            self.message_user(
+                request,
+                f"Select bookings from a single tour date — your selection spans {len(dates)} dates ({listed}).",
+                level=messages.ERROR,
+            )
+            return None
+        return dates[0]
     
     export_manifest_for_date.short_description = "Export Manifest for Booking Date (ZimParks Format)"
     
@@ -305,26 +315,10 @@ class BookingAdmin(admin.ModelAdmin):
         Shows headcount per booking group for crew planning and park fees.
         """
         from .exports import export_passenger_manifest_summary_pdf
-        
-        if not queryset.exists():
-            self.message_user(request, "No bookings selected.", level='warning')
+
+        booking_date = self._single_selected_date(request, queryset)
+        if booking_date is None:
             return
-        
-        # Use the start_date from the first booking in the queryset
-        booking_date = queryset.first().start_date
-        
-        # Filter to confirmed bookings for that date
-        confirmed_count = Booking.objects.filter(
-            start_date=booking_date,
-            payment_status__in=[Booking.PaymentStatus.PAID, Booking.PaymentStatus.DEPOSIT_PAID]
-        ).count()
-        
-        self.message_user(
-            request,
-            f"Generating passenger summary for {booking_date.strftime('%B %d, %Y')} ({confirmed_count} confirmed booking(s))...",
-            level='info'
-        )
-        
         return export_passenger_manifest_summary_pdf(booking_date)
     
     export_passenger_summary_for_date.short_description = "Export Passenger Summary (Operational - Headcount)"

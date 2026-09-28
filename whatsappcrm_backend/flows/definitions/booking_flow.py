@@ -471,7 +471,7 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "Let's get the details for {% if adult_index <= num_adults|int %}Adult {{ adult_index }} of {{ num_adults }}{% else %}Child {{ child_index }} of {{ num_children }}{% endif %}.\n\nWhat is their full name?"}
+                    "text": {"body": "Let's get the details for {% if (traveler_index|int) <= (num_adults|int) %}Adult {{ traveler_index|int }} of {{ num_adults|int }}{% else %}Child {{ (traveler_index|int) - (num_adults|int) }} of {{ num_children|int }}{% endif %}.\n\nWhat is their full name?"}
                 },
                 "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_name"},
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid name."}
@@ -515,7 +515,7 @@ BOOKING_FLOW = {
                     "message_type": "text",
                     "text": {"body": "What is the gender of *{{ current_traveler_name }}*? (Male/Female/Other)"}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_gender", "validation_regex": "^(?i)(male|female|other|m|f)$"},
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_gender", "validation_regex": "(?i)^(male|female|other|m|f)$"},
                 "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid gender (Male, Female, Other, or M/F)."}
             },
             "transitions": [{"to_step": "ask_traveler_id_number", "condition_config": {"type": "always_true"}}]
@@ -551,6 +551,11 @@ BOOKING_FLOW = {
         # Note: This step tracks both overall traveler_index (1 to num_travelers) and separate
         # adult_index and child_index counters. Adults are collected first (traveler_index 1 to num_adults),
         # then children (traveler_index num_adults+1 to num_travelers).
+        # Actions run in order, so adult/child counters are updated BEFORE traveler_index is incremented
+        # (they must classify the traveler just added, not the next one). Every field is defaulted with
+        # `or ''`: an unset variable (e.g. no ID photo on the text path) would otherwise render as
+        # `Undefined` inside the list literal, the result would no longer parse as a list, and every
+        # traveler collected so far would be lost.
         {
             "name": "add_traveler_to_list",
             "type": "action",
@@ -559,12 +564,7 @@ BOOKING_FLOW = {
                     {
                         "action_type": "set_context_variable",
                         "variable_name": "travelers_details",
-                        "value_template": "{{ travelers_details + [{'name': current_traveler_name, 'age': current_traveler_age|string, 'nationality': current_traveler_nationality, 'medical': current_traveler_medical, 'gender': current_traveler_gender, 'id_number': current_traveler_id_number, 'id_document': current_traveler_id_document, 'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
-                    },
-                    {
-                        "action_type": "set_context_variable",
-                        "variable_name": "traveler_index",
-                        "value_template": "{{ (traveler_index|int) + 1 }}"
+                        "value_template": "{{ (travelers_details if travelers_details is sequence and travelers_details is not string else []) + [{'name': (current_traveler_name or '')|string|trim, 'age': (current_traveler_age if current_traveler_age is not none else '')|string|trim, 'nationality': (current_traveler_nationality or '')|string|trim, 'medical': (current_traveler_medical or '')|string|trim, 'gender': (current_traveler_gender or '')|string|trim, 'id_number': (current_traveler_id_number or '')|string|trim, 'id_document': (current_traveler_id_document or ''),'type': ('adult' if (traveler_index|int) <= (num_adults|int) else 'child')}] }}"
                     },
                     {
                         "action_type": "set_context_variable",
@@ -575,7 +575,13 @@ BOOKING_FLOW = {
                         "action_type": "set_context_variable",
                         "variable_name": "child_index",
                         "value_template": "{{ (child_index|int) + 1 if (traveler_index|int) > (num_adults|int) else (child_index|int) }}"
-                    }
+                    },
+                    {
+                        "action_type": "set_context_variable",
+                        "variable_name": "traveler_index",
+                        "value_template": "{{ (traveler_index|int) + 1 }}"
+                    },
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_id_document", "value_template": ""}
                 ]
             },
             "transitions": [

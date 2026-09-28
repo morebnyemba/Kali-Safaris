@@ -402,6 +402,53 @@ class PricingError(Exception):
     """
 
 
+def _normalize_phone_to_whatsapp_id(phone: str) -> str:
+    """'+263 77 123 4567' / '0771234567' -> '263771234567' (WhatsApp id format)."""
+    digits = re.sub(r'\D', '', phone or '')
+    if digits.startswith('00'):
+        digits = digits[2:]
+    if len(digits) == 10 and digits.startswith('0'):
+        digits = '263' + digits[1:]
+    return digits if 9 <= len(digits) <= 15 else ''
+
+
+def _resolve_web_customer_profile(name: str, email: str, phone: str, country: str) -> Optional[CustomerProfile]:
+    """
+    Links a website checkout to a CustomerProfile by exact identity only
+    (email, then phone == WhatsApp id), creating one from the phone when new.
+    Never matches on name: a first-name match would attach the booking — and
+    its manifest group name — to an unrelated customer.
+    """
+    try:
+        profile = CustomerProfile.objects.filter(email__iexact=email).first() if email else None
+
+        whatsapp_id = _normalize_phone_to_whatsapp_id(phone)
+        if not profile and whatsapp_id:
+            contact, _ = Contact.objects.get_or_create(
+                whatsapp_id=whatsapp_id,
+                defaults={'name': name or None},
+            )
+            profile, _ = CustomerProfile.objects.get_or_create(contact=contact)
+
+        if not profile:
+            return None
+
+        # Fill gaps only; never overwrite details the customer already has on file.
+        updates = {'email': email, 'country': country}
+        if not profile.first_name and not profile.last_name:
+            first, _, last = (name or '').strip().partition(' ')
+            updates.update(first_name=first.strip(), last_name=last.strip())
+        changed = [f for f, v in updates.items() if v and not getattr(profile, f, None)]
+        for field in changed:
+            setattr(profile, field, updates[field])
+        if changed:
+            profile.save(update_fields=changed)
+        return profile
+    except Exception as exc:
+        logger.warning("Failed to resolve customer profile for website checkout: %s", exc)
+        return None
+
+
 def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) -> tuple[Optional[Booking], Decimal]:
     """
     Resolve a booking by reference, or create a website draft booking when
@@ -493,39 +540,9 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
             f"Special requests: {customer_requests}" if customer_requests else '',
         ]
 
-        # Find or create CustomerProfile to link to booking
-        customer_profile = None
-        if customer_email or customer_name:
-            # Try to find existing customer by email
-            if customer_email:
-                customer_profile = CustomerProfile.objects.filter(email=customer_email).first()
-
-            # If not found, try to find by name (loose match)
-            if not customer_profile and customer_name:
-                customer_profile = CustomerProfile.objects.filter(
-                    first_name__iexact=str(customer_name).split()[0]
-                ).first() if len(str(customer_name).split()) > 0 else None
-
-            # If still not found, create new customer
-            if not customer_profile:
-                try:
-                    # Create Contact first (required by CustomerProfile)
-                    contact = Contact.objects.create(
-                        phone_number=customer_phone,
-                        name=customer_name or 'Unknown'
-                    )
-                    # Create CustomerProfile linked to Contact
-                    names = str(customer_name).split(' ', 1) if customer_name else ['', '']
-                    customer_profile = CustomerProfile.objects.create(
-                        contact=contact,
-                        first_name=names[0],
-                        last_name=names[1] if len(names) > 1 else '',
-                        email=customer_email,
-                        country=customer_country,
-                    )
-                except Exception as e:
-                    logger.warning("Failed to create customer profile for CBZ payment: %s", e)
-                    customer_profile = None
+        customer_profile = _resolve_web_customer_profile(
+            customer_name, customer_email, customer_phone, customer_country,
+        )
 
         booking = Booking.objects.create(
             booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
@@ -544,6 +561,15 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
         )
 
         travelers_payload = details.get('travelers') if isinstance(details.get('travelers'), list) else []
+        if len(travelers_payload) > adults:
+            # Only `adults` seats were priced and paid for; extra traveler rows
+            # would put unpaid passengers on the park manifest.
+            logger.warning(
+                "Website booking %s submitted %s travelers for %s paid seat(s); keeping the first %s.",
+                booking.booking_reference, len(travelers_payload), adults, adults,
+            )
+            travelers_payload = travelers_payload[:adults]
+
         for traveler in travelers_payload:
             if not isinstance(traveler, dict):
                 continue
@@ -558,12 +584,18 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
             id_document_name = str(traveler.get('id_document_name') or '').strip()
             id_document_mime_type = str(traveler.get('id_document_mime_type') or '').strip()
 
+            # Age 0 is valid (infant under one); only a missing/non-numeric age is rejected.
+            raw_age = traveler.get('age')
             try:
-                age = int(traveler.get('age') or 0)
+                age = int(raw_age) if raw_age not in (None, '') else -1
             except (TypeError, ValueError):
-                age = 0
+                age = -1
 
-            if not name or age <= 0 or not nationality or not gender or not id_number:
+            if not name or not (0 <= age <= 120) or not nationality or not gender or not id_number:
+                logger.warning(
+                    "Website booking %s: skipping traveler with incomplete details (name=%r).",
+                    booking.booking_reference, name,
+                )
                 continue
 
             if traveler_type not in {Traveler.TravelerType.ADULT, Traveler.TravelerType.CHILD}:

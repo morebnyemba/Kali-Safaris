@@ -614,13 +614,15 @@ export default function BookingModal({
     for (let i = 0; i < travelers.length; i += 1) {
       const item = travelers[i];
       const label = `Traveler ${i + 1}`;
-      const ageNum = Number(item.age || '0');
+      const ageText = item.age.trim();
+      const ageNum = Number(ageText);
 
       if (!item.name.trim()) {
         return `${label}: full name is required.`;
       }
-      if (!Number.isFinite(ageNum) || ageNum <= 0) {
-        return `${label}: valid age is required.`;
+      // 0 is valid (infant under one); only empty, fractional or out-of-range ages are rejected.
+      if (ageText === '' || !Number.isInteger(ageNum) || ageNum < 0 || ageNum > 120) {
+        return `${label}: valid age is required (0 for infants under one).`;
       }
       if (!item.nationality.trim()) {
         return `${label}: nationality is required.`;
@@ -658,7 +660,7 @@ export default function BookingModal({
       },
       travelers: travelers.map((item) => ({
         name: item.name.trim(),
-        age: Number(item.age || '0'),
+        age: Number(item.age.trim()),
         nationality: item.nationality.trim(),
         gender: item.gender.trim(),
         id_number: item.idNumber.trim(),
@@ -1489,7 +1491,8 @@ export default function BookingModal({
                             <input
                               type="number"
                               placeholder="Age"
-                              min="1"
+                              min="0"
+                              max="120"
                               value={item.age}
                               onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, age: e.target.value } : row)))}
                               className={inputBase}

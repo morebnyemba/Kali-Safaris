@@ -1,8 +1,11 @@
 from django.test import TestCase
+from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
+from io import BytesIO
+import openpyxl
 from .reference_generator import generate_booking_reference, generate_inquiry_reference
-from .models import Booking, TourInquiry, CustomerProfile
+from .models import Booking, TourInquiry, CustomerProfile, Traveler
 from conversations.models import Contact
 
 
@@ -163,15 +166,17 @@ class BookingReferenceUpdateTestCase(TestCase):
             name="Victoria Falls Safari",
             description="3-day safari tour",
             duration_days=3,
-            price_per_person=500.00
+            base_price=500.00
         )
     
     def test_update_to_shared_reference_with_tour(self):
         """Test that booking reference updates to shared format when tour exists"""
         start_date = timezone.now().date() + timedelta(days=7)
         
-        # Create booking with random reference
+        # Create booking with a legacy random reference (save() would otherwise
+        # already assign the shared one for tour bookings)
         booking = Booking.objects.create(
+            booking_reference=generate_booking_reference(),
             customer=self.customer_profile,
             tour=self.tour,
             tour_name=self.tour.name,
@@ -309,7 +314,7 @@ class PassengerManifestSummaryTestCase(TestCase):
             name="Test Safari",
             description="Test tour",
             duration_days=3,
-            price_per_person=100.00
+            base_price=100.00
         )
         
         # Create test date
@@ -478,8 +483,78 @@ class PassengerManifestSummaryTestCase(TestCase):
         
         # Should still generate a report (with "no bookings" message)
         response = export_passenger_manifest_summary_pdf(future_date)
-        
+
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertGreater(len(response.content), 0)
+
+    def test_manifest_groups_only_confirmed_and_headcount(self):
+        """Pending/cancelled bookings are excluded; headcount = max(booked, recorded)."""
+        from .manifests import collect_manifest_groups
+
+        Booking.objects.create(
+            customer=self.customer2, tour=self.tour, tour_name=self.tour.name,
+            start_date=self.test_date, end_date=self.test_date,
+            number_of_adults=4, payment_status=Booking.PaymentStatus.CANCELLED,
+        )
+        # Booked for 4, only 1 traveler captured -> 3 pending seats still counted.
+        partial = Booking.objects.create(
+            customer=None, tour=self.tour, tour_name=self.tour.name,
+            start_date=self.test_date, end_date=self.test_date,
+            number_of_adults=4, payment_status=Booking.PaymentStatus.PAID,
+            booking_details_payload={'customer': {'full_name': 'Web Walk-in'}},
+        )
+        Traveler.objects.create(
+            booking=partial, name="Infant Walk-in", age=0, nationality="Zimbabwean",
+            gender="Female", id_number="BC123", traveler_type="child",
+        )
+
+        groups, totals = collect_manifest_groups(self.test_date)
+        by_id = {g['booking'].pk: g for g in groups}
+
+        self.assertNotIn(self.booking3.pk, by_id)  # pending
+        self.assertEqual(set(by_id), {self.booking1.pk, self.booking2.pk, partial.pk})
+        self.assertEqual(by_id[partial.pk]['headcount'], 4)
+        self.assertEqual(by_id[partial.pk]['missing'], 3)
+        self.assertEqual(by_id[partial.pk]['name'], 'Web Walk-in')
+        self.assertEqual(by_id[self.booking1.pk]['name'], 'John Chakanya')
+        self.assertEqual(totals['passengers'], 3 + 2 + 4)
+
+    def test_park_manifest_pdf_and_excel(self):
+        """Park manifest renders (incl. markup-unsafe names) in both formats."""
+        from .exports import export_booking_manifest_pdf, export_booking_manifest_excel
+
+        Traveler.objects.filter(booking=self.booking2, name="Peter Nyemba").update(name="Peter <Tafadzwa> & Co")
+
+        pdf = export_booking_manifest_pdf(self.test_date)
+        self.assertEqual(pdf['Content-Type'], 'application/pdf')
+        self.assertTrue(pdf.content.startswith(b'%PDF'))
+
+        xlsx = export_booking_manifest_excel(self.test_date)
+        workbook = openpyxl.load_workbook(BytesIO(xlsx.content))
+        names = [row[4] for row in workbook.active.iter_rows(min_row=7, values_only=True)]
+        self.assertIn("Peter <Tafadzwa> & Co", names)
+        self.assertEqual(len([n for n in names if n]), 5)  # 3 + 2 confirmed travelers
+
+    def test_manifest_endpoint_accepts_format_excel(self):
+        """`format` is reserved by DRF content negotiation; the view must still honour it."""
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+
+        user = get_user_model().objects.create_user(username='ops', password='pw', is_staff=True)
+        client = APIClient()
+        client.force_authenticate(user)
+
+        for name in ('export_booking_manifest', 'export_passenger_summary'):
+            path = reverse(f'customer_data_api:{name}')
+            response = client.get(path, {'date': self.test_date.isoformat(), 'format': 'excel'})
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn('spreadsheetml', response['Content-Type'])
+
+            response = client.get(path, {'date': self.test_date.isoformat()})
+            self.assertEqual(response.status_code, 200, path)
+            self.assertEqual(response['Content-Type'], 'application/pdf')
+
+            response = client.get(path, {'date': 'not-a-date'})
+            self.assertEqual(response.status_code, 400, path)
 
 

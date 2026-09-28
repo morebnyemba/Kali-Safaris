@@ -79,9 +79,18 @@ GET /api/customer-data/export/passenger-summary/?date=2026-02-10&format=excel
 - CANCELLED bookings
 - REFUNDED bookings
 
+The ZimParks (park entry) manifest uses the **same** filter, so both documents
+always agree. Abandoned website checkout drafts (PENDING) and PENDING_MANUAL
+bookings never reach either document.
+
 ### Passenger Count Logic
-1. **Primary:** Counts actual traveler records in database
-2. **Fallback:** If no travelers recorded, uses `number_of_adults + number_of_children` from booking
+Headcount per booking = **max(booked pax, recorded travelers)**, where booked pax
+= `number_of_adults + number_of_children`.
+
+- A booking for 5 with only 2 travelers captured still counts **5** seats; the
+  park manifest shows 3 numbered "Details pending" rows and the summary shows
+  `Details 2/5`, so the gap is visible instead of silently shrinking the count.
+- The last row number on the park manifest always equals the total headcount.
 
 ### Grouping
 - Groups passengers by booking reference
@@ -239,7 +248,8 @@ Content-Type: application/json
 - **Purpose:** Detailed traveler information for ZimParks
 - **Includes:** Names, ID numbers, nationalities, ages
 - **Use Case:** Regulatory compliance, park entry
-- **Access:** Admin action or `/api/customer-data/export/manifest/`
+- **Access:** Admin action or `/api/customer-data/export/manifest/?date=YYYY-MM-DD[&format=excel]`
+- **Admin actions** require the selected bookings to share one tour date.
 
 ### Booking Travelers Export
 - **Purpose:** Complete traveler list across multiple bookings
