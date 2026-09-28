@@ -33,6 +33,7 @@ from reportlab.pdfgen import canvas as rl_canvas
 from reportlab.platypus import KeepTogether, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .models import Booking, Traveler
+from .traveler_validation import ID_REQUIRED_FROM_AGE
 
 logger = logging.getLogger(__name__)
 
@@ -182,6 +183,18 @@ def collect_manifest_groups(booking_date):
         'held': held,
     }
     return groups, totals
+
+
+def _id_number_label(traveler):
+    # A confirmed passenger without an ID number is always a child under the
+    # ID age (the passenger-details rule guarantees it).
+    return traveler.id_number or f"Under {ID_REQUIRED_FROM_AGE} — not required"
+
+
+def _id_copy_label(traveler):
+    if traveler.id_document:
+        return 'On file'
+    return 'Not required' if not traveler.id_number else 'Missing'
 
 
 def summary_line(groups, totals):
@@ -453,18 +466,19 @@ def export_booking_manifest_pdf(booking_date):
             data.append([
                 str(seq),
                 Paragraph(escape(traveler.name or ''), styles['cell_bold']),
-                traveler.id_number or 'Not provided',
+                _id_number_label(traveler),
                 traveler.nationality or 'Not provided',
                 (traveler.gender or '—').title(),
                 str(traveler.age) if traveler.age is not None else '—',
                 traveler.get_traveler_type_display(),
-                'On file' if has_doc else 'Missing',
+                _id_copy_label(traveler),
             ])
-            style.append(('TEXTCOLOR', (7, row), (7, row), OK if has_doc else WARN))
+            doc_colour = OK if has_doc else (MUTED if not traveler.id_number else WARN)
+            style.append(('TEXTCOLOR', (7, row), (7, row), doc_colour))
             if idx % 2:
                 style.append(('BACKGROUND', (0, row), (-1, row), ROW_ALT))
             if not traveler.id_number:
-                style.append(('TEXTCOLOR', (2, row), (2, row), WARN))
+                style.append(('TEXTCOLOR', (2, row), (2, row), MUTED))
 
 
     table = Table(data, colWidths=col_widths, repeatRows=1, hAlign='LEFT')
@@ -768,9 +782,9 @@ def export_booking_manifest_excel(booking_date):
         prefix = [group['name'], group['reference'], group['tour']]
         for traveler in group['travelers']:
             seq += 1
-            values = [seq, *prefix, traveler.name, traveler.id_number or 'Not provided',
+            values = [seq, *prefix, traveler.name, _id_number_label(traveler),
                       traveler.nationality or 'Not provided', (traveler.gender or '').title(), traveler.age,
-                      traveler.get_traveler_type_display(), 'On file' if traveler.id_document else 'Missing']
+                      traveler.get_traveler_type_display(), _id_copy_label(traveler)]
             for col, value in enumerate(values, start=1):
                 sheet.cell(row=row, column=col, value=value).border = _XL_BORDER
             row += 1

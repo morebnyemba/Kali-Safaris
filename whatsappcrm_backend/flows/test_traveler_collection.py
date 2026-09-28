@@ -204,3 +204,18 @@ class BookingCreationGateTests(TestCase):
         gate = steps['validate_travelers_before_booking']
         self.assertEqual(gate['transitions'][0]['to_step'], 'ask_email')
         self.assertEqual(gate['transitions'][0]['condition_config']['value'], 'yes')
+
+
+class ValidateCurrentTravelerTests(TestCase):
+    def test_flags_problem_for_this_passenger(self):
+        from flows.actions import validate_current_traveler
+        ctx = {'traveler_index': 2, 'current_traveler_name': 'Ben', 'current_traveler_age': '30',
+               'current_traveler_nationality': 'Zimbabwean', 'current_traveler_gender': 'male',
+               'current_traveler_id_number': 'NONE'}
+        ctx = validate_current_traveler(None, ctx, {})
+        self.assertEqual(ctx['current_traveler_valid'], 'no')
+        self.assertIn('age 12 and over', ctx['current_traveler_validation_error'])
+
+        ctx.update(current_traveler_age='7')
+        ctx = validate_current_traveler(None, ctx, {})
+        self.assertEqual(ctx['current_traveler_valid'], 'yes')

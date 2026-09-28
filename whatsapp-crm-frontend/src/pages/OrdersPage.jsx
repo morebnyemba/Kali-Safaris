@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import ManifestExportPanel from '@/components/ManifestExportPanel';
+import PassengerEditor from '@/components/PassengerEditor';
 import { toLocalIsoDate } from '@/lib/utils';
 
 
@@ -66,14 +67,33 @@ export default function OrdersPage() {
     }
   };
 
-  const fetchBookings = () => {
-    setLoading(true);
+  const fetchBookings = ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true);
     setError(null);
-    ordersApi.list()
-      .then((res) => setBookings(res.data.results || res.data))
-      .catch(() => setError('Failed to load bookings.'))
+    return ordersApi.list()
+      .then((res) => {
+        const list = res.data.results || res.data;
+        setBookings(list);
+        return list;
+      })
+      .catch(() => {
+        setError('Failed to load bookings.');
+        return [];
+      })
       .finally(() => setLoading(false));
   };
+
+  // Passenger changes can confirm (or hold) the booking server-side; keep the
+  // table and the open modal's status in sync without closing the modal.
+  const handlePassengersChanged = async () => {
+    const list = await fetchBookings({ quiet: true });
+    const updated = list.find((b) => b.id === editingId);
+    if (updated) {
+      setForm((f) => ({ ...f, payment_status: updated.payment_status }));
+    }
+  };
+
+  const editingBooking = bookings.find((b) => b.id === editingId);
 
   useEffect(() => {
     fetchBookings();
@@ -232,7 +252,7 @@ export default function OrdersPage() {
       )}
 
       <Dialog open={showModal} onOpenChange={setShowModal}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <form onSubmit={handleSubmit} className="space-y-4">
             <h2 className="text-lg font-semibold mb-2">{modalMode === 'add' ? 'Add Booking' : 'Edit Booking'}</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -303,6 +323,14 @@ export default function OrdersPage() {
               <Button type="submit" variant="primary">{modalMode === 'add' ? 'Create' : 'Save'}</Button>
             </div>
           </form>
+          {modalMode === 'edit' && editingBooking ? (
+            <PassengerEditor booking={editingBooking} onChanged={handlePassengersChanged} />
+          ) : (
+            <p className="border-t pt-4 text-sm text-muted-foreground">
+              Create the booking first, then add its passengers. It can only be marked Paid once every passenger has
+              complete details (ID/passport optional for children under 12).
+            </p>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -673,3 +673,125 @@ class PassengerDetailsInvariantTests(TestCase):
 
         call_command('audit_traveler_details', '--apply', stdout=StringIO())
         self.assertEqual(self._status(), ('awaiting_details', 'paid'))
+
+
+class UnderTwelveIdRuleTests(TestCase):
+    def test_id_optional_only_under_12(self):
+        from .traveler_validation import normalize_traveler
+        base = {'name': 'Kid Moyo', 'nationality': 'Zimbabwean', 'gender': 'F', 'id_number': ''}
+
+        cleaned, error = normalize_traveler({**base, 'age': 11})
+        self.assertIsNone(error)
+        self.assertEqual(cleaned['id_number'], '')
+
+        _, error = normalize_traveler({**base, 'age': 12})
+        self.assertIn('age 12 and over', error)
+
+        _, error = normalize_traveler({**base, 'age': 5, 'id_number': 'x'})
+        self.assertIn('too short', error)
+
+        cleaned, error = normalize_traveler({**base, 'age': 0, 'id_number': 'NONE'})
+        self.assertIsNone(error)
+        self.assertEqual(cleaned['id_number'], '')
+
+
+class TravelerApiTests(TestCase):
+    """Dashboard passenger editor API: /crm-api/customer-data/travelers/."""
+
+    def setUp(self):
+        import tempfile
+        from django.contrib.auth import get_user_model
+        from django.test import override_settings
+        from rest_framework.test import APIClient
+
+        self._media = override_settings(MEDIA_ROOT=tempfile.mkdtemp())
+        self._media.enable()
+        self.addCleanup(self._media.disable)
+
+        start = timezone.now().date() + timedelta(days=10)
+        self.booking = Booking.objects.create(
+            booking_reference='BK-API-0001', tour_name='Sunset Cruise', start_date=start, end_date=start,
+            number_of_adults=1, number_of_children=1, total_amount=100,
+        )
+        # Payment already in: held until both passengers are complete.
+        self.booking.payment_status = Booking.PaymentStatus.PAID
+        self.booking.save()
+        self.client = APIClient()
+        self.client.force_authenticate(get_user_model().objects.create_user(username='desk', password='pw', is_staff=True))
+        self.url = reverse('customer_data_api:traveler-list')
+
+    def _post(self, **data):
+        payload = {'booking': self.booking.pk, 'name': 'Ann Moyo', 'age': 34, 'nationality': 'Zimbabwean',
+                   'gender': 'Female', 'id_number': '63-111111-A-42', 'traveler_type': 'adult'}
+        payload.update(data)
+        return self.client.post(self.url, payload, format='multipart' if 'id_document' in data else 'json')
+
+    def test_add_passengers_confirms_held_booking(self):
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.payment_status, 'awaiting_details')
+
+        self.assertEqual(self._post().status_code, 201)
+        response = self._post(name='Tino Moyo', age=6, id_number='', traveler_type='child')
+        self.assertEqual(response.status_code, 201, response.content)
+
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.payment_status, 'paid')
+
+        # Booking was for 2: a third passenger is refused.
+        response = self._post(name='Extra Person', id_number='X999999')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('already has 2', str(response.json()))
+
+    def test_rejects_incomplete_passenger(self):
+        response = self._post(id_number='')  # adult without ID
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('age 12 and over', str(response.json()))
+        self.assertEqual(self.booking.travelers.count(), 0)
+
+    def test_edit_that_breaks_details_holds_booking_again(self):
+        self._post()
+        kid = self._post(name='Tino Moyo', age=6, id_number='', traveler_type='child').json()
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.payment_status, 'paid')
+
+        response = self.client.patch(f"{self.url}{kid['id']}/", {'age': 13}, format='json')
+        self.assertEqual(response.status_code, 400)  # now needs an ID
+        response = self.client.patch(f"{self.url}{kid['id']}/", {'age': 13, 'id_number': 'P7654321'}, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+
+        response = self.client.delete(f"{self.url}{kid['id']}/")
+        self.assertEqual(response.status_code, 204)
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.payment_status, 'awaiting_details')
+
+    def test_id_document_upload_and_authenticated_download(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from rest_framework.test import APIClient
+
+        upload = SimpleUploadedFile('passport.png', b'\x89PNG fake', content_type='image/png')
+        response = self._post(id_document=upload)
+        self.assertEqual(response.status_code, 201, response.content)
+        traveler = response.json()
+        self.assertTrue(traveler['has_id_document'])
+        self.assertNotIn('id_document', traveler)  # never exposes a media URL
+
+        doc_url = reverse('customer_data_api:traveler-id-document', args=[traveler['id']])
+        response = self.client.get(doc_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b''.join(response.streaming_content), b'\x89PNG fake')
+        self.assertEqual(response['Cache-Control'], 'private, no-store')
+
+        self.assertEqual(APIClient().get(doc_url).status_code, 401)
+
+        bad = SimpleUploadedFile('passport.exe', b'MZ', content_type='application/octet-stream')
+        response = self.client.patch(f"{self.url}{traveler['id']}/", {'id_document': bad}, format='multipart')
+        self.assertEqual(response.status_code, 400)
+
+    def test_list_requires_booking_filter(self):
+        self._post()
+        body = self.client.get(self.url).json()
+        results = body['results'] if isinstance(body, dict) else body
+        self.assertEqual(results, [])
+        body = self.client.get(self.url, {'booking': self.booking.pk}).json()
+        results = body['results'] if isinstance(body, dict) else body
+        self.assertEqual([t['name'] for t in results], ['Ann Moyo'])

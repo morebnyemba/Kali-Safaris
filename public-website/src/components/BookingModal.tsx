@@ -85,6 +85,8 @@ const createEmptyTraveler = (): TravelerEntry => ({
 });
 
 const MAX_ID_DOCUMENT_SIZE_BYTES = 5 * 1024 * 1024;
+// Children under this age may travel without an ID/passport number (server enforces the same).
+const ID_REQUIRED_FROM_AGE = 12;
 const ALLOWED_ID_DOCUMENT_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
 
 interface PaymentConfig {
@@ -630,8 +632,9 @@ export default function BookingModal({
       if (!item.gender.trim()) {
         return `${label}: gender is required.`;
       }
-      if (!item.idNumber.trim()) {
-        return `${label}: ID/Passport number is required.`;
+      // Matches the server rule: required from age 12, optional for younger children.
+      if (ageNum >= ID_REQUIRED_FROM_AGE && !item.idNumber.trim()) {
+        return `${label}: ID/Passport number is required (age ${ID_REQUIRED_FROM_AGE} and over).`;
       }
     }
 
@@ -1513,7 +1516,7 @@ export default function BookingModal({
                             />
                             <input
                               type="text"
-                              placeholder="ID / Passport number"
+                              placeholder={Number(item.age) < ID_REQUIRED_FROM_AGE && item.age.trim() !== '' ? 'ID / Passport (optional under 12)' : 'ID / Passport number'}
                               value={item.idNumber}
                               onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, idNumber: e.target.value } : row)))}
                               className={`${inputBase} sm:col-span-2`}

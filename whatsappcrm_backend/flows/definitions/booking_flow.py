@@ -435,10 +435,32 @@ BOOKING_FLOW = {
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "traveler_confirmation"}
             },
             "transitions": [
-                {"to_step": "add_traveler_to_list", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_traveler"}},
+                {"to_step": "validate_current_traveler", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_traveler"}},
                 {"to_step": "query_traveler_details_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_traveler"}},
-                {"to_step": "add_traveler_to_list", "priority": 3, "condition_config": {"type": "always_true"}}
+                {"to_step": "validate_current_traveler", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
+        },
+        # Step 3f: Check this passenger right away (same rule as the final gate), so a
+        # problem is fixed for this passenger instead of re-entering everyone later.
+        {
+            "name": "validate_current_traveler",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{"action_type": "validate_current_traveler"}]
+            },
+            "transitions": [
+                {"to_step": "add_traveler_to_list", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "current_traveler_valid", "value": "yes"}},
+                {"to_step": "current_traveler_invalid", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "current_traveler_invalid",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "⚠️ {{ current_traveler_validation_error }}\n\nLet's re-enter the details for traveler {{ traveler_index }}."}
+            },
+            "transitions": [{"to_step": "query_traveler_details_whatsapp_flow", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "calculate_total_cost",
@@ -527,10 +549,10 @@ BOOKING_FLOW = {
             "config": {
                 "message_config": {
                     "message_type": "text",
-                    "text": {"body": "What is the ID or Passport number for *{{ current_traveler_name }}*?"}
+                    "text": {"body": "What is the ID or Passport number for *{{ current_traveler_name }}*?{% if (current_traveler_age|int) < 12 %}\n\n(Children under 12 don't need one — reply *NONE* if they don't have one.){% endif %}"}
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_id_number", "validation_regex": "^[A-Za-z0-9]{5,20}$"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid ID or Passport number (5-20 alphanumeric characters)."}
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_id_number", "validation_regex": "(?i)^([A-Za-z0-9-]{3,20}|none)$"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid ID or Passport number (3-20 letters/numbers), or NONE for a child under 12."}
             },
             "transitions": [{"to_step": "ask_traveler_medical", "condition_config": {"type": "always_true"}}]
         },

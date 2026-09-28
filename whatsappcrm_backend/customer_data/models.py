@@ -491,7 +491,10 @@ class Traveler(models.Model):
     age = models.PositiveIntegerField(_("Age"))
     nationality = models.CharField(_("Nationality"), max_length=100)
     gender = models.CharField(_("Gender"), max_length=20)
-    id_number = models.CharField(_("ID/Passport Number"), max_length=50)
+    id_number = models.CharField(
+        _("ID/Passport Number"), max_length=50, blank=True,
+        help_text=_("Required from age 12; optional for younger children."),
+    )
     id_document = models.FileField(
         _("ID/Passport Document"),
         upload_to='traveler_documents/%Y/%m/',

@@ -3,18 +3,21 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView
 from django.shortcuts import get_object_or_404
-from django.http import Http404
+from django.http import FileResponse, Http404
+from rest_framework.decorators import action
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 
 
 # New models and serializers
-from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry
+from .models import CustomerProfile, Interaction, Booking, Payment, TourInquiry, Traveler
 from .serializers import (
     CustomerProfileSerializer, 
     InteractionSerializer, 
     MyTokenObtainPairSerializer,
     BookingSerializer,
     PaymentSerializer,
-    TourInquirySerializer
+    TourInquirySerializer,
+    TravelerSerializer,
 )
 
 # Still need Contact for get_or_create logic
@@ -146,6 +149,44 @@ class PaymentViewSet(viewsets.ModelViewSet):
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
     filterset_fields = ['status', 'payment_method', 'booking']
+
+class TravelerViewSet(viewsets.ModelViewSet):
+    """
+    Passengers on a booking: /travelers/?booking=<id>.
+    Saving or deleting a passenger re-checks the booking's passenger-details
+    rule, so a held booking confirms as soon as its list is complete.
+    """
+    queryset = Traveler.objects.select_related('booking').order_by('traveler_type', 'name')
+    serializer_class = TravelerSerializer
+    permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+    filterset_fields = ['booking']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        booking_id = self.request.query_params.get('booking')
+        if self.action == 'list':
+            # Never dump every passenger's personal data in one call.
+            if not booking_id:
+                return queryset.none()
+            queryset = queryset.filter(booking_id=booking_id)
+        return queryset
+
+    @action(detail=True, methods=['get'], url_path='id-document')
+    def id_document(self, request, pk=None):
+        """Streams the ID/passport copy to an authenticated user (never via a public /media URL)."""
+        traveler = self.get_object()
+        if not traveler.id_document:
+            raise Http404("No ID document on file.")
+        import mimetypes
+        import os
+        content_type = mimetypes.guess_type(traveler.id_document.name)[0] or 'application/octet-stream'
+        response = FileResponse(traveler.id_document.open('rb'), content_type=content_type)
+        filename = f"{traveler.name}{os.path.splitext(traveler.id_document.name)[1]}".replace('"', '')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        response['Cache-Control'] = 'private, no-store'
+        return response
+
 
 class TourInquiryViewSet(viewsets.ModelViewSet):
     queryset = TourInquiry.objects.select_related('customer', 'assigned_agent').all()

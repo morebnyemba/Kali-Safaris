@@ -303,6 +303,26 @@ def validate_travelers_details(contact, context: dict, params: dict) -> dict:
     return context
 
 
+@register_flow_action('validate_current_traveler')
+def validate_current_traveler(contact, context: dict, params: dict) -> dict:
+    """
+    Checks the passenger just entered (current_traveler_* variables) against
+    the same rule as validate_travelers_details. Sets `current_traveler_valid`
+    ('yes'/'no') and `current_traveler_validation_error`.
+    """
+    _, error = normalize_traveler({
+        'name': context.get('current_traveler_name'),
+        'age': context.get('current_traveler_age'),
+        'nationality': context.get('current_traveler_nationality'),
+        'gender': context.get('current_traveler_gender'),
+        'id_number': context.get('current_traveler_id_number'),
+        'medical': context.get('current_traveler_medical'),
+    }, label=f"Traveler {context.get('traveler_index') or ''}".strip())
+    context['current_traveler_valid'] = 'no' if error else 'yes'
+    context['current_traveler_validation_error'] = error or ''
+    return context
+
+
 @register_flow_action('save_travelers_to_booking')
 def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
     """

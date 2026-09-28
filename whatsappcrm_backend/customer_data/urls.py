@@ -10,6 +10,7 @@ router.register(r'interactions', views.InteractionViewSet, basename='interaction
 router.register(r'bookings', views.BookingViewSet, basename='booking')
 router.register(r'payments', views.PaymentViewSet, basename='payment')
 router.register(r'inquiries', views.TourInquiryViewSet, basename='tourinquiry')
+router.register(r'travelers', views.TravelerViewSet, basename='traveler')
 
 app_name = 'customer_data_api'
 

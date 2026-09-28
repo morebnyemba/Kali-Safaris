@@ -8,7 +8,9 @@ so every booking reaches the park manifest with full passenger details.
 """
 
 MAX_AGE = 120
-_EMPTY = {'', 'none', 'null', 'undefined', 'n/a', 'na'}
+# Children under this age may travel without an ID/passport number.
+ID_REQUIRED_FROM_AGE = 12
+_EMPTY = {'', 'none', 'null', 'undefined', 'n/a', 'na', 'skip'}
 _GENDERS = {'m': 'Male', 'male': 'Male', 'f': 'Female', 'female': 'Female', 'other': 'Other'}
 _NO_MEDICAL = {'', 'none', 'no', 'n/a', 'na', 'nil', 'no special requirements'}
 
@@ -23,7 +25,9 @@ def normalize_traveler(data, label='Traveler'):
     Returns (cleaned, error). `cleaned` holds model-ready values
     (name, age, nationality, gender, id_number, traveler_type,
     medical_dietary_requirements); `error` is a customer-safe message.
-    Age 0 (infant under one) is valid.
+    Age 0 (infant under one) is valid. ID/passport number is required from
+    age ID_REQUIRED_FROM_AGE; younger children may omit it, but if one is
+    given it must look like a real number.
     """
     if not isinstance(data, dict):
         return None, f"{label}: details are missing."
@@ -51,8 +55,10 @@ def normalize_traveler(data, label='Traveler'):
     gender = _GENDERS.get(gender_raw.lower())
     if not gender:
         return None, f"{name}: gender must be Male, Female or Other."
-    if len(id_number) < 3:
-        return None, f"{name}: ID or passport number is required."
+    if age >= ID_REQUIRED_FROM_AGE and not id_number:
+        return None, f"{name}: ID or passport number is required (age {ID_REQUIRED_FROM_AGE} and over)."
+    if id_number and len(id_number) < 3:
+        return None, f"{name}: ID or passport number looks too short."
     if traveler_type not in ('adult', 'child'):
         traveler_type = 'adult'
 
