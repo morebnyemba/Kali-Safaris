@@ -40,6 +40,7 @@ def create_and_dispatch_message(contact, user, message_text):
             direction='out',
             message_type='text',
             content_payload={'body': message_text},
+            text_content=message_text,
             status='pending_dispatch',
         )
         # The post_save signal on the Message model will broadcast this.
@@ -141,4 +142,12 @@ class ConversationConsumer(AsyncJsonWebsocketConsumer):
         The signal sends a serialized message.
         """
         await self.send_json({'type': 'new_message', 'message': event['message']})
+
+    async def chat_message(self, event):
+        """
+        conversations.signals broadcasts every saved Message as `chat.message`.
+        Without this handler Channels raised "No handler for message type
+        chat.message" and dropped the socket on every new message.
+        """
+        await self.new_message(event)
 

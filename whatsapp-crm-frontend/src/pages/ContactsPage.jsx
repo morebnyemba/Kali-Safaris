@@ -1,357 +1,404 @@
 // src/pages/ContactsPage.jsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { toast } from 'sonner';
+import { useDebounce } from 'use-debounce';
+import {
+  FiAlertCircle, FiArrowLeft, FiCalendar, FiClipboard, FiEdit2, FiMail, FiMapPin, FiMessageSquare,
+  FiPhone, FiSearch, FiSlash, FiUsers,
+} from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from "@/components/ui/separator";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose, DialogTrigger
-} from "@/components/ui/dialog";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel
-} from '@/components/ui/select';
-import { toast } from 'sonner';
-import { useForm, Controller } from 'react-hook-form';
-import {
-  FiUser, FiUsers, FiMessageSquare, FiSearch, FiLoader, FiAlertCircle, FiEdit, FiSave, FiMail,
-  FiPhone, FiTag, FiBriefcase, FiMapPin, FiInfo, FiCalendar, FiBarChart2, FiSmartphone, FiGlobe
-} from 'react-icons/fi';
-import { formatDistanceToNow, parseISO, format, isValid as isValidDate } from 'date-fns';
-import { contactsApi, profilesApi } from '@/lib/api';
+import { Textarea } from '@/components/ui/textarea';
+import InitialsAvatar from '@/components/app/InitialsAvatar';
+import StatusBadge from '@/components/app/StatusBadge';
+import { EmptyState, LoadingState } from '@/components/app/States';
+import { contactsApi, inquiriesApi, profilesApi } from '@/lib/api';
+import { ordersApi } from '@/services/orders';
+import { apiErrorMessage, formatDate, formatMoney, formatRelative } from '@/lib/format';
 
-const ProfileFieldDisplay = ({ label, value, icon, children, isDate = false, isTagList = false }) => {
-    let displayValue = value;
-    if (isDate && value) {
-        try {
-            const dateObj = parseISO(value);
-            if (isValidDate(dateObj)) displayValue = format(dateObj, 'PPP'); // e.g., May 24th, 2025
-            else displayValue = value; // Show original if not a valid date string
-        } catch (e) { displayValue = value; } // In case parseISO throws for completely invalid string
-    }
-    if (!value && !children && value !== false && value !== 0) return null;
-    return (
-        <div className="py-2.5 sm:grid sm:grid-cols-3 sm:gap-4 border-b dark:border-slate-700 last:border-b-0">
-            <dt className="text-sm font-medium text-slate-500 dark:text-slate-400 flex items-center">
-                {icon && React.cloneElement(icon, { className: "mr-2 h-4 w-4 opacity-80"})}
-                {label}
-            </dt>
-            <dd className="mt-1 text-sm text-slate-900 dark:text-slate-50 sm:mt-0 sm:col-span-2">
-                {children ? children : 
-                 isTagList && Array.isArray(displayValue) ? 
-                    (displayValue.length > 0 ? displayValue.map(tag => <Badge key={tag} variant="secondary" className="mr-1 mb-1 dark:bg-slate-600 dark:text-slate-200">{tag}</Badge>) : <span className="italic text-slate-400 dark:text-slate-500">No tags</span>) :
-                 (displayValue === null || displayValue === '' ? <span className="italic text-slate-400 dark:text-slate-500">Not set</span> : String(displayValue))
-                }
-            </dd>
-        </div>
-    );
-};
+const LEAD_STATUSES = [
+  ['new', 'New'], ['contacted', 'Contacted'], ['qualified', 'Qualified'], ['proposal_sent', 'Proposal sent'],
+  ['negotiation', 'Negotiation'], ['won', 'Won'], ['lost', 'Lost'], ['on_hold', 'On hold'],
+];
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'attention', label: 'Needs a human' },
+  { key: 'blocked', label: 'Blocked' },
+];
+const selectClass = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30';
 
-const GENDER_CHOICES = [ { value: 'male', label: 'Male' }, { value: 'female', label: 'Female' }, { value: 'other', label: 'Other' }, { value: 'prefer_not_to_say', label: 'Prefer not to say' }];
-const LIFECYCLE_STAGE_CHOICES = [ { value: 'lead', label: 'Lead' }, { value: 'opportunity', label: 'Opportunity' }, { value: 'customer', label: 'Customer' }, { value: 'vip', label: 'VIP Customer' }, { value: 'churned', label: 'Churned' }, { value: 'other', label: 'Other' }];
+function Field({ label, children }) {
+  return (
+    <div className="grid grid-cols-3 gap-3 py-2.5 text-sm">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="col-span-2 break-words">{children || <span className="text-muted-foreground">—</span>}</dd>
+    </div>
+  );
+}
 
-export default function ContactsPage() {
-  const [contacts, setContacts] = useState([]);
-  const [selectedContactDetails, setSelectedContactDetails] = useState(null);
-  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
-  const [isLoadingDetails, setIsLoadingDetails] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
-  const [pagination, setPagination] = useState({ count: 0, next: null, previous: null, currentPage: 1 });
-  
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-
-  const { register, handleSubmit, reset, control, formState: { isSubmitting, errors: formErrors }, setValue } = useForm({
-      defaultValues: { // Initialize with all possible fields to avoid uncontrolled to controlled input warnings
-          contact_name: '', is_blocked: false, needs_human_intervention: false,
-          first_name: '', last_name: '', email: '', ecocash_number: '', secondary_phone_number: '',
-          date_of_birth: '', gender: '', company_name: '', job_title: '',
-          address_line_1: '', address_line_2: '', city: '', state_province: '', postal_code: '', country: '',
-          lifecycle_stage: 'lead', acquisition_source: '', tags: '', notes: '',
-          preferences: '{}', custom_attributes: '{}'
-      }
-  });
-
-  const fetchContacts = useCallback(async (page = 1, currentSearchTerm = '') => {
-    setIsLoadingContacts(true);
-    try {
-      const filterParam = searchParams.get('filter');
-      const queryParams = new URLSearchParams({ page: page.toString() });
-      if (currentSearchTerm) queryParams.append('search', currentSearchTerm);
-      if (filterParam === 'needs_intervention') queryParams.append('needs_human_intervention', 'true');
-      
-      const response = await contactsApi.list(Object.fromEntries(queryParams));
-      const data = response.data;
-      setContacts(data.results || []);
-      setPagination({ count: data.count || 0, next: data.next, previous: data.previous, currentPage: page });
-    } catch (error) { /* toast handled by apiClient interceptor */ }
-    finally { setIsLoadingContacts(false); }
-  }, [searchParams]);
+function EditContactDialog({ open, onOpenChange, contact, profile, onSaved }) {
+  const [form, setForm] = useState(null);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetchContacts(1, searchTerm);
-  }, [fetchContacts, searchTerm]); // Re-fetch if searchTerm changes
+    if (!open || !contact) return;
+    setError('');
+    setForm({
+      name: contact.name || '',
+      is_blocked: Boolean(contact.is_blocked),
+      needs_human_intervention: Boolean(contact.needs_human_intervention),
+      first_name: profile?.first_name || '', last_name: profile?.last_name || '', email: profile?.email || '',
+      company: profile?.company || '', role: profile?.role || '',
+      address_line_1: profile?.address_line_1 || '', address_line_2: profile?.address_line_2 || '',
+      city: profile?.city || '', state_province: profile?.state_province || '', postal_code: profile?.postal_code || '',
+      country: profile?.country || '', lead_status: profile?.lead_status || 'new',
+      acquisition_source: profile?.acquisition_source || '', potential_value: profile?.potential_value ?? '',
+      tags: (profile?.tags || []).join(', '), notes: profile?.notes || '',
+    });
+  }, [open, contact, profile]);
 
-  const handleSelectContact = useCallback(async (contact) => {
-    setIsLoadingDetails(true);
-    setSelectedContactDetails(null); 
+  if (!form) return null;
+  const set = (field) => (e) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  const input = (field, label, props = {}) => (
+    <div>
+      <Label htmlFor={`c-${field}`} className="mb-1.5">{label}</Label>
+      <Input id={`c-${field}`} value={form[field]} onChange={set(field)} {...props} />
+    </div>
+  );
+
+  const save = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
     try {
-      const response = await contactsApi.retrieve(contact.id);
-      const detailedData = response.data;
-      setSelectedContactDetails(detailedData);
-      reset({ // Pre-fill form for editing
-        contact_name: detailedData.name || '',
-        is_blocked: detailedData.is_blocked || false,
-        needs_human_intervention: detailedData.needs_human_intervention || false,
-        first_name: detailedData.customer_profile?.first_name || '',
-        last_name: detailedData.customer_profile?.last_name || '',
-        email: detailedData.customer_profile?.email || '',
-        ecocash_number: detailedData.customer_profile?.ecocash_number || '',
-        secondary_phone_number: detailedData.customer_profile?.secondary_phone_number || '',
-        date_of_birth: detailedData.customer_profile?.date_of_birth || '', // HTML date input expects YYYY-MM-DD
-        gender: detailedData.customer_profile?.gender || '',
-        company_name: detailedData.customer_profile?.company_name || '',
-        job_title: detailedData.customer_profile?.job_title || '',
-        address_line_1: detailedData.customer_profile?.address_line_1 || '',
-        address_line_2: detailedData.customer_profile?.address_line_2 || '',
-        city: detailedData.customer_profile?.city || '',
-        state_province: detailedData.customer_profile?.state_province || '',
-        postal_code: detailedData.customer_profile?.postal_code || '',
-        country: detailedData.customer_profile?.country || '',
-        lifecycle_stage: detailedData.customer_profile?.lifecycle_stage || 'lead',
-        acquisition_source: detailedData.customer_profile?.acquisition_source || '',
-        tags: (detailedData.customer_profile?.tags || []).join(', '),
-        notes: detailedData.customer_profile?.notes || '',
-        preferences: JSON.stringify(detailedData.customer_profile?.preferences || {}, null, 2),
-        custom_attributes: JSON.stringify(detailedData.customer_profile?.custom_attributes || {}, null, 2),
+      await contactsApi.patch(contact.id, {
+        name: form.name, is_blocked: form.is_blocked, needs_human_intervention: form.needs_human_intervention,
       });
-    } catch (error) { /* toast handled by apiClient interceptor */ }
-    finally { setIsLoadingDetails(false); }
-  }, [reset]);
-
-  const onProfileFormSubmit = async (formData) => {
-    if (!selectedContactDetails?.id) return;
-    const contactId = selectedContactDetails.id;
-
-    const contactPayload = {
-        name: formData.contact_name,
-        is_blocked: formData.is_blocked,
-        needs_human_intervention: formData.needs_human_intervention,
-    };
-    
-    let parsedPreferences, parsedCustomAttributes;
-    try { parsedPreferences = JSON.parse(formData.preferences || '{}'); } catch (e) { toast.error("Invalid JSON for Preferences."); return; }
-    try { parsedCustomAttributes = JSON.parse(formData.custom_attributes || '{}'); } catch (e) { toast.error("Invalid JSON for Custom Attributes."); return; }
-
-    const profilePayload = {
-        first_name: formData.first_name, last_name: formData.last_name, email: formData.email,
-        secondary_phone_number: formData.secondary_phone_number, ecocash_number: formData.ecocash_number,
-        date_of_birth: formData.date_of_birth || null, gender: formData.gender || null,
-        company_name: formData.company_name, job_title: formData.job_title,
-        address_line_1: formData.address_line_1, address_line_2: formData.address_line_2, city: formData.city,
-        state_province: formData.state_province, postal_code: formData.postal_code, country: formData.country,
-        lifecycle_stage: formData.lifecycle_stage, acquisition_source: formData.acquisition_source,
-        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag),
-        notes: formData.notes, preferences: parsedPreferences, custom_attributes: parsedCustomAttributes,
-    };
-
-    try {
-      // Using Promise.allSettled to ensure both calls are attempted
-      const [contactUpdateResult, profileUpdateResult] = await Promise.allSettled([
-        contactsApi.patch(contactId, contactPayload),
-        profilesApi.patch(contactId, profilePayload)
-      ]);
-
-      let anyError = false;
-      if (contactUpdateResult.status === 'rejected') {
-          toast.error(`Failed to update contact: ${contactUpdateResult.reason.message}`);
-          anyError = true;
-      }
-      if (profileUpdateResult.status === 'rejected') {
-          toast.error(`Failed to update profile: ${profileUpdateResult.reason.message}`);
-          anyError = true;
-      }
-
-      if (!anyError) {
-        toast.success("Customer data updated successfully!");
-        setIsEditProfileModalOpen(false);
-        // Re-fetch the selected contact's details to show updated info
-        handleSelectContact({ id: contactId, name: formData.contact_name }); // Pass basic info to re-trigger full fetch
-        // Also update the main contacts list with the potentially changed name or status
-        setContacts(prevList => prevList.map(c => c.id === contactId ? {...c, name: formData.contact_name, is_blocked: formData.is_blocked, needs_human_intervention: formData.needs_human_intervention } : c));
-
-      }
-    } catch (error) { /* Should be caught by individual calls and handled by interceptor */ }
-  };
-
-  const handlePageChange = (newPage) => {
-    if (newPage >= 1 && newPage <= Math.ceil(pagination.count / 20)) { // Assuming page size 20
-        fetchContacts(newPage, searchTerm);
+      await profilesApi.patch(contact.id, {
+        first_name: form.first_name, last_name: form.last_name, email: form.email || null,
+        company: form.company, role: form.role,
+        address_line_1: form.address_line_1, address_line_2: form.address_line_2, city: form.city,
+        state_province: form.state_province, postal_code: form.postal_code, country: form.country,
+        lead_status: form.lead_status, acquisition_source: form.acquisition_source,
+        potential_value: form.potential_value === '' ? null : form.potential_value,
+        tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
+        notes: form.notes,
+      });
+      toast.success('Contact saved');
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    } finally {
+      setSaving(false);
     }
   };
 
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <form onSubmit={save} className="space-y-5">
+          <DialogHeader>
+            <DialogTitle>Edit {contact.name || contact.whatsapp_id}</DialogTitle>
+            <DialogDescription>WhatsApp {contact.whatsapp_id}</DialogDescription>
+          </DialogHeader>
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Contact</h3>
+            {input('name', 'Display name')}
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-8">
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={form.needs_human_intervention} onCheckedChange={(v) => setForm((f) => ({ ...f, needs_human_intervention: v }))} />
+                Bot paused (needs a human)
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <Switch checked={form.is_blocked} onCheckedChange={(v) => setForm((f) => ({ ...f, is_blocked: v }))} />
+                Blocked
+              </label>
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Profile</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {input('first_name', 'First name')}
+              {input('last_name', 'Last name')}
+              {input('email', 'Email', { type: 'email' })}
+              {input('country', 'Country')}
+              {input('company', 'Company')}
+              {input('role', 'Role / job title')}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Address</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {input('address_line_1', 'Address line 1')}
+              {input('address_line_2', 'Address line 2')}
+              {input('city', 'City')}
+              {input('state_province', 'State / province')}
+              {input('postal_code', 'Postal code')}
+            </div>
+          </section>
+
+          <section className="space-y-3">
+            <h3 className="text-sm font-semibold">Sales</h3>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="c-lead_status" className="mb-1.5">Lead status</Label>
+                <select id="c-lead_status" className={selectClass} value={form.lead_status} onChange={set('lead_status')}>
+                  {LEAD_STATUSES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              {input('potential_value', 'Potential value (USD)', { type: 'number', min: 0, step: '0.01' })}
+              {input('acquisition_source', 'Source', { placeholder: 'e.g. WhatsApp, referral, website' })}
+              {input('tags', 'Tags', { placeholder: 'comma, separated' })}
+            </div>
+            <div>
+              <Label htmlFor="c-notes" className="mb-1.5">Notes</Label>
+              <Textarea id="c-notes" rows={3} value={form.notes} onChange={set('notes')} />
+            </div>
+          </section>
+
+          {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : 'Save contact'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ContactDetail({ contactId, onBack, onChanged }) {
+  const navigate = useNavigate();
+  const [contact, setContact] = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [inquiries, setInquiries] = useState([]);
+  const [tab, setTab] = useState('profile');
+  const [loading, setLoading] = useState(true);
+  const [editOpen, setEditOpen] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [c, p, b, i] = await Promise.allSettled([
+        contactsApi.retrieve(contactId),
+        profilesApi.retrieve(contactId),
+        ordersApi.list({ customer: contactId, page_size: 50 }),
+        inquiriesApi.list({ customer: contactId, page_size: 50 }),
+      ]);
+      if (c.status === 'fulfilled') setContact(c.value.data);
+      setProfile(p.status === 'fulfilled' ? p.value.data : null);
+      setBookings(b.status === 'fulfilled' ? (b.value.data.results || b.value.data) : []);
+      setInquiries(i.status === 'fulfilled' ? (i.value.data.results || i.value.data) : []);
+    } finally {
+      setLoading(false);
+    }
+  }, [contactId]);
+
+  useEffect(() => { setTab('profile'); load(); }, [load]);
+
+  if (loading && !contact) return <LoadingState label="Loading contact…" />;
+  if (!contact) return <EmptyState icon={FiUsers} title="Contact not found" />;
+
+  const name = contact.name || contact.whatsapp_id;
+  const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
+  const address = [profile?.address_line_1, profile?.address_line_2, [profile?.city, profile?.state_province].filter(Boolean).join(', '), [profile?.postal_code, profile?.country].filter(Boolean).join(' ')].filter(Boolean);
 
   return (
-    <div className="flex h-[calc(100vh-var(--header-height,4rem)-1rem)] border dark:border-slate-700 rounded-lg shadow-md overflow-hidden">
-      {/* Contacts List Panel */}
-      <div className="w-full sm:w-2/5 md:w-1/3 min-w-[300px] max-w-[450px] border-r dark:border-slate-700 flex flex-col bg-slate-50 dark:bg-slate-800/50">
-        <div className="p-3 border-b dark:border-slate-700">
-          <div className="relative">
-            <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input type="search" placeholder="Search contacts..." className="pl-9 dark:bg-slate-700 dark:border-slate-600" value={searchTerm} onChange={(e)=>setSearchTerm(e.target.value)}/>
-          </div>
-        </div>
-        <ScrollArea className="flex-1">
-          {isLoadingContacts && contacts.length === 0 && (<div className="p-4 text-center"><FiLoader className="animate-spin h-6 w-6 mx-auto my-3 text-slate-500" /> <p className="text-xs text-slate-400">Loading contacts...</p></div>)}
-          {!isLoadingContacts && contacts.length === 0 && (<div className="p-4 text-center text-sm text-slate-500 dark:text-slate-400">No contacts match your search or filter.</div>)}
-          {contacts.map(contact => (
-            <div key={contact.id} onClick={() => handleSelectContact(contact)}
-              className={`p-3 border-b dark:border-slate-700 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors ${selectedContactDetails?.id === contact.id ? 'bg-blue-100 dark:bg-blue-900/50 border-l-4 border-blue-500 dark:border-blue-400' : 'border-l-4 border-transparent'}`}>
-              <div className="flex items-center space-x-3">
-                <Avatar className="h-9 w-9"><AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(contact.name || contact.whatsapp_id)}&background=random&size=96`} /><AvatarFallback>{(contact.name || contact.whatsapp_id || 'U').substring(0,1).toUpperCase()}</AvatarFallback></Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium truncate dark:text-slate-100 text-sm">{contact.name || contact.whatsapp_id}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-                    {contact.whatsapp_id}
-                    {contact.last_seen && ` · Seen ${formatDistanceToNow(parseISO(contact.last_seen), { addSuffix: true })}`}
-                  </p>
-                </div>
-                {contact.needs_human_intervention && <FiAlertCircle title="Needs Human Intervention" className="h-5 w-5 text-red-500 flex-shrink-0"/>}
+    <div className="flex h-full flex-col">
+      <div className="border-b p-4 sm:p-6">
+        <Button variant="ghost" size="sm" className="-ml-2 mb-2 md:hidden" onClick={onBack}><FiArrowLeft /> Contacts</Button>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex items-center gap-4">
+            <InitialsAvatar name={name} size="lg" />
+            <div className="min-w-0">
+              <h2 className="truncate text-xl font-semibold">{name}</h2>
+              <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
+                <span className="flex items-center gap-1"><FiPhone className="size-3.5" /> {contact.whatsapp_id}</span>
+                {profile?.email && <span className="flex items-center gap-1"><FiMail className="size-3.5" /> {profile.email}</span>}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {contact.needs_human_intervention && <StatusBadge tone="warning" label="Needs a human" />}
+                {contact.is_blocked && <StatusBadge tone="danger" label="Blocked" />}
+                {profile?.lead_status_display && <StatusBadge tone="info" label={profile.lead_status_display} />}
               </div>
             </div>
+          </div>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" onClick={() => navigate(`/conversation?contactId=${contact.id}`)}><FiMessageSquare /> Open chat</Button>
+            <Button size="sm" onClick={() => setEditOpen(true)}><FiEdit2 /> Edit</Button>
+          </div>
+        </div>
+        <div className="mt-5 flex gap-1" role="tablist">
+          {[['profile', 'Profile'], ['bookings', `Bookings (${bookings.length})`], ['inquiries', `Inquiries (${inquiries.length})`]].map(([key, label]) => (
+            <Button key={key} role="tab" aria-selected={tab === key} size="sm" variant={tab === key ? 'secondary' : 'ghost'} onClick={() => setTab(key)}>{label}</Button>
           ))}
-        </ScrollArea>
-        {/* Pagination for Contacts List */}
-        {pagination.count > 0 && (
-            <div className="p-2 border-t dark:border-slate-700 flex justify-between items-center text-xs">
-                <Button variant="outline" size="sm" onClick={() => handlePageChange(pagination.currentPage - 1)} disabled={!pagination.previous || isLoadingContacts}>Prev</Button>
-                <span>Page {pagination.currentPage} of {Math.ceil(pagination.count / 20)}</span>
-                <Button variant="outline" size="sm" onClick={() => handlePageChange(pagination.currentPage + 1)} disabled={!pagination.next || isLoadingContacts}>Next</Button>
-            </div>
-        )}
+        </div>
       </div>
 
-      {/* Contact Details & Profile Panel */}
-      <ScrollArea className="flex-1 bg-white dark:bg-slate-900">
-        {isLoadingDetails && <div className="flex items-center justify-center h-full p-10"><FiLoader className="animate-spin h-10 w-10 text-blue-500"/></div>}
-        {!isLoadingDetails && selectedContactDetails ? (
-          <div className="p-4 sm:p-6 space-y-6">
-            <Card className="dark:bg-slate-800 dark:border-slate-700">
-              <CardHeader className="flex flex-col sm:flex-row justify-between sm:items-start gap-2 pb-4">
-                <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16 border-2 dark:border-slate-600"><AvatarImage src={`https://ui-avatars.com/api/?name=${encodeURIComponent(selectedContactDetails.name || selectedContactDetails.whatsapp_id)}&background=random&size=128`} /><AvatarFallback className="text-2xl">{(selectedContactDetails.name || selectedContactDetails.whatsapp_id || 'U').substring(0,2).toUpperCase()}</AvatarFallback></Avatar>
-                    <div>
-                        <CardTitle className="text-xl md:text-2xl dark:text-slate-50">{selectedContactDetails.name || selectedContactDetails.whatsapp_id}</CardTitle>
-                        <CardDescription className="dark:text-slate-400 mt-1">{selectedContactDetails.whatsapp_id}</CardDescription>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                           {selectedContactDetails.is_blocked && <Badge variant="destructive">Blocked</Badge>}
-                           {selectedContactDetails.needs_human_intervention && <Badge variant="warning">Needs Intervention</Badge>}
-                        </div>
-                    </div>
-                </div>
-                <div className="flex flex-col sm:flex-row gap-2 sm:items-center pt-2 sm:pt-0 w-full sm:w-auto">
-                    <Button variant="outline" size="sm" onClick={() => navigate(`/conversation?contactId=${selectedContactDetails.id}`)} className="dark:text-slate-300 dark:border-slate-600 w-full sm:w-auto"> <FiMessageSquare className="mr-2 h-4 w-4"/> View Chat</Button>
-                    <Dialog open={isEditProfileModalOpen} onOpenChange={setIsEditProfileModalOpen}>
-                        <DialogTrigger asChild>
-                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white w-full sm:w-auto"><FiEdit className="mr-2 h-4 w-4"/> Edit Profile</Button>
-                        </DialogTrigger>
-                        <DialogContent className="sm:max-w-2xl lg:max-w-3xl dark:bg-slate-800 dark:text-slate-50">
-                            <DialogHeader><DialogTitle>Edit Profile: {selectedContactDetails.name || selectedContactDetails.whatsapp_id}</DialogTitle><DialogDescription>Update contact and customer profile details.</DialogDescription></DialogHeader>
-                            <form onSubmit={handleSubmit(onProfileFormSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto p-1 custom-scrollbar mt-2 pr-3">
-                                <h3 className="text-md font-semibold border-b pb-1 dark:text-slate-200 dark:border-slate-700">Contact Info</h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div><Label htmlFor="contact_name">Display Name</Label><Input id="contact_name" {...register("contact_name")} className="dark:bg-slate-700 dark:border-slate-600"/></div>
-                                </div>
-                                <div className="flex items-center space-x-2"><Controller name="is_blocked" control={control} render={({ field }) => <Switch id="is_blocked" checked={field.value} onCheckedChange={field.onChange} />} /><Label htmlFor="is_blocked" className="cursor-pointer">Is Blocked</Label></div>
-                                <div className="flex items-center space-x-2"><Controller name="needs_human_intervention" control={control} render={({ field }) => <Switch id="needs_human_intervention" checked={field.value} onCheckedChange={field.onChange} />} /><Label htmlFor="needs_human_intervention" className="cursor-pointer">Needs Human Intervention</Label></div>
-                                <Separator className="my-4 dark:bg-slate-700"/>
-                                <h3 className="text-md font-semibold border-b pb-1 dark:text-slate-200 dark:border-slate-700">Profile Details</h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                    <div><Label htmlFor="first_name">First Name</Label><Input id="first_name" {...register("first_name")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="last_name">Last Name</Label><Input id="last_name" {...register("last_name")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="email">Email</Label><Input id="email" type="email" {...register("email")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="ecocash_number">Ecocash Number</Label><Input id="ecocash_number" {...register("ecocash_number")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="secondary_phone_number">Secondary Phone</Label><Input id="secondary_phone_number" {...register("secondary_phone_number")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="date_of_birth">Date of Birth</Label><Input id="date_of_birth" type="date" {...register("date_of_birth")} className="dark:bg-slate-700 dark:[color-scheme:dark]"/></div>
-                                    <div><Label htmlFor="gender">Gender</Label><Controller name="gender" control={control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value || ""}><SelectTrigger className="dark:bg-slate-700"><SelectValue placeholder="Select gender" /></SelectTrigger><SelectContent className="dark:bg-slate-700">{GENDER_CHOICES.map(g=><SelectItem key={g.value} value={g.value}>{g.label}</SelectItem>)}</SelectContent></Select>)}/></div>
-                                    <div><Label htmlFor="company_name">Company Name</Label><Input id="company_name" {...register("company_name")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="job_title">Job Title</Label><Input id="job_title" {...register("job_title")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="address_line_1">Address Line 1</Label><Input id="address_line_1" {...register("address_line_1")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="address_line_2">Address Line 2</Label><Input id="address_line_2" {...register("address_line_2")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="city">City</Label><Input id="city" {...register("city")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="state_province">State/Province</Label><Input id="state_province" {...register("state_province")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="postal_code">Postal Code</Label><Input id="postal_code" {...register("postal_code")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="country">Country</Label><Input id="country" {...register("country")} className="dark:bg-slate-700"/></div>
-                                    <div><Label htmlFor="lifecycle_stage">Lifecycle Stage</Label><Controller name="lifecycle_stage" control={control} render={({ field }) => (<Select onValueChange={field.onChange} value={field.value || ""}><SelectTrigger className="dark:bg-slate-700"><SelectValue placeholder="Select stage" /></SelectTrigger><SelectContent className="dark:bg-slate-700">{LIFECYCLE_STAGE_CHOICES.map(s=><SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select>)}/></div>
-                                    <div><Label htmlFor="acquisition_source">Acquisition Source</Label><Input id="acquisition_source" {...register("acquisition_source")} className="dark:bg-slate-700"/></div>
-                                </div>
-                                <div><Label htmlFor="tags">Tags (comma-separated)</Label><Input id="tags" {...register("tags")} className="dark:bg-slate-700"/></div>
-                                <div><Label htmlFor="notes">Notes</Label><Textarea id="notes" {...register("notes")} className="dark:bg-slate-700" rows={3}/></div>
-                                <Separator className="my-4 dark:bg-slate-700"/>
-                                <h3 className="text-md font-semibold dark:text-slate-200">Advanced Data (JSON)</h3>
-                                <div><Label htmlFor="preferences">Preferences (JSON)</Label><Textarea id="preferences" {...register("preferences")} className="dark:bg-slate-700 font-mono text-xs" rows={3} placeholder='e.g., {"language": "en"}'/></div>
-                                <div><Label htmlFor="custom_attributes">Custom Attributes (JSON)</Label><Textarea id="custom_attributes" {...register("custom_attributes")} className="dark:bg-slate-700 font-mono text-xs" rows={3} placeholder='e.g., {"loyalty_id": "XYZ"}'/></div>
-
-                                <DialogFooter className="pt-4">
-                                    <DialogClose asChild><Button type="button" variant="outline" className="dark:text-slate-300 dark:border-slate-600">Cancel</Button></DialogClose>
-                                    <Button type="submit" disabled={isSubmitting} className="bg-blue-600 hover:bg-blue-700 text-white">{isSubmitting ? <FiLoader className="animate-spin"/> : "Save Changes"}</Button>
-                                </DialogFooter>
-                            </form>
-                        </DialogContent>
-                    </Dialog>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-4">
-                <dl className="divide-y dark:divide-slate-700">
-                    <ProfileFieldDisplay label="Profile Name" value={selectedContactDetails.customer_profile?.first_name || selectedContactDetails.customer_profile?.last_name ? `${selectedContactDetails.customer_profile?.first_name || ''} ${selectedContactDetails.customer_profile?.last_name || ''}`.trim() : (selectedContactDetails.name || 'N/A')} icon={<FiUser/>}/>
-                    <ProfileFieldDisplay label="Email" value={selectedContactDetails.customer_profile?.email} icon={<FiMail/>}/>
-                    <ProfileFieldDisplay label="Ecocash No." value={selectedContactDetails.customer_profile?.ecocash_number} icon={<FiSmartphone/>}/>
-                    <ProfileFieldDisplay label="Other Phone" value={selectedContactDetails.customer_profile?.secondary_phone_number} icon={<FiPhone/>}/>
-                    <ProfileFieldDisplay label="Company" value={selectedContactDetails.customer_profile?.company_name} icon={<FiBriefcase/>}/>
-                    <ProfileFieldDisplay label="Job Title" value={selectedContactDetails.customer_profile?.job_title} />
-                    <ProfileFieldDisplay label="Date of Birth" value={selectedContactDetails.customer_profile?.date_of_birth} isDate icon={<FiCalendar/>}/>
-                    <ProfileFieldDisplay label="Gender" value={GENDER_CHOICES.find(g=>g.value === selectedContactDetails.customer_profile?.gender)?.label || selectedContactDetails.customer_profile?.gender} />
-                    <ProfileFieldDisplay label="Address" icon={<FiMapPin/>}>
-                        {(() => {
-                            const profile = selectedContactDetails.customer_profile;
-                            if (!profile) return <span className="italic text-slate-400 dark:text-slate-500">Not set</span>;
-
-                            const addressLines = [
-                                profile.address_line_1,
-                                profile.address_line_2,
-                                [profile.city, profile.state_province].filter(Boolean).join(', '),
-                                [profile.postal_code, profile.country].filter(Boolean).join(' ')
-                            ].filter(Boolean);
-
-                            if (addressLines.length === 0) return <span className="italic text-slate-400 dark:text-slate-500">Not set</span>;
-                            return addressLines.map((line, i) => <div key={i}>{line}</div>);
-                        })()}
-                    </ProfileFieldDisplay>
-                    <ProfileFieldDisplay label="Lifecycle Stage" value={LIFECYCLE_STAGE_CHOICES.find(s=>s.value === selectedContactDetails.customer_profile?.lifecycle_stage)?.label || selectedContactDetails.customer_profile?.lifecycle_stage} icon={<FiBarChart2/>}/>
-                    <ProfileFieldDisplay label="Acquisition Source" value={selectedContactDetails.customer_profile?.acquisition_source} />
-                    <ProfileFieldDisplay label="Tags" isTagList value={selectedContactDetails.customer_profile?.tags} icon={<FiTag/>}/>
-                    <ProfileFieldDisplay label="Notes" value={selectedContactDetails.customer_profile?.notes} icon={<FiInfo/>}/>
-                    <ProfileFieldDisplay label="Contact Created" value={selectedContactDetails.first_seen} isDate icon={<FiCalendar/>}/>
-                    <ProfileFieldDisplay label="Last Interaction" value={selectedContactDetails.last_seen} isDate icon={<FiCalendar/>}/>
-                </dl>
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-slate-500 dark:text-slate-400 p-10 text-center">
-            <FiUsers className="h-24 w-24 mb-6 text-slate-300 dark:text-slate-600" />
-            <p className="text-lg font-medium">Select a contact to view their details.</p>
-            <p className="text-sm">Or use the search to find a specific contact.</p>
-          </div>
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        {tab === 'profile' && (
+          <dl className="divide-y">
+            <Field label="Full name">{fullName}</Field>
+            <Field label="Company">{[profile?.company, profile?.role].filter(Boolean).join(' · ')}</Field>
+            <Field label="Address">{address.length > 0 && <span className="flex gap-1.5"><FiMapPin className="mt-0.5 size-3.5 shrink-0 text-muted-foreground" /><span>{address.map((l) => <span key={l} className="block">{l}</span>)}</span></span>}</Field>
+            <Field label="Source">{profile?.acquisition_source}</Field>
+            <Field label="Potential value">{profile?.potential_value ? formatMoney(profile.potential_value) : null}</Field>
+            <Field label="Tags">{profile?.tags?.length > 0 && <span className="flex flex-wrap gap-1">{profile.tags.map((t) => <StatusBadge key={t} label={t} />)}</span>}</Field>
+            <Field label="Notes">{profile?.notes && <span className="whitespace-pre-wrap">{profile.notes}</span>}</Field>
+            <Field label="First contact">{formatDate(contact.first_seen)}</Field>
+            <Field label="Last seen">{contact.last_seen ? `${formatDate(contact.last_seen)} (${formatRelative(contact.last_seen)})` : null}</Field>
+          </dl>
         )}
-      </ScrollArea>
+        {tab === 'bookings' && (bookings.length === 0 ? (
+          <EmptyState icon={FiCalendar} title="No bookings yet" action={<Button asChild size="sm" variant="outline"><Link to="/bookings">Go to bookings</Link></Button>} />
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {bookings.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                <span className="min-w-0">
+                  <span className="block font-medium">{b.tour_name}</span>
+                  <span className="text-xs text-muted-foreground">{b.booking_reference} · {formatDate(b.start_date)} · {(b.number_of_adults || 0) + (b.number_of_children || 0)} pax</span>
+                </span>
+                <span className="flex items-center gap-3">
+                  <span className="tabular-nums">{formatMoney(b.total_amount)}</span>
+                  <StatusBadge status={b.payment_status} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        ))}
+        {tab === 'inquiries' && (inquiries.length === 0 ? (
+          <EmptyState icon={FiClipboard} title="No inquiries yet" />
+        ) : (
+          <ul className="divide-y rounded-lg border">
+            {inquiries.map((i) => (
+              <li key={i.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                <span className="min-w-0">
+                  <span className="block font-medium">{i.destinations || 'Custom tour'}</span>
+                  <span className="text-xs text-muted-foreground">{i.inquiry_reference} · {i.preferred_dates || 'dates open'} · {i.number_of_travelers ?? '?'} travellers</span>
+                </span>
+                <StatusBadge status={i.status} />
+              </li>
+            ))}
+          </ul>
+        ))}
+      </div>
+
+      <EditContactDialog open={editOpen} onOpenChange={setEditOpen} contact={contact} profile={profile}
+        onSaved={() => { load(); onChanged(); }} />
+    </div>
+  );
+}
+
+export default function ContactsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [contacts, setContacts] = useState([]);
+  const [count, setCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [debouncedSearch] = useDebounce(search, 300);
+  const [filter, setFilter] = useState(searchParams.get('filter') === 'needs_intervention' ? 'attention' : 'all');
+  const selectedId = Number(searchParams.get('contactId')) || null;
+
+  const load = useCallback(async (pageToLoad = 1) => {
+    setLoading(true);
+    try {
+      const res = await contactsApi.list({
+        page: pageToLoad,
+        search: debouncedSearch || undefined,
+        needs_human_intervention: filter === 'attention' ? 'true' : undefined,
+      });
+      const results = res.data.results || [];
+      const visible = filter === 'blocked' ? results.filter((c) => c.is_blocked) : results;
+      setContacts((prev) => (pageToLoad === 1 ? visible : [...prev, ...visible]));
+      setCount(res.data.count ?? results.length);
+      setHasMore(Boolean(res.data.next));
+      setPage(pageToLoad);
+    } catch (err) {
+      toast.error(apiErrorMessage(err, "Couldn't load contacts"));
+    } finally {
+      setLoading(false);
+    }
+  }, [debouncedSearch, filter]);
+
+  useEffect(() => { load(1); }, [load]);
+
+  const select = (id) => {
+    const next = new URLSearchParams(searchParams);
+    if (id) next.set('contactId', id); else next.delete('contactId');
+    setSearchParams(next, { replace: !id });
+  };
+
+  return (
+    <div className="-my-2 flex h-[calc(100dvh-9.5rem)] min-h-[480px] overflow-hidden rounded-xl border bg-card">
+      <section className={`${selectedId ? 'hidden md:flex' : 'flex'} w-full flex-col border-r md:w-80 lg:w-96`} aria-label="Contacts">
+        <div className="space-y-3 border-b p-3">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">Contacts</h2>
+            <span className="text-xs text-muted-foreground">{count} total</span>
+          </div>
+          <div className="relative">
+            <FiSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+            <Input type="search" placeholder="Search name or number…" className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} aria-label="Search contacts" />
+          </div>
+          <div className="flex gap-1">
+            {FILTERS.map((f) => (
+              <Button key={f.key} size="sm" variant={filter === f.key ? 'secondary' : 'ghost'} onClick={() => setFilter(f.key)}>{f.label}</Button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1 divide-y overflow-y-auto">
+          {loading && contacts.length === 0 ? <LoadingState label="Loading contacts…" /> : contacts.length === 0 ? (
+            <EmptyState icon={FiUsers} title="No contacts found" description={search ? 'Try a different name or number.' : 'Customers appear here after they message you on WhatsApp.'} />
+          ) : (
+            <>
+              {contacts.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => select(c.id)}
+                  className={`flex w-full items-center gap-3 border-l-[3px] px-3 py-3 text-left transition-colors ${selectedId === c.id ? 'border-l-brand-accent bg-accent' : 'border-l-transparent hover:bg-muted/60'}`}
+                >
+                  <InitialsAvatar name={c.name || c.whatsapp_id} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{c.name || c.whatsapp_id}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{c.whatsapp_id}{c.last_seen && ` · seen ${formatRelative(c.last_seen)}`}</span>
+                  </span>
+                  {c.needs_human_intervention && <FiAlertCircle className="size-4 shrink-0 text-warning" aria-label="Needs a human" />}
+                  {c.is_blocked && <FiSlash className="size-4 shrink-0 text-destructive" aria-label="Blocked" />}
+                </button>
+              ))}
+              {hasMore && (
+                <div className="p-3">
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => load(page + 1)} disabled={loading}>
+                    {loading ? 'Loading…' : 'Load more'}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className={`${selectedId ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col`} aria-label="Contact details">
+        {selectedId ? (
+          <ContactDetail key={selectedId} contactId={selectedId} onBack={() => select(null)} onChanged={() => load(1)} />
+        ) : (
+          <EmptyState icon={FiUsers} title="Select a contact" description="See their profile, bookings and inquiries, or jump to their WhatsApp chat." className="m-auto" />
+        )}
+      </section>
     </div>
   );
 }

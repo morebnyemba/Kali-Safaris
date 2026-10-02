@@ -274,3 +274,105 @@ class MessageVolumeAPIView(BaseAnalyticsView):
         trends_data = [{'period': item['period'].strftime(date_format), 'incoming_messages': item['incoming'], 'outgoing_messages': item['outgoing'], 'total_messages': item['incoming'] + item['outgoing']} for item in message_trends]
 
         return Response({'date_range': {'start': start_datetime.isoformat(), 'end': end_datetime.isoformat()}, 'group_by': group_by, 'volume_per_period': trends_data})
+
+
+class BookingStatsAPIView(BaseAnalyticsView):
+    """
+    Booking/business analytics for the dashboard and analytics pages.
+
+    Query parameters (all optional):
+    - `start_date`, `end_date` (YYYY-MM-DD): window for "created" metrics
+      (bookings, revenue, inquiries). Defaults to the last 30 days.
+    - `departure_days` (int, default 14, max 90): how far ahead to list
+      upcoming departures.
+    """
+    def get(self, request, format=None):
+        from customer_data.models import Booking, TourInquiry, Traveler
+
+        start_datetime, end_datetime = self.get_date_range(request)
+        try:
+            departure_days = max(1, min(int(request.query_params.get('departure_days', 14)), 90))
+        except (TypeError, ValueError):
+            departure_days = 14
+
+        confirmed = Booking.CONFIRMED_PAYMENT_STATUSES
+        awaiting = Booking.PaymentStatus.AWAITING_DETAILS
+        created = Booking.objects.filter(created_at__range=(start_datetime, end_datetime))
+        payments = Payment.objects.filter(
+            status=Payment.PaymentStatus.SUCCESSFUL, created_at__range=(start_datetime, end_datetime),
+        )
+
+        today = timezone.localdate()
+        horizon = today + timedelta(days=departure_days)
+        upcoming = (
+            Booking.objects
+            .filter(start_date__gte=today, start_date__lte=horizon,
+                    payment_status__in=[*confirmed, awaiting])
+            .annotate(pax=Count('travelers'))
+        )
+
+        departures = {}
+        for booking in upcoming.order_by('start_date', 'tour_name'):
+            key = (booking.start_date, booking.tour_name)
+            row = departures.setdefault(key, {
+                'date': booking.start_date.isoformat(), 'tour_name': booking.tour_name,
+                'bookings': 0, 'passengers': 0, 'held_bookings': 0,
+            })
+            if booking.payment_status == awaiting:
+                row['held_bookings'] += 1
+            else:
+                row['bookings'] += 1
+                row['passengers'] += booking.pax
+
+        outstanding = (
+            Booking.objects.filter(payment_status__in=[*confirmed, awaiting], start_date__gte=today)
+            .aggregate(total=Sum('total_amount'), paid=Sum('amount_paid'))
+        )
+
+        def money(value):
+            return float(value or 0)
+
+        series = {}
+        for row in (created.annotate(day=TruncDate('created_at')).values('day')
+                    .annotate(count=Count('id')).order_by('day')):
+            series.setdefault(row['day'].isoformat(), {'date': row['day'].isoformat(), 'bookings': 0, 'revenue': 0.0})['bookings'] = row['count']
+        for row in (payments.annotate(day=TruncDate('created_at')).values('day')
+                    .annotate(amount=Sum('amount')).order_by('day')):
+            series.setdefault(row['day'].isoformat(), {'date': row['day'].isoformat(), 'bookings': 0, 'revenue': 0.0})['revenue'] = money(row['amount'])
+
+        return Response({
+            'date_range': {'start': start_datetime.date().isoformat(), 'end': end_datetime.date().isoformat()},
+            'kpis': {
+                'bookings_created': created.count(),
+                'bookings_confirmed': created.filter(payment_status__in=confirmed).count(),
+                'revenue': money(payments.aggregate(total=Sum('amount'))['total']),
+                'payments_count': payments.count(),
+                'awaiting_details': Booking.objects.filter(payment_status=awaiting).count(),
+                'pending_payment': Booking.objects.filter(
+                    payment_status__in=[Booking.PaymentStatus.PENDING, Booking.PaymentStatus.PENDING_MANUAL],
+                    start_date__gte=today,
+                ).count(),
+                'upcoming_passengers': Traveler.objects.filter(
+                    booking__start_date__gte=today, booking__start_date__lte=horizon,
+                    booking__payment_status__in=confirmed,
+                ).count(),
+                'outstanding_balance': max(money(outstanding['total']) - money(outstanding['paid']), 0.0),
+                'open_inquiries': TourInquiry.objects.exclude(
+                    status__in=[TourInquiry.InquiryStatus.CONVERTED, TourInquiry.InquiryStatus.CLOSED],
+                ).count(),
+                'inquiries_created': TourInquiry.objects.filter(created_at__range=(start_datetime, end_datetime)).count(),
+            },
+            'departure_days': departure_days,
+            'upcoming_departures': list(departures.values()),
+            'status_breakdown': [
+                {'status': row['payment_status'],
+                 'label': str(Booking.PaymentStatus(row['payment_status']).label) if row['payment_status'] in Booking.PaymentStatus.values else row['payment_status'],
+                 'count': row['count']}
+                for row in created.values('payment_status').annotate(count=Count('id')).order_by('-count')
+            ],
+            'by_tour': [
+                {'tour_name': row['tour_name'], 'bookings': row['count'], 'value': money(row['value'])}
+                for row in created.values('tour_name').annotate(count=Count('id'), value=Sum('total_amount')).order_by('-count')[:8]
+            ],
+            'series': sorted(series.values(), key=lambda r: r['date']),
+        })

@@ -1,251 +1,211 @@
 // src/pages/AnalyticsPage.jsx
-
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@/context/AuthContext';
-import { useNavigate } from 'react-router-dom';
-import { addDays } from 'date-fns';
-import { dashboardApi } from '@/lib/api';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { DatePickerWithRange } from '@/components/ui/date-range-picker';
-import { FiLoader } from 'react-icons/fi';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { subDays, startOfYear } from 'date-fns';
 import {
-  LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell
+  Bar, BarChart, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from 'recharts';
-import { FaUserFriends, FaMoneyBillWave, FaClock, FaChartLine } from 'react-icons/fa';
+import { FiCalendar, FiCheckCircle, FiDollarSign, FiMessageSquare, FiRefreshCw, FiUsers } from 'react-icons/fi';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import PageHeader from '@/components/app/PageHeader';
+import StatCard from '@/components/app/StatCard';
+import StatusBadge from '@/components/app/StatusBadge';
+import { EmptyState, ErrorState, LoadingState } from '@/components/app/States';
+import { dashboardApi } from '@/lib/api';
+import { apiErrorMessage, formatDate, formatMoney, formatNumber, toIsoDate } from '@/lib/format';
+
+const PRESETS = [
+  { key: '7d', label: '7 days', from: () => subDays(new Date(), 6) },
+  { key: '30d', label: '30 days', from: () => subDays(new Date(), 29) },
+  { key: '90d', label: '90 days', from: () => subDays(new Date(), 89) },
+  { key: 'ytd', label: 'This year', from: () => startOfYear(new Date()) },
+];
+
+const tooltipStyle = { background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 };
+const axisTick = { fontSize: 11, fill: 'var(--muted-foreground)' };
+
+function ChartCard({ title, description, children, className = '' }) {
+  return (
+    <Card className={`gap-0 py-0 ${className}`}>
+      <CardHeader className="border-b py-4">
+        <CardTitle className="text-base">{title}</CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
+      </CardHeader>
+      <CardContent className="py-4">{children}</CardContent>
+    </Card>
+  );
+}
 
 export default function AnalyticsPage() {
-  const { isAuthenticated } = useAuth();
-  const navigate = useNavigate();
-  const [data, setData] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [dateRange, setDateRange] = useState({
-    from: addDays(new Date(), -30),
-    to: new Date(),
-  });
+  const [range, setRange] = useState(() => ({ preset: '30d', start: toIsoDate(subDays(new Date(), 29)), end: toIsoDate(new Date()) }));
+  const [data, setData] = useState({ bookings: null, messages: null, engagement: null });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-
-  const fetchData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    const params = { start_date: range.start, end_date: range.end };
     try {
-      // Pass date range to backend as query params
-      const params = {
-        start_date: dateRange.from.toISOString().slice(0, 10),
-        end_date: dateRange.to.toISOString().slice(0, 10),
-      };
-      const response = await dashboardApi.getSummary(params);
-      setData(response.data);
+      const [bookings, messages, engagement] = await Promise.all([
+        dashboardApi.getBookingStats(params),
+        dashboardApi.getMessageVolume(params),
+        dashboardApi.getEngagement(params),
+      ]);
+      setData({ bookings: bookings.data, messages: messages.data, engagement: engagement.data });
     } catch (err) {
-      setError(err.message);
+      setError(apiErrorMessage(err));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [dateRange]);
+  }, [range.start, range.end]);
 
+  useEffect(() => { load(); }, [load]);
 
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setError('Session expired. Please log in again.');
-      setTimeout(() => {
-        navigate('/login');
-      }, 1500);
-      return;
-    }
-    fetchData();
-    // eslint-disable-next-line
-  }, [fetchData, isAuthenticated, navigate]);
+  const choosePreset = (preset) => {
+    setRange({ preset: preset.key, start: toIsoDate(preset.from()), end: toIsoDate(new Date()) });
+  };
+
+  const kpis = data.bookings?.kpis;
+  const series = useMemo(
+    () => (data.bookings?.series || []).map((d) => ({ ...d, label: formatDate(d.date, 'd MMM') })),
+    [data.bookings],
+  );
+  const messageSeries = useMemo(
+    () => (data.messages?.volume_per_period || []).map((d) => ({
+      label: formatDate(d.period, 'd MMM'), received: d.incoming_messages, sent: d.outgoing_messages,
+    })),
+    [data.messages],
+  );
+  const totalMessages = messageSeries.reduce((sum, d) => sum + d.received + d.sent, 0);
 
   return (
-    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-8">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Analytics</h1>
-        <div className="flex items-center gap-2">
-          <DatePickerWithRange date={dateRange} onDateChange={setDateRange} />
-          <Button onClick={fetchData} disabled={isLoading}>
-            {isLoading ? <FiLoader className="animate-spin mr-2" /> : null}
-            Refresh
+    <>
+      <PageHeader
+        title="Analytics"
+        description={`${formatDate(range.start)} – ${formatDate(range.end)}`}
+        actions={(
+          <Button variant="outline" size="sm" onClick={load} disabled={loading}>
+            <FiRefreshCw className={loading ? 'animate-spin' : ''} /> Refresh
           </Button>
+        )}
+      />
+
+      <div className="mb-6 flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="flex flex-wrap gap-1" role="group" aria-label="Date range presets">
+          {PRESETS.map((p) => (
+            <Button key={p.key} size="sm" variant={range.preset === p.key ? 'default' : 'ghost'} onClick={() => choosePreset(p)}>
+              {p.label}
+            </Button>
+          ))}
+        </div>
+        <div className="flex items-end gap-2">
+          <div>
+            <Label htmlFor="range-start" className="mb-1 text-xs text-muted-foreground">From</Label>
+            <Input id="range-start" type="date" value={range.start} max={range.end}
+              onChange={(e) => e.target.value && setRange((r) => ({ ...r, preset: 'custom', start: e.target.value }))} className="h-8 w-40" />
+          </div>
+          <div>
+            <Label htmlFor="range-end" className="mb-1 text-xs text-muted-foreground">To</Label>
+            <Input id="range-end" type="date" value={range.end} min={range.start}
+              onChange={(e) => e.target.value && setRange((r) => ({ ...r, preset: 'custom', end: e.target.value }))} className="h-8 w-40" />
+          </div>
         </div>
       </div>
 
-      {isLoading && <div className="text-center p-8"><FiLoader className="animate-spin h-8 w-8 mx-auto text-slate-500" /></div>}
-      {error && <p className="text-red-500 text-center p-8">Failed to load analytics data: {error}</p>}
-
-      {data && !isLoading && !error && (
+      {error ? <ErrorState message={error} onRetry={load} /> : loading && !data.bookings ? <LoadingState label="Loading analytics…" /> : (
         <>
-          {/* Orders, Installation Requests, Site Assessments */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2">
-                <FaMoneyBillWave className="text-yellow-500 text-xl" />
-                <CardTitle>Total Orders Created</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{data.stats_cards?.orders_created ?? 'N/A'}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2">
-                <FaMoneyBillWave className="text-green-600 text-xl" />
-                <CardTitle>Pending Installation Requests</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{data.stats_cards?.pending_installations ?? 'N/A'}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2">
-                <FaChartLine className="text-blue-600 text-xl" />
-                <CardTitle>Pending Site Assessments</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{data.stats_cards?.pending_assessments ?? 'N/A'}</p>
-              </CardContent>
-            </Card>
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <StatCard label="Revenue received" value={formatMoney(kpis?.revenue)} hint={`${kpis?.payments_count ?? 0} successful payments`} icon={FiDollarSign} tone="accent" loading={loading} />
+            <StatCard label="Bookings created" value={formatNumber(kpis?.bookings_created)} hint={`${kpis?.bookings_confirmed ?? 0} confirmed`} icon={FiCalendar} loading={loading} />
+            <StatCard label="Inquiries received" value={formatNumber(kpis?.inquiries_created)} hint={`${kpis?.open_inquiries ?? 0} still open overall`} icon={FiCheckCircle} tone="info" loading={loading} />
+            <StatCard label="Customers who messaged" value={formatNumber(data.engagement?.active_contacts_in_period)} hint={`${formatNumber(totalMessages)} messages · ${data.engagement?.handovers_requested_in_period ?? 0} handovers`} icon={FiUsers} tone="warning" loading={loading} />
           </div>
 
-          {/* Orders Trend Chart */}
-          <div className="grid gap-8 md:grid-cols-2 mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Orders Created Over Time</CardTitle>
-              </CardHeader>
-              <CardContent style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={data.charts_data?.order_trend ?? []} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Legend />
-                    <Bar dataKey="orders" fill="#6366f1" name="Orders" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            {/* Revenue and Open Orders Value */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Revenue & Open Orders Value</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col gap-4">
-                  <div>
-                    <span className="font-semibold">Revenue:</span> <span className="text-2xl font-bold">${data.stats_cards?.revenue ?? '0.00'}</span>
-                  </div>
-                  <div>
-                    <span className="font-semibold">Open Orders Value:</span> <span className="text-2xl font-bold">${data.stats_cards?.open_orders_value ?? '0.00'}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          <div className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <ChartCard title="Bookings & revenue" description="New bookings per day and payments received" className="xl:col-span-2">
+              <div className="h-72">
+                {series.length === 0 ? <EmptyState icon={FiCalendar} title="No bookings in this period" /> : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <ComposedChart data={series} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                      <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} />
+                      <YAxis yAxisId="left" allowDecimals={false} tick={axisTick} tickLine={false} axisLine={false} />
+                      <YAxis yAxisId="right" orientation="right" tick={axisTick} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v}`} />
+                      <Tooltip contentStyle={tooltipStyle} formatter={(v, n) => (n === 'Revenue' ? formatMoney(v) : v)} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar yAxisId="left" dataKey="bookings" name="Bookings" fill="var(--chart-1)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                      <Line yAxisId="right" type="monotone" dataKey="revenue" name="Revenue" stroke="var(--chart-2)" strokeWidth={2} dot={false} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </ChartCard>
 
-          {/* Custom Analytics Cards (Not shown on dashboard) */}
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2">
-                <FaMoneyBillWave className="text-yellow-500 text-xl" />
-                <CardTitle>Orders Created (Custom)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{data.flow_insights?.flow_completions_today ?? 'N/A'}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2">
-                <FaMoneyBillWave className="text-green-600 text-xl" />
-                <CardTitle>Avg. Steps per Flow</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{data.flow_insights?.avg_steps_per_flow ?? 'N/A'}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2">
-                <FaChartLine className="text-blue-600 text-xl" />
-                <CardTitle>Active Flows</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{data.flow_insights?.active_flows_count ?? 'N/A'}</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center gap-2">
-                <FaChartLine className="text-indigo-600 text-xl" />
-                <CardTitle>Total Flows</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{data.flow_insights?.total_flows_count ?? 'N/A'}</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Charts Section */}
-          <div className="grid gap-8 md:grid-cols-2 mt-8">
-            {/* Conversation Trends Chart */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Conversation Trends</CardTitle>
-              </CardHeader>
-              <CardContent style={{ height: 300 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={data.charts_data?.conversation_trends ?? []} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                    <YAxis allowDecimals={false} />
-                    <Tooltip />
-                    <Legend />
-                    <Line type="monotone" dataKey="incoming_messages" stroke="#2563eb" name="Incoming" strokeWidth={2} />
-                    <Line type="monotone" dataKey="outgoing_messages" stroke="#22c55e" name="Outgoing" strokeWidth={2} />
-                    <Line type="monotone" dataKey="total_messages" stroke="#f59e42" name="Total" strokeWidth={2} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Bot Performance */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Bot Performance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  <li>Automated Resolution Rate: <span className="font-bold">{data.charts_data?.bot_performance?.automated_resolution_rate ?? 'N/A'}</span></li>
-                  <li>Avg. Bot Response Time (s): <span className="font-bold">{data.charts_data?.bot_performance?.avg_bot_response_time_seconds ?? 'N/A'}</span></li>
-                  <li>Total Incoming Messages Processed: <span className="font-bold">{data.charts_data?.bot_performance?.total_incoming_messages_processed ?? 'N/A'}</span></li>
-                </ul>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Recent Activity Log */}
-          <div className="mt-8">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="divide-y divide-slate-200">
-                  {Array.isArray(data.recent_activity_log) && data.recent_activity_log.length > 0 ? (
-                    data.recent_activity_log.map((item) => (
-                      <li key={item.id} className="flex items-center gap-2 py-2">
-                        <span className={item.iconColor}><i className={item.iconName} /></span>
-                        <span>{item.text}</span>
-                        <span className="ml-auto text-xs text-slate-400">{new Date(item.timestamp).toLocaleString()}</span>
+            <ChartCard title="Booking status" description="Bookings created in this period">
+              {(data.bookings?.status_breakdown?.length ?? 0) === 0 ? <EmptyState title="No bookings" /> : (
+                <ul className="space-y-3">
+                  {data.bookings.status_breakdown.map((s) => {
+                    const pct = kpis?.bookings_created ? Math.round((s.count / kpis.bookings_created) * 100) : 0;
+                    return (
+                      <li key={s.status}>
+                        <div className="mb-1 flex items-center justify-between text-sm">
+                          <StatusBadge status={s.status} />
+                          <span className="tabular-nums text-muted-foreground">{s.count} · {pct}%</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted">
+                          <div className="h-1.5 rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                        </div>
                       </li>
-                    ))
-                  ) : (
-                    <li className="text-slate-400">No recent activity</li>
-                  )}
+                    );
+                  })}
                 </ul>
-              </CardContent>
-            </Card>
+              )}
+            </ChartCard>
+          </div>
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+            <ChartCard title="WhatsApp messages" description="Received vs sent per day" className="xl:col-span-2">
+              <div className="h-64">
+                {messageSeries.length === 0 ? <EmptyState icon={FiMessageSquare} title="No messages in this period" /> : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={messageSeries} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
+                      <XAxis dataKey="label" tick={axisTick} tickLine={false} axisLine={false} />
+                      <YAxis allowDecimals={false} tick={axisTick} tickLine={false} axisLine={false} />
+                      <Tooltip contentStyle={tooltipStyle} />
+                      <Legend wrapperStyle={{ fontSize: 12 }} />
+                      <Bar dataKey="received" name="Received" stackId="m" fill="var(--chart-1)" maxBarSize={28} />
+                      <Bar dataKey="sent" name="Sent" stackId="m" fill="var(--chart-3)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </ChartCard>
+
+            <ChartCard title="Top tours" description="By bookings created">
+              {(data.bookings?.by_tour?.length ?? 0) === 0 ? <EmptyState title="No bookings" /> : (
+                <table className="w-full text-sm">
+                  <thead className="text-left text-xs text-muted-foreground">
+                    <tr><th className="pb-2 font-medium">Tour</th><th className="pb-2 pl-4 text-right font-medium">Bookings</th><th className="pb-2 pl-4 text-right font-medium">Value</th></tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {data.bookings.by_tour.map((t) => (
+                      <tr key={t.tour_name}>
+                        <td className="py-2 pr-2">{t.tour_name}</td>
+                        <td className="py-2 pl-4 text-right tabular-nums">{t.bookings}</td>
+                        <td className="whitespace-nowrap py-2 pl-4 text-right tabular-nums">{formatMoney(t.value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </ChartCard>
           </div>
         </>
       )}
-    </div>
+    </>
   );
 }

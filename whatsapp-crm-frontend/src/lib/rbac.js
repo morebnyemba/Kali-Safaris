@@ -41,6 +41,8 @@ export function hasRole(user, requiredRoles = []) {
 
 export function hasPermission(user, requiredPermissions = []) {
   if (!requiredPermissions || requiredPermissions.length === 0) return true;
+  // Superusers hold every permission; the token omits the list to stay small.
+  if (user?.is_superuser) return true;
   const userPermissions = extractPermissions(user);
   return requiredPermissions.every((permission) =>
     userPermissions.includes(String(permission).toLowerCase())

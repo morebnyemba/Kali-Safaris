@@ -116,7 +116,9 @@ class Command(BaseCommand):
                 defaults={
                     'description': template_def.get('description', ''),
                     'message_body': template_def.get('body', ''),
-                    'buttons': template_def.get('buttons', []),
+                    # NotificationTemplate has no `buttons` field; quick-reply
+                    # buttons in the definitions are informational only.
+                    **({'template_type': template_def['template_type']} if 'template_type' in template_def else {}),
                 }
             )
 

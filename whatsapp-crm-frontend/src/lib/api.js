@@ -73,7 +73,7 @@ const refreshToken = async () => {
       localStorage.setItem('refreshToken', normalizeToken(newRefreshToken));
     }
     return normalizeToken(access);
-  } catch (err) {
+  } catch {
 
     // Instead of forcing a redirect, dispatch an event that the AuthProvider can listen to.
     // This decouples the API layer from the UI/routing layer.
@@ -146,9 +146,12 @@ apiClient.interceptors.response.use(
 
 // --- API Service Definitions ---
 
-// --- Dashboard Stats API ---
+// --- Dashboard / Analytics Stats API ---
 export const dashboardApi = {
   getSummary: (params) => apiClient.get('/crm-api/stats/summary/', { params }),
+  getBookingStats: (params) => apiClient.get('/crm-api/stats/bookings/', { params }),
+  getMessageVolume: (params) => apiClient.get('/crm-api/stats/messages/', { params }),
+  getEngagement: (params) => apiClient.get('/crm-api/stats/engagement/', { params }),
 };
 
 // --- Contacts API ---
@@ -156,12 +159,28 @@ export const contactsApi = {
   list: (params) => apiClient.get('/crm-api/conversations/contacts/', { params }),
   retrieve: (id) => apiClient.get(`/crm-api/conversations/contacts/${id}/`),
   patch: (id, data) => apiClient.patch(`/crm-api/conversations/contacts/${id}/`, data),
-  listMessages: (contactId) => apiClient.get(`/crm-api/conversations/contacts/${contactId}/messages/`),
+  listMessages: (contactId, params) => apiClient.get(`/crm-api/conversations/contacts/${contactId}/messages/`, { params }),
+  markRead: (contactId) => apiClient.post(`/crm-api/conversations/contacts/${contactId}/mark-read/`),
 };
 
 // --- Customer Profile API ---
 export const profilesApi = {
+  // GET creates the profile on first access (CustomerProfile pk == contact id).
+  retrieve: (id) => apiClient.get(`/crm-api/customer-data/profiles/${id}/`),
   patch: (id, data) => apiClient.patch(`/crm-api/customer-data/profiles/${id}/`, data),
+};
+
+// --- Tours (catalogue) ---
+export const toursApi = {
+  list: () => apiClient.get('/crm-api/tours/'),
+};
+
+// --- Tour Inquiries API ---
+export const inquiriesApi = {
+  list: (params) => apiClient.get('/crm-api/customer-data/inquiries/', { params }),
+  create: (data) => apiClient.post('/crm-api/customer-data/inquiries/', data),
+  update: (id, data) => apiClient.patch(`/crm-api/customer-data/inquiries/${id}/`, data),
+  delete: (id) => apiClient.delete(`/crm-api/customer-data/inquiries/${id}/`),
 };
 
 // --- Flows API (Expanded) ---
@@ -194,18 +213,14 @@ export const metaApi = {
 };
 
 // --- Media Assets API ---
+const MEDIA_BASE = '/crm-api/media/assets/';
 export const mediaAssetsApi = {
-  list: (params) => apiClient.get('/media/media-assets/', { params }),
-};
-
-// --- Analytics API ---
-export const analyticsApi = {
-  getReports: (params) => apiClient.get('/crm-api/analytics/reports/', { params }),
-};
-
-// --- Saved Data API ---
-export const savedDataApi = {
-  list: () => apiClient.get('/crm-api/saved-data/'), // Assuming this endpoint
+  list: (params) => apiClient.get(MEDIA_BASE, { params }),
+  // FormData upload: override the client's JSON default or axios would JSON-encode it.
+  create: (formData) => apiClient.post(MEDIA_BASE, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  update: (id, data) => apiClient.patch(`${MEDIA_BASE}${id}/`, data),
+  delete: (id) => apiClient.delete(`${MEDIA_BASE}${id}/`),
+  sync: (id) => apiClient.post(`${MEDIA_BASE}${id}/sync-with-whatsapp/`),
 };
 
 // Backward-compatible apiCall function.
