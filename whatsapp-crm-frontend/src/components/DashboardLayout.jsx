@@ -44,10 +44,10 @@ const NAV_GROUPS = [
   {
     label: 'Settings',
     items: [
-      { to: '/api-settings', label: 'WhatsApp API', icon: FiSettings },
+      { to: '/api-settings', label: 'WhatsApp API', icon: FiSettings, roles: [APP_ROLES.ADMIN, APP_ROLES.MANAGER] },
       { to: '/admin', label: 'Admin center', icon: FiShield, end: true, roles: [APP_ROLES.ADMIN, APP_ROLES.MANAGER] },
-      { to: '/admin/users', label: 'Users', icon: FiUserCheck, roles: [APP_ROLES.ADMIN, APP_ROLES.MANAGER] },
-      { to: '/admin/roles', label: 'Roles', icon: FiList, roles: [APP_ROLES.ADMIN, APP_ROLES.MANAGER] },
+      { to: '/admin/users', label: 'Users', icon: FiUserCheck, roles: [APP_ROLES.ADMIN] },
+      { to: '/admin/roles', label: 'Roles', icon: FiList, roles: [APP_ROLES.ADMIN] },
       { to: '/admin/audit', label: 'Audit log', icon: FiActivity, roles: [APP_ROLES.ADMIN, APP_ROLES.MANAGER] },
     ],
   },

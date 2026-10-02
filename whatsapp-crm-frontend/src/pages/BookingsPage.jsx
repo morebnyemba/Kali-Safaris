@@ -261,7 +261,7 @@ export default function BookingsPage() {
             action={!status && !search ? <Button onClick={openNew}><FiPlus /> New booking</Button> : null}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[860px] text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>

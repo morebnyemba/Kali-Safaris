@@ -87,7 +87,7 @@ function DeparturesCard({ data, loading }) {
         {loading ? <TableSkeleton rows={4} cols={4} /> : (data?.upcoming_departures?.length ?? 0) === 0 ? (
           <EmptyState icon={FiCalendar} title="No departures coming up" description="Confirmed bookings in the next two weeks will appear here." />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>

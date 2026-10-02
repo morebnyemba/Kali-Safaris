@@ -186,7 +186,7 @@ export default function InquiriesPage() {
             action={!search && statusFilter === 'all' ? <Button onClick={openNew}><FiPlus /> New inquiry</Button> : null}
           />
         ) : (
-          <div className="overflow-x-auto">
+          <div className="relative overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>

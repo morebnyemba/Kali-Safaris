@@ -1,29 +1,29 @@
-import AnalyticsPage from './pages/AnalyticsPage';
 // Filename: src/App.jsx
-import React from 'react';
+import React, { lazy } from 'react';
 import { RouterProvider, createBrowserRouter, Navigate, Link } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext'; // Your AuthProvider
-import ProtectedRoute from './components/ProtectedRoute'; // Your ProtectedRoute
-
+import { AuthProvider } from './context/AuthContext';
+import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/DashboardLayout';
-import Dashboard from './pages/Dashboard';
-import ApiSettings from './pages/ApiSettings';
-import FlowsPage from './pages/FlowsPage';
-import FlowEditorPage from './pages/FlowEditorPage'; // <--- IMPORT FlowEditorPage
-import MediaLibraryPage from './pages/MediaLibraryPage';
-import ContactsPage from './pages/ContactsPage';
-import Conversation from './pages/Conversation';
-import LoginPage from './pages/LoginPage';
 import RoleRoute from './components/RoleRoute';
+import LoginPage from './pages/LoginPage';
 import { APP_ROLES } from './lib/rbac';
-import AdminOverviewPage from './pages/admin/AdminOverviewPage';
-import UsersCrudPage from './pages/admin/UsersCrudPage';
-import RolesPermissionsPage from './pages/admin/RolesPermissionsPage';
-import SystemAuditPage from './pages/admin/SystemAuditPage';
 
-
-import BookingsPage from './pages/BookingsPage';
-import InquiriesPage from './pages/InquiriesPage';
+// Pages are split per route so charts, the flow editor, etc. only load when opened.
+// DashboardLayout wraps <Outlet /> in <Suspense>.
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const ApiSettings = lazy(() => import('./pages/ApiSettings'));
+const FlowsPage = lazy(() => import('./pages/FlowsPage'));
+const FlowEditorPage = lazy(() => import('./pages/FlowEditorPage'));
+const MediaLibraryPage = lazy(() => import('./pages/MediaLibraryPage'));
+const ContactsPage = lazy(() => import('./pages/ContactsPage'));
+const Conversation = lazy(() => import('./pages/Conversation'));
+const BookingsPage = lazy(() => import('./pages/BookingsPage'));
+const InquiriesPage = lazy(() => import('./pages/InquiriesPage'));
+const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPage'));
+const UsersCrudPage = lazy(() => import('./pages/admin/UsersCrudPage'));
+const RolesPermissionsPage = lazy(() => import('./pages/admin/RolesPermissionsPage'));
+const SystemAuditPage = lazy(() => import('./pages/admin/SystemAuditPage'));
 
 const NotFoundPage = () => (
   <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -51,12 +51,19 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: <Navigate to="/dashboard" replace /> },
       { path: 'dashboard', element: <Dashboard /> },
-      { path: 'api-settings', element: <ApiSettings /> },
+      {
+        path: 'api-settings',
+        element: (
+          <RoleRoute requiredRoles={[APP_ROLES.ADMIN, APP_ROLES.MANAGER]}>
+            <ApiSettings />
+          </RoleRoute>
+        ),
+      },
       
       // Flow Management
       { path: 'flows', element: <FlowsPage /> }, // Page to list all flows
-      { path: 'flows/new', element: <FlowEditorPage /> }, // <--- ADDED: Route to create a new flow
-      { path: 'flows/edit/:flowId', element: <FlowEditorPage /> }, // <--- ADDED: Route to edit an existing flow
+      { path: 'flows/new', element: <FlowEditorPage /> },
+      { path: 'flows/edit/:flowId', element: <FlowEditorPage /> },
       
   // Other sections
   { path: 'media-library', element: <MediaLibraryPage /> },

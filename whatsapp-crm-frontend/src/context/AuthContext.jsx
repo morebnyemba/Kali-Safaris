@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
             setRefreshToken(null);
             setUser(null);
           }
-        } catch (e) {
+        } catch {
           authService.clearTokens();
           setAccessToken(null);
           setRefreshToken(null);

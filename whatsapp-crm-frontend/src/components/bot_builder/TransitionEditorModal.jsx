@@ -1,60 +1,103 @@
 // src/components/bot_builder/TransitionEditorModal.jsx
-import { Badge } from '../ui/badge';
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { FiArrowRight, FiCode, FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel
-} from '@/components/ui/select';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
-} from "@/components/ui/dialog";
-import { Card, CardContent } from '@/components/ui/card';
-import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
-import { FiPlus, FiEdit, FiTrash2, FiLoader, FiChevronsRight, FiGitBranch } from 'react-icons/fi';
+import { Textarea } from '@/components/ui/textarea';
+import { LoadingState } from '@/components/app/States';
 
-export const CONDITION_TYPES = [
-  { value: 'always_true', label: 'Always True (Unconditional)' },
-  { value: 'user_reply_matches_keyword', label: 'User Reply IS Keyword' },
-  { value: 'user_reply_contains_keyword', label: 'User Reply CONTAINS Keyword' },
-  { value: 'interactive_reply_id_equals', label: 'Interactive Reply ID IS' },
-  { value: 'variable_equals', label: 'Context Variable IS Value' },
-  { value: 'user_reply_is_email', label: 'User Reply IS Email' },
-  { value: 'user_reply_is_number', label: 'User Reply IS Number' },
-  { value: 'user_reply_matches_regex', label: 'User Reply Matches Regex (UI TODO)' },
-  { value: 'nfm_response_field_equals', label: 'NFM Response Field Equals (UI TODO)' },
-  { value: 'question_reply_is_valid', label: 'Question Reply is Valid (UI TODO)' },
-];
+const selectClass = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30';
+const VAR = { key: 'variable_name', label: 'Variable', placeholder: 'e.g. flow_context.num_adults', mono: true, required: true };
+const NUMERIC = { fields: [VAR, { key: 'value_template', label: 'Compare with', placeholder: 'number or {{ variable }}', required: true }] };
 
-const initialConditionConfig = (type = 'always_true') => {
-  const baseConfig = { type };
-  switch (type) {
-    case 'user_reply_matches_keyword':
-    case 'user_reply_contains_keyword':
-      baseConfig.keyword = '';
-      baseConfig.case_sensitive = false;
-      break;
-    case 'interactive_reply_id_equals':
-      baseConfig.reply_id = '';
-      break;
-    case 'variable_equals':
-      baseConfig.variable_name = 'flow_context.your_variable';
-      baseConfig.value = '';
-      break;
-    case 'user_reply_is_number':
-      baseConfig.allow_decimal = false;
-      baseConfig.min_value = null;
-      baseConfig.max_value = null; // Corrected this from base_config to baseConfig
-      break;
-    default:
-      break;
-  }
-  return baseConfig;
+// Mirrors the condition types evaluated in flows/services.py — keys must match exactly
+// or the transition silently never fires.
+const CONDITIONS = {
+  always_true: { label: 'Always', fields: [] },
+  user_reply_matches_keyword: { label: 'Reply is exactly', fields: [{ key: 'keyword', label: 'Text', required: true }, { key: 'case_sensitive', label: 'Case sensitive', type: 'bool' }] },
+  user_reply_contains_keyword: { label: 'Reply contains', fields: [{ key: 'keyword', label: 'Text', required: true }, { key: 'case_sensitive', label: 'Case sensitive', type: 'bool' }] },
+  interactive_reply_id_equals: { label: 'Button / list choice is', fields: [{ key: 'value', label: 'Reply ID', placeholder: 'id of the button or list row', mono: true, required: true }] },
+  message_type_is: { label: 'Message type is', fields: [{ key: 'value', label: 'Type', type: 'select', options: ['text', 'image', 'document', 'audio', 'video', 'location', 'interactive', 'button', 'sticker'] }] },
+  user_reply_matches_regex: { label: 'Reply matches pattern', fields: [{ key: 'regex', label: 'Regular expression', mono: true, required: true }] },
+  variable_equals: { label: 'Variable equals', fields: [VAR, { key: 'value', label: 'Value', placeholder: 'leave empty to match “not set”' }] },
+  variable_exists: { label: 'Variable is set', fields: [VAR] },
+  variable_contains: { label: 'Variable contains', fields: [VAR, { key: 'value', label: 'Value', required: true }] },
+  variable_greater_than: { label: 'Variable >', ...NUMERIC },
+  variable_greater_than_or_equal: { label: 'Variable ≥', ...NUMERIC },
+  variable_less_than: { label: 'Variable <', ...NUMERIC },
+  variable_less_than_or_equal: { label: 'Variable ≤', ...NUMERIC },
+  question_reply_is_valid: { label: 'Question answer validity', fields: [{ key: 'value', label: 'Answer was valid', type: 'bool', default: true }] },
+  whatsapp_flow_response_received: { label: 'WhatsApp form submitted', fields: [{ ...VAR, required: false, placeholder: 'whatsapp_flow_response_received' }] },
+  nfm_response_field_equals: { label: 'Form field equals', fields: [{ key: 'field_path', label: 'Field path', mono: true, required: true }, { key: 'value', label: 'Value' }] },
+  user_requests_human: { label: 'Customer asks for a human', fields: [{ key: 'keywords', label: 'Keywords (comma separated)', type: 'list', placeholder: 'help, agent, human' }] },
+  contact_is_admin: { label: 'Contact is staff', fields: [] },
 };
+
+function newConfig(type) {
+  const config = { type };
+  (CONDITIONS[type]?.fields || []).forEach((f) => {
+    if (f.default !== undefined) config[f.key] = f.default;
+    else if (f.type === 'bool') config[f.key] = false;
+  });
+  return config;
+}
+
+/** One-line human summary of a transition condition, e.g. `Reply is exactly "yes"`. */
+function describeCondition(config) {
+  const def = CONDITIONS[config?.type];
+  if (!def) return config?.type || 'Unknown condition';
+  const parts = def.fields
+    .filter((f) => f.type !== 'bool' && config[f.key] !== undefined && config[f.key] !== '')
+    .map((f) => (Array.isArray(config[f.key]) ? config[f.key].join(', ') : String(config[f.key])));
+  if (config.type === 'question_reply_is_valid') return config.value === false ? 'Answer was invalid' : 'Answer was valid';
+  return parts.length ? `${def.label} “${parts.join(' · ')}”` : def.label;
+}
+
+function ConditionFields({ config, onChange, disabled }) {
+  const def = CONDITIONS[config.type];
+  if (!def) return null;
+  if (def.fields.length === 0) return <p className="text-sm text-muted-foreground">No settings — this condition needs nothing else.</p>;
+  return def.fields.map((f) => {
+    const id = `cond-${f.key}`;
+    const value = config[f.key];
+    if (f.type === 'bool') {
+      return (
+        <div key={f.key} className="flex items-center gap-2">
+          <Switch id={id} checked={!!value} onCheckedChange={(v) => onChange(f.key, v)} disabled={disabled} />
+          <Label htmlFor={id}>{f.label}</Label>
+        </div>
+      );
+    }
+    if (f.type === 'select') {
+      return (
+        <div key={f.key}>
+          <Label htmlFor={id} className="mb-1.5">{f.label}</Label>
+          <select id={id} className={selectClass} value={value || ''} onChange={(e) => onChange(f.key, e.target.value)} disabled={disabled}>
+            <option value="" disabled>Choose…</option>
+            {f.options.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      );
+    }
+    return (
+      <div key={f.key}>
+        <Label htmlFor={id} className="mb-1.5">{f.label}{f.required && <span className="text-destructive"> *</span>}</Label>
+        <Input
+          id={id}
+          value={f.type === 'list' ? (value || []).join(', ') : (value ?? '')}
+          onChange={(e) => onChange(f.key, f.type === 'list' ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean) : e.target.value)}
+          placeholder={f.placeholder}
+          required={f.required}
+          className={f.mono ? 'font-mono text-xs' : ''}
+          disabled={disabled}
+        />
+      </div>
+    );
+  });
+}
 
 export default function TransitionEditorModal({
   isOpen,
@@ -67,223 +110,159 @@ export default function TransitionEditorModal({
   onDelete,
   isLoadingExternally,
 }) {
-  const [editingTransition, setEditingTransitionInternal] = editingTransitionState;
-
+  const [editingTransition, setEditingTransition] = editingTransitionState;
   const [nextStepId, setNextStepId] = useState('');
   const [priority, setPriority] = useState(0);
-  const [conditionConfig, setConditionConfig] = useState(initialConditionConfig());
-  
-  const [isSavingThisTransition, setIsSavingThisTransition] = useState(false);
+  const [config, setConfig] = useState(newConfig('always_true'));
+  const [jsonMode, setJsonMode] = useState(false);
+  const [jsonText, setJsonText] = useState('');
+  const [jsonError, setJsonError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  const resetFormForNew = useCallback(() => {
-    setNextStepId('');
-    const highestPriority = (existingTransitions || []).reduce((max, t) => Math.max(max, t.priority), -10);
-    setPriority(highestPriority + 10);
-    setConditionConfig(initialConditionConfig('always_true'));
-  }, [existingTransitions]);
+  const sorted = useMemo(() => [...(existingTransitions || [])].sort((a, b) => a.priority - b.priority), [existingTransitions]);
+  const stepName = (id) => allStepsInFlow.find((s) => s.id === id)?.name;
 
   useEffect(() => {
     if (editingTransition) {
-      setNextStepId(editingTransition.next_step?.toString() || '');
-      setPriority(editingTransition.priority !== undefined ? editingTransition.priority : 0);
       const conf = editingTransition.condition_config && typeof editingTransition.condition_config === 'object'
-                   ? JSON.parse(JSON.stringify(editingTransition.condition_config)) 
-                   : initialConditionConfig(editingTransition.condition_config?.type);
-      setConditionConfig(conf);
+        ? structuredClone(editingTransition.condition_config) : newConfig('always_true');
+      setNextStepId(String(editingTransition.next_step ?? ''));
+      setPriority(editingTransition.priority ?? 0);
+      setConfig(conf);
+      setJsonMode(!CONDITIONS[conf.type]);
+      setJsonText(JSON.stringify(conf, null, 2));
     } else {
-      resetFormForNew();
+      const highest = (existingTransitions || []).reduce((max, t) => Math.max(max, t.priority), -1);
+      setNextStepId('');
+      setPriority(highest + 1);
+      setConfig(newConfig('always_true'));
+      setJsonMode(false);
+      setJsonText('');
     }
-  }, [editingTransition, resetFormForNew]);
+    setJsonError('');
+  }, [editingTransition, existingTransitions]);
 
   if (!isOpen || !currentStep) return null;
 
-  const handleConfigValueChange = (field, value) => {
-    setConditionConfig(prev => ({ ...prev, [field]: value }));
-  };
-  
-  // ***** THIS IS THE FUNCTION DEFINITION *****
-  const handleSelectedConditionTypeChange = (newType) => {
-    setConditionConfig(initialConditionConfig(newType));
-  };
-  // *******************************************
-
-  const handleFormSubmit = async (e) => {
-    e.preventDefault();
-    if (!nextStepId) {
-      toast.error("Next step must be selected for the transition.");
-      return;
+  const toggleJson = () => {
+    if (!jsonMode) { setJsonText(JSON.stringify(config, null, 2)); setJsonError(''); setJsonMode(true); return; }
+    try {
+      const parsed = JSON.parse(jsonText);
+      if (!parsed || typeof parsed !== 'object' || !parsed.type) throw new Error('Needs an object with a "type"');
+      setConfig(parsed);
+      setJsonMode(false);
+    } catch (e) {
+      setJsonError(e.message);
     }
-    setIsSavingThisTransition(true);
-    const payload = {
-      next_step: parseInt(nextStepId, 10),
-      priority: parseInt(priority, 10) || 0,
-      condition_config: conditionConfig, 
-    };
-    
-    const isEditing = !!(editingTransition && editingTransition.id);
-    const success = await onSave(isEditing, isEditing ? editingTransition.id : null, payload);
-    
-    setIsSavingThisTransition(false);
-    if (success) {
-      if (!isEditing) {
-        resetFormForNew();
-      } else {
-        setEditingTransitionInternal(null); 
-        resetFormForNew();
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    let condition = config;
+    if (jsonMode) {
+      try {
+        condition = JSON.parse(jsonText);
+        if (!condition?.type) throw new Error('Condition needs a "type"');
+      } catch (err) {
+        setJsonError(err.message);
+        return;
       }
     }
-  };
-
-  const startAddNewTransitionMode = () => {
-    setEditingTransitionInternal(null); 
-  };
-
-  const renderConditionFields = () => {
-    const currentCondType = conditionConfig.type || 'always_true';
-    const conf = typeof conditionConfig === 'object' && conditionConfig !== null ? conditionConfig : {};
-
-    switch (currentCondType) {
-      case 'user_reply_matches_keyword':
-      case 'user_reply_contains_keyword':
-        return (
-          <>
-            <div className="space-y-1"><Label htmlFor="condKeyword">Keyword*</Label><Input id="condKeyword" value={conf.keyword || ''} onChange={(e) => handleConfigValueChange('keyword', e.target.value)} className="dark:bg-slate-700 dark:border-slate-600" /></div>
-            <div className="flex items-center space-x-2 pt-2"><Switch id="condCaseSensitive" checked={conf.case_sensitive || false} onCheckedChange={(val) => handleConfigValueChange('case_sensitive', val)} className="data-[state=checked]:bg-blue-500" /><Label htmlFor="condCaseSensitive">Case Sensitive</Label></div>
-          </>
-        );
-      case 'interactive_reply_id_equals':
-        return <div className="space-y-1"><Label htmlFor="condReplyId">Expected Reply ID*</Label><Input id="condReplyId" value={conf.reply_id || ''} onChange={(e) => handleConfigValueChange('reply_id', e.target.value)} className="dark:bg-slate-700 dark:border-slate-600" /></div>;
-      case 'variable_equals':
-        return (
-          <>
-            <div className="space-y-1"><Label htmlFor="condVarName">Context Variable Path*</Label><Input id="condVarName" value={conf.variable_name || ''} onChange={(e) => handleConfigValueChange('variable_name', e.target.value)} placeholder="e.g., flow_context.user_email" className="dark:bg-slate-700 dark:border-slate-600" /></div>
-            <div className="space-y-1"><Label htmlFor="condVarValue">Expected Value*</Label><Input id="condVarValue" value={conf.value !== undefined ? conf.value : ''} onChange={(e) => handleConfigValueChange('value', e.target.value)} placeholder="e.g., true or some_string" className="dark:bg-slate-700 dark:border-slate-600" /></div>
-          </>
-        );
-       case 'user_reply_is_email':
-        return <p className="text-sm text-slate-500 dark:text-slate-400">User's reply must be a valid email format.</p>;
-       case 'user_reply_is_number':
-        return (
-            <div className="space-y-2">
-                <div className="flex items-center space-x-2"><Switch id="condNumDecimal" checked={conf.allow_decimal || false} onCheckedChange={(val) => handleConfigValueChange('allow_decimal', val)} className="data-[state=checked]:bg-blue-500" /><Label htmlFor="condNumDecimal">Allow Decimal</Label></div>
-                <div className="space-y-1"><Label htmlFor="condNumMin" className="text-xs">Min Value (optional)</Label><Input id="condNumMin" type="number" step="any" value={conf.min_value === null || conf.min_value === undefined ? '' : conf.min_value} onChange={(e) => handleConfigValueChange('min_value', e.target.value === '' ? null : parseFloat(e.target.value))} className="dark:bg-slate-700 dark:border-slate-600" /></div>
-                <div className="space-y-1"><Label htmlFor="condNumMax" className="text-xs">Max Value (optional)</Label><Input id="condNumMax" type="number" step="any" value={conf.max_value === null || conf.max_value === undefined ? '' : conf.max_value} onChange={(e) => handleConfigValueChange('max_value', e.target.value === '' ? null : parseFloat(e.target.value))} className="dark:bg-slate-700 dark:border-slate-600" /></div>
-            </div>
-        );
-      case 'always_true':
-        return <p className="text-sm text-slate-500 dark:text-slate-400">This transition is unconditional (given its priority).</p>;
-      default:
-        return (
-            <div className="space-y-1">
-                <Label htmlFor="rawCondConfig" className="text-xs dark:text-slate-300">Other Condition Config (JSON for type: {currentCondType})</Label>
-                <Textarea 
-                    id="rawCondConfig" 
-                    value={JSON.stringify(conditionConfig, null, 2)} 
-                    onChange={(e) => {
-                        try { 
-                            const parsed = JSON.parse(e.target.value);
-                            if (parsed.type !== currentCondType) parsed.type = currentCondType;
-                            setConditionConfig(parsed);
-                        } catch(err) { /* Allow invalid JSON during typing */ }
-                    }}
-                    rows={4} className="font-mono text-xs dark:bg-slate-700 dark:border-slate-600"/>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Edit JSON directly for this condition type.</p>
-            </div>
-        );
-    }
+    if (!nextStepId) return;
+    setSaving(true);
+    const isEditing = !!editingTransition?.id;
+    const ok = await onSave(isEditing, isEditing ? editingTransition.id : null, {
+      next_step: Number(nextStepId), priority: Number(priority) || 0, condition_config: condition,
+    });
+    setSaving(false);
+    if (ok) setEditingTransition(null);
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !isSavingThisTransition) onClose(); else if (isSavingThisTransition) toast.info("Save in progress...") }}>
-      <DialogContent className="sm:max-w-3xl md:max-w-4xl lg:max-w-5xl dark:bg-slate-800 dark:text-slate-50 h-[85vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="text-xl">Manage Transitions for Step: "<span className="font-semibold text-blue-500 dark:text-blue-400">{currentStep.name}</span>"</DialogTitle>
-          <DialogDescription>Define how the flow proceeds from this step.</DialogDescription>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !saving && onClose()}>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-4xl">
+        <DialogHeader className="border-b p-5">
+          <DialogTitle>Next steps after “{currentStep.name}”</DialogTitle>
+          <DialogDescription>Rules are checked from the top; the first one that matches decides where the conversation goes.</DialogDescription>
         </DialogHeader>
-        
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 flex-grow overflow-hidden">
-          {/* Left Column: List */}
-          <div className="md:col-span-1 flex flex-col space-y-3 pr-3 md:border-r dark:border-slate-700 h-full">
-            <div className="flex justify-between items-center mb-1 flex-shrink-0">
-                <h3 className="text-lg font-medium dark:text-slate-200">Current Transitions ({existingTransitions.length})</h3>
-                <Button size="sm" variant="outline" onClick={startAddNewTransitionMode} disabled={!editingTransition} className="dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-700">
-                    <FiPlus className="h-4 w-4 mr-1"/> Add New
-                </Button>
-            </div>
-            {isLoadingExternally ? <div className="flex items-center justify-center p-4 h-full"><FiLoader className="animate-spin h-8 w-8" /></div> :
-            existingTransitions.length === 0 ? <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center h-full flex items-center justify-center">No transitions defined.</p> :
-            <div className="flex-grow overflow-y-auto custom-scrollbar space-y-2 pr-1">
-              {existingTransitions.sort((a,b) => a.priority - b.priority).map(t => (
-                <Card key={t.id} className={`dark:bg-slate-700/70 dark:border-slate-600/80 hover:shadow-md transition-shadow ${editingTransition?.id === t.id ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''}`}>
-                  <CardContent className="p-3 text-sm">
-                    <div className="flex justify-between items-start gap-2">
-                      <div className="flex-grow">
-                          <p className="font-medium dark:text-slate-100 flex items-center text-base">
-                              <FiChevronsRight className="mr-1.5 text-green-500 flex-shrink-0 h-5 w-5"/> To: {allStepsInFlow.find(s => s.id === t.next_step)?.name || `Step ID ${t.next_step}`}
-                          </p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Priority: <Badge variant="secondary" className="px-1.5 py-0 text-xs dark:bg-slate-600 dark:text-slate-300">{t.priority}</Badge></p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Condition: <span className="font-medium">{CONDITION_TYPES.find(ct => ct.value === t.condition_config?.type)?.label || t.condition_config?.type || 'Unknown'}</span></p>
-                           {/* Display more condition details */}
-                      </div>
-                      <div className="flex flex-col space-y-1 flex-shrink-0 items-end">
-                          <Button size="xs" variant="outline" onClick={() => setEditingTransitionInternal(t)} className="dark:text-slate-300 dark:border-slate-500 py-1 px-2 text-xs w-full justify-start"><FiEdit className="mr-1 h-3 w-3"/> Edit</Button>
-                          <Button size="xs" variant="ghost" onClick={() => onDelete(t.id)} className="text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30 py-1 px-2 text-xs w-full justify-start"><FiTrash2 className="mr-1 h-3 w-3"/> Delete</Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            }
-          </div>
 
-          {/* Right Column: Form */}
-          <form onSubmit={handleFormSubmit} className="md:col-span-1 space-y-4 pl-0 md:pl-3 overflow-y-auto custom-scrollbar h-full pb-4">
-            <h3 className="text-lg font-medium mb-1 dark:text-slate-200 flex items-center sticky top-0 bg-slate-800 py-2 z-10 border-b dark:border-slate-700 -ml-3 md:ml-0 pl-3 md:pl-0">
-                {editingTransition ? <><FiEdit className="mr-2 h-5 w-5 text-blue-400"/>Edit Transition</> : <><FiPlus className="mr-2 h-5 w-5 text-green-400"/>Add New Transition</>}
-            </h3>
-            <div className="space-y-1">
-              <Label htmlFor="nextStepForm" className="dark:text-slate-300">Next Step*</Label>
-              <Select value={nextStepId.toString()} onValueChange={setNextStepId} disabled={isSavingThisTransition}>
-                <SelectTrigger id="nextStepForm" className="dark:bg-slate-700 dark:border-slate-600"><SelectValue placeholder="Select next step..." /></SelectTrigger>
-                <SelectContent className="dark:bg-slate-700 dark:text-slate-50">
-                  <SelectGroup><SelectLabel className="dark:text-slate-400">Steps in "{currentStep.flow_name || 'this flow'}"</SelectLabel>
-                    {allStepsInFlow.length === 0 && <SelectItem value="-" disabled>No other steps available</SelectItem>}
-                    {allStepsInFlow.map(s => (<SelectItem key={s.id} value={s.id.toString()} className="dark:hover:bg-slate-600 dark:focus:bg-slate-600">{s.name}</SelectItem>))}
-                  </SelectGroup>
-                </SelectContent>
-              </Select>
+        <div className="grid min-h-0 flex-1 grid-cols-1 overflow-y-auto md:grid-cols-2 md:overflow-hidden">
+          <section aria-label="Existing rules" className="flex min-h-0 flex-col border-b md:border-b-0 md:border-r">
+            <div className="flex items-center justify-between px-5 py-3">
+              <h3 className="text-sm font-medium">Rules ({sorted.length})</h3>
+              <Button size="sm" variant="ghost" onClick={() => setEditingTransition(null)} disabled={!editingTransition}><FiPlus /> New rule</Button>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="priorityForm" className="dark:text-slate-300">Priority (lower = higher priority)</Label>
-              <Input id="priorityForm" type="number" value={priority} onChange={(e) => setPriority(parseInt(e.target.value, 10) || 0)} className="dark:bg-slate-700 dark:border-slate-600" disabled={isSavingThisTransition}/>
+            <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+              {isLoadingExternally ? <LoadingState /> : sorted.length === 0 ? (
+                <p className="px-2 py-8 text-center text-sm text-muted-foreground">No rules yet.</p>
+              ) : (
+                <ol className="space-y-1.5">
+                  {sorted.map((t) => (
+                    <li key={t.id} className={`rounded-lg border p-3 text-sm ${editingTransition?.id === t.id ? 'border-primary bg-primary/5' : ''}`}>
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 rounded bg-muted px-1.5 font-mono text-[11px] tabular-nums text-muted-foreground" title="Priority">{t.priority}</span>
+                        <div className="min-w-0 flex-1">
+                          <p className="break-words">{describeCondition(t.condition_config)}</p>
+                          <p className="mt-0.5 flex items-center gap-1 text-muted-foreground">
+                            <FiArrowRight className="size-3.5 shrink-0" aria-hidden />
+                            <span className="truncate font-medium text-foreground">{t.next_step_name || stepName(t.next_step) || `Step #${t.next_step}`}</span>
+                          </p>
+                        </div>
+                        <Button size="icon" variant="ghost" className="size-7" onClick={() => setEditingTransition(t)} aria-label="Edit rule"><FiEdit2 className="size-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="size-7 text-destructive" onClick={() => onDelete(t.id)} aria-label="Delete rule"><FiTrash2 className="size-3.5" /></Button>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
-            <Separator className="dark:bg-slate-600" />
-            <Label className="dark:text-slate-300 font-medium block -mb-2">Condition</Label>
-            <div className="space-y-1">
-                <Label htmlFor="conditionTypeForm" className="text-xs dark:text-slate-300">Condition Type</Label>
-                <Select value={conditionConfig.type || 'always_true'} onValueChange={handleSelectedConditionTypeChange} disabled={isSavingThisTransition}>
-                    <SelectTrigger id="conditionTypeForm" className="dark:bg-slate-700 dark:border-slate-600"><SelectValue /></SelectTrigger>
-                    <SelectContent className="dark:bg-slate-700 dark:text-slate-50">
-                    {CONDITION_TYPES.map(ct => (<SelectItem key={ct.value} value={ct.value} className="dark:hover:bg-slate-600 dark:focus:bg-slate-600">{ct.label}</SelectItem>))}
-                    </SelectContent>
-                </Select>
+          </section>
+
+          <form onSubmit={submit} className="min-h-0 space-y-4 overflow-y-auto p-5">
+            <h3 className="text-sm font-medium">{editingTransition ? 'Edit rule' : 'New rule'}</h3>
+            <div>
+              <Label htmlFor="t-next" className="mb-1.5">Go to step <span className="text-destructive">*</span></Label>
+              <select id="t-next" className={selectClass} value={nextStepId} onChange={(e) => setNextStepId(e.target.value)} required disabled={saving}>
+                <option value="" disabled>Choose a step…</option>
+                {allStepsInFlow.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
             </div>
-            <div className="pl-1 space-y-3 border-l-2 border-slate-700 ml-1 mt-2 pt-2 pb-1">
-                {renderConditionFields()}
+            <div className="grid grid-cols-[1fr_7rem] gap-3">
+              <div>
+                <Label htmlFor="t-type" className="mb-1.5">When</Label>
+                <select id="t-type" className={selectClass} value={CONDITIONS[config.type] ? config.type : ''} disabled={saving || jsonMode}
+                  onChange={(e) => setConfig(newConfig(e.target.value))}>
+                  {!CONDITIONS[config.type] && <option value="">{config.type} (custom)</option>}
+                  {Object.entries(CONDITIONS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="t-priority" className="mb-1.5">Order</Label>
+                <Input id="t-priority" type="number" value={priority} onChange={(e) => setPriority(e.target.value)} disabled={saving} />
+              </div>
             </div>
-            <div className="pt-3">
-                <Button type="submit" disabled={isSavingThisTransition} className="w-full bg-blue-600 hover:bg-blue-700 text-white dark:bg-blue-500 dark:hover:bg-blue-600">
-                {isSavingThisTransition ? <FiLoader className="animate-spin mr-2"/> : (editingTransition ? <FiSave className="mr-2"/> : <FiPlus className="mr-2"/>) }
-                {editingTransition ? 'Update Transition' : 'Add Transition'}
-                </Button>
+
+            <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
+              {jsonMode ? (
+                <>
+                  <Label htmlFor="t-json">Condition JSON</Label>
+                  <Textarea id="t-json" rows={8} value={jsonText} onChange={(e) => { setJsonText(e.target.value); setJsonError(''); }} className="font-mono text-xs" disabled={saving} />
+                  {jsonError && <p role="alert" className="text-xs text-destructive">{jsonError}</p>}
+                </>
+              ) : (
+                <ConditionFields config={config} disabled={saving} onChange={(key, value) => setConfig((c) => ({ ...c, [key]: value }))} />
+              )}
+              <button type="button" onClick={toggleJson} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <FiCode className="size-3.5" aria-hidden /> {jsonMode ? 'Back to form' : 'Edit as JSON'}
+              </button>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              {editingTransition && <Button type="button" variant="outline" onClick={() => setEditingTransition(null)} disabled={saving}>Cancel</Button>}
+              <Button type="submit" disabled={saving}>{saving ? 'Saving…' : editingTransition ? 'Save rule' : 'Add rule'}</Button>
             </div>
           </form>
         </div>
-
-        <DialogFooter className="mt-auto pt-4 border-t dark:border-slate-700">
-          <Button variant="outline" onClick={onClose} disabled={isSavingThisTransition} className="dark:text-slate-300 dark:border-slate-600">Done</Button>
-        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

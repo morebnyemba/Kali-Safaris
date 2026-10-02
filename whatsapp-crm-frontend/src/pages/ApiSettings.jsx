@@ -1,285 +1,241 @@
-// Filename: src/pages/ApiSettings.jsx
-import React, { useEffect, useState, useCallback } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+// src/pages/ApiSettings.jsx
+import React, { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { FiCheckCircle, FiCopy, FiEye, FiEyeOff, FiPlus, FiRefreshCw, FiTrash2 } from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { toast } from 'sonner';
-import { Separator } from '@/components/ui/separator';
-import { FiEye, FiEyeOff, FiHelpCircle, FiSave, FiPlus, FiLoader, FiAlertCircle, FiSettings,FiInfo } from 'react-icons/fi';
-import { Tooltip, TooltipProvider, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { metaApi } from '@/lib/api';
+import PageHeader from '@/components/app/PageHeader';
+import { EmptyState, ErrorState, LoadingState } from '@/components/app/States';
+import { API_BASE_URL, metaApi } from '@/lib/api';
+import { apiErrorMessage, formatRelative } from '@/lib/format';
 
-const DEFAULT_API_VERSION = 'v19.0'; // Or your current preferred default like 'v22.0'
-
-const defaultFormValues = {
-  name: '',
-  verify_token: '',
-  access_token: '',
-  app_secret: '', // Added for webhook security
-  phone_number_id: '',
-  waba_id: '',
-  api_version: DEFAULT_API_VERSION,
-  is_active: false,
+const WEBHOOK_URL = `${API_BASE_URL}/crm-api/meta/webhook/`;
+const EMPTY = {
+  id: null, name: '', phone_number_id: '', waba_id: '', api_version: 'v19.0',
+  verify_token: '', access_token: '', app_secret: '', is_active: false,
 };
+const EVENT_TONE = { processed: 'text-success', error: 'text-destructive', failed: 'text-destructive', pending: 'text-warning' };
+
+function SecretInput({ id, value, onChange, placeholder, required }) {
+  const [shown, setShown] = useState(false);
+  return (
+    <div className="relative">
+      <Input id={id} type={shown ? 'text' : 'password'} autoComplete="off" value={value} onChange={onChange} placeholder={placeholder} required={required} className="pr-10 font-mono text-xs" />
+      <button type="button" onClick={() => setShown((s) => !s)} className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-muted-foreground hover:text-foreground" aria-label={shown ? 'Hide value' : 'Show value'}>
+        {shown ? <FiEyeOff className="size-4" /> : <FiEye className="size-4" />}
+      </button>
+    </div>
+  );
+}
+
+function copy(text) {
+  navigator.clipboard?.writeText(text).then(() => toast.success('Copied'), () => toast.error('Could not copy'));
+}
 
 export default function ApiSettings() {
-  const [isLoadingPage, setIsLoadingPage] = useState(true);
   const [configs, setConfigs] = useState([]);
-  const [selectedConfigId, setSelectedConfigId] = useState(''); // Store ID of config to edit
-  const [showAccessToken, setShowAccessToken] = useState(false);
-  const [showVerifyToken, setShowVerifyToken] = useState(false);
-  const [showAppSecret, setShowAppSecret] = useState(false); // For app_secret field
+  const [events, setEvents] = useState([]);
+  const [form, setForm] = useState(EMPTY);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  const { register, handleSubmit, reset, control, formState: { isSubmitting, errors, dirtyFields } } = useForm({
-    defaultValues: defaultFormValues
-  });
+  const pick = (c) => {
+    setForm(c ? { ...EMPTY, ...c, verify_token: c.verify_token || '', access_token: '', app_secret: '' } : EMPTY);
+    setFormError('');
+  };
 
-  const fetchConfigs = useCallback(async () => {
-    setIsLoadingPage(true);
+  const loadEvents = useCallback(() => {
+    metaApi.latestWebhookEvents().then((res) => setEvents(res.data || [])).catch(() => setEvents([]));
+  }, []);
+
+  const load = useCallback(async (selectId) => {
+    setLoading(true);
+    setLoadError('');
     try {
-      const response = await metaApi.getConfigs();
-      const data = response.data;
-      const fetchedConfigs = data.results || data || [];
-      setConfigs(fetchedConfigs);
-
-      const currentSelected = fetchedConfigs.find(c => c.id === parseInt(selectedConfigId)) ||
-                              fetchedConfigs.find(c => c.is_active) ||
-                              fetchedConfigs[0];
-      
-      if (currentSelected) {
-        setSelectedConfigId(currentSelected.id.toString());
-        reset({ // Populate form with fetched data
-          name: currentSelected.name || '',
-          verify_token: currentSelected.verify_token || '',
-          access_token: currentSelected.access_token || '', // API might not return this for security if already set
-          app_secret: currentSelected.app_secret || '',     // Same for app_secret
-          phone_number_id: currentSelected.phone_number_id || '',
-          waba_id: currentSelected.waba_id || '',
-          api_version: currentSelected.api_version || DEFAULT_API_VERSION,
-          is_active: currentSelected.is_active || false,
-        });
-      } else { // No configs, prepare for new
-        setSelectedConfigId('');
-        reset(defaultFormValues);
-      }
-    } catch (error) {
-      // Error already toasted by apiCall
-      console.error("Error fetching configs:", error);
+      const res = await metaApi.getConfigs();
+      const list = res.data.results || res.data || [];
+      setConfigs(list);
+      pick(list.find((c) => c.id === selectId) || list.find((c) => c.is_active) || list[0]);
+      loadEvents();
+    } catch (err) {
+      setLoadError(err.response?.status === 403 ? 'Only staff accounts can view or change WhatsApp credentials.' : apiErrorMessage(err));
     } finally {
-      setIsLoadingPage(false);
+      setLoading(false);
     }
-  }, [reset, selectedConfigId]); // Added selectedConfigId
+  }, [loadEvents]);
 
-  useEffect(() => {
-    fetchConfigs();
-  }, [fetchConfigs]); // Ran only once on mount, or if fetchConfigs itself changes (which it doesn't)
+  useEffect(() => { load(); }, [load]);
 
-  const handleConfigSelectionChange = (id) => {
-    setSelectedConfigId(id);
-    if (id === 'new') {
-      reset(defaultFormValues);
-    } else {
-      const configToLoad = configs.find(c => c.id.toString() === id);
-      if (configToLoad) {
-        reset({
-          name: configToLoad.name,
-          verify_token: configToLoad.verify_token,
-          access_token: '', // Don't pre-fill sensitive tokens on load, user must re-enter if changing
-          app_secret: '',   // Same for app_secret
-          phone_number_id: configToLoad.phone_number_id,
-          waba_id: configToLoad.waba_id,
-          api_version: configToLoad.api_version,
-          is_active: configToLoad.is_active,
-        });
-      }
-    }
-  };
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e?.target ? e.target.value : e }));
 
-
-  const onSubmit = async (data) => {
-    const isNewConfig = !selectedConfigId || selectedConfigId === 'new';
-
-    const payload = { ...data, is_active: Boolean(data.is_active) };
-
-    // For PUT, only send fields that were actually changed (dirty) or are always required
-    // Or if the API and serializer handle partial updates (PATCH) well.
-    // For simplicity with PUT, we send all form data.
-    // If access_token or app_secret are empty and it's an update, don't send them
-    // to avoid overwriting with empty values if user didn't intend to change.
-    if (!isNewConfig) {
-        if (!dirtyFields.access_token && !data.access_token) delete payload.access_token;
-        if (!dirtyFields.app_secret && !data.app_secret) delete payload.app_secret;
-        if (!dirtyFields.verify_token && !data.verify_token) delete payload.verify_token;
-    }
-
-
+  const save = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setFormError('');
+    const payload = {
+      name: form.name.trim(), phone_number_id: form.phone_number_id.trim(), waba_id: form.waba_id.trim(),
+      api_version: form.api_version.trim(), verify_token: form.verify_token, is_active: form.is_active,
+    };
+    // Secrets are write-only: blank means "keep what's stored".
+    if (form.access_token) payload.access_token = form.access_token.trim();
+    if (form.app_secret) payload.app_secret = form.app_secret.trim();
     try {
-      const response = isNewConfig
-        ? await metaApi.createConfig(payload)
-        : await metaApi.updateConfig(selectedConfigId, payload);
-      const result = response.data;
-
-      toast.success(`Configuration "${result.name}" ${isNewConfig ? 'created' : 'updated'} successfully!`);
-      
-      // If a config was made active, others might have been deactivated by the backend.
-      // The most reliable way to update UI is to refetch all configs.
-      fetchConfigs(); 
-      // If it was a new config, select it.
-      if (isNewConfig && result.id) {
-          setSelectedConfigId(result.id.toString());
-          // Form is already reset by fetchConfigs -> reset
-      }
-
-    } catch (error) {
-      // Error already toasted by apiCall.
-      // err.data from apiCall might contain field-specific errors.
-      // You could parse err.data here and use setError from react-hook-form if needed.
-      // Example: if (error.data && typeof error.data === 'object') {
-      //   Object.entries(error.data).forEach(([fieldName, messages]) => {
-      //     setError(fieldName, { type: 'server', message: Array.isArray(messages) ? messages.join(', ') : messages });
-      //   });
-      // }
+      const res = form.id ? await metaApi.patchConfig(form.id, payload) : await metaApi.createConfig(payload);
+      toast.success(form.id ? 'Configuration saved' : 'Configuration added');
+      await load(res.data.id);
+    } catch (err) {
+      setFormError(apiErrorMessage(err, 'Could not save the configuration'));
+    } finally {
+      setSaving(false);
     }
   };
 
-  if (isLoadingPage) {
-    // ... (keep your existing Skeleton loader) ...
-    return (
-      <div className="max-w-2xl mx-auto p-4 md:p-0 animate-pulse">
-        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-1/2 mb-8"></div>
-        <div className="space-y-6">
-          {[...Array(7)].map((_, i) => (
-            <div key={i} className="space-y-2">
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded"></div>
-            </div>
-          ))}
-          <div className="h-10 bg-gray-300 dark:bg-gray-600 rounded w-1/4 mt-4"></div>
-        </div>
-      </div>
-    );
-  }
+  const activate = async (c) => {
+    try {
+      await metaApi.setActive(c.id);
+      toast.success(`${c.name} is now the active number`);
+      await load(c.id);
+    } catch (err) {
+      toast.error(apiErrorMessage(err));
+    }
+  };
 
-  const currentEditingName = selectedConfigId && selectedConfigId !== 'new'
-    ? configs.find(c => c.id.toString() === selectedConfigId)?.name
-    : 'New Configuration';
+  const remove = async () => {
+    if (!window.confirm(`Delete “${form.name}”?${form.is_active ? ' It is the active configuration — WhatsApp messages will stop until another is activated.' : ''}`)) return;
+    try {
+      await metaApi.deleteConfig(form.id);
+      toast.success('Configuration deleted');
+      await load();
+    } catch (err) {
+      toast.error(apiErrorMessage(err));
+    }
+  };
+
+  if (loading && !configs.length) return <LoadingState label="Loading WhatsApp settings…" />;
+  if (loadError) return <ErrorState message={loadError} onRetry={() => load()} />;
+
+  const isNew = !form.id;
 
   return (
-    <div className="max-w-2xl mx-auto p-4 sm:p-6 md:p-8">
-      <Card className="dark:bg-slate-800 dark:border-slate-700 shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-            <FiSettings className="text-blue-500" />
-            Meta App API Configuration
-          </CardTitle>
-          <CardDescription className="dark:text-slate-400">
-            Manage settings for connecting to the WhatsApp Business API.
-            {selectedConfigId && selectedConfigId !== 'new' ? ` Editing: "${currentEditingName}"` : " Creating new configuration."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4 items-end">
-                <div className="w-full sm:flex-grow space-y-1">
-                    <Label htmlFor="config-select" className="text-sm font-medium dark:text-slate-300">Load Configuration</Label>
-                    <Select onValueChange={handleConfigSelectionChange} value={selectedConfigId || 'new'}>
-                        <SelectTrigger id="config-select" className="w-full dark:bg-slate-700 dark:border-slate-600">
-                            <SelectValue placeholder="Select a configuration..." />
-                        </SelectTrigger>
-                        <SelectContent className="dark:bg-slate-700 dark:text-slate-50">
-                            <SelectGroup>
-                                <SelectLabel className="dark:text-slate-400">Existing Configs</SelectLabel>
-                                {configs.length === 0 && <SelectItem value="-" disabled>No configurations saved</SelectItem>}
-                                {configs.map(conf => (
-                                <SelectItem key={conf.id} value={conf.id.toString()} className="dark:hover:bg-slate-600 dark:focus:bg-slate-600">
-                                    {conf.name} {conf.is_active && "(Active)"}
-                                </SelectItem>
-                                ))}
-                            </SelectGroup>
-                            <Separator className="my-1 dark:bg-slate-600"/>
-                            <SelectItem value="new" className="dark:hover:bg-slate-600 dark:focus:bg-slate-600">
-                                <span className="flex items-center gap-2"><FiPlus /> Create New Configuration</span>
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
+    <>
+      <PageHeader title="WhatsApp API" description="Credentials for the WhatsApp Business number the bot sends from. Only one configuration is active at a time." />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[18rem_1fr]">
+        <aside className="space-y-4">
+          <nav aria-label="Configurations" className="overflow-hidden rounded-xl border bg-card">
+            {configs.length === 0 && <p className="p-4 text-sm text-muted-foreground">No configurations yet.</p>}
+            <ul className="divide-y">
+              {configs.map((c) => (
+                <li key={c.id}>
+                  <button type="button" onClick={() => pick(c)} aria-current={form.id === c.id ? 'true' : undefined}
+                    className={`flex w-full items-start gap-2 px-4 py-3 text-left hover:bg-muted/50 ${form.id === c.id ? 'bg-muted' : ''}`}>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">{c.name}</span>
+                      <span className="block truncate font-mono text-xs text-muted-foreground">{c.phone_number_id}</span>
+                    </span>
+                    {c.is_active && <span className="rounded-full bg-success/10 px-2 py-0.5 text-[11px] font-medium text-success">Active</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button type="button" onClick={() => pick(null)} className={`flex w-full items-center gap-2 border-t px-4 py-3 text-sm text-primary hover:bg-muted/50 ${isNew ? 'bg-muted' : ''}`}>
+              <FiPlus className="size-4" /> Add configuration
+            </button>
+          </nav>
+
+          <div className="rounded-xl border bg-card p-4">
+            <p className="text-sm font-medium">Webhook callback URL</p>
+            <p className="mt-1 text-xs text-muted-foreground">Paste this and the verify token into Meta › WhatsApp › Configuration.</p>
+            <div className="mt-2 flex items-center gap-1 rounded-md bg-muted px-2 py-1.5">
+              <code className="min-w-0 flex-1 truncate font-mono text-xs" title={WEBHOOK_URL}>{WEBHOOK_URL}</code>
+              <Button type="button" size="icon" variant="ghost" className="size-7" onClick={() => copy(WEBHOOK_URL)} aria-label="Copy webhook URL"><FiCopy className="size-3.5" /></Button>
+            </div>
+          </div>
+        </aside>
+
+        <div className="space-y-6">
+          <form onSubmit={save} className="rounded-xl border bg-card">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4">
+              <div>
+                <h2 className="font-semibold">{isNew ? 'New configuration' : form.name}</h2>
+                {!isNew && <p className="text-xs text-muted-foreground">Updated {formatRelative(form.updated_at)}</p>}
+              </div>
+              {!isNew && !form.is_active && (
+                <Button type="button" size="sm" variant="outline" onClick={() => activate(form)}><FiCheckCircle /> Make active</Button>
+              )}
+            </div>
+            <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Label htmlFor="mc-name" className="mb-1.5">Name <span className="text-destructive">*</span></Label>
+                <Input id="mc-name" value={form.name} onChange={set('name')} placeholder="Kalai Safaris main line" required />
+              </div>
+              <div>
+                <Label htmlFor="mc-phone" className="mb-1.5">Phone number ID <span className="text-destructive">*</span></Label>
+                <Input id="mc-phone" className="font-mono text-xs" value={form.phone_number_id} onChange={set('phone_number_id')} required />
+              </div>
+              <div>
+                <Label htmlFor="mc-waba" className="mb-1.5">WhatsApp Business Account ID <span className="text-destructive">*</span></Label>
+                <Input id="mc-waba" className="font-mono text-xs" value={form.waba_id} onChange={set('waba_id')} required />
+              </div>
+              <div>
+                <Label htmlFor="mc-access" className="mb-1.5">Access token {isNew && <span className="text-destructive">*</span>}</Label>
+                <SecretInput id="mc-access" value={form.access_token} onChange={set('access_token')} required={isNew} placeholder={isNew ? 'Permanent system-user token' : 'Saved — leave blank to keep'} />
+              </div>
+              <div>
+                <Label htmlFor="mc-secret" className="mb-1.5">App secret</Label>
+                <SecretInput id="mc-secret" value={form.app_secret} onChange={set('app_secret')} placeholder={isNew ? 'Used to verify webhook signatures' : 'Saved — leave blank to keep'} />
+              </div>
+              <div>
+                <Label htmlFor="mc-verify" className="mb-1.5">Webhook verify token <span className="text-destructive">*</span></Label>
+                <SecretInput id="mc-verify" value={form.verify_token} onChange={set('verify_token')} required />
+              </div>
+              <div>
+                <Label htmlFor="mc-version" className="mb-1.5">Graph API version <span className="text-destructive">*</span></Label>
+                <Input id="mc-version" className="font-mono text-xs" value={form.api_version} onChange={set('api_version')} placeholder="v19.0" pattern="v\d+\.\d+" required />
+              </div>
+              {isNew && (
+                <div className="flex items-center gap-2 sm:col-span-2">
+                  <Switch id="mc-active" checked={form.is_active} onCheckedChange={set('is_active')} />
+                  <Label htmlFor="mc-active">Make this the active configuration</Label>
                 </div>
+              )}
             </div>
-            <Separator className="dark:bg-slate-700"/>
-
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-            <div>
-              <Label htmlFor="name" className="text-sm font-medium dark:text-slate-300">Configuration Name*</Label>
-              <Input id="name" {...register('name', { required: 'Name is required.' })} placeholder="e.g., Primary Business Account" className="mt-1 w-full dark:bg-slate-700 dark:border-slate-600" disabled={isSubmitting} />
-              {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name.message}</p>}
-            </div>
-
-            {/* Verify Token */}
-            <div className="relative space-y-1">
-              <Label htmlFor="verify_token" className="text-sm font-medium dark:text-slate-300">Webhook Verify Token*</Label>
-              <div className="flex items-center mt-1">
-                <Input id="verify_token" type={showVerifyToken ? "text" : "password"} {...register('verify_token', { required: 'Verify token is required.' })} placeholder="Your secure webhook token" className="w-full dark:bg-slate-700 dark:border-slate-600" disabled={isSubmitting} />
-                <Button type="button" variant="ghost" size="icon" className="ml-2 dark:text-slate-400 dark:hover:text-slate-200" onClick={() => setShowVerifyToken(!showVerifyToken)}><span className="sr-only">Toggle Verify Token Visibility</span>{showVerifyToken ? <FiEyeOff /> : <FiEye />}</Button>
-              </div>
-              {errors.verify_token && <p className="text-xs text-red-500 mt-1">{errors.verify_token.message}</p>}
-            </div>
-            
-            {/* Access Token */}
-            <div className="relative space-y-1">
-              <Label htmlFor="access_token" className="text-sm font-medium dark:text-slate-300">Permanent Access Token*</Label>
-              <div className="flex items-center mt-1">
-                <Input id="access_token" type={showAccessToken ? "text" : "password"} {...register('access_token', { required: selectedConfigId === 'new' || dirtyFields.access_token ? 'Access token is required.' : false })} placeholder="Meta Permanent Access Token" className="w-full dark:bg-slate-700 dark:border-slate-600" disabled={isSubmitting} />
-                <Button type="button" variant="ghost" size="icon" className="ml-2 dark:text-slate-400 dark:hover:text-slate-200" onClick={() => setShowAccessToken(!showAccessToken)}><span className="sr-only">Toggle Access Token Visibility</span>{showAccessToken ? <FiEyeOff /> : <FiEye />}</Button>
-              </div>
-              {errors.access_token && <p className="text-xs text-red-500 mt-1">{errors.access_token.message}</p>}
-               {!selectedConfigId || selectedConfigId === 'new' ? null : <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Leave empty if not changing.</p>}
-            </div>
-
-            {/* App Secret (NEW) */}
-            <div className="relative space-y-1">
-              <Label htmlFor="app_secret" className="text-sm font-medium dark:text-slate-300">App Secret* <span className="text-xs">(for webhook security)</span></Label>
-              <div className="flex items-center mt-1">
-                <Input id="app_secret" type={showAppSecret ? "text" : "password"} {...register('app_secret', { required: selectedConfigId === 'new' || dirtyFields.app_secret ? 'App Secret is required.' : false })} placeholder="Your Meta App Secret" className="w-full dark:bg-slate-700 dark:border-slate-600" disabled={isSubmitting} />
-                <Button type="button" variant="ghost" size="icon" className="ml-2 dark:text-slate-400 dark:hover:text-slate-200" onClick={() => setShowAppSecret(!showAppSecret)}><span className="sr-only">Toggle App Secret Visibility</span>{showAppSecret ? <FiEyeOff /> : <FiEye />}</Button>
-              </div>
-              {errors.app_secret && <p className="text-xs text-red-500 mt-1">{errors.app_secret.message}</p>}
-              {!selectedConfigId || selectedConfigId === 'new' ? null : <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Leave empty if not changing.</p>}
-            </div>
-
-            {/* Phone Number ID, WABA ID, API Version */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
-                <div className="space-y-1"><Label htmlFor="phone_number_id" className="dark:text-slate-300">Phone Number ID*</Label><Input id="phone_number_id" {...register('phone_number_id', { required: 'Phone Number ID required.' })} className="mt-1 w-full dark:bg-slate-700 dark:border-slate-600" disabled={isSubmitting} />{errors.phone_number_id && <p className="text-xs text-red-500 mt-1">{errors.phone_number_id.message}</p>}</div>
-                <div className="space-y-1"><Label htmlFor="waba_id" className="dark:text-slate-300">WABA ID*</Label><Input id="waba_id" {...register('waba_id', { required: 'WABA ID required.' })} className="mt-1 w-full dark:bg-slate-700 dark:border-slate-600" disabled={isSubmitting} />{errors.waba_id && <p className="text-xs text-red-500 mt-1">{errors.waba_id.message}</p>}</div>
-            </div>
-            <div className="space-y-1">
-                <Label htmlFor="api_version" className="dark:text-slate-300">API Version*</Label>
-                <Input id="api_version" {...register('api_version', { required: 'API version required.' })} defaultValue={DEFAULT_API_VERSION} className="mt-1 w-full dark:bg-slate-700 dark:border-slate-600" disabled={isSubmitting} />
-                {errors.api_version && <p className="text-xs text-red-500 mt-1">{errors.api_version.message}</p>}
-            </div>
-
-            <div className="flex items-center space-x-3 pt-2">
-              <Controller name="is_active" control={control} render={({ field }) => (<Switch id="is_active" checked={field.value} onCheckedChange={field.onChange} disabled={isSubmitting} className="data-[state=checked]:bg-green-500"/>)} />
-              <Label htmlFor="is_active" className="text-sm font-medium dark:text-slate-300 cursor-pointer">Set as Active Configuration</Label>
-              <TooltipProvider><Tooltip><TooltipTrigger type="button" className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"><FiHelpCircle size={16}/></TooltipTrigger><TooltipContent className="max-w-xs"><p className="text-xs">Only one configuration can be active. The active one is used for sending messages and webhook verification.</p></TooltipContent></Tooltip></TooltipProvider>
-            </div>
-            
-            <div className="pt-2">
-                <Button type="submit" className="w-full sm:w-auto bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white" disabled={isSubmitting || isLoadingPage}>
-                {isSubmitting ? <FiLoader className="animate-spin mr-2"/> : <FiSave className="mr-2 h-4 w-4" />}
-                {isSubmitting ? 'Saving...' : (selectedConfigId && selectedConfigId !== 'new' ? 'Update Configuration' : 'Create Configuration')}
-                </Button>
+            <div className="flex flex-wrap items-center gap-2 border-t px-5 py-3">
+              {formError && <p role="alert" className="mr-auto text-sm text-destructive">{formError}</p>}
+              {!isNew && <Button type="button" variant="ghost" className="text-destructive" onClick={remove}><FiTrash2 /> Delete</Button>}
+              <Button type="submit" className="ml-auto" disabled={saving}>{saving ? 'Saving…' : isNew ? 'Add configuration' : 'Save changes'}</Button>
             </div>
           </form>
-          
-          {/* Informational Box */}
-          <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-lg">
-            {/* ... (your existing important notes section) ... */}
-            <div className="flex items-start"><FiInfo className="h-5 w-5 text-blue-600 dark:text-blue-400 mr-3 mt-0.5 flex-shrink-0"/><div><h3 className="text-sm font-semibold text-blue-700 dark:text-blue-300">Important:</h3><ul className="list-disc list-inside text-xs text-blue-600 dark:text-blue-400/80 mt-1 space-y-1"><li>Ensure <code className="bg-blue-100 dark:bg-blue-800/50 px-1 py-0.5 rounded text-xs">Verify Token</code> matches Meta App Dashboard.</li><li>Keep <code className="bg-blue-100 dark:bg-blue-800/50 px-1 py-0.5 rounded text-xs">Access Token</code> & <code className="bg-blue-100 dark:bg-blue-800/50 px-1 py-0.5 rounded text-xs">App Secret</code> secure.</li><li>IDs can be found in Meta Business Manager.</li></ul></div></div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+
+          <section aria-label="Recent webhook events" className="rounded-xl border bg-card">
+            <div className="flex items-center justify-between border-b px-5 py-3">
+              <div>
+                <h2 className="font-semibold">Recent webhook events</h2>
+                <p className="text-xs text-muted-foreground">If customers message the number and nothing shows here, Meta isn’t reaching the webhook.</p>
+              </div>
+              <Button size="icon" variant="ghost" onClick={loadEvents} aria-label="Refresh events"><FiRefreshCw /></Button>
+            </div>
+            {events.length === 0 ? <EmptyState title="No events received yet" /> : (
+              <ul className="divide-y text-sm">
+                {events.map((ev) => (
+                  <li key={ev.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 px-5 py-2.5">
+                    <span className="font-medium">{ev.event_type_display || ev.event_type}</span>
+                    <span className={`text-xs ${EVENT_TONE[ev.processing_status] || 'text-muted-foreground'}`}>{ev.processing_status}</span>
+                    <span className="ml-auto text-xs text-muted-foreground">{formatRelative(ev.received_at)}</span>
+                    {ev.processing_notes && ['error', 'failed'].includes(ev.processing_status) && (
+                      <p className="w-full truncate text-xs text-muted-foreground" title={ev.processing_notes}>{ev.processing_notes}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
+      </div>
+    </>
   );
 }

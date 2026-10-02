@@ -183,33 +183,37 @@ export const inquiriesApi = {
   delete: (id) => apiClient.delete(`/crm-api/customer-data/inquiries/${id}/`),
 };
 
-// --- Flows API (Expanded) ---
+// --- Flows API ---
+// Flow pages show their own (field-level) errors, so the global toast is muted.
+const FLOW_BASE = '/crm-api/flows/flows/';
+const quiet = { suppressErrorToast: true };
 export const flowsApi = {
-  list: () => apiClient.get('/crm-api/flows/flows/'),
-  retrieve: (id) => apiClient.get(`/crm-api/flows/flows/${id}/`),
-  create: (data) => apiClient.post('/crm-api/flows/flows/', data),
-  update: (id, data) => apiClient.put(`/crm-api/flows/flows/${id}/`, data),
-  patch: (id, data) => apiClient.patch(`/crm-api/flows/flows/${id}/`, data),
-  delete: (id) => apiClient.delete(`/crm-api/flows/flows/${id}/`),
+  list: (params) => apiClient.get(FLOW_BASE, { params, ...quiet }),
+  retrieve: (id) => apiClient.get(`${FLOW_BASE}${id}/`, quiet),
+  create: (data) => apiClient.post(FLOW_BASE, data, quiet),
+  patch: (id, data) => apiClient.patch(`${FLOW_BASE}${id}/`, data, quiet),
+  delete: (id) => apiClient.delete(`${FLOW_BASE}${id}/`, quiet),
 
-  // Steps
-  listSteps: (flowId) => apiClient.get(`/crm-api/flows/flows/${flowId}/steps/`),
-  createStep: (flowId, data) => apiClient.post(`/crm-api/flows/flows/${flowId}/steps/`, data),
-  patchStep: (flowId, stepId, data) => apiClient.patch(`/crm-api/flows/flows/${flowId}/steps/${stepId}/`, data),
-  deleteStep: (flowId, stepId) => apiClient.delete(`/crm-api/flows/flows/${flowId}/steps/${stepId}/`),
+  listSteps: (flowId) => apiClient.get(`${FLOW_BASE}${flowId}/steps/`, quiet),
+  createStep: (flowId, data) => apiClient.post(`${FLOW_BASE}${flowId}/steps/`, data, quiet),
+  patchStep: (flowId, stepId, data) => apiClient.patch(`${FLOW_BASE}${flowId}/steps/${stepId}/`, data, quiet),
+  deleteStep: (flowId, stepId) => apiClient.delete(`${FLOW_BASE}${flowId}/steps/${stepId}/`, quiet),
 
-  // Transitions
-  listTransitions: (flowId, stepId) => apiClient.get(`/crm-api/flows/flows/${flowId}/steps/${stepId}/transitions/`),
-  createTransition: (flowId, stepId, data) => apiClient.post(`/crm-api/flows/flows/${flowId}/steps/${stepId}/transitions/`, data),
-  updateTransition: (flowId, stepId, transitionId, data) => apiClient.put(`/crm-api/flows/flows/${flowId}/steps/${stepId}/transitions/${transitionId}/`, data),
-  deleteTransition: (flowId, stepId, transitionId) => apiClient.delete(`/crm-api/flows/flows/${flowId}/steps/${stepId}/transitions/${transitionId}/`),
+  listTransitions: (flowId, stepId) => apiClient.get(`${FLOW_BASE}${flowId}/steps/${stepId}/transitions/`, quiet),
+  createTransition: (flowId, stepId, data) => apiClient.post(`${FLOW_BASE}${flowId}/steps/${stepId}/transitions/`, data, quiet),
+  updateTransition: (flowId, stepId, transitionId, data) => apiClient.patch(`${FLOW_BASE}${flowId}/steps/${stepId}/transitions/${transitionId}/`, data, quiet),
+  deleteTransition: (flowId, stepId, transitionId) => apiClient.delete(`${FLOW_BASE}${flowId}/steps/${stepId}/transitions/${transitionId}/`, quiet),
 };
 
-// --- Meta API Configs (Expanded) ---
+// --- Meta API Configs ---
+const META_BASE = '/crm-api/meta/api/';
 export const metaApi = {
-  getConfigs: () => apiClient.get('/crm-api/meta/api/configs/'),
-  createConfig: (data) => apiClient.post('/crm-api/meta/api/configs/', data),
-  updateConfig: (id, data) => apiClient.put(`/crm-api/meta/api/configs/${id}/`, data),
+  getConfigs: () => apiClient.get(`${META_BASE}configs/`, { params: { page_size: 100 }, suppressErrorToast: true }),
+  createConfig: (data) => apiClient.post(`${META_BASE}configs/`, data, { suppressErrorToast: true }),
+  patchConfig: (id, data) => apiClient.patch(`${META_BASE}configs/${id}/`, data, { suppressErrorToast: true }),
+  deleteConfig: (id) => apiClient.delete(`${META_BASE}configs/${id}/`, { suppressErrorToast: true }),
+  setActive: (id) => apiClient.post(`${META_BASE}configs/${id}/set_active/`, null, { suppressErrorToast: true }),
+  latestWebhookEvents: (count = 15) => apiClient.get(`${META_BASE}webhook-logs/latest/`, { params: { count }, suppressErrorToast: true }),
 };
 
 // --- Media Assets API ---

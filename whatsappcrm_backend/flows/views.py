@@ -1,5 +1,5 @@
 # flows/views.py
-from rest_framework import viewsets, permissions, status
+from rest_framework import viewsets, permissions, status, serializers
 from rest_framework.response import Response
 from django.db import transaction
 from django.core.exceptions import ValidationError as DjangoValidationError # For model's full_clean
@@ -66,6 +66,9 @@ class FlowStepViewSet(viewsets.ModelViewSet):
     serializer_class = FlowStepSerializer
     # TODO: Replace with more granular permissions
     permission_classes = [permissions.IsAuthenticated]
+    # Steps/transitions are always read for one whole flow (booking_flow has
+    # ~100 steps); paging them made the editor silently drop steps past 20.
+    pagination_class = None
 
     def get_queryset(self):
         """
@@ -147,6 +150,9 @@ class FlowTransitionViewSet(viewsets.ModelViewSet):
     serializer_class = FlowTransitionSerializer
     # TODO: Replace with more granular permissions
     permission_classes = [permissions.IsAuthenticated]
+    # Steps/transitions are always read for one whole flow (booking_flow has
+    # ~100 steps); paging them made the editor silently drop steps past 20.
+    pagination_class = None
 
     def get_queryset(self):
         queryset = super().get_queryset()
