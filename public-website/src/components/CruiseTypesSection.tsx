@@ -61,7 +61,7 @@ export default function CruiseTypesSection() {
   return (
     <div className="space-y-16">
       {cruises.map((cruise) => (
-        <section key={cruise.id} id={cruise.id} className="relative py-16 bg-[#FFF9F5]">
+        <section key={cruise.id} id={cruise.id} className="relative overflow-x-clip py-16 bg-[#FFF9F5]">
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute -left-10 top-10 w-52 h-52 rounded-full blur-3xl bg-[#E09A18]/20 opacity-60" />
             <div className="absolute -right-10 bottom-10 w-56 h-56 rounded-full blur-3xl bg-[#E8600A]/15 opacity-40" />

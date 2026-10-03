@@ -221,46 +221,8 @@ export default function BookingModal({
     }
     return true;
   }, [paymentConfig]);
-  const paymentModePill = useMemo(() => {
-    const mode = (paymentConfig?.mode || '').toUpperCase();
-    if (mode === 'LIVE') {
-      return {
-        label: 'CBZ Mode: LIVE',
-        className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-      };
-    }
-    if (mode === 'TEST') {
-      return {
-        label: 'CBZ Mode: TEST',
-        className: 'border-amber-200 bg-amber-50 text-amber-800',
-      };
-    }
-    return {
-      label: 'CBZ Mode: UNKNOWN',
-      className: 'border-slate-200 bg-slate-50 text-slate-700',
-    };
-  }, [paymentConfig?.mode]);
   const isOmariAvailable = useMemo(() => (omariConfig ? omariConfig.available : true), [omariConfig]);
   const isOmariTestMode = useMemo(() => omariConfig?.mode === 'Test', [omariConfig]);
-  const omariModePill = useMemo(() => {
-    const mode = (omariConfig?.mode || '').toUpperCase();
-    if (mode === 'LIVE') {
-      return {
-        label: 'Omari Mode: LIVE',
-        className: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-      };
-    }
-    if (mode === 'TEST') {
-      return {
-        label: 'Omari Mode: TEST',
-        className: 'border-amber-200 bg-amber-50 text-amber-800',
-      };
-    }
-    return {
-      label: 'Omari Mode: UNKNOWN',
-      className: 'border-slate-200 bg-slate-50 text-slate-700',
-    };
-  }, [omariConfig?.mode]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -539,6 +501,12 @@ export default function BookingModal({
 
     return sum % 10 === 0;
   };
+
+  // Only flag once the number is long enough to be complete; test PANs skip the Luhn check like submit does.
+  const cardNumberLooksWrong = (() => {
+    const pan = sanitizePan(card.cardNumber);
+    return pan.length >= 16 && !isTestMode && !isLuhnValid(pan);
+  })();
 
   const isCardExpiryValid = (expiryMMyy: string) => {
     if (!/^\d{4}$/.test(expiryMMyy)) {
@@ -1139,6 +1107,9 @@ export default function BookingModal({
         checkoutUrl.searchParams.set('brands', String(result.brands || 'PRIVATE_LABEL'));
         checkoutUrl.searchParams.set('widget', String(result.widget_script_url || ''));
         checkoutUrl.searchParams.set('returnUrl', finalReturnUrl);
+        // Display only: the charged amount is fixed in the OPPWA checkout created above.
+        checkoutUrl.searchParams.set('amount', totalAmount.toFixed(2));
+        if (cruiseType) checkoutUrl.searchParams.set('item', cruiseType);
         if (result.integrity) {
           checkoutUrl.searchParams.set('integrity', String(result.integrity));
         }
@@ -1368,9 +1339,10 @@ export default function BookingModal({
                 </div>
               )}
 
-              {isTestMode && (
-                <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                  Payments are currently running in iVeri Test mode. Any approval shown here is sandbox-only and does not charge a real customer card or wallet.
+              {checkoutStep === 'payment' && (paymentMode === 'omari' ? isOmariTestMode : isTestMode) && (
+                <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="note">
+                  <span className="mt-0.5 rounded bg-amber-200 px-1.5 text-[10px] font-bold uppercase tracking-wider">Test</span>
+                  <span>Payments are in test mode. Approvals here are simulated and no real money is taken.</span>
                 </div>
               )}
 
@@ -1568,74 +1540,37 @@ export default function BookingModal({
                   </>
                 )}
 
-                <div className={`rounded-xl bg-linear-to-r from-[#FFF9F5] to-[#FFE0C8] border border-[#E09A18]/30 p-4 ${isPagePresentation ? 'lg:hidden' : ''}`}>
-                  <p className="text-sm text-gray-700">
-                    <strong className="text-gray-900">Estimated total:</strong> USD {totalAmount.toFixed(2)}
-                  </p>
+                <div className={`flex items-center justify-between rounded-2xl border border-[#E09A18]/30 bg-[#FFF9F5] px-4 py-3 ${isPagePresentation ? 'lg:hidden' : ''}`}>
+                  <span className="text-sm font-medium text-gray-700">{checkoutStep === 'payment' ? 'Amount to pay' : 'Estimated total'}</span>
+                  <span className="text-xl font-black tabular-nums text-gray-900">USD {totalAmount.toFixed(2)}</span>
                 </div>
 
                 {checkoutStep === 'payment' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 rounded-2xl border border-gray-200 bg-gray-50/60 p-3">
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <FaLock className="text-emerald-600 flex-shrink-0" /> 256-bit TLS encryption
+                  <fieldset>
+                    <legend className={labelBase}>Pay with</legend>
+                    <div className={`grid gap-2 ${isOmariAvailable ? 'grid-cols-3' : 'grid-cols-2'}`} role="radiogroup">
+                      {([
+                        { mode: 'card' as const, icon: FaCreditCard, title: 'Card', hint: 'Visa · Mastercard · ZimSwitch' },
+                        { mode: 'ecocash' as const, icon: FaMobileAlt, title: 'EcoCash', hint: 'Mobile money' },
+                        ...(isOmariAvailable ? [{ mode: 'omari' as const, icon: FaWallet, title: 'Omari', hint: 'Omari wallet' }] : []),
+                      ]).map(({ mode, icon: Icon, title, hint }) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          role="radio"
+                          aria-checked={paymentMode === mode}
+                          onClick={() => { setPaymentMode(mode); setPaymentMessage(''); }}
+                          className={`flex flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 text-center transition ${
+                            paymentMode === mode ? 'border-[#E8600A] bg-[#FFF9F5] text-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          <Icon size={18} className={paymentMode === mode ? 'text-[#E8600A]' : 'text-gray-400'} aria-hidden />
+                          <span className="text-sm font-bold">{title}</span>
+                          <span className="hidden text-[11px] leading-tight text-gray-500 sm:block">{hint}</span>
+                        </button>
+                      ))}
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <FaShieldAlt className="text-emerald-600 flex-shrink-0" /> 3D Secure &amp; fraud checks
-                    </div>
-                    <div className="flex items-center gap-2 text-xs text-gray-600">
-                      <FaCheckCircle className="text-emerald-600 flex-shrink-0" /> Reconciled to your booking ref
-                    </div>
-                  </div>
-                )}
-
-                {checkoutStep === 'payment' && paymentMode !== 'omari' && (
-                  <div className="rounded-xl border border-gray-200 bg-white p-3">
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${paymentModePill.className}`}>
-                      {paymentModePill.label}
-                    </span>
-                  </div>
-                )}
-
-                {checkoutStep === 'payment' && paymentMode === 'omari' && (
-                  <div className="rounded-xl border border-gray-200 bg-white p-3">
-                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] ${omariModePill.className}`}>
-                      {omariModePill.label}
-                    </span>
-                  </div>
-                )}
-
-                {checkoutStep === 'payment' && (
-                <div className={`grid gap-2 p-1.5 rounded-2xl bg-gray-100 ${isOmariAvailable ? 'grid-cols-3' : 'grid-cols-2'}`}>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode('ecocash')}
-                    className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
-                      paymentMode === 'ecocash' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
-                    }`}
-                  >
-                    <FaMobileAlt size={14} /> EcoCash
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentMode('card')}
-                    className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
-                      paymentMode === 'card' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
-                    }`}
-                  >
-                    <FaCreditCard size={14} /> Pay by Card
-                  </button>
-                  {isOmariAvailable && (
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMode('omari')}
-                      className={`flex items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-semibold transition ${
-                        paymentMode === 'omari' ? 'bg-white shadow text-gray-900' : 'text-gray-500'
-                      }`}
-                    >
-                      <FaWallet size={14} /> Omari
-                    </button>
-                  )}
-                </div>
+                  </fieldset>
                 )}
 
                 {checkoutStep === 'payment' && paymentMode === 'ecocash' && (
@@ -1758,144 +1693,173 @@ export default function BookingModal({
                 )}
 
                 {checkoutStep === 'payment' && paymentMode === 'card' && (
-                  <div className="space-y-3 rounded-2xl border border-gray-200 p-5">
-                    {(isCopyAndPayAvailable || isCbzDirectAvailable) && (
-                      <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-100 p-1">
-                        {isCopyAndPayAvailable && (
-                          <button
-                            type="button"
-                            onClick={() => setCardProvider('copyandpay')}
-                            className={`rounded-lg py-2 text-xs font-semibold transition ${cardProvider === 'copyandpay' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
-                          >
-                            ZimSwitch (Hosted)
-                          </button>
-                        )}
-                        {isCbzDirectAvailable && (
-                          <button
-                            type="button"
-                            onClick={() => setCardProvider('cbz_direct')}
-                            className={`rounded-lg py-2 text-xs font-semibold transition ${cardProvider === 'cbz_direct' ? 'bg-white shadow text-gray-900' : 'text-gray-600'}`}
-                          >
-                            CBZ Direct Card
-                          </button>
-                        )}
-                      </div>
-                    )}
-                    {!isCopyAndPayAvailable && !isCbzDirectAvailable && (
+                  <div className="space-y-4">
+                    {!isCopyAndPayAvailable && !isCbzDirectAvailable ? (
                       <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                        Card payments are temporarily unavailable. Please use EcoCash or contact support.
+                        Card payments are temporarily unavailable. Please use EcoCash or contact us on WhatsApp.
                       </div>
-                    )}
-                    <div className="flex items-center justify-between gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
-                      <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-                        <FaLock size={10} className="text-emerald-600" /> Card details never stored on our servers
-                      </span>
-                      <span className="flex items-center gap-1.5 text-lg text-gray-300">
-                        <FaCcVisa /> <FaCcMastercard /> <FaCcAmex />
-                      </span>
-                    </div>
-                    {cardProvider === 'copyandpay' && (
-                      <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-                        Card details are captured on the next hosted secure ZimSwitch page. Click <strong>Pay Securely</strong> to continue.
-                      </div>
-                    )}
-                    {paymentConfig?.mode === 'Test' && (paymentConfig.card.test_pans ?? []).length > 0 && (
-                      <div>
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-gray-500">Test cards (iVeri)</p>
-                        <div className="flex flex-wrap gap-2">
-                          {(paymentConfig.card.test_pans ?? []).map((testPan) => (
+                    ) : (
+                      <fieldset>
+                        <legend className={labelBase}>Which card?</legend>
+                        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup">
+                          {isCbzDirectAvailable && (
                             <button
-                              key={testPan}
                               type="button"
-                              onClick={() => setCard((prev) => ({ ...prev, cardNumber: testPan, expiry: '02/28', cvv: '123' }))}
-                              className="rounded-full border border-[#E8600A] px-3 py-1 text-xs font-semibold text-[#E8600A] transition hover:bg-[#FFF3E8]"
+                              role="radio"
+                              aria-checked={cardProvider === 'cbz_direct'}
+                              onClick={() => { setCardProvider('cbz_direct'); setPaymentMessage(''); }}
+                              className={`flex items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition ${cardProvider === 'cbz_direct' ? 'border-[#E8600A] bg-[#FFF9F5]' : 'border-gray-200 hover:border-gray-300'}`}
                             >
-                              {`${testPan.slice(0, 4)} **** **** ${testPan.slice(-4)}`}
+                              <span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-2 ${cardProvider === 'cbz_direct' ? 'border-[#E8600A]' : 'border-gray-300'}`}>
+                                {cardProvider === 'cbz_direct' && <span className="size-2 rounded-full bg-[#E8600A]" />}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-bold text-gray-900">Visa or Mastercard</span>
+                                  <span className="flex gap-1 text-2xl" aria-hidden><FaCcVisa className="text-[#1434CB]" /><FaCcMastercard className="text-[#EB001B]" /></span>
+                                </span>
+                                <span className="mt-0.5 block text-xs text-gray-500">International and local cards. Your bank may ask you to confirm (3D Secure).</span>
+                              </span>
                             </button>
-                          ))}
+                          )}
+                          {isCopyAndPayAvailable && (
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={cardProvider === 'copyandpay'}
+                              onClick={() => { setCardProvider('copyandpay'); setPaymentMessage(''); }}
+                              className={`flex items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition ${cardProvider === 'copyandpay' ? 'border-[#E8600A] bg-[#FFF9F5]' : 'border-gray-200 hover:border-gray-300'}`}
+                            >
+                              <span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-2 ${cardProvider === 'copyandpay' ? 'border-[#E8600A]' : 'border-gray-300'}`}>
+                                {cardProvider === 'copyandpay' && <span className="size-2 rounded-full bg-[#E8600A]" />}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-bold text-gray-900">Zimbabwe bank card</span>
+                                  <span className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-gray-600">ZIMSWITCH</span>
+                                </span>
+                                <span className="mt-0.5 block text-xs text-gray-500">Local ZimSwitch debit cards. You&apos;ll enter the card on the bank&apos;s secure page.</span>
+                              </span>
+                            </button>
+                          )}
                         </div>
-                      </div>
+                      </fieldset>
                     )}
-                    {cardProvider === 'cbz_direct' && (
-                      <>
+
+                    {cardProvider === 'cbz_direct' && isCbzDirectAvailable && (
+                      <div className="space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
                         <div>
-                          <label htmlFor="cardNumber" className={labelBase}>
-                            <FaCreditCard className="text-[#E8600A]" size={12} /> Card Number
-                          </label>
+                          <label htmlFor="cardNumber" className={labelBase}>Card number</label>
                           <div className="relative">
                             <input
                               type="text"
                               id="cardNumber"
+                              name="cardnumber"
                               value={formatCardNumberDisplay(card.cardNumber)}
                               onChange={(e) => setCard((prev) => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '').slice(0, 19) }))}
                               inputMode="numeric"
                               autoComplete="cc-number"
-                              placeholder="5413 3300 8902 0020"
-                              className={`${inputBase} pr-12 font-mono tracking-wider`}
+                              placeholder="1234 5678 9012 3456"
+                              aria-invalid={cardNumberLooksWrong}
+                              aria-describedby="cardNumberHint"
+                              className={`${inputBase} pr-14 font-mono text-base tracking-wider ${cardNumberLooksWrong ? 'border-red-300 focus:border-red-400 focus:ring-red-100' : ''}`}
                             />
-                            {sanitizePan(card.cardNumber).length >= 4 && (
-                              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-2xl" aria-hidden="true">
-                                {cardBrandVisual}
-                              </span>
-                            )}
+                            <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-2xl" aria-hidden="true">
+                              {sanitizePan(card.cardNumber).length >= 4 ? cardBrandVisual : <FaCreditCard className="text-gray-300" />}
+                            </span>
                           </div>
-                          {sanitizePan(card.cardNumber).length >= 4 && (
-                            !cardBrandMeta.icon ? (
-                              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.15em] text-amber-700">
-                                Detected card type: {cardBrandMeta.label}
-                              </p>
-                            ) : null
-                          )}
+                          <p id="cardNumberHint" className={`mt-1.5 min-h-4 text-xs ${cardNumberLooksWrong ? 'text-red-600' : 'text-gray-500'}`}>
+                            {cardNumberLooksWrong
+                              ? 'That card number doesn\'t look right — please check it.'
+                              : sanitizePan(card.cardNumber).length >= 4 && cardBrand !== 'unknown'
+                                ? `${cardBrandMeta.label} card`
+                                : ''}
+                          </p>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
-                            <label htmlFor="expiry" className={labelBase}>
-                              <FaCalendarAlt className="text-[#E8600A]" size={12} /> Expiry (MM/YY)
-                            </label>
+                            <label htmlFor="expiry" className={labelBase}>Expiry</label>
                             <input
                               type="text"
                               id="expiry"
+                              name="cc-exp"
                               value={card.expiry}
                               onChange={(e) => setCard((prev) => ({ ...prev, expiry: toExpiryMMyy(e.target.value) }))}
                               inputMode="numeric"
                               autoComplete="cc-exp"
-                              placeholder="02/28"
-                              className={`${inputBase} font-mono`}
+                              placeholder="MM / YY"
+                              className={`${inputBase} font-mono text-base`}
                             />
                           </div>
                           <div>
-                            <label htmlFor="cvv" className={labelBase}>
-                              <FaLock className="text-[#E8600A]" size={12} /> CVV
-                            </label>
+                            <label htmlFor="cvv" className={labelBase}>Security code</label>
                             <input
                               type="password"
                               id="cvv"
+                              name="cvc"
                               value={card.cvv}
                               onChange={(e) => setCard((prev) => ({ ...prev, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
                               inputMode="numeric"
                               autoComplete="cc-csc"
-                              placeholder="123"
-                              className={`${inputBase} font-mono`}
+                              placeholder="CVV"
+                              aria-describedby="cvvHint"
+                              className={`${inputBase} font-mono text-base`}
                             />
+                            <p id="cvvHint" className="mt-1.5 text-xs text-gray-500">3 digits on the back</p>
                           </div>
                         </div>
-                      </>
+                        <p className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <FaLock className="text-emerald-600" size={11} aria-hidden /> Sent encrypted to CBZ Bank for authorisation. We never store your card details.
+                        </p>
+                        {paymentConfig?.mode === 'Test' && (paymentConfig.card.test_pans ?? []).length > 0 && (
+                          <div className="rounded-xl border border-dashed border-amber-300 bg-amber-50/60 p-3">
+                            <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-amber-800">Test cards</p>
+                            <div className="flex flex-wrap gap-2">
+                              {(paymentConfig.card.test_pans ?? []).map((testPan) => (
+                                <button
+                                  key={testPan}
+                                  type="button"
+                                  onClick={() => setCard((prev) => ({ ...prev, cardNumber: testPan, expiry: '02/28', cvv: '123' }))}
+                                  className="rounded-full border border-amber-400 bg-white px-3 py-1 font-mono text-xs text-amber-900 transition hover:bg-amber-100"
+                                >
+                                  {`${testPan.slice(0, 4)} •••• ${testPan.slice(-4)}`}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {(lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY)) && (
+                          <button
+                            type="button"
+                            onClick={() => void complete3DSPayment()}
+                            disabled={isSubmitting}
+                            className="w-full rounded-full border border-gray-300 py-2.5 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-50"
+                          >
+                            Already paid? Check payment status
+                          </button>
+                        )}
+                      </div>
                     )}
-                    {cardProvider === 'cbz_direct' && (lastMerchantReference || getSessionItem(PENDING_3DS_REF_KEY)) && (
-                      <button
-                        type="button"
-                        onClick={() => void complete3DSPayment()}
-                        disabled={isSubmitting}
-                        className="w-full rounded-full border border-[#E8600A] text-[#E8600A] font-semibold py-2.5 hover:bg-[#FFF3E8] transition disabled:opacity-50"
-                      >
-                        Retry 3DS Status Check
-                      </button>
+
+                    {cardProvider === 'copyandpay' && isCopyAndPayAvailable && (
+                      <ol className="space-y-2 rounded-2xl border border-gray-200 bg-gray-50/70 p-4 text-sm text-gray-700">
+                        {[
+                          'Continue to the secure ZimSwitch payment page.',
+                          'Enter your card there — Kalai Safaris never sees it.',
+                          'You come back here automatically with your booking confirmation.',
+                        ].map((step, i) => (
+                          <li key={step} className="flex gap-3">
+                            <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-900 text-[11px] font-bold text-white">{i + 1}</span>
+                            {step}
+                          </li>
+                        ))}
+                      </ol>
                     )}
                   </div>
                 )}
 
                 {paymentMessage && (
-                  <div className="rounded-xl border border-[#E09A18]/40 bg-[#FFF9F5] px-4 py-3 text-sm text-gray-700">
+                  <div role="status" aria-live="polite" className="rounded-xl border border-[#E09A18]/40 bg-[#FFF9F5] px-4 py-3 text-sm text-gray-700">
                     {paymentMessage}
                   </div>
                 )}
@@ -1911,7 +1875,7 @@ export default function BookingModal({
                   </a>
                 )}
 
-                <div className="flex gap-3 pt-2">
+                <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row">
                   <button
                     type="button"
                     onClick={onClose}
@@ -1932,22 +1896,18 @@ export default function BookingModal({
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="flex-1 inline-flex items-center justify-center gap-2 px-6 py-3 bg-linear-to-r from-[#E09A18] to-[#E8600A] hover:from-[#E8600A] hover:to-[#F47B1A] text-black font-bold rounded-full shadow-lg hover:shadow-xl transition-all duration-300 disabled:opacity-70"
+                    className="inline-flex flex-[1.6] items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#C8102E] px-6 py-3.5 font-bold text-white shadow-[0_10px_24px_-10px_rgba(200,16,46,0.6)] transition hover:bg-[#A00D24] disabled:opacity-70"
                   >
                     {checkoutStep === 'payment' && !isSubmitting && <FaLock size={13} />}
                     {isSubmitting
-                      ? 'Processing...'
+                      ? 'Processing…'
                       : checkoutStep === 'details'
-                        ? 'Continue to Secure Payment'
+                        ? 'Continue to payment'
                         : paymentMode === 'card'
-                          ? (cardProvider === 'copyandpay'
-                              ? (isTestMode ? 'Pay with ZimSwitch (Test Mode)' : 'Pay with ZimSwitch')
-                              : (isTestMode ? 'Pay with CBZ Direct (Test Mode)' : 'Pay with CBZ Direct'))
+                          ? (cardProvider === 'copyandpay' ? `Continue to ZimSwitch · $${totalAmount.toFixed(2)}` : `Pay $${totalAmount.toFixed(2)}`)
                           : paymentMode === 'omari'
-                            ? (omariStep === 'phone'
-                                ? (isOmariTestMode ? 'Send Omari OTP (Test Mode)' : 'Send Omari OTP')
-                                : (isOmariTestMode ? 'Confirm Omari Payment (Test Mode)' : 'Confirm Omari Payment'))
-                            : (isTestMode ? 'Start EcoCash Payment (Test Mode)' : 'Start EcoCash Payment')}
+                            ? (omariStep === 'phone' ? 'Send Omari code' : `Confirm payment · $${totalAmount.toFixed(2)}`)
+                            : `Send EcoCash prompt · $${totalAmount.toFixed(2)}`}
                   </button>
                 </div>
               </form>

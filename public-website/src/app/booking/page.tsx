@@ -176,7 +176,7 @@ function BookingPageContent() {
         </section>
 
         {/* Step indicator */}
-        <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="bg-white border-b border-gray-100 sticky top-14 z-10">
           <div className="container mx-auto px-6 py-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
             <span className="rounded-full bg-[#C8102E] text-white px-3 py-1">1. Choose Cruise</span>
             <span className="text-gray-300">›</span>
@@ -318,7 +318,7 @@ function BookingPageContent() {
     <div className="min-h-screen bg-gradient-to-b from-[#FFF9F5] via-white to-[#FFF9F5]">
       {/* Step indicator */}
       {!isPaymentScreen && (
-        <div className="bg-white border-b border-gray-100 sticky top-0 z-10">
+        <div className="bg-white border-b border-gray-100 sticky top-14 z-10">
           <div className="container mx-auto px-6 py-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.12em]">
             <button
               onClick={handleBackToSelect}
@@ -334,7 +334,7 @@ function BookingPageContent() {
         </div>
       )}
 
-      <section className={`${isPaymentScreen ? 'fixed inset-0 z-[120] overflow-y-auto bg-white py-6' : 'py-10 relative overflow-hidden'}`}>
+      <section className={`${isPaymentScreen ? 'fixed inset-x-0 bottom-0 top-14 z-40 overflow-y-auto bg-white py-6' : 'py-10 relative overflow-hidden'}`}>
         <div className="container mx-auto px-6 relative">
           <BookingModal
             key={`${selectedCruise}-${selectedAmountUsd}-${queryBookingReference}-${queryPaymentMode}`}

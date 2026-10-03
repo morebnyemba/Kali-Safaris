@@ -1,166 +1,128 @@
-import { FaMapMarkerAlt, FaPhone, FaEnvelope, FaWhatsapp, FaFacebook, FaSun } from "react-icons/fa";
-import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
+import Link from 'next/link';
+import Image from 'next/image';
+import { FaCcMastercard, FaCcVisa, FaDirections, FaEnvelope, FaFacebook, FaMapMarkerAlt, FaPhone, FaSun, FaWhatsapp } from 'react-icons/fa';
+import { BsSunriseFill, BsSunsetFill } from 'react-icons/bs';
+import { NAV_LINKS, SITE, whatsappLink } from '@/lib/site';
+
+const HOURS = [
+  { icon: BsSunriseFill, name: 'Sunrise cruise', time: '06:00 – 08:00' },
+  { icon: FaSun, name: 'Lunch cruise', time: '12:00 – 14:00' },
+  { icon: BsSunsetFill, name: 'Sunset cruise', time: '16:00 – after sunset' },
+];
+
+function Heading({ children }: { children: React.ReactNode }) {
+  return <h2 className="mb-4 text-xs font-bold uppercase tracking-[0.18em] text-[#E09A18]">{children}</h2>;
+}
 
 export default function FooterSection() {
-  const currentYear = new Date().getFullYear();
+  const year = new Date().getFullYear();
 
   return (
-    <footer className="relative w-full bg-gradient-to-b from-[#0A0A0A] via-[#1A1A1A] to-[#0A0A0A] text-white overflow-hidden" id="contact">
-      {/* Decorative background elements */}
-      <div className="absolute inset-0 pointer-events-none opacity-10">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-[#C8102E] rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-[#E8600A] rounded-full blur-3xl" />
-      </div>
+    <footer id="contact" className="relative w-full overflow-hidden bg-[#0A0A0A] text-white/80">
+      <div className="pointer-events-none absolute -right-32 -top-32 size-96 rounded-full bg-[#E8600A]/10 blur-3xl" aria-hidden />
 
-      <div className="container mx-auto px-6 py-12 relative">
-        {/* Main Footer Content */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          {/* Location Map */}
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#E09A18] to-[#E8600A]">Our Location</h2>
-            <div className="rounded-2xl overflow-hidden shadow-2xl border border-white/10">
-              <iframe
-                src="https://www.google.com/maps/embed?pb=!1m14!1m8!1m3!1d15186.660309634595!2d25.827891!3d-17.9011077!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x194ffbfa993efc89%3A0x4ccf5857807bae76!2sKalai%20Safari!5e0!3m2!1sen!2szw!4v1695656987970!5m2!1sen!2szw"
-                width="100%"
-                height="250"
-                style={{ border: 0 }}
-                allowFullScreen
-                loading="lazy"
-                referrerPolicy="no-referrer-when-downgrade"
-                title="Kalai Safari Location Map"
-              />
+      <div className="container relative mx-auto px-6 pb-8 pt-14">
+        <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_1.1fr_1fr]">
+          {/* Brand */}
+          <div className="space-y-5">
+            <Link href="/" className="inline-flex items-center gap-3" aria-label="Kalai Safaris home">
+              <span className="flex size-12 items-center justify-center rounded-full bg-white p-1.5">
+                <Image src="/images/kalailogo-leftmark.png" alt="" width={640} height={306} className="h-auto w-full" />
+              </span>
+              <span className="text-xl font-bold tracking-wide text-white">Kalai Safaris</span>
+            </Link>
+            <p className="max-w-xs text-sm leading-relaxed text-white/60">
+              Relaxed safari cruises on the Zambezi River above Victoria Falls — wildlife, sunsets and good company since 2019.
+            </p>
+            <div className="flex gap-2">
+              <a href={SITE.facebook} target="_blank" rel="noopener noreferrer" aria-label="Kalai Safaris on Facebook"
+                className="flex size-10 items-center justify-center rounded-full border border-white/15 transition hover:border-[#1877F2] hover:bg-[#1877F2] hover:text-white">
+                <FaFacebook size={18} />
+              </a>
+              <a href={whatsappLink()} target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp"
+                className="flex size-10 items-center justify-center rounded-full border border-white/15 transition hover:border-[#25D366] hover:bg-[#25D366] hover:text-white">
+                <FaWhatsapp size={18} />
+              </a>
             </div>
           </div>
 
-          {/* Contact Information */}
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#E09A18] to-[#E8600A]">Contact Us</h2>
-            <div className="space-y-4">
-              <a
-                href="https://maps.google.com/?q=Kalai+Safaris+Victoria+Falls"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-start gap-3 group hover:translate-x-1 transition-transform"
-              >
-                <FaMapMarkerAlt className="text-[#E09A18] mt-1 flex-shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="group-hover:text-[#E09A18] transition">Kalai Safaris, riverside jetty next to Palm Lodge, Victoria Falls Zimbabwe</span>
-              </a>
-              <a
-                href="tel:+263712629336"
-                className="flex items-center gap-3 group hover:translate-x-1 transition-transform"
-              >
-                <FaPhone className="text-[#E09A18] flex-shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="group-hover:text-[#E09A18] transition">+263 712 629 336</span>
-              </a>
-              <a
-                href="mailto:reservation@kalaisafaris.com"
-                className="flex items-center gap-3 group hover:translate-x-1 transition-transform"
-              >
-                <FaEnvelope className="text-[#E09A18] flex-shrink-0 group-hover:scale-110 transition-transform" />
-                <span className="group-hover:text-[#E09A18] transition break-all">reservation@kalaisafaris.com</span>
-              </a>
-            </div>
+          {/* Explore */}
+          <nav aria-label="Footer">
+            <Heading>Explore</Heading>
+            <ul className="space-y-2.5 text-sm">
+              {NAV_LINKS.filter((l) => l.href !== '#contact').map(({ label, href }) => (
+                <li key={href}><Link href={href} className="transition hover:text-white">{label}</Link></li>
+              ))}
+              <li><Link href="/booking" className="font-semibold text-[#E09A18] transition hover:text-[#F47B1A]">Book a cruise →</Link></li>
+            </ul>
+          </nav>
 
-            {/* Social Media Links */}
-            <div className="pt-4">
-              <h3 className="text-lg font-semibold mb-3 text-white/90">Follow Us</h3>
-              <div className="flex gap-3">
-                <a
-                  href="https://www.facebook.com/KalaiSafari"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-[#E8600A] hover:scale-110 transition-all duration-300"
-                  aria-label="Facebook"
-                >
-                  <FaFacebook size={20} />
+          {/* Contact */}
+          <div>
+            <Heading>Get in touch</Heading>
+            <ul className="space-y-3.5 text-sm">
+              <li>
+                <a href={SITE.mapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-start gap-3 transition hover:text-white">
+                  <FaMapMarkerAlt className="mt-0.5 shrink-0 text-[#E09A18]" aria-hidden /> {SITE.address}
                 </a>
-                <a
-                  href="https://wa.me/263712629336"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center hover:bg-[#25D366] hover:scale-110 transition-all duration-300"
-                  aria-label="WhatsApp"
-                >
-                  <FaWhatsapp size={20} />
+              </li>
+              <li>
+                <a href={SITE.phoneHref} className="flex items-center gap-3 transition hover:text-white">
+                  <FaPhone className="shrink-0 text-[#E09A18]" aria-hidden /> {SITE.phoneDisplay}
                 </a>
-              </div>
-            </div>
+              </li>
+              <li>
+                <a href={`mailto:${SITE.email}`} className="flex items-center gap-3 break-all transition hover:text-white">
+                  <FaEnvelope className="shrink-0 text-[#E09A18]" aria-hidden /> {SITE.email}
+                </a>
+              </li>
+              <li>
+                <a href={SITE.mapsUrl} target="_blank" rel="noopener noreferrer"
+                  className="mt-1 inline-flex items-center gap-2 rounded-full border border-white/15 px-4 py-2 text-xs font-semibold text-white transition hover:border-[#E09A18] hover:text-[#E09A18]">
+                  <FaDirections aria-hidden /> Get directions
+                </a>
+              </li>
+            </ul>
           </div>
 
-          {/* Cruise Hours */}
-          <div className="space-y-4">
-            <h2 className="text-2xl font-bold mb-4 text-transparent bg-clip-text bg-gradient-to-r from-[#E09A18] to-[#E8600A]">Cruise Hours</h2>
-            <div className="space-y-3">
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <BsSunriseFill className="text-[#E09A18] text-lg" />
-                <div>
-                  <p className="font-semibold text-white/90">Sunrise Cruise</p>
-                  <p className="text-sm text-white/60">06:00 AM — 08:00 AM</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <FaSun className="text-[#E09A18] text-lg" />
-                <div>
-                  <p className="font-semibold text-white/90">Lunch Cruise</p>
-                  <p className="text-sm text-white/60">12:00 PM — 02:00 PM</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 bg-white/5 backdrop-blur-md rounded-xl px-4 py-3 border border-white/10">
-                <BsSunsetFill className="text-[#E09A18] text-lg" />
-                <div>
-                  <p className="font-semibold text-white/90">Sunset Cruise</p>
-                  <p className="text-sm text-white/60">04:00 PM — After Sunset</p>
-                </div>
-              </div>
-            </div>
-            <div className="pt-4">
-              <a
-                href="/booking"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#C8102E] hover:bg-[#E8173A] text-white font-bold transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5 shadow-lg"
-              >
-                Book a Cruise
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-              </a>
-            </div>
+          {/* Hours */}
+          <div>
+            <Heading>Cruise times</Heading>
+            <ul className="divide-y divide-white/10 rounded-xl border border-white/10 bg-white/[0.03] text-sm">
+              {HOURS.map(({ icon: Icon, name, time }) => (
+                <li key={name} className="flex items-center gap-3 px-4 py-3">
+                  <Icon className="shrink-0 text-[#E09A18]" aria-hidden />
+                  <span className="flex-1 text-white">{name}</span>
+                  <span className="text-xs tabular-nums text-white/55">{time}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 text-xs text-white/45">All cruises depart from our riverside jetty.</p>
           </div>
         </div>
 
-        {/* Copyright and Attribution */}
-        <div className="border-t border-white/10 pt-8 mt-8">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-            <div className="text-sm text-white/70">
-              &copy; 2019 - {currentYear} <span className="font-semibold text-white">Kalai Safaris</span>. All rights reserved.
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-white/70">Powered by</span>
-              <a
-                href="https://slykertech.co.zw"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#E09A18] to-[#E8600A] text-white font-bold text-sm hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300"
-              >
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                </svg>
-                Slyker Tech Web Services
-              </a>
-            </div>
-          </div>
+        {/* Payments */}
+        <div className="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs uppercase tracking-[0.16em] text-white/45">Secure payments</p>
+          <ul className="flex flex-wrap items-center gap-2" aria-label="Accepted payment methods">
+            <li><FaCcVisa className="text-3xl text-white/80" title="Visa" aria-label="Visa" /></li>
+            <li><FaCcMastercard className="text-3xl text-white/80" title="Mastercard" aria-label="Mastercard" /></li>
+            {['ZimSwitch', 'EcoCash', 'Omari'].map((m) => (
+              <li key={m} className="rounded-md border border-white/15 px-2 py-1 text-[11px] font-semibold tracking-wide text-white/80">{m}</li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="mt-6 flex flex-col gap-2 text-xs text-white/45 sm:flex-row sm:items-center sm:justify-between">
+          <p>© 2019–{year} Kalai Safaris. All rights reserved.</p>
+          <p>
+            Website by{' '}
+            <a href="https://slykertech.co.zw" target="_blank" rel="noopener noreferrer" className="text-white/70 underline-offset-2 transition hover:text-white hover:underline">
+              Slyker Tech Web Services
+            </a>
+          </p>
         </div>
       </div>
-
-      {/* WhatsApp Floating Button */}
-      <a
-        href="https://wa.me/263712629336?text=*[Message from Kalai Safaris Website]*%0A%0AI'm%20interested%20in%20your%20services%20as%20advertised%20on%20your%20website.%20Please%20tell%20me%20more!"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-[#25D366] to-[#128C7E] hover:from-[#128C7E] hover:to-[#075E54] text-white rounded-full p-4 shadow-2xl transition-all duration-300 hover:scale-110 animate-pulse hover:animate-none"
-        aria-label="Chat on WhatsApp"
-      >
-        <FaWhatsapp size={32} />
-      </a>
     </footer>
   );
 }

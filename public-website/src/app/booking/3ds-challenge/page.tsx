@@ -17,7 +17,8 @@
  */
 
 import { Suspense, useEffect, useRef, useState } from 'react';
-import { FaLock } from 'react-icons/fa';
+import Link from 'next/link';
+import { FaArrowLeft, FaExclamationTriangle, FaLock, FaShieldAlt } from 'react-icons/fa';
 
 const CHALLENGE_KEY = 'kali_3ds_challenge';
 
@@ -38,6 +39,9 @@ function ThreeDSChallengeContent() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    // Run after mount so state updates aren't synchronous in the effect body.
+    let submitTimer = 0;
+    const startTimer = window.setTimeout(() => {
     let raw = '';
     try {
       raw = window.sessionStorage.getItem(CHALLENGE_KEY) ?? '';
@@ -87,47 +91,43 @@ function ThreeDSChallengeContent() {
 
     setSubmitting(true);
     // Small delay so the "Redirecting…" message renders before the browser navigates
-    const id = window.setTimeout(() => form.submit(), 150);
-    return () => window.clearTimeout(id);
+    submitTimer = window.setTimeout(() => form.submit(), 150);
+    }, 0);
+    return () => {
+      window.clearTimeout(startTimer);
+      window.clearTimeout(submitTimer);
+    };
   }, []);
 
-  if (error) {
-    return (
-      <main className="min-h-screen bg-gradient-to-b from-[#001a33] via-[#002b4d] to-[#001a33] flex items-center justify-center px-4 py-16">
-        <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-8">
-          <div className="flex items-center gap-3 mb-4">
-            <FaLock className="text-red-500 text-xl" />
-            <h1 className="text-lg font-bold text-gray-900">3D Secure Error</h1>
-          </div>
-          <p className="text-red-600 text-sm mb-6">{error}</p>
-          <a
-            href="/booking"
-            className="inline-flex items-center gap-2 rounded-full bg-[#001a33] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#003366]"
-          >
-            ← Back to Checkout
-          </a>
-        </div>
-      </main>
-    );
-  }
-
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#001a33] via-[#002b4d] to-[#001a33] flex items-center justify-center px-4 py-16">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-8 text-center">
-        <div className="flex justify-center mb-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#001a33]">
-            <FaLock className="text-amber-400 text-2xl" />
+    <main className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center bg-[#FFF9F5] px-4 py-12">
+      <section className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white text-center shadow-[0_20px_50px_-30px_rgba(0,0,0,0.35)]" aria-live="polite">
+        {error ? (
+          <div className="px-8 py-10">
+            <span className="mx-auto mb-5 flex size-16 items-center justify-center rounded-full bg-red-50 text-[#C8102E] ring-8 ring-red-50/60">
+              <FaExclamationTriangle size={26} aria-hidden />
+            </span>
+            <h1 className="text-xl font-black text-gray-900">We couldn’t start card verification</h1>
+            <p className="mt-2 text-sm text-gray-600">{error}</p>
+            <Link href="/booking" className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#C8102E] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#A00D24]">
+              <FaArrowLeft className="text-xs" aria-hidden /> Back to checkout
+            </Link>
           </div>
-        </div>
-        <h1 className="text-xl font-bold text-gray-900 mb-2">3D Secure Authentication</h1>
-        <p className="text-gray-500 text-sm mb-6">
-          {submitting
-            ? 'Redirecting you to your bank to verify your card…'
-            : 'Preparing secure authentication…'}
-        </p>
-        {submitting && (
-          <div className="flex justify-center">
-            <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[#001a33] border-t-transparent" />
+        ) : (
+          <div className="px-8 py-10">
+            <span className="relative mx-auto mb-6 flex size-20 items-center justify-center">
+              <span className="absolute inset-0 animate-spin rounded-full border-4 border-orange-100 border-t-[#E8600A]" aria-hidden />
+              <FaShieldAlt className="text-[#E8600A]" size={28} aria-hidden />
+            </span>
+            <h1 className="text-xl font-black text-gray-900">Verifying your card</h1>
+            <p className="mt-2 text-sm text-gray-600">
+              {submitting ? 'Taking you to your bank’s secure page…' : 'Preparing secure verification…'}
+            </p>
+            <ol className="mx-auto mt-6 max-w-xs space-y-2 text-left text-sm text-gray-600">
+              <li className="flex gap-3"><span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-900 text-[11px] font-bold text-white">1</span>Your bank may ask for a code or app approval.</li>
+              <li className="flex gap-3"><span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-gray-900 text-[11px] font-bold text-white">2</span>You’ll come back here automatically.</li>
+            </ol>
+            <p className="mt-6 flex items-center justify-center gap-1.5 text-xs text-gray-400"><FaLock aria-hidden /> Don’t close or refresh this page</p>
           </div>
         )}
         {/* Hidden ACS redirect form — populated and submitted by useEffect */}
@@ -136,7 +136,7 @@ function ThreeDSChallengeContent() {
           <input type="hidden" name="MD" defaultValue="" />
           <input type="hidden" name="TermUrl" defaultValue="" />
         </form>
-      </div>
+      </section>
     </main>
   );
 }
