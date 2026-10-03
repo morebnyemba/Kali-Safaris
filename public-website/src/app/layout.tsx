@@ -3,6 +3,7 @@ import { Outfit } from "next/font/google";
 
 import "./globals.css";
 import Header from "@/components/Header";
+import WhatsAppButton from "@/components/WhatsAppButton";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -11,6 +12,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://kalaisafaris.com"),
   title: {
     default: "Kalai Safaris — Zambezi River Cruises | Victoria Falls",
     template: "%s | Kalai Safaris",
@@ -68,6 +70,7 @@ export default function RootLayout({
       <body className={`${outfit.className} antialiased`}>
         <Header />
         {children}
+        <WhatsAppButton />
       </body>
     </html>
   );

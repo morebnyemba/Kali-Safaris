@@ -113,12 +113,12 @@ export default function HeroSection() {
                     >
                       Book Now
                     </Link>
-                    <a
+                    <Link
                       href="/#services"
                       className="bg-white/20 backdrop-blur-md border border-white/30 hover:bg-white/30 text-white px-7 md:px-9 py-3 md:py-3.5 rounded-full font-bold transition-all duration-300 hover:shadow-xl transform hover:-translate-y-0.5 text-sm md:text-base"
                     >
                       Learn More
-                    </a>
+                    </Link>
                   </div>
                 </>
               )}

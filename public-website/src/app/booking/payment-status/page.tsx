@@ -307,8 +307,8 @@ function PaymentStatusPageContent() {
   }, [bookingReference, effectiveReference, shouldReturnToWhatsApp]);
 
   return (
-    <main className="min-h-screen bg-linear-to-b from-[#001a33] via-[#002b4d] to-[#001a33] py-16 px-6">
-      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-2xl p-8 md:p-10">
+    <main className="min-h-[calc(100vh-3.5rem)] bg-[#FFF9F5] py-12 px-4 sm:py-16">
+      <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 md:p-10">
         <div className="flex items-center justify-between gap-3 mb-6">
             <h1 className="text-2xl md:text-3xl font-black text-gray-900">{channel === 'ecocash' ? 'EcoCash Payment Status' : 'Card Payment Status'}</h1>
           <span className={`px-3 py-1 rounded-full border text-xs font-bold ${statusBadge}`}>
@@ -357,7 +357,7 @@ function PaymentStatusPageContent() {
               type="button"
               onClick={() => void verifyPayment()}
               disabled={status === 'checking'}
-              className="rounded-full bg-linear-to-r from-[#E09A18] to-[#E8600A] hover:from-[#E8600A] hover:to-[#F47B1A] text-black font-bold py-3 px-5 transition-all disabled:opacity-60"
+              className="rounded-full bg-[#C8102E] hover:bg-[#A00D24] text-white font-bold py-3 px-5 transition disabled:opacity-60"
             >
               {status === 'checking' ? 'Checking...' : 'Check Again'}
             </button>

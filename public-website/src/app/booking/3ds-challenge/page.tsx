@@ -93,7 +93,7 @@ function ThreeDSChallengeContent() {
 
   if (error) {
     return (
-      <main className="min-h-screen bg-gradient-to-b from-[#001a33] via-[#002b4d] to-[#001a33] flex items-center justify-center px-4 py-16">
+      <main className="min-h-[calc(100vh-3.5rem)] bg-[#FFF9F5] flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-8">
           <div className="flex items-center gap-3 mb-4">
             <FaLock className="text-red-500 text-xl" />
@@ -102,7 +102,7 @@ function ThreeDSChallengeContent() {
           <p className="text-red-600 text-sm mb-6">{error}</p>
           <a
             href="/booking"
-            className="inline-flex items-center gap-2 rounded-full bg-[#001a33] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#003366]"
+            className="inline-flex items-center gap-2 rounded-full bg-[#C8102E] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#A00D24]"
           >
             ← Back to Checkout
           </a>
@@ -112,10 +112,10 @@ function ThreeDSChallengeContent() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-[#001a33] via-[#002b4d] to-[#001a33] flex items-center justify-center px-4 py-16">
+    <main className="min-h-[calc(100vh-3.5rem)] bg-[#FFF9F5] flex items-center justify-center px-4 py-16">
       <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl p-8 text-center">
         <div className="flex justify-center mb-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#001a33]">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#E8600A]">
             <FaLock className="text-amber-400 text-2xl" />
           </div>
         </div>
@@ -127,7 +127,7 @@ function ThreeDSChallengeContent() {
         </p>
         {submitting && (
           <div className="flex justify-center">
-            <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[#001a33] border-t-transparent" />
+            <span className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-[#E8600A] border-t-transparent" />
           </div>
         )}
         {/* Hidden ACS redirect form — populated and submitted by useEffect */}
