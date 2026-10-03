@@ -124,3 +124,20 @@ class TokenSizeTests(APITestCase):
         token = MyTokenObtainPairSerializer.get_token(user)
         self.assertEqual(token['permissions'], [])
         self.assertLess(len(str(token.access_token)), 4096)
+
+
+class CheckoutBodySizeTests(APITestCase):
+    """Website checkout embeds ID photos in JSON; an oversized body must say so, not 'Invalid JSON'."""
+
+    def test_oversized_checkout_body_returns_413_with_clear_message(self):
+        import json as _json
+        from django.test import override_settings
+        body = _json.dumps({'amount': 1, 'currency': 'USD', 'blob': 'x' * 4096})
+        with override_settings(DATA_UPLOAD_MAX_MEMORY_SIZE=1024):
+            res = self.client.generic('POST', '/crm-api/payments/cbz/copyandpay/prepare/', body, content_type='application/json')
+        self.assertEqual(res.status_code, 413)
+        self.assertIn('too large', res.json()['message'])
+
+    def test_default_limit_fits_a_phone_photo(self):
+        from django.conf import settings
+        self.assertGreaterEqual(settings.DATA_UPLOAD_MAX_MEMORY_SIZE, 10 * 1024 * 1024)

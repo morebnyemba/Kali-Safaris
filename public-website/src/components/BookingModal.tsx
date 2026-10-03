@@ -85,6 +85,35 @@ const createEmptyTraveler = (): TravelerEntry => ({
 });
 
 const MAX_ID_DOCUMENT_SIZE_BYTES = 5 * 1024 * 1024;
+// Photos are re-encoded in the browser before upload, so larger camera originals are fine.
+const MAX_ID_PHOTO_SOURCE_BYTES = 25 * 1024 * 1024;
+const ID_PHOTO_MAX_EDGE_PX = 1800;
+const ID_PHOTO_JPEG_QUALITY = 0.82;
+// Keep the whole checkout request under the backend's DJANGO_DATA_UPLOAD_MAX_MB (20 MB).
+const MAX_TOTAL_ID_UPLOAD_CHARS = 18 * 1024 * 1024;
+
+const readFileAsDataUrl = (file: Blob) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('empty')));
+  reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+  reader.readAsDataURL(file);
+});
+
+/** Downscale and re-encode an ID photo so a 4–8 MB phone picture uploads as a few hundred KB. */
+const compressIdPhoto = async (file: File): Promise<string> => {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, ID_PHOTO_MAX_EDGE_PX / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas unavailable');
+  ctx.fillStyle = '#fff'; // PNG transparency would turn black in JPEG
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return canvas.toDataURL('image/jpeg', ID_PHOTO_JPEG_QUALITY);
+};
 // Children under this age may travel without an ID/passport number (server enforces the same).
 const ID_REQUIRED_FROM_AGE = 12;
 const ALLOWED_ID_DOCUMENT_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
@@ -609,6 +638,11 @@ export default function BookingModal({
       }
     }
 
+    const totalUploadChars = travelers.reduce((sum, item) => sum + item.idDocumentDataUrl.length, 0);
+    if (totalUploadChars > MAX_TOTAL_ID_UPLOAD_CHARS) {
+      return 'The ID documents you attached are too large in total. Please use photos instead of large PDF scans, or remove some attachments.';
+    }
+
     // Same duplicate rule as the server (name + ID number).
     const seen = new Set<string>();
     for (const item of travelers) {
@@ -688,15 +722,34 @@ export default function BookingModal({
       return;
     }
 
-    if (file.size > MAX_ID_DOCUMENT_SIZE_BYTES) {
-      setDetailsMessage('ID document must be 5MB or smaller.');
+    const isPhoto = file.type.startsWith('image/');
+    if (file.size > (isPhoto ? MAX_ID_PHOTO_SOURCE_BYTES : MAX_ID_DOCUMENT_SIZE_BYTES)) {
+      setDetailsMessage(isPhoto ? 'That photo is too large. Please choose a smaller picture.' : 'PDF ID documents must be 5MB or smaller.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      if (!dataUrl) {
+    void (async () => {
+      let dataUrl = '';
+      let name = file.name;
+      let mimeType = file.type;
+      try {
+        if (isPhoto) {
+          try {
+            dataUrl = await compressIdPhoto(file);
+            name = `${file.name.replace(/\.[^.]+$/, '') || 'id-document'}.jpg`;
+            mimeType = 'image/jpeg';
+          } catch {
+            // Browser couldn't decode it (e.g. unusual format); send the original if it's small enough.
+            if (file.size > MAX_ID_DOCUMENT_SIZE_BYTES) {
+              setDetailsMessage('We couldn’t process that photo. Please try a JPG or PNG under 5MB.');
+              return;
+            }
+            dataUrl = await readFileAsDataUrl(file);
+          }
+        } else {
+          dataUrl = await readFileAsDataUrl(file);
+        }
+      } catch {
         setDetailsMessage('Failed to read the selected ID document.');
         return;
       }
@@ -706,15 +759,11 @@ export default function BookingModal({
         ? {
             ...row,
             idDocumentDataUrl: dataUrl,
-            idDocumentName: file.name,
-            idDocumentMimeType: file.type,
+            idDocumentName: name,
+            idDocumentMimeType: mimeType,
           }
         : row)));
-    };
-    reader.onerror = () => {
-      setDetailsMessage('Failed to process the selected ID document.');
-    };
-    reader.readAsDataURL(file);
+    })();
   };
 
   const buildReturnToWhatsAppHref = (bookingReference: string, merchantReference: string) => {

@@ -1,4 +1,6 @@
 import json
+
+from django.core.exceptions import RequestDataTooBig
 import logging
 import uuid
 from decimal import Decimal, InvalidOperation
@@ -69,6 +71,8 @@ def omari_auth_view(request: HttpRequest) -> JsonResponse:
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
+    except RequestDataTooBig:
+        return JsonResponse({"error": True, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"error": True, "message": "Invalid JSON"}, status=400)
 
@@ -169,6 +173,8 @@ def omari_request_view(request: HttpRequest) -> JsonResponse:
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
+    except RequestDataTooBig:
+        return JsonResponse({"error": True, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"error": True, "message": "Invalid JSON"}, status=400)
 
