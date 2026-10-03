@@ -587,7 +587,7 @@ export default function BookingModal({
       const ageText = item.age.trim();
       const ageNum = Number(ageText);
 
-      if (!item.name.trim()) {
+      if (item.name.trim().length < 2) {
         return `${label}: full name is required.`;
       }
       // 0 is valid (infant under one); only empty, fractional or out-of-range ages are rejected.
@@ -597,8 +597,11 @@ export default function BookingModal({
       if (!item.nationality.trim()) {
         return `${label}: nationality is required.`;
       }
-      if (!item.gender.trim()) {
-        return `${label}: gender is required.`;
+      if (!['male', 'female', 'other'].includes(item.gender.trim().toLowerCase())) {
+        return `${label}: choose a gender.`;
+      }
+      if (item.idNumber.trim() && item.idNumber.trim().length < 3) {
+        return `${label}: ID/Passport number looks too short.`;
       }
       // Matches the server rule: required from age 12, optional for younger children.
       if (ageNum >= ID_REQUIRED_FROM_AGE && !item.idNumber.trim()) {
@@ -606,7 +609,30 @@ export default function BookingModal({
       }
     }
 
+    // Same duplicate rule as the server (name + ID number).
+    const seen = new Set<string>();
+    for (const item of travelers) {
+      const key = `${item.name.trim().toLowerCase()}|${item.idNumber.trim().toLowerCase()}`;
+      if (seen.has(key)) {
+        return `${item.name.trim()} was entered twice.`;
+      }
+      seen.add(key);
+    }
+
     return '';
+  };
+
+  // The server re-validates passengers and price before taking payment. A 400
+  // means the details need fixing, so send the customer back to that step with
+  // the server's reason instead of leaving a dead end on the payment screen.
+  const returnToDetailsIfRejected = (status: number, message?: string) => {
+    if (status !== 400 || hasExistingBooking) {
+      return false;
+    }
+    setPaymentMessage('');
+    setDetailsMessage(message || 'Please check your booking details and try again.');
+    setCheckoutStep('details');
+    return true;
   };
 
   const buildBookingDetailsPayload = () => {
@@ -902,6 +928,9 @@ export default function BookingModal({
         return;
       }
 
+      if (returnToDetailsIfRejected(response.status, result.message)) {
+        return;
+      }
       setPaymentMessage(result.message || 'EcoCash payment failed.');
     } catch {
       setPaymentMessage('EcoCash initiation failed. Please try again.');
@@ -959,6 +988,9 @@ export default function BookingModal({
         return;
       }
 
+      if (returnToDetailsIfRejected(response.status, result.message)) {
+        return;
+      }
       setPaymentMessage(result.message || 'Unable to start Omari payment. Please try another payment method.');
     } catch {
       setPaymentMessage('Omari payment initiation failed. Please try again.');
@@ -1118,6 +1150,9 @@ export default function BookingModal({
         return;
       }
 
+      if (returnToDetailsIfRejected(response.status, result.message)) {
+        return;
+      }
       setPaymentMessage(result.message || 'Payment failed.');
     } catch {
       setPaymentMessage('Payment request failed. Please try again.');
@@ -1178,6 +1213,9 @@ export default function BookingModal({
       const enrollResult = await enrollResponse.json();
 
       if (!enrollResult.success) {
+        if (returnToDetailsIfRejected(enrollResponse.status, enrollResult.message)) {
+          return;
+        }
         setPaymentMessage(enrollResult.message || 'Could not initiate 3DS authentication. Please try again.');
         return;
       }
@@ -1350,6 +1388,12 @@ export default function BookingModal({
                 {checkoutStep === 'details' && (
                   <>
                     <div ref={detailsFormAnchorRef} />
+                    {detailsMessage && (
+                      <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                        <FaShieldAlt className="mt-0.5 shrink-0 text-red-500" aria-hidden />
+                        <span>{detailsMessage}</span>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="date" className={labelBase}>
@@ -1479,13 +1523,17 @@ export default function BookingModal({
                               onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
                               className={inputBase}
                             />
-                            <input
-                              type="text"
-                              placeholder="Gender"
+                            <select
+                              aria-label={`Traveler ${index + 1} gender`}
                               value={item.gender}
                               onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, gender: e.target.value } : row)))}
-                              className={inputBase}
-                            />
+                              className={`${inputBase} ${item.gender ? '' : 'text-gray-400'}`}
+                            >
+                              <option value="" disabled>Gender</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
                             <input
                               type="text"
                               placeholder={Number(item.age) < ID_REQUIRED_FROM_AGE && item.age.trim() !== '' ? 'ID / Passport (optional under 12)' : 'ID / Passport number'}
