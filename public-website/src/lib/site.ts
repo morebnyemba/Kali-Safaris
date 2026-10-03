@@ -7,6 +7,8 @@ export const SITE = {
   address: 'Riverside jetty next to Palm Lodge, Victoria Falls, Zimbabwe',
   mapsUrl: 'https://maps.google.com/?q=Kalai+Safaris+Victoria+Falls',
   facebook: 'https://www.facebook.com/KalaiSafari',
+  // Set NEXT_PUBLIC_TRIPADVISOR_URL to the listing URL to show review links; hidden when empty.
+  tripadvisor: process.env.NEXT_PUBLIC_TRIPADVISOR_URL || '',
 };
 
 export function whatsappLink(message = "Hi, I'm interested in a Zambezi cruise. Please tell me more!") {
@@ -15,6 +17,7 @@ export function whatsappLink(message = "Hi, I'm interested in a Zambezi cruise. 
 
 export const NAV_LINKS = [
   { label: 'About', href: '/about' },
+  { label: 'Prices', href: '/#prices' },
   { label: 'Sunrise', href: '/#sunrise' },
   { label: 'Lunch', href: '/#lunch' },
   { label: 'Sunset', href: '/#sunset' },

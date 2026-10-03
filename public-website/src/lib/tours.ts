@@ -45,6 +45,17 @@ export async function fetchTours(): Promise<Tour[]> {
   return result.tours;
 }
 
+let cached: Promise<Tour[]> | null = null;
+
+/** One request per page view, shared by every section that lists tours. A failure is not cached. */
+export function fetchToursOnce(): Promise<Tour[]> {
+  cached ??= fetchTours().catch((err) => {
+    cached = null;
+    throw err;
+  });
+  return cached;
+}
+
 export function tourPriceUsd(tour: Tour): number {
   const price = Number(tour.price_per_adult ?? tour.base_price);
   return Number.isFinite(price) ? price : 0;
