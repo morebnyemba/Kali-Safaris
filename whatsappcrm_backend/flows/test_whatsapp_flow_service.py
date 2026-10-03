@@ -130,3 +130,24 @@ class WhatsAppFlowServiceUpdateFlowJsonTest(TestCase):
         # Verify sync_status was set to 'error'
         # Last save call should have set sync_status to 'error'
         self.assertEqual(self.whatsapp_flow.sync_status, 'error')
+
+    @patch('flows.whatsapp_flow_service.requests.post')
+    def test_update_flow_json_reports_meta_validation_errors(self, mock_post):
+        """Meta returns success=True plus validation_errors; we must stop and keep them."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            'success': True,
+            'validation_errors': [{
+                'error': 'INVALID_PROPERTY_VALUE',
+                'message': "Expected type 'string' but got 'number'.",
+                'line_start': 12, 'column_start': 5,
+                'pointers': [{'path': 'screens[0].layout.children[3]'}],
+            }],
+        }
+        mock_post.return_value = mock_response
+
+        self.assertFalse(self.service.update_flow_json(self.whatsapp_flow))
+        self.assertEqual(self.whatsapp_flow.sync_status, 'error')
+        self.assertIn("Expected type 'string' but got 'number'", self.whatsapp_flow.sync_error)
+        self.assertIn('screens[0].layout.children[3]', self.whatsapp_flow.sync_error)

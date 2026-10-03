@@ -5,8 +5,10 @@ WhatsApp Flow JSON definition for Traveler Details.
 This is a reusable interactive flow for collecting individual traveler information.
 
 Important WhatsApp Flow API v7.3 Requirements:
-1. PhotoPicker components require both 'min-uploaded-photos' and 'max-uploaded-photos' 
-   properties (range: 0-30 and 1-30 respectively).
+1. PhotoPicker components require both 'min-uploaded-photos' and 'max-uploaded-photos'
+   properties (range: 0-30 and 1-30 respectively). Min is 0 here: under-12s may have no ID.
+3. Form values carried into another screen's `data` must match its declared type. Keep
+   TextInput `input-type` as "text" for fields declared as "string" (the backend validates age).
 2. All data fields declared in a screen's 'data' section must be either:
    - Used in the screen's layout (e.g., in text interpolation like ${data.field_name}), OR
    - Passed in the navigation/completion payload to the next screen
@@ -78,7 +80,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "name": "traveler_age",
                         "label": "Age",
                         "required": True,
-                        "input-type": "number",
+                        "input-type": "text",
                         "helper-text": "Age in years (enter 0 for infants under 1)"
                     },
                     {
@@ -185,7 +187,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                     },
                     {
                         "type": "TextBody",
-                        "text": "Please upload a clear photo of your ID or Passport for ${data.traveler_name}. This is required for park entry."
+                        "text": "Please upload a clear photo of the ID or passport for ${data.traveler_name}. It is required for park entry from age 12; for younger children you can skip this."
                     },
                     {
                         "type": "PhotoPicker",
@@ -193,7 +195,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "label": "ID/Passport Photo",
                         "description": "Take or upload a photo of the ID/Passport",
                         "photo-source": "camera_gallery",
-                        "min-uploaded-photos": 1,
+                        "min-uploaded-photos": 0,
                         "max-uploaded-photos": 1
                     },
                     {

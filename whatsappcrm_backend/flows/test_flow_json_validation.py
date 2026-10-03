@@ -153,18 +153,19 @@ class WhatsAppFlowJSONValidationTest(TestCase):
                             'id_document_photo',
                             "PhotoPicker name should be 'id_document_photo'"
                         )
+                        # Optional: children under 12 may have no ID document.
                         self.assertEqual(
                             child['min-uploaded-photos'],
-                            1,
-                            "PhotoPicker should require at least 1 photo"
+                            0,
+                            "ID photo must be optional (under-12s may have no ID)"
                         )
                         self.assertEqual(
                             child['max-uploaded-photos'],
                             1,
                             "PhotoPicker should allow maximum 1 photo"
                         )
-                        # Note: PhotoPicker components should NOT have a 'required' property
-                        # The requirement is enforced by min-uploaded-photos >= 1
+                        # PhotoPicker components must NOT have a 'required' property;
+                        # min-uploaded-photos controls whether a photo is needed.
                         self.assertNotIn(
                             'required',
                             child,
@@ -175,3 +176,36 @@ class WhatsAppFlowJSONValidationTest(TestCase):
             photopicker_found,
             "PhotoPicker not found in ID_DOCUMENT_UPLOAD screen"
         )
+
+    def test_form_values_match_target_screen_data_types(self):
+        """Meta rejects publishing when a navigate payload value's type differs from
+        the next screen's declared data type (e.g. a number TextInput into a string)."""
+        for flow_name, flow in [('traveler_details', TRAVELER_DETAILS_WHATSAPP_FLOW),
+                                ('tour_inquiry', TOUR_INQUIRY_WHATSAPP_FLOW),
+                                ('date_picker', DATE_PICKER_WHATSAPP_FLOW)]:
+            screens = {s['id']: s for s in flow['screens']}
+
+            def walk(children):
+                for c in children:
+                    yield c
+                    yield from walk(c.get('children', []))
+
+            for screen in flow['screens']:
+                comps = list(walk(screen.get('layout', {}).get('children', [])))
+                number_inputs = {c['name'] for c in comps if c.get('type') == 'TextInput' and c.get('input-type') == 'number'}
+                for c in comps:
+                    action = c.get('on-click-action') or {}
+                    if action.get('name') != 'navigate':
+                        continue
+                    target = screens.get(action.get('next', {}).get('name'), {})
+                    for key, value in (action.get('payload') or {}).items():
+                        if not isinstance(value, str) or not value.startswith('${form.'):
+                            continue
+                        field = value[len('${form.'):-1]
+                        declared = target.get('data', {}).get(key, {}).get('type')
+                        if field in number_inputs:
+                            self.assertNotEqual(
+                                declared, 'string',
+                                f"{flow_name}/{screen['id']}: number input '{field}' is passed to "
+                                f"string data '{key}' on {target.get('id')}"
+                            )
