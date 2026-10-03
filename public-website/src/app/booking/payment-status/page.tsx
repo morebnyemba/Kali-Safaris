@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
+import { FaCheck, FaClock, FaLock, FaRegCopy, FaSearch, FaTimes, FaWhatsapp } from 'react-icons/fa';
 
 const API_BASE = process.env.NEXT_PUBLIC_BACKEND_API_BASE ?? '';
 const PENDING_3DS_REF_KEY = 'kalai_pending_3ds_reference';
@@ -62,7 +64,7 @@ interface GatewayResult {
 function PaymentStatusPageContent() {
   const searchParams = useSearchParams();
   const [status, setStatus] = useState<StatusState>('idle');
-  const [message, setMessage] = useState('Preparing payment verification...');
+  const [message, setMessage] = useState('Getting your payment details…');
   const [detail, setDetail] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [bookingReference, setBookingReference] = useState('');
@@ -143,12 +145,12 @@ function PaymentStatusPageContent() {
     const reference = effectiveReference;
     if (!resourcePath && !reference) {
       setStatus('no-reference');
-      setMessage('No pending 3DS payment was found.');
+      setMessage('We couldn’t find a payment from this browser. If you were charged, contact us with your booking reference.');
       return;
     }
 
     setStatus('checking');
-    setMessage('Checking your payment status with the gateway...');
+    setMessage('We’re confirming the result with the bank. This usually takes a few seconds.');
 
     try {
       const response = channel === 'card'
@@ -195,6 +197,7 @@ function PaymentStatusPageContent() {
 
         if (result.success && (result as GatewayResult & { is_pending?: boolean }).is_pending) {
           setStatus('pending');
+          setCountdown(REFRESH_SECONDS);
           setMessage(result.message || 'Payment is still pending final confirmation.');
           return;
         }
@@ -218,6 +221,7 @@ function PaymentStatusPageContent() {
 
       if (result.pending) {
         setStatus('pending');
+        setCountdown(REFRESH_SECONDS);
         setMessage(result.message || 'Payment is still pending final confirmation.');
         return;
       }
@@ -274,24 +278,6 @@ function PaymentStatusPageContent() {
     return () => clearInterval(id);
   }, [status, verifyPayment]);
 
-  const statusBadge = {
-    approved: 'bg-green-100 text-green-800 border-green-200',
-    pending: 'bg-amber-100 text-amber-800 border-amber-200',
-    failed: 'bg-red-100 text-red-800 border-red-200',
-    checking: 'bg-blue-100 text-blue-800 border-blue-200',
-    idle: 'bg-slate-100 text-slate-700 border-slate-200',
-    'no-reference': 'bg-slate-100 text-slate-700 border-slate-200',
-  }[status];
-
-  const statusLabel = {
-    approved: 'Approved',
-    pending: 'Pending',
-    failed: 'Not Confirmed',
-    checking: 'Checking',
-    idle: 'Preparing',
-    'no-reference': 'No Reference',
-  }[status];
-
   const returnToWhatsAppHref = useMemo(() => {
     if (!shouldReturnToWhatsApp) {
       return '';
@@ -306,84 +292,183 @@ function PaymentStatusPageContent() {
     return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(parts.join(' '))}`;
   }, [bookingReference, effectiveReference, shouldReturnToWhatsApp]);
 
+  const helpHref = useMemo(() => {
+    const text = [
+      'Hi Kalai Safaris, I need help with a payment on your website.',
+      bookingReference ? `Booking reference: ${bookingReference}.` : '',
+      effectiveReference ? `Payment reference: ${effectiveReference}.` : '',
+    ].filter(Boolean).join(' ');
+    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+  }, [bookingReference, effectiveReference]);
+
+  const view = STATE_VIEW[status];
+  const methodLabel = channel === 'ecocash'
+    ? 'EcoCash'
+    : cardProvider === 'copyandpay' ? 'ZimSwitch card' : 'Visa / Mastercard';
+  const isTest = gatewayMode === 'Test';
+
   return (
-    <main className="min-h-[calc(100vh-3.5rem)] bg-[#FFF9F5] py-12 px-4 sm:py-16">
-      <div className="max-w-2xl mx-auto bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 md:p-10">
-        <div className="flex items-center justify-between gap-3 mb-6">
-            <h1 className="text-2xl md:text-3xl font-black text-gray-900">{channel === 'ecocash' ? 'EcoCash Payment Status' : 'Card Payment Status'}</h1>
-          <span className={`px-3 py-1 rounded-full border text-xs font-bold ${statusBadge}`}>
-            {statusLabel}
-          </span>
-        </div>
-
-        <p className="text-gray-700 leading-relaxed mb-4">{message}</p>
-
-        {detail && status !== 'approved' && (
-          <p className="text-sm text-gray-500 leading-relaxed mb-4 border-l-2 border-gray-200 pl-3">{detail}</p>
-        )}
-
-        {gatewayMode === 'Test' && (
-          <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            This transaction was processed against the {cardProvider === 'copyandpay' ? 'ZimSwitch' : 'iVeri'} sandbox. Use live gateway credentials before treating approvals as real payments.
+    <main className="min-h-[calc(100vh-3.5rem)] bg-[#FFF9F5] px-4 py-10 sm:py-16">
+      <div className="mx-auto w-full max-w-lg">
+        <section className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-[0_20px_50px_-30px_rgba(0,0,0,0.35)]" aria-live="polite">
+          <div className={`relative px-6 pb-6 pt-10 text-center sm:px-10 ${view.band}`}>
+            <span className={`mx-auto mb-5 flex size-20 items-center justify-center rounded-full ring-8 ${view.icon}`}>
+              {view.glyph}
+            </span>
+            <h1 className="text-2xl font-black tracking-tight text-gray-900 sm:text-3xl">{view.title}</h1>
+            <p className="mx-auto mt-2 max-w-sm text-[15px] leading-relaxed text-gray-600">
+              {status === 'approved' ? view.lead : message}
+            </p>
+            {isTest && (
+              <span className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-amber-800">
+                Test mode · no real money moved
+              </span>
+            )}
           </div>
-        )}
 
-        <p className="text-sm text-gray-500 mb-2">
-          Channel: <span className="font-semibold text-gray-700 uppercase">{channel}</span>
-        </p>
-
-        {channel === 'card' && (
-          <p className="text-sm text-gray-500 mb-2">
-            Provider: <span className="font-semibold text-gray-700 uppercase">{cardProvider}</span>
-          </p>
-        )}
-
-        {status === 'pending' && countdown > 0 && (
-          <p className="text-sm text-amber-700 mb-2">
-            Rechecking automatically in{' '}
-            <span className="font-bold">{countdown}s</span>
-          </p>
-        )}
-
-        {effectiveReference && (
-          <p className="text-sm text-gray-500 mb-8">
-            Merchant reference: <span className="font-semibold text-gray-700">{effectiveReference}</span>
-          </p>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {!isHardFailure && (
-            <button
-              type="button"
-              onClick={() => void verifyPayment()}
-              disabled={status === 'checking'}
-              className="rounded-full bg-[#C8102E] hover:bg-[#A00D24] text-white font-bold py-3 px-5 transition disabled:opacity-60"
-            >
-              {status === 'checking' ? 'Checking...' : 'Check Again'}
-            </button>
+          {status === 'pending' && (
+            <div className="h-1 w-full bg-amber-100" role="progressbar" aria-label="Time until the next automatic check" aria-valuemin={0} aria-valuemax={REFRESH_SECONDS} aria-valuenow={countdown}>
+              <div className="h-1 bg-amber-500 transition-[width] duration-1000 ease-linear" style={{ width: `${countdown ? ((REFRESH_SECONDS - countdown) / REFRESH_SECONDS) * 100 : 0}%` }} />
+            </div>
           )}
-          <Link
-            href="/booking"
-            className="rounded-full border border-gray-300 text-gray-700 font-semibold py-3 px-5 text-center hover:bg-gray-50 transition"
-          >
-            {isHardFailure ? 'Try Payment Again' : 'Back to Booking'}
-          </Link>
-        </div>
 
-        {returnToWhatsAppHref && (
-          <a
-            href={returnToWhatsAppHref}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-3 block rounded-full border border-green-500 bg-green-50 px-5 py-3 text-center font-semibold text-green-700 transition hover:bg-green-100"
-          >
-            Return to WhatsApp
-          </a>
+          <div className="space-y-6 px-6 py-6 sm:px-10">
+            {detail && status !== 'approved' && (
+              <p className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-600">{detail}</p>
+            )}
+            {status === 'approved' && message && !message.startsWith('Sandbox') && message !== view.lead && (
+              <p className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-900">{message}</p>
+            )}
+
+            {(bookingReference || effectiveReference || status !== 'no-reference') && (
+              <dl className="divide-y divide-gray-100 rounded-2xl border border-gray-100 text-sm">
+                {bookingReference && <DetailRow label="Booking reference" value={bookingReference} copy />}
+                {effectiveReference && <DetailRow label="Payment reference" value={effectiveReference} copy />}
+                <DetailRow label="Payment method" value={methodLabel} />
+                {status === 'pending' && countdown > 0 && <DetailRow label="Next automatic check" value={`in ${countdown}s`} />}
+              </dl>
+            )}
+
+            {returnToWhatsAppHref && status === 'approved' && (
+              <a href={returnToWhatsAppHref} target="_blank" rel="noreferrer"
+                className="flex items-center justify-center gap-2 rounded-full bg-[#25D366] px-5 py-3.5 font-bold text-white shadow-sm transition hover:bg-[#1EBE5A]">
+                <FaWhatsapp size={20} aria-hidden /> Continue on WhatsApp
+              </a>
+            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {status === 'approved' ? (
+                <>
+                  <Link href="/" className="flex-1 rounded-full bg-[#C8102E] px-5 py-3 text-center font-bold text-white transition hover:bg-[#A00D24]">Back to home</Link>
+                  <Link href="/booking" className="flex-1 rounded-full border border-gray-300 px-5 py-3 text-center font-semibold text-gray-700 transition hover:bg-gray-50">Book another cruise</Link>
+                </>
+              ) : status === 'no-reference' ? (
+                <Link href="/booking" className="flex-1 rounded-full bg-[#C8102E] px-5 py-3 text-center font-bold text-white transition hover:bg-[#A00D24]">Book a cruise</Link>
+              ) : (
+                <>
+                  {isHardFailure || status === 'failed' ? (
+                    <Link href="/booking" className="flex-1 rounded-full bg-[#C8102E] px-5 py-3 text-center font-bold text-white transition hover:bg-[#A00D24]">Try the payment again</Link>
+                  ) : null}
+                  {!isHardFailure && (
+                    <button type="button" onClick={() => void verifyPayment()} disabled={status === 'checking'}
+                      className={`flex-1 rounded-full px-5 py-3 font-semibold transition disabled:opacity-60 ${status === 'failed' ? 'border border-gray-300 text-gray-700 hover:bg-gray-50' : 'bg-[#C8102E] font-bold text-white hover:bg-[#A00D24]'}`}>
+                      {status === 'checking' ? 'Checking…' : 'Check again now'}
+                    </button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/70 px-6 py-4 text-xs text-gray-500 sm:px-10">
+            <span className="flex items-center gap-1.5"><FaLock className="text-emerald-600" aria-hidden /> Verified directly with the bank</span>
+            <a href={helpHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 font-semibold text-gray-700 hover:text-[#128C7E]">
+              <FaWhatsapp className="text-[#25D366]" aria-hidden /> Need help?
+            </a>
+          </div>
+        </section>
+
+        {status === 'approved' && (
+          <p className="mt-5 text-center text-xs text-gray-500">Keep your booking reference handy in case you need to contact us.</p>
         )}
       </div>
     </main>
   );
 }
+
+function DetailRow({ label, value, copy = false }: { label: string; value: string; copy?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex items-center justify-between gap-4 px-4 py-3">
+      <dt className="shrink-0 text-gray-500">{label}</dt>
+      <dd className="flex min-w-0 items-center gap-2 font-semibold text-gray-900">
+        <span className={`truncate ${copy ? 'font-mono text-[13px]' : ''}`}>{value}</span>
+        {copy && (
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard?.writeText(value).then(() => {
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 1500);
+              }).catch(() => {});
+            }}
+            className="shrink-0 rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-700"
+            aria-label={`Copy ${label.toLowerCase()}`}
+          >
+            {copied ? <FaCheck className="text-emerald-600" size={12} /> : <FaRegCopy size={12} />}
+          </button>
+        )}
+      </dd>
+    </div>
+  );
+}
+
+const spinner = <span className="size-9 animate-spin rounded-full border-4 border-current border-t-transparent" aria-hidden />;
+
+const STATE_VIEW: Record<StatusState, { title: string; lead: string; band: string; icon: string; glyph: ReactNode }> = {
+  approved: {
+    title: 'Payment confirmed',
+    lead: 'Thank you — we’ve received your payment.',
+    band: 'bg-gradient-to-b from-emerald-50 to-white',
+    icon: 'bg-emerald-500 text-white ring-emerald-100',
+    glyph: <FaCheck size={34} aria-hidden />,
+  },
+  pending: {
+    title: 'Waiting for the bank',
+    lead: '',
+    band: 'bg-gradient-to-b from-amber-50 to-white',
+    icon: 'bg-amber-400 text-white ring-amber-100',
+    glyph: <FaClock size={32} aria-hidden />,
+  },
+  failed: {
+    title: 'Payment not completed',
+    lead: '',
+    band: 'bg-gradient-to-b from-red-50 to-white',
+    icon: 'bg-[#C8102E] text-white ring-red-100',
+    glyph: <FaTimes size={32} aria-hidden />,
+  },
+  checking: {
+    title: 'Checking your payment…',
+    lead: '',
+    band: 'bg-gradient-to-b from-orange-50 to-white',
+    icon: 'bg-white text-[#E8600A] ring-orange-100',
+    glyph: spinner,
+  },
+  idle: {
+    title: 'One moment…',
+    lead: '',
+    band: 'bg-gradient-to-b from-orange-50 to-white',
+    icon: 'bg-white text-[#E8600A] ring-orange-100',
+    glyph: spinner,
+  },
+  'no-reference': {
+    title: 'No payment to check',
+    lead: '',
+    band: 'bg-gradient-to-b from-gray-50 to-white',
+    icon: 'bg-gray-200 text-gray-500 ring-gray-100',
+    glyph: <FaSearch size={28} aria-hidden />,
+  },
+};
 
 export default function PaymentStatusPage() {
   return (
