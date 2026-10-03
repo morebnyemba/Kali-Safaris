@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { FaCcMastercard, FaCcVisa, FaDirections, FaEnvelope, FaFacebook, FaMapMarkerAlt, FaPhone, FaSun, FaWhatsapp } from 'react-icons/fa';
+import { FaCcMastercard, FaCcVisa, FaDirections, FaEnvelope, FaFacebook, FaMapMarkerAlt, FaPhone, FaSun, FaTripadvisor, FaWhatsapp } from 'react-icons/fa';
 import { BsSunriseFill, BsSunsetFill } from 'react-icons/bs';
 import { NAV_LINKS, SITE, whatsappLink } from '@/lib/site';
 
@@ -18,7 +18,7 @@ export default function FooterSection() {
   const year = new Date().getFullYear();
 
   return (
-    <footer id="contact" className="relative w-full overflow-hidden bg-[#0A0A0A] text-white/80">
+    <footer id="contact" className="relative w-full overflow-hidden border-t border-white/10 bg-[#0A0A0A] text-white/80">
       <div className="pointer-events-none absolute -right-32 -top-32 size-96 rounded-full bg-[#E8600A]/10 blur-3xl" aria-hidden />
 
       <div className="container relative mx-auto px-6 pb-8 pt-14">
@@ -39,6 +39,12 @@ export default function FooterSection() {
                 className="flex size-10 items-center justify-center rounded-full border border-white/15 transition hover:border-[#1877F2] hover:bg-[#1877F2] hover:text-white">
                 <FaFacebook size={18} />
               </a>
+              {SITE.tripadvisor && (
+                <a href={SITE.tripadvisor} target="_blank" rel="noopener noreferrer" aria-label="Kalai Safaris on Tripadvisor"
+                  className="flex size-10 items-center justify-center rounded-full border border-white/15 transition hover:border-[#34E0A1] hover:bg-[#34E0A1] hover:text-black">
+                  <FaTripadvisor size={18} />
+                </a>
+              )}
               <a href={whatsappLink()} target="_blank" rel="noopener noreferrer" aria-label="Chat on WhatsApp"
                 className="flex size-10 items-center justify-center rounded-full border border-white/15 transition hover:border-[#25D366] hover:bg-[#25D366] hover:text-white">
                 <FaWhatsapp size={18} />

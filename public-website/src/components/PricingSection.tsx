@@ -1,147 +1,119 @@
 'use client';
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { fetchTours, tourPriceUsd, type Tour } from "@/lib/tours";
+import { FaClock, FaMapMarkerAlt } from "react-icons/fa";
+import { fetchToursOnce, tourPriceUsd, type Tour } from "@/lib/tours";
+
+const INITIAL_COUNT = 6;
 
 export default function PricingSection() {
-  const router = useRouter();
   const [tours, setTours] = useState<Tour[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [showAll, setShowAll] = useState(false);
 
   // Same Tour + seasonal pricing data the booking page and the WhatsApp
-  // "View Available Tours" flow read, so these tiles can never show a price
-  // that's out of sync with what checkout actually charges.
+  // "View Available Tours" flow read, so prices here can never drift from
+  // what checkout actually charges.
   useEffect(() => {
-    let isCancelled = false;
-
-    const loadTours = async () => {
-      setLoading(true);
-      setError(false);
-      try {
-        const data = await fetchTours();
-        if (!isCancelled) setTours(data);
-      } catch {
-        if (!isCancelled) setError(true);
-      } finally {
-        if (!isCancelled) setLoading(false);
-      }
-    };
-
-    void loadTours();
+    let cancelled = false;
+    fetchToursOnce()
+      .then((data) => !cancelled && setTours(data))
+      .catch(() => !cancelled && setError(true))
+      .finally(() => !cancelled && setLoading(false));
     return () => {
-      isCancelled = true;
+      cancelled = true;
     };
   }, []);
 
-  // Only tour_name is sent — the booking page resolves the live price for it
-  // from the Tour catalogue rather than trusting a client-supplied amount.
-  const handleBookClick = (tourName: string) => {
-    router.push(`/booking?tour_name=${encodeURIComponent(tourName)}`);
-  };
+  const visible = showAll ? tours : tours.slice(0, INITIAL_COUNT);
 
   return (
-    <section className="relative py-20 bg-gradient-to-b from-white via-[#FFF9F5] to-white overflow-hidden" id="services">
-      <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-10 left-10 w-48 h-48 bg-[#E09A18]/20 blur-3xl rounded-full" />
-        <div className="absolute bottom-10 right-10 w-56 h-56 bg-[#E8600A]/15 blur-3xl rounded-full" />
-      </div>
-
-      <div className="container mx-auto px-6 relative">
-        <div className="text-center mb-14">
-          <p className="text-sm uppercase tracking-[0.3em] text-[#E8600A] font-semibold mb-3">
-            Pricing
-          </p>
-          <h2 className="text-4xl md:text-5xl font-black mb-4 text-gray-900 drop-shadow-sm">
-            Affordable Cruises
-          </h2>
-          <p className="text-gray-600 max-w-2xl mx-auto">
-            Transparent packages with everything you need for a memorable Zambezi cruise.
-          </p>
+    <section id="prices" className="scroll-mt-20 bg-[#FFF9F5] py-16 md:py-24">
+      {/* Legacy anchor for old "/#services" links. */}
+      <span id="services" className="block scroll-mt-20" aria-hidden />
+      <div className="container mx-auto px-5 md:px-6">
+        <div className="mb-10 flex flex-col gap-3 md:mb-12 md:flex-row md:items-end md:justify-between">
+          <div className="max-w-2xl">
+            <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-[#E8600A]">Prices</p>
+            <h2 className="text-3xl font-extrabold tracking-tight text-gray-950 md:text-4xl">Packages &amp; prices</h2>
+            <p className="mt-3 text-gray-600 md:text-lg">Per-person prices in US dollars. Pay securely online by card or mobile money.</p>
+          </div>
+          <p className="text-sm text-gray-500">Excludes the applicable National Parks river usage fee.</p>
         </div>
 
         {loading && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-4" aria-label="Loading pricing">
-            {[0, 1, 2, 3].map((i) => (
-              <div key={i} className="rounded-2xl border border-white/60 bg-white/70 shadow-lg p-6 animate-pulse">
-                <div className="h-6 w-2/3 mx-auto rounded-full bg-gray-200 mb-4" />
-                <div className="h-9 w-1/2 mx-auto rounded bg-gray-200 mb-4" />
-                <div className="h-3 w-full rounded bg-gray-200 mb-2" />
-                <div className="h-3 w-4/5 mx-auto rounded bg-gray-200 mb-6" />
-                <div className="h-10 w-full rounded-full bg-gray-200" />
-              </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2" aria-label="Loading prices">
+            {Array.from({ length: 4 }, (_, i) => (
+              <div key={i} className="h-[132px] animate-pulse rounded-2xl border border-gray-200 bg-white" />
             ))}
           </div>
         )}
 
         {!loading && (error || tours.length === 0) && (
-          <div className="max-w-xl mx-auto mb-4 text-center bg-white/80 backdrop-blur-lg border border-white/60 shadow-lg rounded-2xl p-8">
-            <p className="text-lg font-semibold text-gray-900 mb-2">
-              We&apos;re updating our tour packages
-            </p>
-            <p className="text-gray-600">
-              Please check back shortly, or reach out and one of our agents will help you book.
-            </p>
+          <div className="mx-auto max-w-xl rounded-2xl border border-gray-200 bg-white p-8 text-center">
+            <p className="mb-2 text-lg font-semibold text-gray-900">We&apos;re updating our packages</p>
+            <p className="text-gray-600">Please check back shortly, or message us and an agent will help you book.</p>
           </div>
         )}
 
         {!loading && !error && tours.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {tours.map((tour) => {
-              const price = tourPriceUsd(tour);
-              return (
-                <div
-                  key={tour.id}
-                  className="group relative bg-white/80 backdrop-blur-lg border border-white/60 shadow-lg rounded-2xl p-6 flex flex-col gap-4 text-center transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl"
+          <>
+            <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {visible.map((tour) => {
+                const price = tourPriceUsd(tour);
+                return (
+                  <li
+                    key={tour.id}
+                    className="flex gap-4 rounded-2xl border border-gray-200 bg-white p-5 transition hover:border-gray-300 hover:shadow-[0_12px_32px_-18px_rgba(0,0,0,0.3)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-lg font-bold leading-snug text-gray-950">{tour.name}</h3>
+                      <p className="mt-1 line-clamp-2 text-sm leading-relaxed text-gray-600">{tour.description}</p>
+                      <p className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-gray-500">
+                        <span className="inline-flex items-center gap-1.5">
+                          <FaClock className="text-[#E8600A]" aria-hidden /> {tour.duration_display}
+                        </span>
+                        {tour.location && (
+                          <span className="inline-flex items-center gap-1.5">
+                            <FaMapMarkerAlt className="text-[#E8600A]" aria-hidden /> {tour.location}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end justify-between gap-3 text-right">
+                      <p className="leading-none">
+                        <span className="text-2xl font-extrabold text-gray-950">${price.toFixed(0)}</span>
+                        <span className="mt-1 block text-xs text-gray-500">per person</span>
+                      </p>
+                      <Link
+                        href={`/booking?tour_name=${encodeURIComponent(tour.name)}`}
+                        className="rounded-full bg-[#C8102E] px-4 py-2 text-sm font-bold text-white transition hover:bg-[#A00D24]"
+                        aria-label={`Book ${tour.name}`}
+                      >
+                        Book
+                      </Link>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+
+            {tours.length > INITIAL_COUNT && (
+              <div className="mt-8 text-center">
+                <button
+                  type="button"
+                  onClick={() => setShowAll((v) => !v)}
+                  aria-expanded={showAll}
+                  className="rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-bold text-gray-900 transition hover:border-gray-900"
                 >
-                  <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/60 to-[#C8102E]/5 opacity-0 group-hover:opacity-100 transition duration-300" />
-
-                  <div className="relative flex justify-center">
-                    <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-[#E09A18] to-[#E8600A] text-white shadow-sm">
-                      {tour.category_display}
-                      <span className="w-2 h-2 rounded-full bg-white/60" />
-                    </span>
-                  </div>
-
-                  <h3 className="relative text-2xl font-extrabold text-gray-900 drop-shadow-sm">
-                    {tour.name}
-                  </h3>
-
-                  <p className="relative text-4xl font-extrabold text-gray-900 drop-shadow-sm">
-                    ${price.toFixed(2)}
-                    <span className="block text-sm font-medium text-gray-500 mt-1">Per person</span>
-                  </p>
-
-                  <p className="relative text-gray-700 leading-relaxed line-clamp-3 min-h-[48px]">
-                    {tour.description}
-                  </p>
-
-                  <p className="relative text-sm font-semibold text-gray-600 bg-white/70 px-3 py-2 rounded-lg border border-white/50">
-                    {tour.duration_display}
-                    {tour.location ? ` · ${tour.location}` : ''}
-                  </p>
-
-                  <div className="relative flex justify-center mt-auto">
-                    <button
-                      onClick={() => handleBookClick(tour.name)}
-                      className="w-full rounded-full bg-[#C8102E] hover:bg-[#E8173A] text-white font-bold py-2.5 transition-all duration-300 shadow-md hover:shadow-xl hover:shadow-red-600/25 hover:-translate-y-0.5"
-                    >
-                      Book this cruise
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  {showAll ? 'Show fewer' : `Show all ${tours.length} packages`}
+                </button>
+              </div>
+            )}
+          </>
         )}
-
-        <div className="text-center mt-10">
-          <p className="inline-flex items-center gap-2 text-base md:text-lg italic font-semibold text-gray-700 bg-white/80 backdrop-blur-md px-4 py-2 rounded-full shadow-sm border border-white/70">
-            <span className="w-2 h-2 rounded-full bg-[#E8600A] animate-pulse" />
-            <strong>(Excludes applicable Parks river usage fee)</strong>
-          </p>
-        </div>
       </div>
     </section>
   );

@@ -1,173 +1,85 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { FaClock, FaMapMarkerAlt, FaShip, FaWhatsapp } from "react-icons/fa";
+import { SITE, whatsappLink } from "@/lib/site";
 
-const slides = [
-  { image: "/images/slider/1.jpeg", title: "Affordable Cruise On The Zambezi River" },
-  { image: "/images/slider/hipo.jpg", title: "Experience", subtitle: "Peaceful and adventurous cruise." },
-  { image: "/images/slider/sun.jpg", title: "Sustainable Tourism" },
-  { image: "/images/slider/drink.jpg", title: "Zambezi River Cruise Safari" },
+const FACTS = [
+  { icon: FaClock, label: "Daily departures", value: "Sunrise · Lunch · Sunset" },
+  { icon: FaShip, label: "Our vessels", value: "40-seat & 10-seat boats" },
+  { icon: FaMapMarkerAlt, label: "Departs from", value: "Riverside jetty, Victoria Falls" },
 ];
 
-interface TypedTextProps {
-  text: string;
-  speed?: number;
-  onComplete?: () => void;
-}
-
-function TypedText({ text, speed = 50, onComplete }: TypedTextProps) {
-  const [displayedText, setDisplayedText] = useState("");
-  const [isComplete, setIsComplete] = useState(false);
-
-  useEffect(() => {
-    if (isComplete) return;
-    let index = 0;
-    const timer = setInterval(() => {
-      if (index <= text.length) {
-        setDisplayedText(text.slice(0, index));
-        index++;
-      } else {
-        setIsComplete(true);
-        clearInterval(timer);
-        onComplete?.();
-      }
-    }, speed);
-    return () => clearInterval(timer);
-  }, [text, speed, isComplete, onComplete]);
-
-  return <>{displayedText}</>;
-}
-
+/**
+ * Static hero: one sharp photo, a clear promise, two actions and the facts a
+ * traveller checks before booking. hipo.jpg is the only 2000px-wide photo we
+ * have, so it's the only one that stays crisp full-bleed on desktop.
+ */
 export default function HeroSection() {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
-  const [key, setKey] = useState(0);
-
-  useEffect(() => {
-    if (isPaused) return;
-    const timer = setInterval(() => {
-      setCurrentSlide((prev) => (prev + 1) % slides.length);
-      setKey((prev) => prev + 1);
-    }, 6500);
-    return () => clearInterval(timer);
-  }, [isPaused]);
-
-  const nextSlide = () => {
-    setCurrentSlide((prev) => (prev + 1) % slides.length);
-    setKey((prev) => prev + 1);
-    setIsPaused(true);
-    setTimeout(() => setIsPaused(false), 10000);
-  };
-
-  const prevSlide = () => {
-    setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
-    setKey((prev) => prev + 1);
-    setIsPaused(true);
-    setTimeout(() => setIsPaused(false), 10000);
-  };
-
-  const goToSlide = (index: number) => {
-    setCurrentSlide(index);
-    setKey((prev) => prev + 1);
-    setIsPaused(true);
-    setTimeout(() => setIsPaused(false), 10000);
-  };
-
   return (
-    <section className="relative w-full h-screen overflow-hidden group">
-      {/* Slides */}
-      {slides.map((slide, index) => (
-        <div
-          key={index}
-          className={`absolute inset-0 transition-opacity duration-1000 ${index === currentSlide ? "opacity-100" : "opacity-0"}`}
-        >
-          <Image
-            src={slide.image}
-            alt={slide.title}
-            fill
-            className="object-cover"
-            priority={index === 0}
-            loading={index === 0 ? undefined : "lazy"}
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/30 to-black/65" />
+    <section className="relative isolate flex min-h-[calc(100svh-64px)] w-full flex-col overflow-hidden bg-[#0A0A0A] md:min-h-[calc(100svh-72px)] lg:min-h-[min(calc(100svh-104px),820px)]">
+      <Image
+        src="/images/slider/hipo.jpg"
+        alt="Hippos in the Zambezi River above Victoria Falls"
+        fill
+        priority
+        sizes="100vw"
+        className="-z-10 object-cover object-[60%_30%] md:object-[70%_center]"
+      />
+      {/* Darken the text side only, so the photo still reads on the right. */}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-t from-black/85 via-black/40 to-black/5 md:bg-gradient-to-r md:from-black/80 md:via-black/50 md:to-black/10" aria-hidden />
 
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-center text-white px-4 md:px-8 max-w-4xl">
-              {index === currentSlide && (
-                <>
-                  <h1 key={key} className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-black mb-6 md:mb-8 drop-shadow-lg leading-tight">
-                    <TypedText text={slide.title} speed={30} />
-                    <span className="inline-block w-1 h-1 md:w-2 md:h-2 ml-2 mb-3 bg-[#E8600A] rounded-full animate-pulse" />
-                  </h1>
-                  {slide.subtitle && (
-                    <p className="text-lg md:text-2xl lg:text-3xl font-light mb-8 md:mb-12 drop-shadow-md animate-fade-in opacity-90 tracking-wide text-[#F47B1A]">
-                      {slide.subtitle}
-                    </p>
-                  )}
-                  <div className="flex justify-center gap-4 md:gap-6 flex-wrap">
-                    <Link
-                      href="/booking"
-                      className="bg-[#C8102E] hover:bg-[#E8173A] text-white px-7 md:px-9 py-3 md:py-3.5 rounded-full font-bold transition-all duration-300 hover:shadow-2xl hover:shadow-red-600/40 transform hover:-translate-y-0.5 text-sm md:text-base shadow-lg"
-                    >
-                      Book Now
-                    </Link>
-                    <Link
-                      href="/#services"
-                      className="bg-white/20 backdrop-blur-md border border-white/30 hover:bg-white/30 text-white px-7 md:px-9 py-3 md:py-3.5 rounded-full font-bold transition-all duration-300 hover:shadow-xl transform hover:-translate-y-0.5 text-sm md:text-base"
-                    >
-                      Learn More
-                    </Link>
-                  </div>
-                </>
-              )}
-            </div>
+      <div className="container mx-auto flex flex-1 flex-col justify-center px-5 pb-10 pt-16 md:px-6 md:pt-20">
+        <div className="max-w-2xl text-white">
+          <p className="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-[#F4B544] ring-1 ring-white/20 backdrop-blur">
+            Victoria Falls · Zimbabwe
+          </p>
+          <h1 className="text-4xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+            Zambezi River cruises above Victoria Falls
+          </h1>
+          <p className="mt-5 max-w-xl text-base leading-relaxed text-white/85 sm:text-lg">
+            Relaxed sunrise, lunch and sunset cruises on the upper Zambezi — hippos, crocodiles, rich birdlife and
+            unforgettable African sunsets from our riverside jetty.
+          </p>
+
+          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/booking"
+              className="inline-flex items-center justify-center rounded-full bg-[#C8102E] px-7 py-3.5 text-base font-bold text-white shadow-lg shadow-black/20 transition hover:bg-[#A00D24]"
+            >
+              Book a cruise
+            </Link>
+            <Link
+              href="/#cruises"
+              className="inline-flex items-center justify-center rounded-full bg-white px-7 py-3.5 text-base font-bold text-gray-900 transition hover:bg-white/90"
+            >
+              See cruises &amp; prices
+            </Link>
           </div>
+
+          <a
+            href={whatsappLink()}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-5 inline-flex items-center gap-2 text-sm font-medium text-white/80 underline-offset-4 transition hover:text-white hover:underline"
+          >
+            <FaWhatsapp className="text-[#25D366]" aria-hidden /> Questions? WhatsApp us on {SITE.phoneDisplay}
+          </a>
         </div>
-      ))}
-
-      {/* Navigation Arrows */}
-      <button
-        onClick={prevSlide}
-        className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/20 text-white p-3 md:p-4 rounded-full transition-all duration-300 z-10 hover:shadow-xl transform hover:-translate-y-0.5 group-hover:opacity-100 opacity-0 md:opacity-70"
-        aria-label="Previous slide"
-      >
-        <svg className="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-      </button>
-      <button
-        onClick={nextSlide}
-        className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 bg-white/15 hover:bg-white/25 backdrop-blur-md border border-white/20 text-white p-3 md:p-4 rounded-full transition-all duration-300 z-10 hover:shadow-xl transform hover:-translate-y-0.5 group-hover:opacity-100 opacity-0 md:opacity-70"
-        aria-label="Next slide"
-      >
-        <svg className="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-        </svg>
-      </button>
-
-      {/* Dots Indicator */}
-      <div className="absolute bottom-6 md:bottom-8 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-        {slides.map((_, index) => (
-          <button
-            key={index}
-            onClick={() => goToSlide(index)}
-            className={`transition-all duration-300 rounded-full backdrop-blur-md ${
-              index === currentSlide
-                ? "bg-[#E8600A] w-8 h-3 md:w-10 md:h-3"
-                : "bg-white/40 hover:bg-white/60 w-3 h-3 md:w-3 md:h-3"
-            }`}
-            aria-label={`Go to slide ${index + 1}`}
-          />
-        ))}
       </div>
 
-      {/* Scroll Indicator */}
-      <div className="absolute bottom-2 md:bottom-4 left-1/2 -translate-x-1/2 animate-bounce">
-        <svg className="w-6 h-6 md:w-8 md:h-8 text-white drop-shadow-lg" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-        </svg>
+      {/* Quick facts — inside the hero, so nothing overlaps the next section. */}
+      <div className="border-t border-white/15 bg-black/45 backdrop-blur-md">
+        <dl className="container mx-auto grid grid-cols-1 divide-y divide-white/10 px-5 sm:grid-cols-3 sm:divide-x sm:divide-y-0 md:px-6">
+          {FACTS.map(({ icon: Icon, label, value }) => (
+            <div key={label} className="flex items-center gap-3 py-3.5 sm:px-5 sm:py-5 sm:first:pl-0">
+              <Icon className="shrink-0 text-lg text-[#F4B544]" aria-hidden />
+              <div className="min-w-0">
+                <dt className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">{label}</dt>
+                <dd className="truncate text-sm font-semibold text-white">{value}</dd>
+              </div>
+            </div>
+          ))}
+        </dl>
       </div>
     </section>
   );
