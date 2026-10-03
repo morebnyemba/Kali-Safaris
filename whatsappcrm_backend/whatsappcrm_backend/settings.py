@@ -322,6 +322,11 @@ CELERY_BEAT_SCHEDULE = {
         # Runs every hour at the top of the hour.
         'schedule': crontab(minute=0, hour='*'),
     },
+    'cancel-stale-website-drafts': {
+        'task': 'customer_data.cancel_stale_website_drafts',
+        # Nightly at 02:17 (CELERY_TIMEZONE): unpaid website checkout drafts older than 48h.
+        'schedule': crontab(minute=17, hour=2),
+    },
     'cleanup-idle-conversations': {
         'task': 'flows.cleanup_idle_conversations_task',
         # Runs every 5 minutes to check for idle sessions.
