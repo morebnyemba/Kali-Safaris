@@ -35,6 +35,14 @@ class Command(BaseCommand):
         self.stdout.write(f"  Password: {masked_password}")
         self.stdout.write(f"Connecting...")
 
+        if not (host and user and password):
+            # Without config there is nothing to connect to; idle instead of crash-looping the container.
+            self.stderr.write(self.style.ERROR("MAILU_IMAP_HOST / MAILU_IMAP_USER / MAILU_IMAP_PASS not set. Email fetching is disabled."))
+            logger.error("IMAP worker not configured (MAILU_IMAP_HOST/USER/PASS missing); sleeping.")
+            while True:
+                time.sleep(3600)
+
+        retry_delay = 30
         while True: # Main loop to handle reconnects
             try:
                 # --- FIX STARTS HERE ---
@@ -45,6 +53,7 @@ class Command(BaseCommand):
                 # --- FIX ENDS HERE ---
 
                 server.login(user, password)
+                retry_delay = 30  # reset backoff after a successful connection
 
                 server.select_folder('INBOX')
                 logger.info(f"Successfully connected and selected INBOX folder.")
@@ -63,17 +72,18 @@ class Command(BaseCommand):
                             messages = server.search(['UNSEEN'])
                             for uid, message_data in server.fetch(messages, 'RFC822').items():
                                 self.process_message(message_data)
-                    except (IMAPClientError, OSError, imaplib.error) as idle_error:
+                    except (IMAPClientError, OSError, imaplib.IMAP4.error) as idle_error:
                         logger.error(f"Error during IDLE: {idle_error}")
                         break # Exit inner loop to reconnect
 
                 server.close_folder()
                 server.logout()
                 logger.info("Disconnected from IMAP server.")
-            except (IMAPClientError, OSError, imaplib.error) as e:
-                self.stderr.write(self.style.ERROR(f"IMAP connection error: {e}. Reconnecting in 30 seconds..."))
-                logger.exception("Connection error occurred:")
-                time.sleep(30)
+            except (IMAPClientError, OSError, imaplib.IMAP4.error) as e:
+                self.stderr.write(self.style.ERROR(f"IMAP connection error: {e}. Reconnecting in {retry_delay} seconds..."))
+                logger.error(f"IMAP connection error ({host}): {e}")
+                time.sleep(retry_delay)
+                retry_delay = min(retry_delay * 2, 15 * 60)  # back off up to 15 minutes
             except KeyboardInterrupt:
                 self.stdout.write(self.style.WARNING("IMAP worker stopped by user."))
                 break # Exit the main loop on Ctrl+C
