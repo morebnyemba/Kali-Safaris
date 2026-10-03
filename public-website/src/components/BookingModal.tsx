@@ -10,6 +10,7 @@ import {
   FaIdCard, FaNotesMedical, FaFileUpload,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
+import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -562,6 +563,9 @@ export default function BookingModal({
   };
 
   const hasExistingBooking = Boolean(initialBookingReference);
+  // After the first attempt the server holds a draft booking with every passenger;
+  // retries pay against it instead of re-sending details (which made duplicate drafts).
+  const paymentBookingReference = activeBookingReference || initialBookingReference || '';
 
   useEffect(() => {
     if (hasExistingBooking || !isOpen) {
@@ -660,7 +664,7 @@ export default function BookingModal({
   // means the details need fixing, so send the customer back to that step with
   // the server's reason instead of leaving a dead end on the payment screen.
   const returnToDetailsIfRejected = (status: number, message?: string) => {
-    if (status !== 400 || hasExistingBooking) {
+    if (status !== 400 || hasExistingBooking || activeBookingReference) {
       return false;
     }
     setPaymentMessage('');
@@ -670,7 +674,7 @@ export default function BookingModal({
   };
 
   const buildBookingDetailsPayload = () => {
-    if (hasExistingBooking) {
+    if (hasExistingBooking || activeBookingReference) {
       return undefined;
     }
 
@@ -952,12 +956,17 @@ export default function BookingModal({
           msisdn,
           amount: totalAmount,
           currency: 'USD',
-          booking_reference: initialBookingReference,
+          booking_reference: paymentBookingReference || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
 
       const result = await response.json();
+
+      if (result.booking_reference) {
+        setActiveBookingReference(result.booking_reference);
+        setSessionItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
+      }
 
       if (result.success && result.pending) {
         setLastMerchantReference(result.merchant_reference || '');
@@ -1017,7 +1026,7 @@ export default function BookingModal({
           amount: totalAmount,
           currency: 'USD',
           channel: 'WEB',
-          booking_reference: initialBookingReference,
+          booking_reference: paymentBookingReference || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1151,7 +1160,7 @@ export default function BookingModal({
         body: JSON.stringify({
           amount: totalAmount,
           currency: 'USD',
-          booking_reference: initialBookingReference,
+          booking_reference: paymentBookingReference || undefined,
           booking_details: buildBookingDetailsPayload(),
           shopper_result_url: resultUrl.toString(),
         }),
@@ -1254,7 +1263,7 @@ export default function BookingModal({
           cvv,
           amount: totalAmount,
           currency: 'USD',
-          booking_reference: initialBookingReference,
+          booking_reference: paymentBookingReference || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1324,6 +1333,19 @@ export default function BookingModal({
     }
     await submitCardPaymentHosted();
   };
+
+  useEffect(() => {
+    if (!isOpen || !paymentBookingReference) {
+      return;
+    }
+    saveCheckoutSession({
+      bookingReference: paymentBookingReference,
+      amount: totalAmount,
+      tourName: cruiseType,
+      paymentMode,
+      fromWhatsApp: launchedFromWhatsApp,
+    });
+  }, [isOpen, paymentBookingReference, totalAmount, cruiseType, paymentMode, launchedFromWhatsApp]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1984,7 +2006,12 @@ export default function BookingModal({
                   {checkoutStep === 'payment' && !hasExistingBooking && (
                     <button
                       type="button"
-                      onClick={() => setCheckoutStep('details')}
+                      onClick={() => {
+                        setActiveBookingReference('');
+                        clearCheckoutSession();
+                        setPaymentMessage('');
+                        setCheckoutStep('details');
+                      }}
                       className="flex-1 px-6 py-3 border border-[#E8600A] text-[#E8600A] font-semibold rounded-full hover:bg-[#FFF3E8] transition"
                     >
                       Back to Details

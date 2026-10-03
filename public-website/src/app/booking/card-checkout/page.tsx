@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { loadCheckoutSession, retryPaymentHref, type CheckoutPaymentMode } from '@/lib/checkoutSession';
 import { useSearchParams } from 'next/navigation';
 import { FaArrowLeft, FaCcAmex, FaCcMastercard, FaCcVisa, FaExclamationTriangle, FaLock, FaShieldAlt } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
@@ -136,6 +137,12 @@ function setWpwlOptions(onWidgetError: (msg: string, expired: boolean) => void) 
   };
 }
 
+const noopSubscribe = () => () => {};
+/** Href back to the saved booking's payment step (client-only; '/booking' during SSR). */
+function useRetryPaymentHref(mode?: CheckoutPaymentMode) {
+  return useSyncExternalStore(noopSubscribe, () => retryPaymentHref(loadCheckoutSession(), mode), () => '/booking');
+}
+
 function Shell({ children, summary }: { children: React.ReactNode; summary?: React.ReactNode }) {
   return (
     <main className="min-h-[calc(100vh-3.5rem)] bg-[#FFF9F5] px-4 py-8 sm:py-12">
@@ -148,14 +155,15 @@ function Shell({ children, summary }: { children: React.ReactNode; summary?: Rea
 }
 
 function ErrorCard({ title, message }: { title: string; message: string }) {
+  const retryHref = useRetryPaymentHref('card');
   return (
     <Shell>
       <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center shadow-sm">
         <span className="mx-auto mb-4 flex size-12 items-center justify-center rounded-full bg-red-50 text-red-600"><FaExclamationTriangle aria-hidden /></span>
         <h1 className="text-lg font-bold text-gray-900">{title}</h1>
         <p className="mt-2 text-sm text-gray-600">{message}</p>
-        <Link href="/booking" className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#C8102E] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#A00D24]">
-          <FaArrowLeft className="text-xs" aria-hidden /> Back to booking
+        <Link href={retryHref} className="mt-6 inline-flex items-center gap-2 rounded-full bg-[#C8102E] px-6 py-3 text-sm font-semibold text-white transition hover:bg-[#A00D24]">
+          <FaArrowLeft className="text-xs" aria-hidden /> {retryHref === '/booking' ? 'Back to booking' : 'Back to payment'}
         </Link>
       </div>
     </Shell>
@@ -170,6 +178,7 @@ function CardCheckoutContent() {
   const [sessionExpired, setSessionExpired] = useState(false);
   const [returnUrl, setReturnUrl] = useState('');
 
+  const retryHref = useRetryPaymentHref();
   const checkoutId = (searchParams.get('checkoutId') || '').trim();
   const merchantReference = (searchParams.get('merchantRef') || '').trim();
   const brands = (searchParams.get('brands') || 'PRIVATE_LABEL').trim().toUpperCase();
@@ -298,7 +307,7 @@ function CardCheckoutContent() {
                 <p className="text-sm font-semibold text-red-800">{sessionExpired ? 'Payment session expired' : 'Something went wrong'}</p>
                 <p className="mt-0.5 text-sm text-red-700">{scriptError || widgetError}</p>
                 {(sessionExpired || scriptError) && (
-                  <Link href="/booking" className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#C8102E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#A00D24]">
+                  <Link href={retryHref} className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#C8102E] px-4 py-2 text-xs font-semibold text-white hover:bg-[#A00D24]">
                     <FaArrowLeft className="text-[10px]" aria-hidden /> Start again
                   </Link>
                 )}
@@ -309,7 +318,7 @@ function CardCheckoutContent() {
           {!widgetError && returnUrl && <form action={returnUrl} className="paymentWidgets" data-brands={brands} />}
 
           <div className="mt-6 border-t border-gray-100 pt-5 text-center">
-            <Link href="/booking" className="inline-flex items-center gap-2 text-sm text-gray-500 transition hover:text-gray-900">
+            <Link href={retryHref} className="inline-flex items-center gap-2 text-sm text-gray-500 transition hover:text-gray-900">
               <FaArrowLeft className="text-xs" aria-hidden /> Cancel and choose another payment method
             </Link>
           </div>
