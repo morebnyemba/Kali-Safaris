@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { clearCheckoutSession, loadCheckoutSession, retryPaymentHref, type CheckoutPaymentMode } from '@/lib/checkoutSession';
 import type { ReactNode } from 'react';
 import { FaCheck, FaClock, FaLock, FaRegCopy, FaSearch, FaTimes, FaWhatsapp } from 'react-icons/fa';
 
@@ -59,6 +60,12 @@ interface GatewayResult {
   booking_reference?: string;
   result_code?: string;
   gateway_mode?: string;
+}
+
+const noopSubscribe = () => () => {};
+/** Href back to the saved booking's payment step (client-only; '/booking' during SSR). */
+function useRetryPaymentHref(mode?: CheckoutPaymentMode) {
+  return useSyncExternalStore(noopSubscribe, () => retryPaymentHref(loadCheckoutSession(), mode), () => '/booking');
 }
 
 function PaymentStatusPageContent() {
@@ -301,6 +308,12 @@ function PaymentStatusPageContent() {
     return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
   }, [bookingReference, effectiveReference]);
 
+  const retryHref = useRetryPaymentHref(channel === 'ecocash' ? 'ecocash' : 'card');
+  // Paid — nothing left to retry.
+  useEffect(() => {
+    if (status === 'approved') clearCheckoutSession();
+  }, [status]);
+
   const view = STATE_VIEW[status];
   const methodLabel = channel === 'ecocash'
     ? 'EcoCash'
@@ -367,7 +380,7 @@ function PaymentStatusPageContent() {
               ) : (
                 <>
                   {isHardFailure || status === 'failed' ? (
-                    <Link href="/booking" className="flex-1 rounded-full bg-[#C8102E] px-5 py-3 text-center font-bold text-white transition hover:bg-[#A00D24]">Try the payment again</Link>
+                    <Link href={retryHref} className="flex-1 rounded-full bg-[#C8102E] px-5 py-3 text-center font-bold text-white transition hover:bg-[#A00D24]">{retryHref === '/booking' ? 'Start a new booking' : 'Try the payment again'}</Link>
                   ) : null}
                   {!isHardFailure && (
                     <button type="button" onClick={() => void verifyPayment()} disabled={status === 'checking'}

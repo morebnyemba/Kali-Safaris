@@ -44,6 +44,11 @@ for internal_host in ('backend',):
     if internal_host not in ALLOWED_HOSTS:
         ALLOWED_HOSTS.append(internal_host)
 
+# --- Request size ---
+# Website checkout posts passenger ID photos/PDFs as base64 inside the JSON body.
+# Django's 2.5 MB default rejected a single phone photo (surfacing as "Invalid JSON").
+DATA_UPLOAD_MAX_MEMORY_SIZE = int(os.getenv('DJANGO_DATA_UPLOAD_MAX_MB', '20')) * 1024 * 1024
+
 # --- CSRF Trusted Origins ---
 # Add your frontend domains that will make state-changing requests (POST, PUT, etc.).
 # This is crucial for your React frontend to be able to log in and submit data.

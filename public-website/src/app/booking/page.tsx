@@ -342,7 +342,7 @@ function BookingPageContent() {
             onClose={handleBackToSelect}
             cruiseType={selectedCruise}
             amountUsd={selectedAmountUsd}
-            initialPaymentMode={queryPaymentMode === 'card' ? 'card' : undefined}
+            initialPaymentMode={queryPaymentMode === 'card' || queryPaymentMode === 'ecocash' || queryPaymentMode === 'omari' ? queryPaymentMode : undefined}
             initialBookingReference={queryBookingReference || undefined}
             // Only an existing booking's URL amount is trustworthy (the backend
             // already priced and caps it); a fresh tour_name-only deep link is

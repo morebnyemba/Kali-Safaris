@@ -10,6 +10,7 @@ import {
   FaIdCard, FaNotesMedical, FaFileUpload,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
+import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -85,6 +86,35 @@ const createEmptyTraveler = (): TravelerEntry => ({
 });
 
 const MAX_ID_DOCUMENT_SIZE_BYTES = 5 * 1024 * 1024;
+// Photos are re-encoded in the browser before upload, so larger camera originals are fine.
+const MAX_ID_PHOTO_SOURCE_BYTES = 25 * 1024 * 1024;
+const ID_PHOTO_MAX_EDGE_PX = 1800;
+const ID_PHOTO_JPEG_QUALITY = 0.82;
+// Keep the whole checkout request under the backend's DJANGO_DATA_UPLOAD_MAX_MB (20 MB).
+const MAX_TOTAL_ID_UPLOAD_CHARS = 18 * 1024 * 1024;
+
+const readFileAsDataUrl = (file: Blob) => new Promise<string>((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => (typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('empty')));
+  reader.onerror = () => reject(reader.error ?? new Error('read failed'));
+  reader.readAsDataURL(file);
+});
+
+/** Downscale and re-encode an ID photo so a 4–8 MB phone picture uploads as a few hundred KB. */
+const compressIdPhoto = async (file: File): Promise<string> => {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, ID_PHOTO_MAX_EDGE_PX / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('canvas unavailable');
+  ctx.fillStyle = '#fff'; // PNG transparency would turn black in JPEG
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return canvas.toDataURL('image/jpeg', ID_PHOTO_JPEG_QUALITY);
+};
 // Children under this age may travel without an ID/passport number (server enforces the same).
 const ID_REQUIRED_FROM_AGE = 12;
 const ALLOWED_ID_DOCUMENT_MIME_TYPES = ['image/jpeg', 'image/png', 'application/pdf'];
@@ -533,6 +563,9 @@ export default function BookingModal({
   };
 
   const hasExistingBooking = Boolean(initialBookingReference);
+  // After the first attempt the server holds a draft booking with every passenger;
+  // retries pay against it instead of re-sending details (which made duplicate drafts).
+  const paymentBookingReference = activeBookingReference || initialBookingReference || '';
 
   useEffect(() => {
     if (hasExistingBooking || !isOpen) {
@@ -587,7 +620,7 @@ export default function BookingModal({
       const ageText = item.age.trim();
       const ageNum = Number(ageText);
 
-      if (!item.name.trim()) {
+      if (item.name.trim().length < 2) {
         return `${label}: full name is required.`;
       }
       // 0 is valid (infant under one); only empty, fractional or out-of-range ages are rejected.
@@ -597,8 +630,11 @@ export default function BookingModal({
       if (!item.nationality.trim()) {
         return `${label}: nationality is required.`;
       }
-      if (!item.gender.trim()) {
-        return `${label}: gender is required.`;
+      if (!['male', 'female', 'other'].includes(item.gender.trim().toLowerCase())) {
+        return `${label}: choose a gender.`;
+      }
+      if (item.idNumber.trim() && item.idNumber.trim().length < 3) {
+        return `${label}: ID/Passport number looks too short.`;
       }
       // Matches the server rule: required from age 12, optional for younger children.
       if (ageNum >= ID_REQUIRED_FROM_AGE && !item.idNumber.trim()) {
@@ -606,11 +642,39 @@ export default function BookingModal({
       }
     }
 
+    const totalUploadChars = travelers.reduce((sum, item) => sum + item.idDocumentDataUrl.length, 0);
+    if (totalUploadChars > MAX_TOTAL_ID_UPLOAD_CHARS) {
+      return 'The ID documents you attached are too large in total. Please use photos instead of large PDF scans, or remove some attachments.';
+    }
+
+    // Same duplicate rule as the server (name + ID number).
+    const seen = new Set<string>();
+    for (const item of travelers) {
+      const key = `${item.name.trim().toLowerCase()}|${item.idNumber.trim().toLowerCase()}`;
+      if (seen.has(key)) {
+        return `${item.name.trim()} was entered twice.`;
+      }
+      seen.add(key);
+    }
+
     return '';
   };
 
+  // The server re-validates passengers and price before taking payment. A 400
+  // means the details need fixing, so send the customer back to that step with
+  // the server's reason instead of leaving a dead end on the payment screen.
+  const returnToDetailsIfRejected = (status: number, message?: string) => {
+    if (status !== 400 || hasExistingBooking || activeBookingReference) {
+      return false;
+    }
+    setPaymentMessage('');
+    setDetailsMessage(message || 'Please check your booking details and try again.');
+    setCheckoutStep('details');
+    return true;
+  };
+
   const buildBookingDetailsPayload = () => {
-    if (hasExistingBooking) {
+    if (hasExistingBooking || activeBookingReference) {
       return undefined;
     }
 
@@ -662,15 +726,34 @@ export default function BookingModal({
       return;
     }
 
-    if (file.size > MAX_ID_DOCUMENT_SIZE_BYTES) {
-      setDetailsMessage('ID document must be 5MB or smaller.');
+    const isPhoto = file.type.startsWith('image/');
+    if (file.size > (isPhoto ? MAX_ID_PHOTO_SOURCE_BYTES : MAX_ID_DOCUMENT_SIZE_BYTES)) {
+      setDetailsMessage(isPhoto ? 'That photo is too large. Please choose a smaller picture.' : 'PDF ID documents must be 5MB or smaller.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === 'string' ? reader.result : '';
-      if (!dataUrl) {
+    void (async () => {
+      let dataUrl = '';
+      let name = file.name;
+      let mimeType = file.type;
+      try {
+        if (isPhoto) {
+          try {
+            dataUrl = await compressIdPhoto(file);
+            name = `${file.name.replace(/\.[^.]+$/, '') || 'id-document'}.jpg`;
+            mimeType = 'image/jpeg';
+          } catch {
+            // Browser couldn't decode it (e.g. unusual format); send the original if it's small enough.
+            if (file.size > MAX_ID_DOCUMENT_SIZE_BYTES) {
+              setDetailsMessage('We couldn’t process that photo. Please try a JPG or PNG under 5MB.');
+              return;
+            }
+            dataUrl = await readFileAsDataUrl(file);
+          }
+        } else {
+          dataUrl = await readFileAsDataUrl(file);
+        }
+      } catch {
         setDetailsMessage('Failed to read the selected ID document.');
         return;
       }
@@ -680,15 +763,11 @@ export default function BookingModal({
         ? {
             ...row,
             idDocumentDataUrl: dataUrl,
-            idDocumentName: file.name,
-            idDocumentMimeType: file.type,
+            idDocumentName: name,
+            idDocumentMimeType: mimeType,
           }
         : row)));
-    };
-    reader.onerror = () => {
-      setDetailsMessage('Failed to process the selected ID document.');
-    };
-    reader.readAsDataURL(file);
+    })();
   };
 
   const buildReturnToWhatsAppHref = (bookingReference: string, merchantReference: string) => {
@@ -877,12 +956,17 @@ export default function BookingModal({
           msisdn,
           amount: totalAmount,
           currency: 'USD',
-          booking_reference: initialBookingReference,
+          booking_reference: paymentBookingReference || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
 
       const result = await response.json();
+
+      if (result.booking_reference) {
+        setActiveBookingReference(result.booking_reference);
+        setSessionItem(PENDING_BOOKING_REFERENCE_KEY, result.booking_reference);
+      }
 
       if (result.success && result.pending) {
         setLastMerchantReference(result.merchant_reference || '');
@@ -902,6 +986,9 @@ export default function BookingModal({
         return;
       }
 
+      if (returnToDetailsIfRejected(response.status, result.message)) {
+        return;
+      }
       setPaymentMessage(result.message || 'EcoCash payment failed.');
     } catch {
       setPaymentMessage('EcoCash initiation failed. Please try again.');
@@ -939,7 +1026,7 @@ export default function BookingModal({
           amount: totalAmount,
           currency: 'USD',
           channel: 'WEB',
-          booking_reference: initialBookingReference,
+          booking_reference: paymentBookingReference || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -959,6 +1046,9 @@ export default function BookingModal({
         return;
       }
 
+      if (returnToDetailsIfRejected(response.status, result.message)) {
+        return;
+      }
       setPaymentMessage(result.message || 'Unable to start Omari payment. Please try another payment method.');
     } catch {
       setPaymentMessage('Omari payment initiation failed. Please try again.');
@@ -1070,7 +1160,7 @@ export default function BookingModal({
         body: JSON.stringify({
           amount: totalAmount,
           currency: 'USD',
-          booking_reference: initialBookingReference,
+          booking_reference: paymentBookingReference || undefined,
           booking_details: buildBookingDetailsPayload(),
           shopper_result_url: resultUrl.toString(),
         }),
@@ -1118,6 +1208,9 @@ export default function BookingModal({
         return;
       }
 
+      if (returnToDetailsIfRejected(response.status, result.message)) {
+        return;
+      }
       setPaymentMessage(result.message || 'Payment failed.');
     } catch {
       setPaymentMessage('Payment request failed. Please try again.');
@@ -1170,7 +1263,7 @@ export default function BookingModal({
           cvv,
           amount: totalAmount,
           currency: 'USD',
-          booking_reference: initialBookingReference,
+          booking_reference: paymentBookingReference || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1178,6 +1271,9 @@ export default function BookingModal({
       const enrollResult = await enrollResponse.json();
 
       if (!enrollResult.success) {
+        if (returnToDetailsIfRejected(enrollResponse.status, enrollResult.message)) {
+          return;
+        }
         setPaymentMessage(enrollResult.message || 'Could not initiate 3DS authentication. Please try again.');
         return;
       }
@@ -1237,6 +1333,19 @@ export default function BookingModal({
     }
     await submitCardPaymentHosted();
   };
+
+  useEffect(() => {
+    if (!isOpen || !paymentBookingReference) {
+      return;
+    }
+    saveCheckoutSession({
+      bookingReference: paymentBookingReference,
+      amount: totalAmount,
+      tourName: cruiseType,
+      paymentMode,
+      fromWhatsApp: launchedFromWhatsApp,
+    });
+  }, [isOpen, paymentBookingReference, totalAmount, cruiseType, paymentMode, launchedFromWhatsApp]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1350,6 +1459,12 @@ export default function BookingModal({
                 {checkoutStep === 'details' && (
                   <>
                     <div ref={detailsFormAnchorRef} />
+                    {detailsMessage && (
+                      <div role="alert" className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                        <FaShieldAlt className="mt-0.5 shrink-0 text-red-500" aria-hidden />
+                        <span>{detailsMessage}</span>
+                      </div>
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <label htmlFor="date" className={labelBase}>
@@ -1479,13 +1594,17 @@ export default function BookingModal({
                               onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
                               className={inputBase}
                             />
-                            <input
-                              type="text"
-                              placeholder="Gender"
+                            <select
+                              aria-label={`Traveler ${index + 1} gender`}
                               value={item.gender}
                               onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, gender: e.target.value } : row)))}
-                              className={inputBase}
-                            />
+                              className={`${inputBase} ${item.gender ? '' : 'text-gray-400'}`}
+                            >
+                              <option value="" disabled>Gender</option>
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
                             <input
                               type="text"
                               placeholder={Number(item.age) < ID_REQUIRED_FROM_AGE && item.age.trim() !== '' ? 'ID / Passport (optional under 12)' : 'ID / Passport number'}
@@ -1887,7 +2006,12 @@ export default function BookingModal({
                   {checkoutStep === 'payment' && !hasExistingBooking && (
                     <button
                       type="button"
-                      onClick={() => setCheckoutStep('details')}
+                      onClick={() => {
+                        setActiveBookingReference('');
+                        clearCheckoutSession();
+                        setPaymentMessage('');
+                        setCheckoutStep('details');
+                      }}
                       className="flex-1 px-6 py-3 border border-[#E8600A] text-[#E8600A] font-semibold rounded-full hover:bg-[#FFF3E8] transition"
                     >
                       Back to Details

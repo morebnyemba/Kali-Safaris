@@ -8,6 +8,8 @@ Provides REST endpoints for:
 - Out-of-band webhook callbacks from iVeri
 """
 import json
+
+from django.core.exceptions import RequestDataTooBig
 import logging
 import uuid
 import os
@@ -657,6 +659,8 @@ def cbz_ecocash_debit_view(request: HttpRequest) -> JsonResponse:
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
+    except RequestDataTooBig:
+        return JsonResponse({"success": False, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
@@ -812,6 +816,8 @@ def cbz_card_debit_view(request: HttpRequest) -> JsonResponse:
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
+    except RequestDataTooBig:
+        return JsonResponse({"success": False, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
@@ -989,6 +995,8 @@ def cbz_copyandpay_prepare_view(request: HttpRequest) -> JsonResponse:
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
+    except RequestDataTooBig:
+        return JsonResponse({"success": False, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
@@ -1313,6 +1321,8 @@ def cbz_card_3ds_complete_view(request: HttpRequest) -> JsonResponse:
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
+    except RequestDataTooBig:
+        return JsonResponse({"success": False, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
@@ -1613,6 +1623,8 @@ def cbz_certificate_generate_view(request: HttpRequest) -> JsonResponse:
     """Generate a new CertificateID through the iVeri SOAP lifecycle."""
     try:
         payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except RequestDataTooBig:
+        return JsonResponse({"success": False, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
@@ -1659,6 +1671,8 @@ def cbz_certificate_submit_view(request: HttpRequest) -> JsonResponse:
     """Submit a device certificate or CSR back to iVeri."""
     try:
         payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except RequestDataTooBig:
+        return JsonResponse({"success": False, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
@@ -1687,6 +1701,8 @@ def cbz_certificate_renew_view(request: HttpRequest) -> JsonResponse:
     """Renew the current CertificateID through the iVeri SOAP lifecycle."""
     try:
         payload = json.loads(request.body.decode('utf-8')) if request.body else {}
+    except RequestDataTooBig:
+        return JsonResponse({"success": False, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
@@ -1760,6 +1776,8 @@ def cbz_card_3ds_enroll_view(request: HttpRequest) -> JsonResponse:
     """
     try:
         payload = json.loads(request.body.decode('utf-8'))
+    except RequestDataTooBig:
+        return JsonResponse({"success": False, "message": "Your upload is too large. Please use smaller ID photos (a normal phone photo is fine) or fewer/lighter PDF scans, then try again."}, status=413)
     except Exception:
         return JsonResponse({"success": False, "message": "Invalid JSON"}, status=400)
 
