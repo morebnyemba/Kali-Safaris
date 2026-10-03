@@ -157,11 +157,16 @@ class MetaWebhookAPIView(View):
             logger.warning("Webhook signature format is invalid (must start with 'sha256=').")
             return False
         expected_signature_hex = x_hub_signature_256.split('sha256=', 1)[1]
-        byte_key = app_secret_key.encode('utf-8')
+        # Secrets pasted from the Meta dashboard often carry stray whitespace/newlines.
+        byte_key = app_secret_key.strip().encode('utf-8')
         hashed = hmac.new(byte_key, request_body_bytes, hashlib.sha256)
         calculated_signature_hex = hashed.hexdigest()
         if not hmac.compare_digest(calculated_signature_hex, expected_signature_hex):
-            logger.warning(f"Webhook signature mismatch. Expected: {expected_signature_hex}, Calculated: {calculated_signature_hex}")
+            logger.warning(
+                f"Webhook signature mismatch. Expected: {expected_signature_hex}, Calculated: {calculated_signature_hex}. "
+                "The stored App Secret does not match the Meta app that owns this webhook "
+                "(Meta > App settings > Basic > App secret)."
+            )
             return False
         logger.debug("Webhook signature verified successfully.")
         return True

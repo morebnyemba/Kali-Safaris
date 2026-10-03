@@ -147,6 +147,24 @@ class WhatsAppFlowService:
             
             result = response.json()
             
+            # Meta accepts the upload but reports Flow JSON problems here; publishing
+            # would then fail with an opaque "validation errors" 400, so stop now
+            # and keep the real reasons.
+            validation_errors = result.get('validation_errors') or []
+            if validation_errors:
+                details = '; '.join(
+                    f"{e.get('error', 'error')}: {e.get('message', '')}"
+                    + (f" (line {e['line_start']}, col {e.get('column_start')})" if e.get('line_start') else '')
+                    + (f" [{', '.join(p_.get('path', '') for p_ in e.get('pointers', []) if p_.get('path'))}]" if e.get('pointers') else '')
+                    for e in validation_errors
+                )
+                error_msg = f"Flow JSON has {len(validation_errors)} validation error(s): {details}"
+                logger.error(f"{error_msg} (flow ID {whatsapp_flow.flow_id})")
+                whatsapp_flow.sync_status = 'error'
+                whatsapp_flow.sync_error = error_msg
+                whatsapp_flow.save()
+                return False
+
             if result.get('success'):
                 whatsapp_flow.sync_status = 'draft'
                 whatsapp_flow.last_synced_at = timezone.now()
