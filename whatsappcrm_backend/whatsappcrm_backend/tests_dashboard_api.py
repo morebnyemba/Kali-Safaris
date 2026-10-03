@@ -3,6 +3,7 @@
 Run with: python manage.py test whatsappcrm_backend.tests_dashboard_api
 """
 import datetime
+import secrets
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group
@@ -15,12 +16,14 @@ from customer_data.serializers import MyTokenObtainPairSerializer
 from flows.models import Flow, FlowStep
 
 User = get_user_model()
+# Generated per run so no credential-looking literals live in the repo.
+PASSWORD = secrets.token_urlsafe(16)
 
 
 class AdminUserApiTests(APITestCase):
     def setUp(self):
-        self.root = User.objects.create_superuser('root', 'root@example.com', 'Sup3r-Secret-Pass')
-        self.group_admin = User.objects.create_user('ops', 'ops@example.com', 'Sup3r-Secret-Pass', is_staff=True)
+        self.root = User.objects.create_superuser('root', 'root@example.com', PASSWORD)
+        self.group_admin = User.objects.create_user('ops', 'ops@example.com', PASSWORD, is_staff=True)
         self.group_admin.groups.add(Group.objects.create(name='admin'))
 
     def test_group_admin_cannot_promote_self_to_superuser(self):
@@ -47,14 +50,14 @@ class AdminUserApiTests(APITestCase):
         weak = self.client.post('/crm-api/admin/users/', {'username': 'agent1', 'password': '1234'}, format='json')
         self.assertEqual(weak.status_code, 400)
         self.assertIn('password', weak.data)
-        ok = self.client.post('/crm-api/admin/users/', {'username': 'agent1', 'password': 'Zambezi-Sunset-77'}, format='json')
+        ok = self.client.post('/crm-api/admin/users/', {'username': 'agent1', 'password': PASSWORD}, format='json')
         self.assertEqual(ok.status_code, 201)
-        self.assertTrue(User.objects.get(username='agent1').check_password('Zambezi-Sunset-77'))
+        self.assertTrue(User.objects.get(username='agent1').check_password(PASSWORD))
 
 
 class FlowStepsApiTests(APITestCase):
     def setUp(self):
-        self.client.force_authenticate(User.objects.create_superuser('root', 'root@example.com', 'Sup3r-Secret-Pass'))
+        self.client.force_authenticate(User.objects.create_superuser('root', 'root@example.com', PASSWORD))
         self.flow = Flow.objects.create(name='long_flow')
         for i in range(25):
             FlowStep.objects.create(flow=self.flow, name=f's{i}', step_type='action', config={'actions_to_run': []})
@@ -73,7 +76,7 @@ class FlowStepsApiTests(APITestCase):
 
 class DashboardEndpointsTests(APITestCase):
     def setUp(self):
-        self.user = User.objects.create_superuser('root', 'root@example.com', 'Sup3r-Secret-Pass')
+        self.user = User.objects.create_superuser('root', 'root@example.com', PASSWORD)
         self.client.force_authenticate(self.user)
         self.contact = Contact.objects.create(whatsapp_id='263770000001', name='Rudo Moyo')
         self.profile = CustomerProfile.objects.get_or_create(contact=self.contact, defaults={'first_name': 'Rudo'})[0]
@@ -117,7 +120,7 @@ class DashboardEndpointsTests(APITestCase):
 
 class TokenSizeTests(APITestCase):
     def test_superuser_token_stays_small(self):
-        user = User.objects.create_superuser('root', 'root@example.com', 'Sup3r-Secret-Pass')
+        user = User.objects.create_superuser('root', 'root@example.com', PASSWORD)
         token = MyTokenObtainPairSerializer.get_token(user)
         self.assertEqual(token['permissions'], [])
         self.assertLess(len(str(token.access_token)), 4096)
