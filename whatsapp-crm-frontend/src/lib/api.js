@@ -73,7 +73,7 @@ const refreshToken = async () => {
       localStorage.setItem('refreshToken', normalizeToken(newRefreshToken));
     }
     return normalizeToken(access);
-  } catch (err) {
+  } catch {
 
     // Instead of forcing a redirect, dispatch an event that the AuthProvider can listen to.
     // This decouples the API layer from the UI/routing layer.
@@ -146,9 +146,12 @@ apiClient.interceptors.response.use(
 
 // --- API Service Definitions ---
 
-// --- Dashboard Stats API ---
+// --- Dashboard / Analytics Stats API ---
 export const dashboardApi = {
   getSummary: (params) => apiClient.get('/crm-api/stats/summary/', { params }),
+  getBookingStats: (params) => apiClient.get('/crm-api/stats/bookings/', { params }),
+  getMessageVolume: (params) => apiClient.get('/crm-api/stats/messages/', { params }),
+  getEngagement: (params) => apiClient.get('/crm-api/stats/engagement/', { params }),
 };
 
 // --- Contacts API ---
@@ -156,56 +159,72 @@ export const contactsApi = {
   list: (params) => apiClient.get('/crm-api/conversations/contacts/', { params }),
   retrieve: (id) => apiClient.get(`/crm-api/conversations/contacts/${id}/`),
   patch: (id, data) => apiClient.patch(`/crm-api/conversations/contacts/${id}/`, data),
-  listMessages: (contactId) => apiClient.get(`/crm-api/conversations/contacts/${contactId}/messages/`),
+  listMessages: (contactId, params) => apiClient.get(`/crm-api/conversations/contacts/${contactId}/messages/`, { params }),
+  markRead: (contactId) => apiClient.post(`/crm-api/conversations/contacts/${contactId}/mark-read/`),
 };
 
 // --- Customer Profile API ---
 export const profilesApi = {
+  // GET creates the profile on first access (CustomerProfile pk == contact id).
+  retrieve: (id) => apiClient.get(`/crm-api/customer-data/profiles/${id}/`),
   patch: (id, data) => apiClient.patch(`/crm-api/customer-data/profiles/${id}/`, data),
 };
 
-// --- Flows API (Expanded) ---
-export const flowsApi = {
-  list: () => apiClient.get('/crm-api/flows/flows/'),
-  retrieve: (id) => apiClient.get(`/crm-api/flows/flows/${id}/`),
-  create: (data) => apiClient.post('/crm-api/flows/flows/', data),
-  update: (id, data) => apiClient.put(`/crm-api/flows/flows/${id}/`, data),
-  patch: (id, data) => apiClient.patch(`/crm-api/flows/flows/${id}/`, data),
-  delete: (id) => apiClient.delete(`/crm-api/flows/flows/${id}/`),
-
-  // Steps
-  listSteps: (flowId) => apiClient.get(`/crm-api/flows/flows/${flowId}/steps/`),
-  createStep: (flowId, data) => apiClient.post(`/crm-api/flows/flows/${flowId}/steps/`, data),
-  patchStep: (flowId, stepId, data) => apiClient.patch(`/crm-api/flows/flows/${flowId}/steps/${stepId}/`, data),
-  deleteStep: (flowId, stepId) => apiClient.delete(`/crm-api/flows/flows/${flowId}/steps/${stepId}/`),
-
-  // Transitions
-  listTransitions: (flowId, stepId) => apiClient.get(`/crm-api/flows/flows/${flowId}/steps/${stepId}/transitions/`),
-  createTransition: (flowId, stepId, data) => apiClient.post(`/crm-api/flows/flows/${flowId}/steps/${stepId}/transitions/`, data),
-  updateTransition: (flowId, stepId, transitionId, data) => apiClient.put(`/crm-api/flows/flows/${flowId}/steps/${stepId}/transitions/${transitionId}/`, data),
-  deleteTransition: (flowId, stepId, transitionId) => apiClient.delete(`/crm-api/flows/flows/${flowId}/steps/${stepId}/transitions/${transitionId}/`),
+// --- Tours (catalogue) ---
+export const toursApi = {
+  list: () => apiClient.get('/crm-api/tours/'),
 };
 
-// --- Meta API Configs (Expanded) ---
+// --- Tour Inquiries API ---
+export const inquiriesApi = {
+  list: (params) => apiClient.get('/crm-api/customer-data/inquiries/', { params }),
+  create: (data) => apiClient.post('/crm-api/customer-data/inquiries/', data),
+  update: (id, data) => apiClient.patch(`/crm-api/customer-data/inquiries/${id}/`, data),
+  delete: (id) => apiClient.delete(`/crm-api/customer-data/inquiries/${id}/`),
+};
+
+// --- Flows API ---
+// Flow pages show their own (field-level) errors, so the global toast is muted.
+const FLOW_BASE = '/crm-api/flows/flows/';
+const quiet = { suppressErrorToast: true };
+export const flowsApi = {
+  list: (params) => apiClient.get(FLOW_BASE, { params, ...quiet }),
+  retrieve: (id) => apiClient.get(`${FLOW_BASE}${id}/`, quiet),
+  create: (data) => apiClient.post(FLOW_BASE, data, quiet),
+  patch: (id, data) => apiClient.patch(`${FLOW_BASE}${id}/`, data, quiet),
+  delete: (id) => apiClient.delete(`${FLOW_BASE}${id}/`, quiet),
+
+  listSteps: (flowId) => apiClient.get(`${FLOW_BASE}${flowId}/steps/`, quiet),
+  createStep: (flowId, data) => apiClient.post(`${FLOW_BASE}${flowId}/steps/`, data, quiet),
+  patchStep: (flowId, stepId, data) => apiClient.patch(`${FLOW_BASE}${flowId}/steps/${stepId}/`, data, quiet),
+  deleteStep: (flowId, stepId) => apiClient.delete(`${FLOW_BASE}${flowId}/steps/${stepId}/`, quiet),
+
+  listTransitions: (flowId, stepId) => apiClient.get(`${FLOW_BASE}${flowId}/steps/${stepId}/transitions/`, quiet),
+  createTransition: (flowId, stepId, data) => apiClient.post(`${FLOW_BASE}${flowId}/steps/${stepId}/transitions/`, data, quiet),
+  updateTransition: (flowId, stepId, transitionId, data) => apiClient.patch(`${FLOW_BASE}${flowId}/steps/${stepId}/transitions/${transitionId}/`, data, quiet),
+  deleteTransition: (flowId, stepId, transitionId) => apiClient.delete(`${FLOW_BASE}${flowId}/steps/${stepId}/transitions/${transitionId}/`, quiet),
+};
+
+// --- Meta API Configs ---
+const META_BASE = '/crm-api/meta/api/';
 export const metaApi = {
-  getConfigs: () => apiClient.get('/crm-api/meta/api/configs/'),
-  createConfig: (data) => apiClient.post('/crm-api/meta/api/configs/', data),
-  updateConfig: (id, data) => apiClient.put(`/crm-api/meta/api/configs/${id}/`, data),
+  getConfigs: () => apiClient.get(`${META_BASE}configs/`, { params: { page_size: 100 }, suppressErrorToast: true }),
+  createConfig: (data) => apiClient.post(`${META_BASE}configs/`, data, { suppressErrorToast: true }),
+  patchConfig: (id, data) => apiClient.patch(`${META_BASE}configs/${id}/`, data, { suppressErrorToast: true }),
+  deleteConfig: (id) => apiClient.delete(`${META_BASE}configs/${id}/`, { suppressErrorToast: true }),
+  setActive: (id) => apiClient.post(`${META_BASE}configs/${id}/set_active/`, null, { suppressErrorToast: true }),
+  latestWebhookEvents: (count = 15) => apiClient.get(`${META_BASE}webhook-logs/latest/`, { params: { count }, suppressErrorToast: true }),
 };
 
 // --- Media Assets API ---
+const MEDIA_BASE = '/crm-api/media/assets/';
 export const mediaAssetsApi = {
-  list: (params) => apiClient.get('/media/media-assets/', { params }),
-};
-
-// --- Analytics API ---
-export const analyticsApi = {
-  getReports: (params) => apiClient.get('/crm-api/analytics/reports/', { params }),
-};
-
-// --- Saved Data API ---
-export const savedDataApi = {
-  list: () => apiClient.get('/crm-api/saved-data/'), // Assuming this endpoint
+  list: (params) => apiClient.get(MEDIA_BASE, { params }),
+  // FormData upload: override the client's JSON default or axios would JSON-encode it.
+  create: (formData) => apiClient.post(MEDIA_BASE, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  update: (id, data) => apiClient.patch(`${MEDIA_BASE}${id}/`, data),
+  delete: (id) => apiClient.delete(`${MEDIA_BASE}${id}/`),
+  sync: (id) => apiClient.post(`${MEDIA_BASE}${id}/sync-with-whatsapp/`),
 };
 
 // Backward-compatible apiCall function.

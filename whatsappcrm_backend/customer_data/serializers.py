@@ -40,6 +40,12 @@ from conversations.models import Contact
 
 User = get_user_model()
 
+# App labels whose permissions the dashboard checks (see frontend src/lib/rbac.js).
+DASHBOARD_PERMISSION_APPS = {
+    'conversations', 'customer_data', 'flows', 'media_manager', 'meta_integration', 'products_and_services',
+}
+
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     """
     Customizes the JWT response to include user details, which the frontend expects.
@@ -52,7 +58,17 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
         token['is_staff'] = user.is_staff
         token['is_superuser'] = user.is_superuser
         token['groups'] = list(user.groups.values_list('name', flat=True))
-        token['permissions'] = sorted(user.get_all_permissions())
+        # Every API request (and the inbox WebSocket URL) carries this token, so
+        # keep it small: a superuser's ~200 permission names pushed it past
+        # nginx's default 8KB header limit. Superusers are allow-all on the
+        # frontend; everyone else gets only the apps the dashboard checks.
+        if user.is_superuser:
+            token['permissions'] = []
+        else:
+            token['permissions'] = sorted(
+                perm for perm in user.get_all_permissions()
+                if perm.split('.', 1)[0] in DASHBOARD_PERMISSION_APPS
+            )
         return token
 
     def validate(self, attrs):

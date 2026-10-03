@@ -1,212 +1,235 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { FiCheckCircle, FiKey, FiLoader, FiLock, FiPlus } from "react-icons/fi";
-import { Button } from "@/components/ui/button";
+// src/pages/admin/RolesPermissionsPage.jsx
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { toast } from 'sonner';
+import { FiEdit2, FiLock, FiPlus, FiSearch, FiTrash2 } from 'react-icons/fi';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import PageHeader from '@/components/app/PageHeader';
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/app/States';
 import { adminApi } from '@/services/admin';
-import { toast } from 'sonner';
+import { apiErrorMessage } from '@/lib/format';
 
-const emptyForm = {
-  name: '',
-  permission_ids: [],
+// Only permissions for apps the dashboard actually uses are worth showing;
+// the rest (sessions, celery, token blacklist…) are framework internals.
+const APPS = {
+  customer_data: 'Bookings, customers & inquiries',
+  conversations: 'Inbox & contacts',
+  flows: 'Flows',
+  media_manager: 'Media library',
+  products_and_services: 'Tours & products',
+  meta_integration: 'WhatsApp settings',
 };
+const VERBS = { view: 'View', add: 'Add', change: 'Edit', delete: 'Delete' };
+
+function splitPermission(p) {
+  const [app] = p.label.split('.');
+  const verb = p.codename.split('_')[0];
+  const model = p.name.replace(/^Can (view|add|change|delete) /i, '');
+  return { app, verb: VERBS[verb] ? verb : null, model };
+}
+
+function RoleDialog({ open, onOpenChange, role, permissions, onSaved }) {
+  const [name, setName] = useState('');
+  const [selected, setSelected] = useState(new Set());
+  const [filter, setFilter] = useState('');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    setName(role?.name || '');
+    setSelected(new Set((role?.permissions || []).map((p) => p.id)));
+    setFilter('');
+    setError('');
+  }, [open, role]);
+
+  // { app: { model: { verb: permission } } }
+  const matrix = useMemo(() => {
+    const out = {};
+    permissions.forEach((p) => {
+      const { app, verb, model } = splitPermission(p);
+      if (!APPS[app] || !verb) return;
+      out[app] ??= {};
+      out[app][model] ??= {};
+      out[app][model][verb] = p;
+    });
+    return out;
+  }, [permissions]);
+
+  const toggle = (ids, on) => setSelected((prev) => {
+    const next = new Set(prev);
+    ids.forEach((id) => (on ? next.add(id) : next.delete(id)));
+    return next;
+  });
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    try {
+      const payload = { name: name.trim(), permission_ids: [...selected] };
+      if (role) await adminApi.updateRole(role.id, payload);
+      else await adminApi.createRole(payload);
+      toast.success(role ? 'Role saved' : 'Role created');
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save this role'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const q = filter.trim().toLowerCase();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-3xl">
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="border-b p-5">
+            <DialogTitle>{role ? `Edit ${role.name}` : 'New role'}</DialogTitle>
+            <DialogDescription>Choose what people with this role can do. {selected.size} permissions selected.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 border-b p-5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="r-name" className="mb-1.5">Role name <span className="text-destructive">*</span></Label>
+                <Input id="r-name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. reservations" />
+              </div>
+              <div>
+                <Label htmlFor="r-filter" className="mb-1.5">Filter</Label>
+                <Input id="r-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="booking, payment…" />
+              </div>
+            </div>
+            {name.trim().toLowerCase() === 'admin' && (
+              <p className="text-xs text-warning">Members of a role named “admin” get full Administrator access to the dashboard.</p>
+            )}
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            {Object.entries(APPS).filter(([app]) => matrix[app]).map(([app, appLabel]) => {
+              const models = Object.entries(matrix[app]).filter(([model]) => !q || model.toLowerCase().includes(q) || appLabel.toLowerCase().includes(q));
+              if (!models.length) return null;
+              const ids = models.flatMap(([, verbs]) => Object.values(verbs).map((p) => p.id));
+              const all = ids.every((id) => selected.has(id));
+              return (
+                <section key={app} className="mb-5">
+                  <div className="mb-2 flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">{appLabel}</h3>
+                    <Button type="button" size="sm" variant="ghost" onClick={() => toggle(ids, !all)}>{all ? 'Clear all' : 'Select all'}</Button>
+                  </div>
+                  <div className="relative overflow-x-auto rounded-lg border">
+                    <table className="w-full text-sm">
+                      <thead className="bg-muted/50 text-xs text-muted-foreground">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium">Item</th>
+                          {Object.values(VERBS).map((v) => <th key={v} className="w-16 px-2 py-2 text-center font-medium">{v}</th>)}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {models.map(([model, verbs]) => (
+                          <tr key={model}>
+                            <td className="px-3 py-1.5 capitalize">{model}</td>
+                            {Object.keys(VERBS).map((verb) => (
+                              <td key={verb} className="px-2 py-1.5 text-center">
+                                {verbs[verb] && (
+                                  <Checkbox aria-label={verbs[verb].name} checked={selected.has(verbs[verb].id)} onCheckedChange={(on) => toggle([verbs[verb].id], !!on)} />
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              );
+            })}
+          </div>
+          <DialogFooter className="items-center border-t p-4">
+            {error && <p role="alert" className="mr-auto text-sm text-destructive">{error}</p>}
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : role ? 'Save role' : 'Create role'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function RolesPermissionsPage() {
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [dialog, setDialog] = useState({ open: false, role: null });
 
-  const groupedPermissions = useMemo(() => {
-    return permissions.reduce((accumulator, permission) => {
-      const appLabel = permission.label.split('.')[0];
-      if (!accumulator[appLabel]) {
-        accumulator[appLabel] = [];
-      }
-      accumulator[appLabel].push(permission);
-      return accumulator;
-    }, {});
-  }, [permissions]);
-
-  async function loadData() {
-    setIsLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
     try {
-      const [rolesResponse, permissionsResponse] = await Promise.all([
-        adminApi.listRoles(),
-        adminApi.listPermissions(),
-      ]);
-      setRoles(rolesResponse.results);
-      setPermissions(permissionsResponse);
+      const [r, p] = await Promise.all([adminApi.listRoles({ page_size: 100 }), adminApi.listPermissions()]);
+      setRoles(r.results);
+      setPermissions(p);
+    } catch (err) {
+      setError(apiErrorMessage(err));
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }
-
-  useEffect(() => {
-    loadData();
   }, []);
 
-  function openCreate() {
-    setEditingRole(null);
-    setForm(emptyForm);
-    setDialogOpen(true);
-  }
+  useEffect(() => { load(); }, [load]);
 
-  function openEdit(role) {
-    setEditingRole(role);
-    setForm({
-      name: role.name || '',
-      permission_ids: (role.permissions || []).map((permission) => permission.id),
-    });
-    setDialogOpen(true);
-  }
-
-  function togglePermission(permissionId, checked) {
-    setForm((current) => ({
-      ...current,
-      permission_ids: checked
-        ? [...current.permission_ids, permissionId]
-        : current.permission_ids.filter((existingId) => existingId !== permissionId),
-    }));
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setIsSaving(true);
+  const remove = async (role) => {
+    if (!window.confirm(`Delete the “${role.name}” role? Its members lose these permissions immediately.`)) return;
     try {
-      const payload = {
-        name: form.name,
-        permission_ids: form.permission_ids,
-      };
-
-      if (editingRole) {
-        await adminApi.updateRole(editingRole.id, payload);
-        toast.success('Role updated.');
-      } else {
-        await adminApi.createRole(payload);
-        toast.success('Role created.');
-      }
-
-      setDialogOpen(false);
-      setEditingRole(null);
-      setForm(emptyForm);
-      await loadData();
-    } finally {
-      setIsSaving(false);
+      await adminApi.deleteRole(role.id);
+      toast.success('Role deleted');
+      load();
+    } catch (err) {
+      toast.error(apiErrorMessage(err));
     }
-  }
+  };
+
+  const visible = roles.filter((r) => !query.trim() || r.name.toLowerCase().includes(query.trim().toLowerCase()));
 
   return (
-    <section className="space-y-5">
-      <header className="rounded-xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">
-        <div className="flex items-center gap-3">
-          <FiLock className="h-6 w-6 text-cyan-600 dark:text-cyan-400" />
-          <div>
-            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Roles & Permissions</h1>
-            <p className="text-sm text-slate-600 dark:text-slate-300">Define RBAC matrix for all frontend admin actions.</p>
-          </div>
-        </div>
-      </header>
-
-      <div className="flex justify-end">
-        <Button className="gap-2 bg-cyan-600 text-white hover:bg-cyan-700" onClick={openCreate}>
-          <FiPlus className="h-4 w-4" />New role
-        </Button>
+    <>
+      <PageHeader
+        title="Roles"
+        description="Bundles of permissions you assign to users. Changes apply the next time a user signs in."
+        actions={<Button onClick={() => setDialog({ open: true, role: null })}><FiPlus /> New role</Button>}
+      />
+      <div className="relative mb-4 sm:w-72">
+        <FiSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search roles" className="pl-9" aria-label="Search roles" />
       </div>
-
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-        <Table>
-          <TableHeader className="bg-slate-50 dark:bg-slate-800/70">
-            <TableRow>
-              {["Role", "Permission Count", "Permission Preview", "Action"].map((col) => (
-                <TableHead key={col} className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{col}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-300">
-                  <FiLoader className="mx-auto mb-2 h-5 w-5 animate-spin" />
-                  Loading roles...
-                </TableCell>
-              </TableRow>
-            ) : roles.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-300">
-                  No backend roles found.
-                </TableCell>
-              </TableRow>
-            ) : roles.map((role) => (
-              <TableRow key={role.id}>
-                <TableCell className="px-4 py-3 text-sm font-medium text-slate-800 dark:text-slate-100">{role.name}</TableCell>
-                <TableCell className="px-4 py-3 text-sm text-slate-700 dark:text-slate-300">{(role.permissions || []).length}</TableCell>
-                <TableCell className="max-w-xl px-4 py-3 text-sm text-slate-700 dark:text-slate-300">
-                  {(role.permissions || []).slice(0, 4).map((permission) => permission.label).join(', ') || 'No permissions'}
-                  {(role.permissions || []).length > 4 ? '...' : ''}
-                </TableCell>
-                <TableCell className="px-4 py-3 text-sm">
-                  <Button size="sm" variant="outline" className="gap-1" onClick={() => openEdit(role)}>
-                    <FiKey className="h-3.5 w-3.5" />Edit Policy
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{editingRole ? 'Edit Role' : 'Create Role'}</DialogTitle>
-            <DialogDescription>Assign Django permissions that drive frontend and backend admin access.</DialogDescription>
-          </DialogHeader>
-
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="space-y-2">
-              <Label htmlFor="role-name">Role name</Label>
-              <Input id="role-name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} required />
-            </div>
-
-            <div className="space-y-3">
-              <Label>Permissions</Label>
-              <div className="max-h-96 space-y-4 overflow-y-auto rounded-xl border border-slate-200 p-4 dark:border-slate-700">
-                {Object.entries(groupedPermissions).map(([appLabel, permissionGroup]) => (
-                  <div key={appLabel} className="space-y-2">
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-700 dark:text-slate-200">{appLabel}</h3>
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                      {permissionGroup.map((permission) => (
-                        <label key={permission.id} className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200">
-                          <Checkbox
-                            checked={form.permission_ids.includes(permission.id)}
-                            onCheckedChange={(checked) => togglePermission(permission.id, Boolean(checked))}
-                          />
-                          <span>{permission.label}</span>
-                        </label>
-                      ))}
-                    </div>
+      <div className="overflow-hidden rounded-xl border bg-card">
+        {error ? <ErrorState message={error} onRetry={load} /> : loading ? <TableSkeleton rows={3} cols={3} /> : visible.length === 0 ? (
+          <EmptyState icon={FiLock} title={roles.length ? 'No roles match' : 'No roles yet'} description={roles.length ? undefined : 'Create a role, then assign it to users.'} />
+        ) : (
+          <ul className="divide-y">
+            {visible.map((role) => {
+              const apps = [...new Set((role.permissions || []).map((p) => p.label.split('.')[0]).filter((a) => APPS[a]))];
+              return (
+                <li key={role.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{role.name}</p>
+                    <p className="truncate text-sm text-muted-foreground">
+                      {role.permissions?.length ? `${role.permissions.length} permissions · ${apps.map((a) => APPS[a]).join(', ') || 'system only'}` : 'No permissions'}
+                    </p>
                   </div>
-                ))}
-              </div>
-            </div>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-cyan-600 text-white hover:bg-cyan-700" disabled={isSaving}>
-                {isSaving ? <FiLoader className="h-4 w-4 animate-spin" /> : <FiCheckCircle className="h-4 w-4" />}
-                {editingRole ? 'Save role' : 'Create role'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </section>
+                  <Button size="sm" variant="ghost" onClick={() => setDialog({ open: true, role })}><FiEdit2 /> Edit</Button>
+                  <Button size="icon" variant="ghost" className="text-destructive" onClick={() => remove(role)} aria-label={`Delete ${role.name}`}><FiTrash2 /></Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+      <RoleDialog open={dialog.open} role={dialog.role} permissions={permissions} onSaved={load} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
+    </>
   );
 }

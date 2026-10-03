@@ -1,5 +1,6 @@
 import React from "react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { FiShieldOff } from "react-icons/fi";
 import { useAuth } from "@/context/AuthContext";
 import { canAccess } from "@/lib/rbac";
@@ -20,12 +21,13 @@ export default function RoleRoute({
     }
 
     return (
-      <div className="mx-auto max-w-2xl rounded-xl border border-red-200 bg-red-50 p-8 text-center dark:border-red-900/40 dark:bg-red-950/30">
-        <FiShieldOff className="mx-auto mb-3 h-8 w-8 text-red-600 dark:text-red-400" />
-        <h2 className="mb-2 text-xl font-semibold text-red-700 dark:text-red-300">Access denied</h2>
-        <p className="text-sm text-red-700/90 dark:text-red-300/90">
-          You do not have the required role or permission to view this admin section.
-        </p>
+      <div className="mx-auto mt-10 max-w-md rounded-xl border bg-card p-8 text-center" role="alert">
+        <span className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+          <FiShieldOff className="size-6" aria-hidden />
+        </span>
+        <h1 className="text-lg font-semibold">You don't have access to this page</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Ask an administrator to change your access level if you need it.</p>
+        <Button asChild variant="outline" size="sm" className="mt-4"><Link to="/dashboard">Back to dashboard</Link></Button>
       </div>
     );
   }

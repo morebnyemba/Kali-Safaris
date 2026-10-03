@@ -100,7 +100,7 @@ class WebhookEventLogViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAdminUser] # Or IsAdminOrReadOnly if non-staff can view
     # filter_backends = [...] # Add if you use django-filter
     filterset_fields = ['event_type', 'processing_status', 'event_identifier', 'phone_number_id_received', 'waba_id_received', 'app_config__name']
-    search_fields = ['payload', 'processing_notes', 'event_identifier', 'message__contact__whatsapp_id', 'message__contact__name']
+    search_fields = ['processing_notes', 'event_identifier', 'message__contact__whatsapp_id', 'message__contact__name']
     ordering_fields = ['received_at', 'processed_at', 'event_type']
 
     def get_serializer_class(self):

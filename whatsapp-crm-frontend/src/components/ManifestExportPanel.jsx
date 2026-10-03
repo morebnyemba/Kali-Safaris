@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { toLocalIsoDate } from '@/lib/utils';
+import { toIsoDate as toLocalIsoDate } from '@/lib/format';
 import { ordersApi } from '@/services/orders';
 
 const addDays = (days) => {
@@ -61,8 +61,8 @@ export default function ManifestExportPanel({ date, onDateChange }) {
       <CardHeader>
         <CardTitle>Passenger manifests</CardTitle>
         <CardDescription>
-          Confirmed passengers (Paid / Deposit Paid) for a single tour date. Passengers still missing
-          details are listed as “Details pending”.
+          Confirmed passengers (Paid / Deposit Paid) for one tour date. Paid bookings still waiting on
+          passenger details are left off and listed in the passenger summary.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

@@ -1,288 +1,272 @@
-import React, { useEffect, useMemo, useState } from "react";
-import { FiCheckCircle, FiEdit2, FiLoader, FiPlus, FiRefreshCw, FiUserCheck, FiUserX } from "react-icons/fi";
-import { Button } from "@/components/ui/button";
-import { Badge } from '@/components/ui/badge';
+// src/pages/admin/UsersCrudPage.jsx
+import React, { useCallback, useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { useDebounce } from 'use-debounce';
+import { FiEdit2, FiMoreHorizontal, FiSearch, FiUserCheck, FiUserPlus, FiUsers, FiUserX } from 'react-icons/fi';
+import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Switch } from '@/components/ui/switch';
+import InitialsAvatar from '@/components/app/InitialsAvatar';
+import PageHeader from '@/components/app/PageHeader';
+import { EmptyState, ErrorState, TableSkeleton } from '@/components/app/States';
+import { useAuth } from '@/context/AuthContext';
 import { adminApi } from '@/services/admin';
-import { toast } from 'sonner';
+import { apiErrorMessage, formatRelative } from '@/lib/format';
 
-const emptyForm = {
-  username: '',
-  first_name: '',
-  last_name: '',
-  email: '',
-  password: '',
-  is_staff: true,
-  is_superuser: false,
-  is_active: true,
-  groups: [],
-};
+const LEVELS = [
+  { key: 'agent', label: 'Agent', description: 'Inbox, bookings, inquiries, contacts and flows.' },
+  { key: 'manager', label: 'Manager', description: 'Everything agents can do, plus WhatsApp settings and the audit log.' },
+  { key: 'admin', label: 'Administrator', description: 'Full access, including users and roles.' },
+];
+const LEVEL_TONE = { admin: 'bg-brand-accent/10 text-brand-accent', manager: 'bg-info/10 text-info', agent: 'bg-muted text-muted-foreground' };
+const ADMIN_GROUPS = ['admin', 'administrators'];
+const EMPTY = { username: '', first_name: '', last_name: '', email: '', password: '', level: 'agent', is_active: true, groups: [] };
 
-export default function UsersCrudPage() {
-  const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+function levelOf(user) {
+  const groups = (user.group_names || []).map((g) => g.toLowerCase());
+  if (user.is_superuser || groups.some((g) => ADMIN_GROUPS.includes(g))) return 'admin';
+  return user.is_staff ? 'manager' : 'agent';
+}
 
-  const roleLookup = useMemo(
-    () => Object.fromEntries(roles.map((role) => [role.id, role.name])),
-    [roles]
-  );
-
-  async function loadData() {
-    setIsLoading(true);
-    try {
-      const [usersResponse, rolesResponse] = await Promise.all([
-        adminApi.listUsers(),
-        adminApi.listRoles(),
-      ]);
-      setUsers(usersResponse.results);
-      setRoles(rolesResponse.results);
-    } finally {
-      setIsLoading(false);
-    }
-  }
+function UserDialog({ open, onOpenChange, user, roles, me, onSaved }) {
+  const [form, setForm] = useState(EMPTY);
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const isSelf = user && user.id === me?.user_id;
+  const canMakeSuperuser = !!me?.is_superuser;
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!open) return;
+    setError('');
+    setForm(user ? {
+      username: user.username, first_name: user.first_name || '', last_name: user.last_name || '', email: user.email || '',
+      password: '', level: user.is_superuser ? 'admin' : user.is_staff ? 'manager' : 'agent', is_active: user.is_active, groups: user.groups || [],
+    } : EMPTY);
+  }, [open, user]);
 
-  function openCreate() {
-    setEditingUser(null);
-    setForm(emptyForm);
-    setDialogOpen(true);
-  }
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e?.target ? e.target.value : e }));
 
-  function openEdit(user) {
-    setEditingUser(user);
-    setForm({
-      username: user.username || '',
-      first_name: user.first_name || '',
-      last_name: user.last_name || '',
-      email: user.email || '',
-      password: '',
-      is_staff: !!user.is_staff,
-      is_superuser: !!user.is_superuser,
-      is_active: !!user.is_active,
-      groups: user.groups || [],
-    });
-    setDialogOpen(true);
-  }
-
-  function updateField(field, value) {
-    setForm((current) => ({ ...current, [field]: value }));
-  }
-
-  function toggleGroup(groupId, checked) {
-    setForm((current) => ({
-      ...current,
-      groups: checked
-        ? [...current.groups, groupId]
-        : current.groups.filter((existingId) => existingId !== groupId),
-    }));
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault();
-    setIsSaving(true);
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    setError('');
+    const payload = {
+      username: form.username.trim(), first_name: form.first_name.trim(), last_name: form.last_name.trim(), email: form.email.trim(),
+      is_staff: form.level !== 'agent', groups: form.groups,
+    };
+    if (canMakeSuperuser) payload.is_superuser = form.level === 'admin';
+    if (!isSelf) payload.is_active = form.is_active;
+    if (form.password) payload.password = form.password;
     try {
-      const payload = {
-        username: form.username,
-        first_name: form.first_name,
-        last_name: form.last_name,
-        email: form.email,
-        is_staff: form.is_staff,
-        is_superuser: form.is_superuser,
-        is_active: form.is_active,
-        groups: form.groups,
-      };
-
-      if (form.password.trim()) {
-        payload.password = form.password.trim();
-      }
-
-      if (editingUser) {
-        await adminApi.updateUser(editingUser.id, payload);
-        toast.success('User updated.');
-      } else {
-        if (!payload.password) {
-          toast.error('Password is required for a new user.');
-          return;
-        }
-        await adminApi.createUser(payload);
-        toast.success('User created.');
-      }
-
-      setDialogOpen(false);
-      setForm(emptyForm);
-      setEditingUser(null);
-      await loadData();
+      if (user) await adminApi.updateUser(user.id, payload);
+      else await adminApi.createUser(payload);
+      toast.success(user ? 'User updated' : 'User created');
+      onOpenChange(false);
+      onSaved();
+    } catch (err) {
+      setError(apiErrorMessage(err, 'Could not save this user'));
     } finally {
-      setIsSaving(false);
+      setSaving(false);
     }
-  }
+  };
 
-  async function handleStatusToggle(user) {
-    if (user.is_active) {
-      await adminApi.deactivateUser(user.id);
-      toast.success(`Deactivated ${user.username}.`);
-    } else {
-      await adminApi.activateUser(user.id);
-      toast.success(`Reactivated ${user.username}.`);
-    }
-    await loadData();
-  }
+  const toggleGroup = (id, on) => setForm((f) => ({ ...f, groups: on ? [...f.groups, id] : f.groups.filter((g) => g !== id) }));
 
   return (
-    <section className="space-y-5">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Users CRUD</h1>
-          <p className="text-sm text-slate-600 dark:text-slate-300">Create, update, and disable frontend admin users.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" className="gap-2" onClick={loadData}><FiRefreshCw className="h-4 w-4" />Refresh</Button>
-          <Button className="gap-2 bg-cyan-600 text-white hover:bg-cyan-700" onClick={openCreate}><FiPlus className="h-4 w-4" />New user</Button>
-        </div>
-      </header>
-
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
-        <Table>
-          <TableHeader className="bg-slate-50 dark:bg-slate-800/70">
-            <TableRow>
-              {["Username", "Name", "Email", "Groups", "Status", "Actions"].map((col) => (
-                <TableHead key={col} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">{col}</TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-300">
-                  <FiLoader className="mx-auto mb-2 h-5 w-5 animate-spin" />
-                  Loading users...
-                </TableCell>
-              </TableRow>
-            ) : users.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="px-4 py-8 text-center text-sm text-slate-500 dark:text-slate-300">
-                  No users returned by the admin API.
-                </TableCell>
-              </TableRow>
-            ) : users.map((user) => (
-              <TableRow key={user.id}>
-                <TableCell className="px-4 py-3 text-sm font-medium text-slate-700 dark:text-slate-200">{user.username}</TableCell>
-                <TableCell className="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">{`${user.first_name || ''} ${user.last_name || ''}`.trim() || 'No name'}</TableCell>
-                <TableCell className="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">{user.email || 'No email'}</TableCell>
-                <TableCell className="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
-                  <div className="flex flex-wrap gap-2">
-                    {(user.group_names || []).length > 0 ? user.group_names.map((groupName) => (
-                      <Badge key={groupName} variant="outline">{groupName}</Badge>
-                    )) : <Badge variant="secondary">{user.is_superuser ? 'superuser' : user.is_staff ? 'staff' : 'user'}</Badge>}
-                  </div>
-                </TableCell>
-                <TableCell className="px-4 py-3 text-sm text-slate-700 dark:text-slate-200">
-                  <Badge variant={user.is_active ? 'default' : 'secondary'}>{user.is_active ? 'Active' : 'Inactive'}</Badge>
-                </TableCell>
-                <TableCell className="px-4 py-3 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" variant="outline" className="gap-1" onClick={() => openEdit(user)}>
-                      <FiEdit2 className="h-3.5 w-3.5" />Edit
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={user.is_active ? 'destructive' : 'outline'}
-                      className="gap-1"
-                      onClick={() => handleStatusToggle(user)}
-                    >
-                      {user.is_active ? <FiUserX className="h-3.5 w-3.5" /> : <FiUserCheck className="h-3.5 w-3.5" />}
-                      {user.is_active ? 'Disable' : 'Activate'}
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <form onSubmit={submit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle>{editingUser ? 'Edit User' : 'Create User'}</DialogTitle>
-            <DialogDescription>Manage user identity, staff access, and group assignments.</DialogDescription>
+            <DialogTitle>{user ? `Edit ${user.username}` : 'New user'}</DialogTitle>
+            <DialogDescription>People who sign in to this dashboard.</DialogDescription>
           </DialogHeader>
-
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input id="username" value={form.username} onChange={(event) => updateField('username', event.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" type="email" value={form.email} onChange={(event) => updateField('email', event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="first_name">First name</Label>
-                <Input id="first_name" value={form.first_name} onChange={(event) => updateField('first_name', event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="last_name">Last name</Label>
-                <Input id="last_name" value={form.last_name} onChange={(event) => updateField('last_name', event.target.value)} />
-              </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label htmlFor="u-first" className="mb-1.5">First name</Label>
+              <Input id="u-first" value={form.first_name} onChange={set('first_name')} />
             </div>
+            <div>
+              <Label htmlFor="u-last" className="mb-1.5">Last name</Label>
+              <Input id="u-last" value={form.last_name} onChange={set('last_name')} />
+            </div>
+            <div>
+              <Label htmlFor="u-username" className="mb-1.5">Username <span className="text-destructive">*</span></Label>
+              <Input id="u-username" autoComplete="off" value={form.username} onChange={set('username')} required />
+            </div>
+            <div>
+              <Label htmlFor="u-email" className="mb-1.5">Email</Label>
+              <Input id="u-email" type="email" value={form.email} onChange={set('email')} />
+            </div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="u-password" className="mb-1.5">{user ? 'New password' : 'Password'} {!user && <span className="text-destructive">*</span>}</Label>
+              <Input id="u-password" type="password" autoComplete="new-password" value={form.password} onChange={set('password')} required={!user}
+                placeholder={user ? 'Leave blank to keep the current password' : ''} />
+              <p className="mt-1 text-xs text-muted-foreground">At least 8 characters, not all numbers, and not a common password.</p>
+            </div>
+          </div>
 
+          <fieldset>
+            <legend className="mb-2 text-sm font-medium">Access level</legend>
             <div className="space-y-2">
-              <Label htmlFor="password">Password {editingUser ? '(leave blank to keep current password)' : ''}</Label>
-              <Input id="password" type="password" value={form.password} onChange={(event) => updateField('password', event.target.value)} />
+              {LEVELS.map((l) => {
+                const disabled = l.key === 'admin' && !canMakeSuperuser;
+                return (
+                  <label key={l.key} className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 ${form.level === l.key ? 'border-primary bg-primary/5' : ''} ${disabled ? 'cursor-not-allowed opacity-60' : ''}`}>
+                    <input type="radio" name="level" value={l.key} checked={form.level === l.key} disabled={disabled} onChange={() => set('level')(l.key)} className="mt-1 accent-[var(--primary)]" />
+                    <span>
+                      <span className="block text-sm font-medium">{l.label}</span>
+                      <span className="block text-xs text-muted-foreground">{disabled ? 'Only a superuser can grant this.' : l.description}</span>
+                    </span>
+                  </label>
+                );
+              })}
             </div>
+          </fieldset>
 
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-              {[
-                ['is_staff', 'Staff access'],
-                ['is_superuser', 'Superuser'],
-                ['is_active', 'Active'],
-              ].map(([field, label]) => (
-                <label key={field} className="flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2 text-sm dark:border-slate-700">
-                  <Checkbox checked={form[field]} onCheckedChange={(checked) => updateField(field, Boolean(checked))} />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-
-            <div className="space-y-3">
-              <Label>Group assignments</Label>
-              <div className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 p-3 md:grid-cols-2 dark:border-slate-700">
-                {roles.map((role) => (
-                  <label key={role.id} className="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-200">
-                    <Checkbox
-                      checked={form.groups.includes(role.id)}
-                      onCheckedChange={(checked) => toggleGroup(role.id, Boolean(checked))}
-                    />
-                    <span>{role.name}</span>
+          {roles.length > 0 && (
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium">Roles</legend>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {roles.map((r) => (
+                  <label key={r.id} className="flex items-center gap-2 text-sm">
+                    <Checkbox checked={form.groups.includes(r.id)} onCheckedChange={(on) => toggleGroup(r.id, !!on)} />
+                    {r.name}
                   </label>
                 ))}
               </div>
-            </div>
+              <p className="mt-2 text-xs text-muted-foreground">Members of the “admin” role also get Administrator access.</p>
+            </fieldset>
+          )}
 
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" className="bg-cyan-600 text-white hover:bg-cyan-700" disabled={isSaving}>
-                {isSaving ? <FiLoader className="h-4 w-4 animate-spin" /> : <FiCheckCircle className="h-4 w-4" />}
-                {editingUser ? 'Save changes' : 'Create user'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </section>
+          {user && !isSelf && (
+            <div className="flex items-center gap-2">
+              <Switch id="u-active" checked={form.is_active} onCheckedChange={set('is_active')} />
+              <Label htmlFor="u-active">Can sign in</Label>
+            </div>
+          )}
+
+          {error && <p role="alert" className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Saving…' : user ? 'Save changes' : 'Create user'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+export default function UsersCrudPage() {
+  const { user: me } = useAuth();
+  const [users, setUsers] = useState([]);
+  const [count, setCount] = useState(0);
+  const [roles, setRoles] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [query, setQuery] = useState('');
+  const [debounced] = useDebounce(query, 300);
+  const [dialog, setDialog] = useState({ open: false, user: null });
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const [u, r] = await Promise.all([
+        adminApi.listUsers({ search: debounced || undefined, page_size: 100 }),
+        adminApi.listRoles({ page_size: 100 }),
+      ]);
+      setUsers(u.results);
+      setCount(u.count);
+      setRoles(r.results);
+    } catch (err) {
+      setError(apiErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [debounced]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggleActive = async (u) => {
+    try {
+      if (u.is_active) await adminApi.deactivateUser(u.id);
+      else await adminApi.activateUser(u.id);
+      toast.success(`${u.username} ${u.is_active ? 'can no longer sign in' : 'can sign in again'}`);
+      load();
+    } catch (err) {
+      toast.error(apiErrorMessage(err));
+    }
+  };
+
+  return (
+    <>
+      <PageHeader
+        title="Users"
+        description={loading ? 'People who can sign in to this dashboard.' : `${count} ${count === 1 ? 'person' : 'people'} can sign in to this dashboard.`}
+        actions={<Button onClick={() => setDialog({ open: true, user: null })}><FiUserPlus /> New user</Button>}
+      />
+
+      <div className="relative mb-4 sm:w-72">
+        <FiSearch className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, username or email" className="pl-9" aria-label="Search users" />
+      </div>
+
+      <div className="overflow-hidden rounded-xl border bg-card">
+        {error ? <ErrorState message={error} onRetry={load} /> : loading && !users.length ? <TableSkeleton rows={4} cols={4} /> : users.length === 0 ? (
+          <EmptyState icon={FiUsers} title={query ? 'No users match' : 'No users yet'} />
+        ) : (
+          <ul className="divide-y">
+            {users.map((u) => {
+              const level = levelOf(u);
+              const name = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+              const isSelf = u.id === me?.user_id;
+              return (
+                <li key={u.id} className={`flex items-center gap-3 px-4 py-3 ${u.is_active ? '' : 'opacity-60'}`}>
+                  <InitialsAvatar name={name || u.username} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">
+                      {name || u.username}
+                      {isSelf && <span className="ml-2 text-xs font-normal text-muted-foreground">(you)</span>}
+                    </p>
+                    <p className="truncate text-sm text-muted-foreground">@{u.username}{u.email ? ` · ${u.email}` : ''}</p>
+                  </div>
+                  <div className="hidden flex-col items-end gap-1 sm:flex">
+                    <div className="flex flex-wrap justify-end gap-1">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${LEVEL_TONE[level]}`}>{LEVELS.find((l) => l.key === level).label}</span>
+                      {(u.group_names || []).filter((g) => !ADMIN_GROUPS.includes(g.toLowerCase())).map((g) => (
+                        <span key={g} className="rounded-full border px-2 py-0.5 text-[11px]">{g}</span>
+                      ))}
+                      {!u.is_active && <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">Disabled</span>}
+                    </div>
+                    {u.last_login && <span className="text-xs text-muted-foreground">Last signed in {formatRelative(u.last_login)}</span>}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" aria-label={`Actions for ${u.username}`}><FiMoreHorizontal /></Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setDialog({ open: true, user: u })}><FiEdit2 className="size-4" /> Edit</DropdownMenuItem>
+                      {!isSelf && (
+                        <DropdownMenuItem onClick={() => toggleActive(u)} className={u.is_active ? 'text-destructive focus:text-destructive' : ''}>
+                          {u.is_active ? <><FiUserX className="size-4" /> Disable sign-in</> : <><FiUserCheck className="size-4" /> Enable sign-in</>}
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <UserDialog open={dialog.open} user={dialog.user} roles={roles} me={me} onSaved={load} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />
+    </>
   );
 }

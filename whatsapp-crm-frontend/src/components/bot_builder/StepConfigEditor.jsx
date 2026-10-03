@@ -1,460 +1,487 @@
 // src/components/bot_builder/StepConfigEditor.jsx
-import React, { useState, useEffect, useCallback } from 'react';
+// Form editor for FlowStep.config. Shapes mirror whatsappcrm_backend/flows/schemas.py —
+// in particular send_message config is FLAT ({message_type, text: {...}}), while question
+// and end_flow nest the same shape under `message_config`.
+import React, { useEffect, useState } from 'react';
+import { FiCode, FiList, FiPlus, FiTrash2 } from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue
-} from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter
-} from "@/components/ui/dialog";
-import { Separator } from '@/components/ui/separator';
-import { toast } from 'sonner';
-import { FiLoader, FiSave, FiPlusCircle, FiTrash2 } from 'react-icons/fi';
-import MediaAssetSelector from './MediaAssetSelector'; // Ensure this component is created/imported
+import { Switch } from '@/components/ui/switch';
+import { Textarea } from '@/components/ui/textarea';
+import { flowsApi } from '@/lib/api';
+import MediaAssetSelector from './MediaAssetSelector';
 
-// Message Types available for 'send_message' steps config.message_config.message_type
-const MESSAGE_CONFIG_TYPES = [
-    { value: 'text', label: 'Text Message' },
-    { value: 'image', label: 'Image (from Media Library)' },
-    { value: 'document', label: 'Document (from Media Library)' },
-    { value: 'interactive', label: 'Interactive Message' }, // Parent type for buttons/lists
-    { value: 'template', label: 'Template Message (UI TODO)' },
-    { value: 'video', label: 'Video (from Media Library) (UI TODO)' },
-    { value: 'audio', label: 'Audio (from Media Library) (UI TODO)' },
-    { value: 'sticker', label: 'Sticker (from Media Library) (UI TODO)' },
+const selectClass = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30';
+const FORM_TYPES = ['send_message', 'question', 'action', 'end_flow', 'human_handover', 'switch_flow'];
+const MESSAGE_TYPES = [
+  ['text', 'Text'], ['image', 'Image'], ['document', 'Document'], ['video', 'Video'], ['audio', 'Audio'],
+  ['sticker', 'Sticker'], ['interactive', 'Buttons / list'], ['template', 'Template'], ['location', 'Location'], ['contacts', 'Contact card'],
 ];
-
-// Interactive Message subtypes (for config.message_config.interactive.type)
-const INTERACTIVE_MESSAGE_SUBTYPES = [
-    { value: 'button', label: 'Reply Buttons' },
-    { value: 'list', label: 'List Message (UI TODO)' },
-    // { value: 'product', label: 'Single Product Message (UI TODO)' },
-    // { value: 'product_list', label: 'Multi-Product Message (UI TODO)' },
+const MEDIA_TYPES = ['image', 'document', 'video', 'audio', 'sticker'];
+const REPLY_TYPES = [
+  ['text', 'Any text'], ['number', 'Number'], ['email', 'Email address'], ['interactive_id', 'Button / list choice'],
+  ['image', 'Image'], ['location', 'Location'], ['nfm_reply', 'WhatsApp form reply'],
 ];
+const ACTION_FIELDS = {
+  set_context_variable: [{ key: 'variable_name', label: 'Variable', mono: true }, { key: 'value_template', label: 'Value', placeholder: 'text or {{ template }}' }],
+  update_contact_field: [{ key: 'field_path', label: 'Contact field', mono: true, placeholder: 'e.g. name' }, { key: 'value_template', label: 'Value' }],
+  update_customer_profile: [{ key: 'fields_to_update', label: 'Fields to update', json: true }],
+  send_admin_notification: [{ key: 'message_template', label: 'Message', multiline: true }],
+};
 
-// Action Types available for 'action' steps (config.actions_to_run[n].action_type)
-const ACTION_CONFIG_TYPES = [
-    { value: 'set_context_variable', label: 'Set Context Variable' },
-    { value: 'update_contact_field', label: 'Update Contact Field (UI TODO)' },
-    { value: 'update_customer_profile', label: 'Update Customer Profile (UI TODO)' },
-];
-
-export default function StepConfigEditor({ isOpen, step, onClose, onSaveStep }) {
-  const [stepName, setStepName] = useState('');
-  const [isEntryPoint, setIsEntryPoint] = useState(false);
-  const [currentConfig, setCurrentConfig] = useState({}); // Main config object for the step
-  const [isSavingStep, setIsSavingStep] = useState(false);
-  
-  // Specific state for complex nested parts, like interactive buttons
-  const [interactiveButtons, setInteractiveButtons] = useState([]);
-
-  // Initialize/Reset internal state when 'step' prop changes
-  useEffect(() => {
-    if (step) {
-      setStepName(step.name || '');
-      setIsEntryPoint(step.is_entry_point || false);
-      const initialConfig = step.config ? JSON.parse(JSON.stringify(step.config)) : {};
-      setCurrentConfig(initialConfig);
-
-      // Initialize interactiveButtons state if the step is send_message and interactive_button
-      if (step.step_type === 'send_message' &&
-          initialConfig.message_config?.message_type === 'interactive' &&
-          initialConfig.message_config?.interactive?.type === 'button') {
-        setInteractiveButtons(initialConfig.message_config.interactive.action?.buttons || []);
-      } else {
-        setInteractiveButtons([]);
-      }
-    } else { // Reset when no step (modal closes or new step before first save)
-      setStepName('');
-      setIsEntryPoint(false);
-      setCurrentConfig({});
-      setInteractiveButtons([]);
-    }
-  }, [step]);
-
-  if (!isOpen || !step) {
-    return null;
-  }
-
-  // Helper to update nested properties in currentConfig
-  const handleConfigPathChange = (path, value) => {
-    setCurrentConfig(prevConfig => {
-      const newConfig = JSON.parse(JSON.stringify(prevConfig)); // Deep clone
-      let currentLevel = newConfig;
-      const keys = path.split('.');
-      keys.forEach((key, index) => {
-        const isLastKey = index === keys.length - 1;
-        const isNextKeyNumeric = !isLastKey && /^\d+$/.test(keys[index + 1]);
-
-        if (isLastKey) {
-          currentLevel[key] = value;
-        } else {
-          if (!currentLevel[key] || typeof currentLevel[key] !== 'object') {
-            currentLevel[key] = isNextKeyNumeric ? [] : {};
-          }
-          currentLevel = currentLevel[key];
-        }
-      });
-      return newConfig;
-    });
-  };
-  
-  // For top-level raw JSON editing of the whole config
-  const handleRawConfigChange = (jsonString) => {
-    try {
-        const parsed = JSON.parse(jsonString);
-        setCurrentConfig(parsed);
-        // If send_message and interactive button, re-sync interactiveButtons state
-        if (step.step_type === 'send_message' &&
-            parsed.message_config?.message_type === 'interactive' &&
-            parsed.message_config?.interactive?.type === 'button') {
-            setInteractiveButtons(parsed.message_config.interactive.action?.buttons || []);
-        }
-    } catch (e) {
-        setCurrentConfig(jsonString); // Store as string if not valid JSON, for user to fix
-        toast.error("Config JSON is invalid. Please correct it.", {id: `json-err-${step.id}`, duration: 2000});
-    }
-  };
-
-  const handleSave = async () => {
-    if (!stepName.trim()) { toast.error("Step name cannot be empty."); return; }
-    setIsSavingStep(true);
-    let finalConfig = currentConfig;
-
-    if (typeof currentConfig === 'string') {
-        try { finalConfig = JSON.parse(currentConfig); }
-        catch (e) { toast.error("Configuration JSON is invalid. Correct before saving."); setIsSavingStep(false); return; }
-    }
-
-    // Ensure interactive buttons are correctly structured in finalConfig
-    if (step.step_type === 'send_message' &&
-        finalConfig.message_config?.message_type === 'interactive' &&
-        finalConfig.message_config?.interactive?.type === 'button') {
-        
-        finalConfig.message_config.interactive.action = {
-            ...(finalConfig.message_config.interactive.action || {}),
-            buttons: interactiveButtons.map(btn => ({ // Ensure buttons have 'type':'reply'
-                type: 'reply',
-                reply: { id: btn.reply?.id || '', title: btn.reply?.title || '' }
-            }))
-        };
-    }
-
-    const payload = { name: stepName, is_entry_point: isEntryPoint, config: finalConfig };
-    const success = await onSaveStep(step.id, payload); // onSaveStep is passed from FlowEditorPage
-    setIsSavingStep(false);
-    if (success) onClose();
-  };
-
-  // --- UI Renderers for different config types ---
-
-  // Specific to step_type: 'switch_flow'
-  const renderSwitchFlowConfig = () => (
-    <div className="space-y-3 p-2 border dark:border-slate-700 rounded-md mt-2">
-        <div className="p-1">
-            <Label htmlFor="targetFlowName" className="dark:text-slate-300">Target Flow Name*</Label>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">The unique name of the flow to switch to (e.g., 'main_menu').</p>
-            <Input 
-                id="targetFlowName" 
-                value={currentConfig.target_flow_name || ''} 
-                onChange={(e) => handleConfigPathChange('target_flow_name', e.target.value)} 
-                className="dark:bg-slate-700 dark:border-slate-600"
-                placeholder="main_menu"
-            />
-        </div>
-        <Separator className="dark:bg-slate-600 my-2"/>
-        <div className="p-1">
-            <Label htmlFor="initialContext" className="dark:text-slate-300">Initial Context (JSON, Optional)</Label>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Pass data to the new flow's context. Use Jinja2 templates if needed.</p>
-            <Textarea 
-                id="initialContext"
-                value={
-                    typeof currentConfig.initial_context_template === 'string' 
-                        ? currentConfig.initial_context_template 
-                        : JSON.stringify(currentConfig.initial_context_template || {}, null, 2)
-                }
-                onChange={(e) => handleConfigPathChange('initial_context_template', e.target.value)}
-                rows={4} 
-                className="font-mono text-xs dark:bg-slate-700 dark:border-slate-600" 
-                placeholder={'{\n  "source_flow": "registration",\n  "user_id": "{{ contact.id }}"\n}'}
-            />
-        </div>
+function Field({ id, label, hint, children, required }) {
+  return (
+    <div>
+      <Label htmlFor={id} className="mb-1.5">{label}{required && <span className="text-destructive"> *</span>}</Label>
+      {children}
+      {hint && <p className="mt-1 text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
+}
 
-  // Specific to step_type: 'send_message'
-  const renderSendMessageConfig = () => {
-    const msgConf = currentConfig.message_config || {}; // All message configs are under "message_config"
-    const currentMsgType = msgConf.message_type || 'text';
+function CharCount({ value, max }) {
+  const n = (value || '').length;
+  return <span className={`text-xs tabular-nums ${n > max ? 'text-destructive' : 'text-muted-foreground'}`}>{n}/{max}</span>;
+}
 
-    return (
-      <div className="space-y-4 p-2 border dark:border-slate-700 rounded-md mt-2">
-        <div className="space-y-1 p-3">
-          <Label htmlFor="messageConfigTypeSelect" className="dark:text-slate-300">Message Content Type</Label>
-          <Select
-            value={currentMsgType}
-            onValueChange={(val) => {
-              const newMsgConf = { message_type: val };
-              if (val === 'text') newMsgConf.text = { body: '', preview_url: false };
-              else if (val === 'image') newMsgConf.image = { asset_pk: null, caption: '' };
-              else if (val === 'document') newMsgConf.document = { asset_pk: null, caption: '', filename: '' };
-              else if (val === 'interactive') { // Default interactive to 'button' subtype
-                newMsgConf.interactive = { type: 'button', body: { text: '' }, action: { buttons: [] }};
-                setInteractiveButtons([]);
-              }
-              // TODO: Add specific initial configs for other types (video, audio, template, list)
-              handleConfigPathChange('message_config', newMsgConf);
-            }}
-          >
-            <SelectTrigger id="messageConfigTypeSelect" className="dark:bg-slate-700 dark:border-slate-600"><SelectValue /></SelectTrigger>
-            <SelectContent className="dark:bg-slate-700 dark:text-slate-50">
-              {MESSAGE_CONFIG_TYPES.map(mt => <SelectItem key={mt.value} value={mt.value} className="dark:hover:bg-slate-600">{mt.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {currentMsgType === 'text' && (
-          <div className="space-y-2 p-3 border-t dark:border-slate-700">
-            <Label htmlFor="textBody" className="dark:text-slate-300">Body*</Label>
-            <Textarea id="textBody" value={msgConf.text?.body || ''} onChange={(e) => handleConfigPathChange('message_config.text.body', e.target.value)} rows={4} className="dark:bg-slate-700 dark:border-slate-600" placeholder="Hello {{ contact.name }}!"/>
-            <div className="flex items-center space-x-2 pt-1">
-              <Switch id="textPreviewUrl" checked={msgConf.text?.preview_url || false} onCheckedChange={(val) => handleConfigPathChange('message_config.text.preview_url', val)} className="data-[state=checked]:bg-green-500"/>
-              <Label htmlFor="textPreviewUrl" className="text-xs dark:text-slate-300">Enable Link Preview</Label>
-            </div>
-          </div>
-        )}
-
-        {(currentMsgType === 'image' || currentMsgType === 'document' || currentMsgType === 'video' || currentMsgType === 'audio' || currentMsgType === 'sticker') && (
-          <div className="space-y-2 p-3 border-t dark:border-slate-700">
-            {!['image', 'document'].includes(currentMsgType) && <p className="text-sm text-amber-500 dark:text-amber-400">UI for {currentMsgType} selection is a TODO. Use Raw JSON if needed.</p>}
-            {(['image', 'document'].includes(currentMsgType)) && (
-                <>
-                    <Label className="dark:text-slate-300">{currentMsgType.charAt(0).toUpperCase() + currentMsgType.slice(1)} Asset*</Label>
-                    <MediaAssetSelector
-                        currentAssetPk={msgConf[currentMsgType]?.asset_pk || null}
-                        mediaTypeFilter={currentMsgType}
-                        onAssetSelect={(assetPk) => handleConfigPathChange(`message_config.${currentMsgType}.asset_pk`, assetPk)}
-                    />
-                </>
-            )}
-            {currentMsgType === 'document' && (
-                <div className="space-y-1 mt-2">
-                    <Label htmlFor={`${currentMsgType}Filename`} className="text-xs dark:text-slate-300">Filename (Optional, e.g., report.pdf)</Label>
-                    <Input id={`${currentMsgType}Filename`} value={msgConf[currentMsgType]?.filename || ''} onChange={(e) => handleConfigPathChange(`message_config.${currentMsgType}.filename`, e.target.value)} className="dark:bg-slate-700 dark:border-slate-600"/>
-                </div>
-            )}
-            {(currentMsgType === 'image' || currentMsgType === 'document' || currentMsgType === 'video') && (
-                <div className="space-y-1 mt-2">
-                    <Label htmlFor={`${currentMsgType}Caption`} className="text-xs dark:text-slate-300">Caption (Optional)</Label>
-                    <Textarea id={`${currentMsgType}Caption`} value={msgConf[currentMsgType]?.caption || ''} onChange={(e) => handleConfigPathChange(`message_config.${currentMsgType}.caption`, e.target.value)} rows={2} className="dark:bg-slate-700 dark:border-slate-600"/>
-                </div>
-            )}
-          </div>
-        )}
-        
-        {currentMsgType === 'interactive' && (
-            <div className="space-y-3 p-3 border-t dark:border-slate-700">
-                <Label className="dark:text-slate-300">Interactive Message Sub-Type</Label>
-                 <Select
-                    value={msgConf.interactive?.type || 'button'}
-                    onValueChange={(val) => {
-                        const newInteractiveConf = { type: val };
-                        if (val === 'button') {
-                             newInteractiveConf.body = { text: msgConf.interactive?.body?.text || '' };
-                             newInteractiveConf.action = { buttons: [] };
-                             setInteractiveButtons([]); // Reset local button state
-                        }
-                        // TODO: Add resets for 'list' type
-                        handleConfigPathChange('message_config.interactive', newInteractiveConf);
-                    }}
-                >
-                    <SelectTrigger className="dark:bg-slate-700 dark:border-slate-600"><SelectValue /></SelectTrigger>
-                    <SelectContent className="dark:bg-slate-700 dark:text-slate-50">
-                        {INTERACTIVE_MESSAGE_SUBTYPES.map(subt => <SelectItem key={subt.value} value={subt.value} disabled={subt.value === 'list'} className="dark:hover:bg-slate-600">{subt.label}</SelectItem>)}
-                    </SelectContent>
-                </Select>
-
-                {msgConf.interactive?.type === 'button' && (
-                    <div className="space-y-2 mt-2">
-                        <div className="space-y-1"><Label htmlFor="interactiveBodyText" className="text-xs">Body Text*</Label><Textarea id="interactiveBodyText" value={msgConf.interactive?.body?.text || ''} onChange={(e) => handleConfigPathChange('message_config.interactive.body.text', e.target.value)} rows={2} className="dark:bg-slate-700 dark:border-slate-600"/></div>
-                        <div className="space-y-1"><Label htmlFor="interactiveHeaderText" className="text-xs">Header Text (Optional)</Label><Input id="interactiveHeaderText" value={msgConf.interactive?.header?.text || ''} onChange={(e) => handleConfigPathChange('message_config.interactive.header.text', e.target.value)} className="dark:bg-slate-700 dark:border-slate-600"/></div>
-                        <div className="space-y-1"><Label htmlFor="interactiveFooterText" className="text-xs">Footer Text (Optional)</Label><Input id="interactiveFooterText" value={msgConf.interactive?.footer?.text || ''} onChange={(e) => handleConfigPathChange('message_config.interactive.footer.text', e.target.value)} className="dark:bg-slate-700 dark:border-slate-600"/></div>
-                        <Label className="text-sm font-medium dark:text-slate-300 block pt-2">Buttons (Max 3):</Label>
-                        {interactiveButtons.map((button, index) => (
-                        <Card key={`ibtn-${index}`} className="p-2 space-y-1 dark:bg-slate-600/50 dark:border-slate-500">
-                            <Label className="text-xs block">Button {index + 1}</Label>
-                            <div className="space-y-1"><Label htmlFor={`btnTitle-${index}`} className="text-xs">Title* (max 20 chars)</Label><Input id={`btnTitle-${index}`} maxLength={20} value={button.reply?.title || ''} onChange={(e) => handleButtonChange(index, 'title', e.target.value)} className="dark:bg-slate-500"/></div>
-                            <div className="space-y-1"><Label htmlFor={`btnId-${index}`} className="text-xs">ID* (max 256 chars, unique)</Label><Input id={`btnId-${index}`} maxLength={256} value={button.reply?.id || ''} onChange={(e) => handleButtonChange(index, 'id', e.target.value)} className="dark:bg-slate-500"/></div>
-                            <Button type="button" variant="destructive" size="xs" onClick={() => removeInteractiveButton(index)} className="mt-1"><FiTrash2 className="mr-1 h-3 w-3"/> Remove</Button>
-                        </Card>
-                        ))}
-                        {interactiveButtons.length < 3 && (
-                        <Button type="button" variant="outline" size="sm" onClick={addInteractiveButton} className="dark:text-slate-300 dark:border-slate-600"><FiPlusCircle className="mr-1"/> Add Button</Button>
-                        )}
-                    </div>
-                )}
-                {/* TODO: Implement UI for 'interactive_list' */}
-                 {msgConf.interactive?.type === 'list' && <p className="text-sm text-amber-500">UI for Interactive List is a TODO.</p>}
-            </div>
-        )}
-
-        {(currentMsgType === 'template') &&
-            <p className="text-sm text-amber-500 dark:text-amber-400 p-3 border-t dark:border-slate-700">
-                UI for Template Message configuration is a TODO. Use Raw JSON for now.
-            </p>
-        }
-      </div>
-    );
-  };
-
-  // Specific to step_type: 'action'
-  const renderActionConfig = () => {
-    const actions = Array.isArray(currentConfig.actions_to_run) ? currentConfig.actions_to_run : [];
-    
-    const handleActionItemChange = (index, field, value) => {
-        const newActions = JSON.parse(JSON.stringify(actions));
-        newActions[index] = newActions[index] || {};
-        newActions[index][field] = value;
-        if (field === 'action_type') {
-            const defaults = { action_type: value };
-            if (value === 'set_context_variable') { defaults.variable_name = ''; defaults.value_template = ''; }
-            // TODO: Add resets for other action_types
-            newActions[index] = defaults;
-        }
-        handleConfigPathChange('actions_to_run', newActions);
-    };
-    const addActionItem = () => handleConfigPathChange('actions_to_run', [...actions, { action_type: ACTION_CONFIG_TYPES[0].value }]);
-    const removeActionItem = (index) => handleConfigPathChange('actions_to_run', actions.filter((_, i) => i !== index));
-
-    return (
-      <div className="space-y-3 p-2 border dark:border-slate-700 rounded-md mt-2">
-        <div className="flex justify-between items-center p-1">
-            <Label className="dark:text-slate-300 font-medium">Actions to Run:</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addActionItem} className="dark:text-slate-300 dark:border-slate-600"><FiPlusCircle className="mr-1"/> Add Action</Button>
-        </div>
-        {actions.map((action, index) => (
-          <Card key={index} className="p-3 space-y-2 dark:bg-slate-700/50 dark:border-slate-600">
-            <div className="flex justify-between items-center">
-                <Label className="text-xs font-medium">Action {index + 1}</Label>
-                <Button type="button" variant="ghost" size="icon" onClick={() => removeActionItem(index)} className="h-7 w-7 text-red-500"><FiTrash2 size={14}/></Button>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor={`actionType-${index}`} className="text-xs">Type</Label>
-              <Select value={action.action_type || ''} onValueChange={(val) => handleActionItemChange(index, 'action_type', val)}>
-                <SelectTrigger id={`actionType-${index}`} className="dark:bg-slate-600"><SelectValue /></SelectTrigger>
-                <SelectContent className="dark:bg-slate-600 dark:text-slate-50">
-                  {ACTION_CONFIG_TYPES.map(at => <SelectItem key={at.value} value={at.value} className="dark:hover:bg-slate-500">{at.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {action.action_type === 'set_context_variable' && (
-              <>
-                <div className="space-y-1"><Label htmlFor={`actionVarName-${index}`} className="text-xs">Variable Name*</Label><Input id={`actionVarName-${index}`} value={action.variable_name || ''} onChange={(e) => handleActionItemChange(index, 'variable_name', e.target.value)} className="dark:bg-slate-600"/></div>
-                <div className="space-y-1"><Label htmlFor={`actionVarValue-${index}`} className="text-xs">Value Template*</Label><Input id={`actionVarValue-${index}`} value={action.value_template || ''} onChange={(e) => handleActionItemChange(index, 'value_template', e.target.value)} className="dark:bg-slate-600"/></div>
-              </>
-            )}
-            {/* TODO: Implement UI for other action_types */}
-            {action.action_type && !['set_context_variable'].includes(action.action_type) && (
-                <p className="text-xs text-amber-500 p-2">UI for '{action.action_type}' not fully implemented. Use raw JSON for now.</p>
-             )}
-          </Card>
-        ))}
-        {actions.length === 0 && <p className="text-xs text-center text-slate-500 dark:text-slate-400 py-2">No actions defined.</p>}
-      </div>
-    );
-  };
-
-  // Specific to step_type: 'question'
-  const renderQuestionConfig = () => (
-      <div className="space-y-3 p-2 border dark:border-slate-700 rounded-md mt-2">
-          <Label className="dark:text-slate-300 font-medium">Question Prompt (Message Config):</Label>
-          <Textarea value={JSON.stringify(currentConfig.message_config || {message_type: "text", text:{body:""}}, null, 2)}
-              onChange={(e) => { try { handleConfigPathChange('message_config', JSON.parse(e.target.value));} catch(err){ handleConfigPathChange('message_config', e.target.value); } }}
-              rows={4} className="font-mono text-xs dark:bg-slate-700 dark:border-slate-600" placeholder='e.g., {"message_type":"text", "text":{"body":"What is your email?"}}'/>
-          <Separator className="dark:bg-slate-600 my-2"/>
-          <Label className="dark:text-slate-300 font-medium">Reply Processing (Reply Config):</Label>
-          <div className="space-y-2 p-1">
-              <div className="space-y-1"><Label htmlFor="replyVarName" className="text-xs">Save Reply to Variable*</Label><Input id="replyVarName" value={currentConfig.reply_config?.save_to_variable || ''} onChange={(e) => handleConfigPathChange('reply_config.save_to_variable', e.target.value)} className="dark:bg-slate-700 dark:border-slate-600"/></div>
-              <div className="space-y-1">
-                  <Label htmlFor="replyExpectedType" className="text-xs">Expected Reply Type</Label>
-                  <Select value={currentConfig.reply_config?.expected_type || 'text'} onValueChange={(val) => handleConfigPathChange('reply_config.expected_type', val)}>
-                      <SelectTrigger id="replyExpectedType" className="dark:bg-slate-700 dark:border-slate-600"><SelectValue /></SelectTrigger>
-                      <SelectContent className="dark:bg-slate-700 dark:text-slate-50">
-                          <SelectItem value="text">Any Text</SelectItem><SelectItem value="email">Email</SelectItem><SelectItem value="number">Number</SelectItem><SelectItem value="interactive_id">Interactive Reply ID</SelectItem>
-                      </SelectContent>
-                  </Select>
-              </div>
-              <div className="space-y-1"><Label htmlFor="replyValidationRegex" className="text-xs">Validation Regex (Optional)</Label><Input id="replyValidationRegex" value={currentConfig.reply_config?.validation_regex || ''} onChange={(e) => handleConfigPathChange('reply_config.validation_regex', e.target.value)} className="dark:bg-slate-700 dark:border-slate-600" placeholder="e.g., ^\d{5}$"/></div>
-          </div>
-      </div>
+/** Textarea bound to a JSON value; only valid JSON propagates, and validity is reported up. */
+function JsonField({ id, value, onChange, onValidity, rows = 4, placeholder }) {
+  const [text, setText] = useState(() => (value === undefined ? '' : JSON.stringify(value, null, 2)));
+  const [error, setError] = useState('');
+  return (
+    <>
+      <Textarea
+        id={id}
+        rows={rows}
+        value={text}
+        placeholder={placeholder}
+        className="font-mono text-xs"
+        onChange={(e) => {
+          const next = e.target.value;
+          setText(next);
+          if (!next.trim()) { setError(''); onValidity?.(id, true); onChange(undefined); return; }
+          try {
+            onChange(JSON.parse(next));
+            setError('');
+            onValidity?.(id, true);
+          } catch (err) {
+            setError(err.message);
+            onValidity?.(id, false);
+          }
+        }}
+      />
+      {error && <p role="alert" className="mt-1 text-xs text-destructive">Invalid JSON: {error}</p>}
+    </>
   );
+}
 
-  const renderDefaultConfigEditor = () => (
-    <div className="p-2 border dark:border-slate-700 rounded-md mt-2"><div className="p-1">
-        <Label className="dark:text-slate-300">Raw Config (JSON for {step.step_type_display || step.step_type})</Label>
-        <Textarea value={typeof currentConfig === 'string' ? currentConfig : JSON.stringify(currentConfig, null, 2)}
-            onChange={(e) => handleRawConfigChange(e.target.value)}
-            rows={10} className="font-mono text-xs dark:bg-slate-700 dark:border-slate-600" />
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">No specific UI for this step type, or it's complex. Edit JSON directly.</p>
-    </div></div>
+function defaultMessage(type, prev = {}) {
+  const bodyText = prev.text?.body || prev.interactive?.body?.text || '';
+  if (type === 'text') return { message_type: 'text', text: { body: bodyText, preview_url: false } };
+  if (MEDIA_TYPES.includes(type)) return { message_type: type, [type]: { asset_pk: null, ...(type !== 'audio' && type !== 'sticker' ? { caption: '' } : {}) } };
+  if (type === 'interactive') {
+    return { message_type: 'interactive', interactive: { type: 'button', body: { text: bodyText }, action: { buttons: [{ type: 'reply', reply: { id: '', title: '' } }] } } };
+  }
+  return { message_type: type };
+}
+
+function ButtonsEditor({ buttons, onChange, idPrefix }) {
+  const set = (i, key, v) => onChange(buttons.map((b, j) => (j === i ? { type: 'reply', reply: { ...b.reply, [key]: v } } : b)));
+  return (
+    <div className="space-y-2">
+      <Label>Buttons <span className="font-normal text-muted-foreground">(up to 3)</span></Label>
+      {buttons.map((b, i) => (
+        <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-start gap-2">
+          <Input aria-label={`Button ${i + 1} title`} placeholder="Title (max 20)" maxLength={20} value={b.reply?.title || ''} onChange={(e) => set(i, 'title', e.target.value)} />
+          <Input aria-label={`Button ${i + 1} reply ID`} id={i === 0 ? `${idPrefix}-btn-id` : undefined} placeholder="Reply ID" className="font-mono text-xs" value={b.reply?.id || ''} onChange={(e) => set(i, 'id', e.target.value)} />
+          <Button type="button" size="icon" variant="ghost" aria-label={`Remove button ${i + 1}`} onClick={() => onChange(buttons.filter((_, j) => j !== i))}><FiTrash2 /></Button>
+        </div>
+      ))}
+      {buttons.length < 3 && (
+        <Button type="button" size="sm" variant="outline" onClick={() => onChange([...buttons, { type: 'reply', reply: { id: '', title: '' } }])}><FiPlus /> Add button</Button>
+      )}
+      <p className="text-xs text-muted-foreground">Transitions match on the reply ID, so keep IDs stable once the flow is live.</p>
+    </div>
   );
+}
 
-  // Main render switch for step_type specific config UI
-  const renderStepSpecificConfigUI = () => {
-    switch (step.step_type) {
-      case 'send_message': return renderSendMessageConfig();
-      case 'action': return renderActionConfig();
-      case 'question': return renderQuestionConfig();
-      case 'switch_flow': return renderSwitchFlowConfig();
-      case 'start_flow_node': return <p className="text-sm text-slate-500 dark:text-slate-400 p-3">Start nodes define the entry point. No specific runtime config usually needed here.</p>;
-      case 'end_flow':
-        const hasEndMsgConf = currentConfig.message_config !== undefined;
+function ListEditor({ action, onChange }) {
+  const sections = action.sections || [];
+  if (sections.some((s) => typeof s.rows === 'string')) {
+    return <p className="text-sm text-muted-foreground">This list is built from a template at runtime — use “Edit as JSON” to change it.</p>;
+  }
+  const setSection = (i, next) => onChange({ ...action, sections: sections.map((s, j) => (j === i ? next : s)) });
+  return (
+    <div className="space-y-3">
+      <Field id="l-button" label="Menu button label" hint="The button customers tap to open the list (max 20).">
+        <Input id="l-button" maxLength={20} value={action.button || ''} onChange={(e) => onChange({ ...action, button: e.target.value })} />
+      </Field>
+      {sections.map((s, i) => (
+        <fieldset key={i} className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center gap-2">
+            <Input aria-label={`Section ${i + 1} title`} placeholder="Section title (optional)" value={s.title || ''} onChange={(e) => setSection(i, { ...s, title: e.target.value })} />
+            <Button type="button" size="icon" variant="ghost" aria-label={`Remove section ${i + 1}`} onClick={() => onChange({ ...action, sections: sections.filter((_, j) => j !== i) })}><FiTrash2 /></Button>
+          </div>
+          {(s.rows || []).map((r, k) => (
+            <div key={k} className="grid grid-cols-1 gap-2 rounded-md bg-muted/40 p-2 sm:grid-cols-[1fr_1fr_auto]">
+              <Input aria-label="Row title" placeholder="Title (max 24)" maxLength={24} value={r.title || ''} onChange={(e) => setSection(i, { ...s, rows: s.rows.map((x, m) => (m === k ? { ...x, title: e.target.value } : x)) })} />
+              <Input aria-label="Row ID" placeholder="Reply ID" className="font-mono text-xs" value={r.id || ''} onChange={(e) => setSection(i, { ...s, rows: s.rows.map((x, m) => (m === k ? { ...x, id: e.target.value } : x)) })} />
+              <Button type="button" size="icon" variant="ghost" aria-label="Remove row" onClick={() => setSection(i, { ...s, rows: s.rows.filter((_, m) => m !== k) })}><FiTrash2 /></Button>
+              <Input aria-label="Row description" placeholder="Description (optional, max 72)" maxLength={72} className="sm:col-span-3" value={r.description || ''} onChange={(e) => setSection(i, { ...s, rows: s.rows.map((x, m) => (m === k ? { ...x, description: e.target.value } : x)) })} />
+            </div>
+          ))}
+          <Button type="button" size="sm" variant="ghost" onClick={() => setSection(i, { ...s, rows: [...(s.rows || []), { id: '', title: '' }] })}><FiPlus /> Add row</Button>
+        </fieldset>
+      ))}
+      <Button type="button" size="sm" variant="outline" onClick={() => onChange({ ...action, sections: [...sections, { title: '', rows: [{ id: '', title: '' }] }] })}><FiList /> Add section</Button>
+    </div>
+  );
+}
+
+function MessageFields({ value = {}, onChange, idPrefix }) {
+  const type = value.message_type || 'text';
+  const inter = value.interactive || {};
+  const setInter = (patch) => onChange({ ...value, interactive: { ...inter, ...patch } });
+  const media = value[type] || {};
+  const setMedia = (patch) => onChange({ ...value, [type]: { ...media, ...patch } });
+
+  return (
+    <div className="space-y-4">
+      <Field id={`${idPrefix}-type`} label="Message type">
+        <select id={`${idPrefix}-type`} className={selectClass} value={type} onChange={(e) => onChange(defaultMessage(e.target.value, value))}>
+          {MESSAGE_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+        </select>
+      </Field>
+
+      {type === 'text' && (
+        <>
+          <div>
+            <div className="mb-1.5 flex items-center justify-between">
+              <Label htmlFor={`${idPrefix}-body`}>Message <span className="text-destructive">*</span></Label>
+              <CharCount value={value.text?.body} max={4096} />
+            </div>
+            <Textarea id={`${idPrefix}-body`} rows={6} value={value.text?.body || ''} onChange={(e) => onChange({ ...value, text: { ...value.text, body: e.target.value } })} placeholder="Hi {{ contact.name }} 👋" />
+            <p className="mt-1 text-xs text-muted-foreground">Use {'{{ contact.name }}'} or {'{{ flow_context.some_value }}'} to insert data. *bold* and _italic_ work in WhatsApp.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Switch id={`${idPrefix}-preview`} checked={!!value.text?.preview_url} onCheckedChange={(v) => onChange({ ...value, text: { ...value.text, preview_url: v } })} />
+            <Label htmlFor={`${idPrefix}-preview`}>Show link previews</Label>
+          </div>
+        </>
+      )}
+
+      {MEDIA_TYPES.includes(type) && (
+        <>
+          <Field id={`${idPrefix}-asset`} label="File" required hint={!media.asset_pk && (media.link || media.id) ? `Currently sent from ${media.link ? 'link' : 'media ID'} “${media.link || media.id}”. Picking a file replaces it.` : undefined}>
+            <MediaAssetSelector id={`${idPrefix}-asset`} mediaTypeFilter={type} currentAssetPk={media.asset_pk ?? null} onAssetSelect={(pk) => setMedia({ asset_pk: pk })} />
+          </Field>
+          {type !== 'audio' && type !== 'sticker' && (
+            <Field id={`${idPrefix}-caption`} label="Caption">
+              <Textarea id={`${idPrefix}-caption`} rows={2} value={media.caption || ''} onChange={(e) => setMedia({ caption: e.target.value })} />
+            </Field>
+          )}
+          {type === 'document' && (
+            <Field id={`${idPrefix}-filename`} label="File name shown to customer">
+              <Input id={`${idPrefix}-filename`} value={media.filename || ''} onChange={(e) => setMedia({ filename: e.target.value })} placeholder="itinerary.pdf" />
+            </Field>
+          )}
+        </>
+      )}
+
+      {type === 'interactive' && (
+        <>
+          <Field id={`${idPrefix}-itype`} label="Style">
+            <select id={`${idPrefix}-itype`} className={selectClass} value={inter.type || 'button'} onChange={(e) => {
+              const t = e.target.value;
+              const action = t === 'button' ? { buttons: [{ type: 'reply', reply: { id: '', title: '' } }] }
+                : t === 'list' ? { button: 'Choose', sections: [{ title: '', rows: [{ id: '', title: '' }] }] } : inter.action || {};
+              setInter({ type: t, action });
+            }}>
+              <option value="button">Reply buttons (up to 3)</option>
+              <option value="list">List menu (up to 10 rows)</option>
+              <option value="flow">WhatsApp form</option>
+            </select>
+          </Field>
+          <Field id={`${idPrefix}-ibody`} label="Message" required>
+            <Textarea id={`${idPrefix}-ibody`} rows={4} maxLength={1024} value={inter.body?.text || ''} onChange={(e) => setInter({ body: { text: e.target.value } })} />
+          </Field>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field id={`${idPrefix}-ihead`} label="Header (optional)">
+              <Input id={`${idPrefix}-ihead`} maxLength={60} value={inter.header?.type === 'text' || !inter.header ? inter.header?.text || '' : ''} disabled={inter.header && inter.header.type !== 'text'}
+                onChange={(e) => setInter({ header: e.target.value ? { type: 'text', text: e.target.value } : undefined })} />
+            </Field>
+            <Field id={`${idPrefix}-ifoot`} label="Footer (optional)">
+              <Input id={`${idPrefix}-ifoot`} maxLength={60} value={inter.footer?.text || ''} onChange={(e) => setInter({ footer: e.target.value ? { text: e.target.value } : undefined })} />
+            </Field>
+          </div>
+          {inter.type === 'list' ? <ListEditor action={inter.action || {}} onChange={(action) => setInter({ action })} />
+            : inter.type === 'flow' ? <p className="text-sm text-muted-foreground">WhatsApp form settings (flow ID, screen, data) are edited with “Edit as JSON”.</p>
+              : <ButtonsEditor idPrefix={idPrefix} buttons={inter.action?.buttons || []} onChange={(buttons) => setInter({ action: { ...inter.action, buttons } })} />}
+        </>
+      )}
+
+      {['template', 'location', 'contacts'].includes(type) && (
+        <p className="text-sm text-muted-foreground">This message type is edited with “Edit as JSON”.</p>
+      )}
+    </div>
+  );
+}
+
+function ActionFields({ actions, onChange, onValidity }) {
+  const update = (i, next) => onChange(actions.map((a, j) => (j === i ? next : a)));
+  return (
+    <div className="space-y-3">
+      <datalist id="action-types">{Object.keys(ACTION_FIELDS).map((k) => <option key={k} value={k} />)}</datalist>
+      {actions.length === 0 && <p className="text-sm text-muted-foreground">No actions yet.</p>}
+      {actions.map((a, i) => {
+        const fields = ACTION_FIELDS[a.action_type];
+        const extra = Object.fromEntries(Object.entries(a).filter(([k]) => k !== 'action_type'));
         return (
-            <div className="p-2 border dark:border-slate-700 rounded-md mt-2"><div className="p-1">
-                <Label className="dark:text-slate-300 font-medium">Optional End Message (Uses Send Message Config Structure)</Label>
-                {!hasEndMsgConf && <Button variant="link" size="sm" className="p-0 h-auto dark:text-blue-400 text-xs mt-1 block" onClick={() => handleConfigPathChange('message_config', {message_type:"text", text:{body:"Thank you!"}})}>Add end message?</Button>}
-                {hasEndMsgConf && <Textarea value={JSON.stringify(currentConfig.message_config || {}, null, 2)} onChange={(e) => { try { handleConfigPathChange('message_config', JSON.parse(e.target.value));} catch(err){/* keep string */} }} rows={4} className="font-mono text-xs dark:bg-slate-700 dark:border-slate-600 mt-1"/> }
-            </div></div>
+          <fieldset key={i} className="space-y-3 rounded-lg border p-3">
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <Label htmlFor={`act-${i}`} className="mb-1.5">Action {i + 1}</Label>
+                <Input id={`act-${i}`} list="action-types" className="font-mono text-xs" value={a.action_type || ''} onChange={(e) => update(i, { ...a, action_type: e.target.value })} />
+              </div>
+              <Button type="button" size="icon" variant="ghost" aria-label={`Remove action ${i + 1}`} onClick={() => onChange(actions.filter((_, j) => j !== i))}><FiTrash2 /></Button>
+            </div>
+            {fields ? fields.map((f) => (
+              <Field key={f.key} id={`act-${i}-${f.key}`} label={f.label}>
+                {f.json ? <JsonField id={`act-${i}-${f.key}`} value={a[f.key]} onValidity={onValidity} onChange={(v) => update(i, { ...a, [f.key]: v })} />
+                  : f.multiline ? <Textarea id={`act-${i}-${f.key}`} rows={3} value={a[f.key] ?? ''} onChange={(e) => update(i, { ...a, [f.key]: e.target.value })} />
+                    : <Input id={`act-${i}-${f.key}`} className={f.mono ? 'font-mono text-xs' : ''} placeholder={f.placeholder} value={typeof a[f.key] === 'string' ? a[f.key] : JSON.stringify(a[f.key] ?? '')} onChange={(e) => update(i, { ...a, [f.key]: e.target.value })} />}
+              </Field>
+            )) : (
+              <Field id={`act-${i}-params`} label="Settings" hint="Custom action — its settings are passed as-is.">
+                <JsonField id={`act-${i}-params`} rows={5} value={extra} onValidity={onValidity} onChange={(v) => update(i, { action_type: a.action_type, ...(v || {}) })} />
+              </Field>
+            )}
+          </fieldset>
         );
-      default: // For 'condition', 'wait_for_reply', or other unhandled types
-        return renderDefaultConfigEditor();
+      })}
+      <Button type="button" size="sm" variant="outline" onClick={() => onChange([...actions, { action_type: 'set_context_variable', variable_name: '', value_template: '' }])}><FiPlus /> Add action</Button>
+    </div>
+  );
+}
+
+function SwitchFlowFields({ config, patch, onValidity }) {
+  const [flows, setFlows] = useState([]);
+  useEffect(() => {
+    flowsApi.list({ page_size: 100 }).then((res) => setFlows(res.data.results || res.data || [])).catch(() => setFlows([]));
+  }, []);
+  const known = flows.some((f) => f.name === config.target_flow_name);
+  return (
+    <div className="space-y-4">
+      <Field id="sf-target" label="Switch to flow" required>
+        <select id="sf-target" className={selectClass} value={config.target_flow_name || ''} onChange={(e) => patch('target_flow_name', e.target.value)}>
+          <option value="" disabled>Choose a flow…</option>
+          {config.target_flow_name && !known && <option value={config.target_flow_name}>{config.target_flow_name}</option>}
+          {flows.map((f) => <option key={f.id} value={f.name}>{f.name}{f.is_active ? '' : ' (inactive)'}</option>)}
+        </select>
+      </Field>
+      <Field id="sf-keyword" label="Keyword to pass (optional)">
+        <Input id="sf-keyword" value={config.trigger_keyword_to_pass || ''} onChange={(e) => patch('trigger_keyword_to_pass', e.target.value || undefined)} />
+      </Field>
+      <Field id="sf-context" label="Data to carry over (JSON, optional)">
+        <JsonField id="sf-context" value={config.initial_context_template} onValidity={onValidity} onChange={(v) => patch('initial_context_template', v)} placeholder={'{ "booking_reference": "{{ flow_context.booking_reference }}" }'} />
+      </Field>
+    </div>
+  );
+}
+
+function StepForm({ stepType, config, setConfig, onValidity }) {
+  const patch = (key, v) => setConfig((c) => {
+    const next = { ...c, [key]: v };
+    if (v === undefined) delete next[key];
+    return next;
+  });
+
+  switch (stepType) {
+    case 'send_message':
+      return <MessageFields idPrefix="sm" value={config} onChange={setConfig} />;
+    case 'question': {
+      const reply = config.reply_config || {};
+      const fallback = config.fallback_config || {};
+      const setFallback = (k, v) => patch('fallback_config', { action: 're_prompt', ...fallback, [k]: v });
+      return (
+        <div className="space-y-5">
+          <MessageFields idPrefix="q" value={config.message_config} onChange={(v) => patch('message_config', v)} />
+          <fieldset className="space-y-3 rounded-lg border p-3">
+            <legend className="px-1 text-sm font-medium">Answer</legend>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field id="q-var" label="Save answer as" required>
+                <Input id="q-var" className="font-mono text-xs" value={reply.save_to_variable || ''} onChange={(e) => patch('reply_config', { ...reply, save_to_variable: e.target.value })} />
+              </Field>
+              <Field id="q-expected" label="Expected answer">
+                <select id="q-expected" className={selectClass} value={reply.expected_type || 'text'} onChange={(e) => patch('reply_config', { ...reply, expected_type: e.target.value })}>
+                  {REPLY_TYPES.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                </select>
+              </Field>
+            </div>
+            <Field id="q-regex" label="Must match pattern (optional)">
+              <Input id="q-regex" className="font-mono text-xs" value={reply.validation_regex || ''} onChange={(e) => patch('reply_config', { ...reply, validation_regex: e.target.value || undefined })} placeholder="^\d{1,2}$" />
+            </Field>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_7rem]">
+              <Field id="q-retry" label="If the answer is invalid, say">
+                <Input id="q-retry" value={fallback.re_prompt_message_text || ''} onChange={(e) => setFallback('re_prompt_message_text', e.target.value)} placeholder="Sorry, please reply with a number." />
+              </Field>
+              <Field id="q-retries" label="Retries">
+                <Input id="q-retries" type="number" min={0} value={fallback.max_retries ?? 2} onChange={(e) => setFallback('max_retries', Number(e.target.value))} />
+              </Field>
+            </div>
+          </fieldset>
+        </div>
+      );
     }
+    case 'action':
+      return <ActionFields actions={Array.isArray(config.actions_to_run) ? config.actions_to_run : []} onValidity={onValidity} onChange={(v) => patch('actions_to_run', v)} />;
+    case 'end_flow':
+      return config.message_config ? (
+        <div className="space-y-3">
+          <MessageFields idPrefix="end" value={config.message_config} onChange={(v) => patch('message_config', v)} />
+          <Button type="button" size="sm" variant="ghost" onClick={() => patch('message_config', undefined)}><FiTrash2 /> Remove closing message</Button>
+        </div>
+      ) : (
+        <div className="text-sm text-muted-foreground">
+          The conversation ends silently.{' '}
+          <Button type="button" size="sm" variant="link" className="px-0" onClick={() => patch('message_config', defaultMessage('text'))}>Add a closing message</Button>
+        </div>
+      );
+    case 'human_handover':
+      return (
+        <div className="space-y-4">
+          <Field id="hh-msg" label="Tell the customer">
+            <Textarea id="hh-msg" rows={3} value={config.pre_handover_message_text || ''} onChange={(e) => patch('pre_handover_message_text', e.target.value || undefined)} placeholder="Connecting you to a member of our team…" />
+          </Field>
+          <Field id="hh-note" label="Note for the team">
+            <Input id="hh-note" value={config.notification_details || ''} onChange={(e) => patch('notification_details', e.target.value || undefined)} />
+          </Field>
+        </div>
+      );
+    case 'switch_flow':
+      return <SwitchFlowFields config={config} patch={patch} onValidity={onValidity} />;
+    default:
+      return null;
+  }
+}
+
+function validate(stepType, config) {
+  if (stepType === 'send_message' && !config.message_type) return 'Choose a message type.';
+  if (stepType === 'send_message' && config.message_type === 'text' && !config.text?.body?.trim()) return 'The message text is empty.';
+  if (stepType === 'question' && !config.reply_config?.save_to_variable) return 'Set where to save the answer.';
+  if (stepType === 'question' && !config.message_config?.message_type) return 'The question needs a message.';
+  if (stepType === 'action' && !Array.isArray(config.actions_to_run)) return 'Actions must be a list.';
+  if (stepType === 'switch_flow' && !config.target_flow_name) return 'Choose a flow to switch to.';
+  const buttons = (stepType === 'question' ? config.message_config : config)?.interactive?.action?.buttons;
+  if (buttons?.some((b) => !b.reply?.id || !b.reply?.title)) return 'Every button needs a title and a reply ID.';
+  return '';
+}
+
+export default function StepConfigEditor({ isOpen, step, onClose, onSaveStep }) {
+  const [name, setName] = useState('');
+  const [isEntry, setIsEntry] = useState(false);
+  const [config, setConfig] = useState({});
+  const [jsonMode, setJsonMode] = useState(false);
+  const [jsonText, setJsonText] = useState('');
+  const [error, setError] = useState('');
+  const [invalid, setInvalid] = useState({});
+  const [saving, setSaving] = useState(false);
+  const hasForm = FORM_TYPES.includes(step?.step_type);
+
+  useEffect(() => {
+    if (!step) return;
+    const conf = step.config && typeof step.config === 'object' ? structuredClone(step.config) : {};
+    setName(step.name || '');
+    setIsEntry(!!step.is_entry_point);
+    setConfig(conf);
+    setJsonText(JSON.stringify(conf, null, 2));
+    setJsonMode(!FORM_TYPES.includes(step.step_type));
+    setError('');
+    setInvalid({});
+  }, [step]);
+
+  if (!isOpen || !step) return null;
+
+  const onValidity = (key, ok) => setInvalid((prev) => {
+    if (ok === !prev[key]) return prev;
+    const next = { ...prev };
+    if (ok) delete next[key]; else next[key] = true;
+    return next;
+  });
+
+  const parseJson = () => {
+    try {
+      const parsed = JSON.parse(jsonText || '{}');
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Config must be a JSON object');
+      return parsed;
+    } catch (e) {
+      setError(`Invalid JSON: ${e.message}`);
+      return null;
+    }
+  };
+
+  const toggleMode = () => {
+    setError('');
+    if (!jsonMode) { setJsonText(JSON.stringify(config, null, 2)); setJsonMode(true); return; }
+    const parsed = parseJson();
+    if (parsed) { setConfig(parsed); setInvalid({}); setJsonMode(false); }
+  };
+
+  const save = async (e) => {
+    e.preventDefault();
+    setError('');
+    const finalConfig = jsonMode ? parseJson() : config;
+    if (!finalConfig) return;
+    if (!name.trim()) { setError('Give the step a name.'); return; }
+    const problem = validate(step.step_type, finalConfig);
+    if (problem) { setError(problem); return; }
+    setSaving(true);
+    const result = await onSaveStep(step.id, { name: name.trim(), is_entry_point: isEntry, config: finalConfig });
+    setSaving(false);
+    if (result === true) onClose();
+    else setError(typeof result === 'string' ? result : 'Could not save this step.');
   };
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => { if (!open && !isSavingStep) onClose(); else if (isSavingStep) toast.info("Save in progress...") }}>
-      <DialogContent className="sm:max-w-lg md:max-w-xl lg:max-w-2xl dark:bg-slate-800 dark:text-slate-50">
-        <DialogHeader>
-          <DialogTitle className="text-xl">Edit Step: <span className="font-semibold text-blue-600 dark:text-blue-400">{stepName || step.name}</span></DialogTitle>
-          <DialogDescription>Type: <Badge variant="outline" className="dark:border-slate-600 dark:text-slate-300">{step.step_type_display || step.step_type}</Badge></DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-3 custom-scrollbar"> {/* Added custom-scrollbar class for potential styling */}
-          <div className="space-y-1">
-            <Label htmlFor="stepNameEditModal" className="dark:text-slate-300">Step Name*</Label>
-            <Input id="stepNameEditModal" value={stepName} onChange={(e) => setStepName(e.target.value)} className="dark:bg-slate-700 dark:border-slate-600" />
-          </div>
-          {step.step_type !== 'start_flow_node' && ( // Start node typically doesn't toggle entry point status this way
-            <div className="flex items-center space-x-2">
-              <Switch id={`isEntryPointEditModal-${step.id}`} checked={isEntryPoint} onCheckedChange={setIsEntryPoint} className="data-[state=checked]:bg-green-500"/>
-              <Label htmlFor={`isEntryPointEditModal-${step.id}`} className="dark:text-slate-300 cursor-pointer">Is Entry Point for Flow</Label>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && !saving && onClose()}>
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 p-0 sm:max-w-2xl">
+        <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
+          <DialogHeader className="border-b p-5">
+            <DialogTitle>Edit step</DialogTitle>
+            <DialogDescription>{step.step_type_display || step.step_type}</DialogDescription>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+              <Field id="step-name" label="Step name" required>
+                <Input id="step-name" className="font-mono text-sm" value={name} onChange={(e) => setName(e.target.value)} />
+              </Field>
+              <div className="flex h-9 items-center gap-2">
+                <Switch id="step-entry" checked={isEntry} onCheckedChange={setIsEntry} />
+                <Label htmlFor="step-entry">Entry point</Label>
+              </div>
             </div>
-          )}
-          <Separator className="my-3 dark:bg-slate-700" />
-          <Label className="dark:text-slate-300 text-base font-medium">Step Configuration:</Label>
-          {renderStepSpecificConfigUI()}
-        </div>
-        <DialogFooter className="mt-4 pt-4 border-t dark:border-slate-700">
-          <Button variant="outline" onClick={onClose} disabled={isSavingStep} className="dark:text-slate-300 dark:border-slate-600">Cancel</Button>
-          <Button onClick={handleSave} disabled={isSavingStep} className="bg-blue-600 hover:bg-blue-700 text-white min-w-[120px]">
-            {isSavingStep ? <FiLoader className="animate-spin mr-2 h-4 w-4" /> : <FiSave className="mr-2 h-4 w-4" />}
-            {isSavingStep ? "Saving..." : "Save Changes"}
-          </Button>
-        </DialogFooter>
+
+            {jsonMode ? (
+              <Field id="step-json" label="Configuration (JSON)" hint={hasForm ? undefined : 'This step type has no form editor.'}>
+                <Textarea id="step-json" rows={16} className="font-mono text-xs" value={jsonText} onChange={(e) => { setJsonText(e.target.value); setError(''); }} />
+              </Field>
+            ) : (
+              <StepForm stepType={step.step_type} config={config} setConfig={setConfig} onValidity={onValidity} />
+            )}
+            {hasForm && (
+              <button type="button" onClick={toggleMode} className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                <FiCode className="size-3.5" aria-hidden /> {jsonMode ? 'Back to form' : 'Edit as JSON'}
+              </button>
+            )}
+          </div>
+          <DialogFooter className="items-center border-t p-4">
+            {error && <p role="alert" className="mr-auto text-sm text-destructive">{error}</p>}
+            <Button type="button" variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button type="submit" disabled={saving || Object.keys(invalid).length > 0}>{saving ? 'Saving…' : 'Save step'}</Button>
+          </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

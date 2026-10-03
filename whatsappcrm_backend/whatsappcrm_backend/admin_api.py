@@ -1,6 +1,8 @@
 from django.contrib.admin.models import LogEntry
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import Group, Permission
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import permissions, serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -95,6 +97,30 @@ class AdminUserSerializer(serializers.ModelSerializer):
     def get_permission_labels(self, obj):
         return sorted(obj.get_all_permissions())
 
+    def validate(self, attrs):
+        request = self.context.get("request")
+        actor = getattr(request, "user", None)
+        if actor is None or actor.is_superuser:
+            return attrs
+        # Only superusers may mint superusers or touch an existing one; otherwise
+        # an "admin"-group member could promote themselves to full superuser.
+        if attrs.get("is_superuser") or (self.instance is not None and self.instance.is_superuser):
+            raise serializers.ValidationError("Only a superuser can create or change superuser accounts.")
+        return attrs
+
+    def validate_password(self, value):
+        try:
+            validate_password(value, user=self.instance)
+        except DjangoValidationError as exc:
+            raise serializers.ValidationError(list(exc.messages))
+        return value
+
+    def validate_is_active(self, value):
+        request = self.context.get("request")
+        if not value and self.instance is not None and request and self.instance.pk == request.user.pk:
+            raise serializers.ValidationError("You can't deactivate your own account.")
+        return value
+
     def create(self, validated_data):
         groups = validated_data.pop("groups", [])
         permissions_data = validated_data.pop("user_permissions", [])
@@ -176,6 +202,10 @@ class AdminUserViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"], permission_classes=[permissions.IsAuthenticated, IsStaffReadAdminWrite])
     def deactivate(self, request, pk=None):
         user = self.get_object()
+        if user.pk == request.user.pk:
+            return Response({"detail": "You can't deactivate your own account."}, status=status.HTTP_400_BAD_REQUEST)
+        if user.is_superuser and not request.user.is_superuser:
+            return Response({"detail": "Only a superuser can deactivate a superuser."}, status=status.HTTP_403_FORBIDDEN)
         user.is_active = False
         user.save(update_fields=["is_active"])
         return Response(self.get_serializer(user).data, status=status.HTTP_200_OK)

@@ -4,7 +4,8 @@ from .views import (
     DashboardSummaryStatsAPIView,
     FinancialStatsAPIView,
     EngagementStatsAPIView,
-    MessageVolumeAPIView
+    MessageVolumeAPIView,
+    BookingStatsAPIView,
 )
 
 app_name = 'stats_api'
@@ -16,4 +17,5 @@ urlpatterns = [
     path('financial/', FinancialStatsAPIView.as_view(), name='financial_stats'),
     path('engagement/', EngagementStatsAPIView.as_view(), name='engagement_stats'),
     path('messages/', MessageVolumeAPIView.as_view(), name='message_volume_stats'),
+    path('bookings/', BookingStatsAPIView.as_view(), name='booking_stats'),
 ]

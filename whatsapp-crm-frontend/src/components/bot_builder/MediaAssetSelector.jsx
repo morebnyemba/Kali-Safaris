@@ -1,95 +1,50 @@
 // src/components/bot_builder/MediaAssetSelector.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel
-} from '@/components/ui/select';
-import { toast } from 'sonner';
-import { FiLoader, FiImage, FiFileText, FiVideo, FiMic,FiPaperclip } from 'react-icons/fi'; // Added more icons
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { mediaAssetsApi } from '@/lib/api';
 
+const selectClass = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30';
 
-const mediaTypeIcons = {
-    image: <FiImage className="mr-2 h-4 w-4 text-blue-500" />,
-    document: <FiFileText className="mr-2 h-4 w-4 text-green-500" />,
-    video: <FiVideo className="mr-2 h-4 w-4 text-purple-500" />,
-    audio: <FiMic className="mr-2 h-4 w-4 text-orange-500" />,
-    default: <FiPaperclip className="mr-2 h-4 w-4" />
-};
-
-export default function MediaAssetSelector({ currentAssetPk, mediaTypeFilter, onAssetSelect, disabled = false }) {
+/** Picks a synced media asset of one type; the flow engine sends it by `asset_pk`. */
+export default function MediaAssetSelector({ id, currentAssetPk, mediaTypeFilter, onAssetSelect, disabled = false }) {
   const [assets, setAssets] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  // Consider a state to control dialog visibility if using a modal for selection
-  // const [showAssetListDialog, setShowAssetListDialog] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-
-  const fetchAssets = useCallback(async () => {
-    if (!mediaTypeFilter) {
-        toast.error("Media type filter is required to fetch assets.");
-        return;
-    }
-    setIsLoading(true);
-    try {
-      const response = await mediaAssetsApi.list({ status: 'synced', media_type: mediaTypeFilter });
-      const data = response.data;
-      setAssets(data.results || data || []); // Handle paginated or direct list
-    } catch (error) {
-      // Error is toasted by apiCall, but local state can also be set
-      setAssets([]);
-    } finally {
-      setIsLoading(false);
-    }
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    mediaAssetsApi.list({ media_type: mediaTypeFilter, page_size: 100 })
+      .then((res) => { if (!cancelled) setAssets(res.data.results || res.data || []); })
+      .catch(() => { if (!cancelled) setAssets([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, [mediaTypeFilter]);
 
-  // Fetch assets when the component mounts or filter changes
-  useEffect(() => {
-    fetchAssets();
-  }, [fetchAssets]);
-
-
-  const selectedAssetDetails = assets.find(asset => asset.pk === currentAssetPk);
+  const selected = assets.find((a) => a.id === currentAssetPk);
+  const missing = currentAssetPk && !loading && !selected;
 
   return (
-    <div className="space-y-2">
-      <Select
-        onValueChange={(pk) => onAssetSelect(pk ? parseInt(pk, 10) : null)}
-        value={currentAssetPk?.toString() || ""}
-        disabled={disabled || isLoading}
+    <div className="space-y-1.5">
+      <select
+        id={id}
+        className={selectClass}
+        value={currentAssetPk ?? ''}
+        disabled={disabled || loading}
+        onChange={(e) => onAssetSelect(e.target.value ? Number(e.target.value) : null)}
       >
-        <SelectTrigger className="w-full dark:bg-slate-700 dark:border-slate-600">
-          <SelectValue placeholder={isLoading ? "Loading assets..." : `Select a ${mediaTypeFilter}...`} />
-        </SelectTrigger>
-        <SelectContent className="dark:bg-slate-700 dark:text-slate-50">
-          <SelectGroup>
-            <SelectLabel className="dark:text-slate-400">
-                Synced {mediaTypeFilter.charAt(0).toUpperCase() + mediaTypeFilter.slice(1)} Assets
-            </SelectLabel>
-            <SelectItem value="" className="dark:hover:bg-slate-600 dark:focus:bg-slate-600 italic">
-                Clear Selection (None)
-            </SelectItem>
-            {isLoading && <div className="p-2 text-center text-xs"><FiLoader className="inline animate-spin mr-1" />Loading...</div>}
-            {!isLoading && assets.length === 0 && (
-              <div className="p-2 text-center text-xs text-slate-500 dark:text-slate-400">
-                No synced {mediaTypeFilter} assets found.
-              </div>
-            )}
-            {assets.map(asset => (
-              <SelectItem key={asset.pk} value={asset.pk.toString()} className="dark:hover:bg-slate-600 dark:focus:bg-slate-600">
-                <div className="flex items-center">
-                    {mediaTypeIcons[asset.media_type] || mediaTypeIcons.default}
-                    {asset.name}
-                </div>
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-      {selectedAssetDetails && (
-        <div className="text-xs p-2 border dark:border-slate-600 rounded-md bg-slate-50 dark:bg-slate-700/50">
-            <p className="font-medium dark:text-slate-200">Selected: {selectedAssetDetails.name}</p>
-            <p className="text-slate-500 dark:text-slate-400">WA ID: {selectedAssetDetails.whatsapp_media_id || "Not Synced"}</p>
-        </div>
+        <option value="">{loading ? 'Loading…' : `Choose a ${mediaTypeFilter}…`}</option>
+        {missing && <option value={currentAssetPk}>Asset #{currentAssetPk} (not found)</option>}
+        {assets.map((a) => (
+          <option key={a.id} value={a.id}>{a.name}{a.status !== 'synced' ? ` — ${a.status_display || a.status}` : ''}</option>
+        ))}
+      </select>
+      {!loading && assets.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          No {mediaTypeFilter} files yet. <Link to="/media-library" className="text-primary hover:underline">Upload one in the media library</Link>.
+        </p>
+      )}
+      {selected && selected.status !== 'synced' && (
+        <p className="text-xs text-warning">This file isn’t synced with WhatsApp, so the message won’t send. Sync it in the media library first.</p>
       )}
     </div>
   );

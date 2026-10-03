@@ -8,6 +8,7 @@ whitenoise
 # --- Django REST Framework & Auth ---
 djangorestframework
 djangorestframework-simplejwt
+django-filter
 django-cors-headers
 drf-nested-routers
 paynow

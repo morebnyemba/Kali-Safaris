@@ -124,6 +124,16 @@ class ContactViewSet(viewsets.ModelViewSet):
             
         return queryset
 
+    @action(detail=True, methods=['post'], url_path='mark-read', permission_classes=[permissions.IsAuthenticated])
+    def mark_read(self, request, pk=None):
+        """
+        Marks this contact's incoming messages as read in the CRM (clears the
+        inbox unread badge). Bulk update: no per-message signals/broadcasts.
+        """
+        contact = get_object_or_404(Contact, pk=pk)
+        updated = Message.objects.filter(contact=contact, direction='in', status='received').update(status='read')
+        return Response({'marked_read': updated})
+
     @action(detail=True, methods=['get'], url_path='messages', permission_classes=[permissions.IsAuthenticated])
     def list_messages_for_contact(self, request, pk=None):
         contact = get_object_or_404(Contact, pk=pk)

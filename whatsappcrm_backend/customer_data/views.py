@@ -79,7 +79,7 @@ class CustomerProfileViewSet(viewsets.ModelViewSet):
     # For more advanced filtering (e.g., date ranges), consider using the `django-filter` library
     # and defining a `filterset_class`.
     filterset_fields = ['lead_status', 'assigned_agent', 'country', 'company']
-    search_fields = ['first_name', 'last_name', 'email', 'company', 'contact__whatsapp_id', 'tags']
+    search_fields = ['first_name', 'last_name', 'email', 'company', 'contact__whatsapp_id']
 
     def get_object(self):
         """
@@ -189,10 +189,11 @@ class TravelerViewSet(viewsets.ModelViewSet):
 
 
 class TourInquiryViewSet(viewsets.ModelViewSet):
-    queryset = TourInquiry.objects.select_related('customer', 'assigned_agent').all()
+    queryset = TourInquiry.objects.select_related('customer', 'assigned_agent').order_by('-created_at')
     serializer_class = TourInquirySerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
     filterset_fields = ['status', 'customer', 'assigned_agent']
+    search_fields = ['inquiry_reference', 'lead_traveler_name', 'destinations', 'customer__first_name', 'customer__last_name']
 
 # --- Booking Manifest Export View ---
 from rest_framework.negotiation import DefaultContentNegotiation
