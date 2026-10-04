@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     description: "Experience peaceful and adventurous cruises on the mighty Zambezi River above Victoria Falls.",
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image.jpg",
         width: 1200,
         height: 630,
         alt: "Kalai Safaris — Zambezi River Cruises",
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Kalai Safaris — Zambezi River Cruises",
     description: "Affordable safari cruises on the mighty Zambezi River above Victoria Falls.",
-    images: ["/og-image.png"],
+    images: ["/og-image.jpg"],
   },
 };
 
