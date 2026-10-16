@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { FaEnvelope, FaLock, FaMapMarkerAlt, FaPhone, FaWhatsapp } from 'react-icons/fa';
 import { NAV_LINKS, SITE, whatsappLink } from '@/lib/site';
@@ -48,6 +48,18 @@ export default function Header() {
     setOpenOnPath((typeof value === 'function' ? value(open) : value) ? pathname : null);
   const [scrolled, setScrolled] = useState(false);
   const [hash, setHash] = useState('');
+  // The panel sits flush under the header, whose height changes with breakpoint
+  // (64px phone, 72px tablet) — measured rather than hard-coded.
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerBottom, setHeaderBottom] = useState(64);
+
+  useEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setHeaderBottom(Math.round(el.getBoundingClientRect().bottom)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -62,16 +74,25 @@ export default function Header() {
     };
   }, []);
 
-  // Lock page scroll while the mobile menu is open; close it on Escape.
+  // While the mobile menu is open: lock page scroll, close on Escape, and close
+  // if the viewport grows to desktop (e.g. a tablet rotated) so the page isn't
+  // left locked. Lock <html> only: iOS Safari ignores overflow on <body>, and
+  // locking both makes <body> a scroll container, which un-sticks the header.
   useEffect(() => {
     if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpenOnPath(null);
+    const html = document.documentElement;
+    const previous = html.style.overflow;
+    html.style.overflow = 'hidden';
+    const close = () => setOpenOnPath(null);
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && close();
+    const desktop = window.matchMedia('(min-width: 1024px)');
+    const onDesktop = (e: MediaQueryListEvent) => e.matches && close();
     window.addEventListener('keydown', onKey);
+    desktop.addEventListener('change', onDesktop);
     return () => {
-      document.body.style.overflow = previous;
+      html.style.overflow = previous;
       window.removeEventListener('keydown', onKey);
+      desktop.removeEventListener('change', onDesktop);
     };
   }, [open]);
 
@@ -102,7 +123,7 @@ export default function Header() {
         </div>
       </div>
 
-      <header className={`sticky top-0 z-50 border-b bg-white/95 backdrop-blur transition-shadow ${scrolled ? 'border-gray-200 shadow-[0_4px_20px_-12px_rgba(0,0,0,0.25)]' : 'border-transparent'}`}>
+      <header ref={headerRef} className={`sticky top-0 z-50 border-b bg-white/95 backdrop-blur transition-shadow ${scrolled ? 'border-gray-200 shadow-[0_4px_20px_-12px_rgba(0,0,0,0.25)]' : 'border-transparent'}`}>
         <nav className="container mx-auto flex h-16 items-center justify-between gap-4 px-4 md:h-[72px] md:px-6" aria-label="Main">
           <Logo />
 
@@ -158,8 +179,11 @@ export default function Header() {
       {/* Mobile menu */}
         <div
           id="mobile-menu"
-          hidden={!open}
-          className="fixed inset-x-0 bottom-0 top-16 z-50 overflow-y-auto border-t border-gray-100 bg-white lg:hidden"
+          inert={!open}
+          style={{ top: headerBottom }}
+          className={`fixed inset-x-0 bottom-0 z-50 overflow-y-auto overscroll-contain border-t border-gray-100 bg-white transition-[opacity,transform,visibility] duration-200 ease-out lg:hidden ${
+            open ? 'visible translate-y-0 opacity-100' : 'invisible -translate-y-2 opacity-0'
+          }`}
         >
           <ul className="container mx-auto px-4 py-3">
             {NAV_LINKS.map(({ label, href }) => (
