@@ -1,11 +1,12 @@
 import Image from "next/image";
-import type { Metadata } from "next";
 import FooterSection from "@/components/FooterSection";
+import { pageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "About Us",
-  description: "Learn about Kalai Safaris — a boating safari company offering unforgettable cruise experiences on the mighty Zambezi River above Victoria Falls, Zimbabwe.",
-};
+export const metadata = pageMetadata(
+  "About Us",
+  "Learn about Kalai Safaris — a boating safari company offering unforgettable cruise experiences on the mighty Zambezi River above Victoria Falls, Zimbabwe.",
+  "/about",
+);
 
 export default function AboutPage() {
   return (
