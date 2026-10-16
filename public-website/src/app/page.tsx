@@ -4,9 +4,21 @@ import IntroSection from "@/components/IntroSection";
 import PricingSection from "@/components/PricingSection";
 import ReservationCTA from "@/components/ReservationCTA";
 import FooterSection from "@/components/FooterSection";
+import type { Metadata } from "next";
 import { SITE } from "@/lib/site";
+import { SITE_URL } from "@/lib/seo";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://kalaisafaris.com";
+export const metadata: Metadata = {
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "Kalai Safaris",
+    locale: "en_GB",
+    url: "/",
+    title: "Kalai Safaris — Zambezi River cruises above Victoria Falls",
+    description: "Sunrise, lunch and sunset cruises on the Zambezi River above Victoria Falls. Book online and pay by card or mobile money.",
+  },
+};
 
 // Structured data so search engines and travel sites can read who we are,
 // where we operate and how to reach us. Facts only — no ratings or reviews.

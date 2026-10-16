@@ -3,6 +3,7 @@ import { Outfit } from "next/font/google";
 
 import "./globals.css";
 import Header from "@/components/Header";
+import { SITE_URL } from "@/lib/seo";
 import WhatsAppButton from "@/components/WhatsAppButton";
 
 const outfit = Outfit({
@@ -12,7 +13,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://kalaisafaris.com"),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: "Kalai Safaris — Zambezi River Cruises | Victoria Falls",
     template: "%s | Kalai Safaris",
@@ -38,25 +39,19 @@ export const metadata: Metadata = {
       { rel: "manifest", url: "/site.webmanifest" },
     ],
   },
+  // Preview image: app/opengraph-image.tsx (and one per route). Don't add
+  // `images` here — a static file would override the generated cards.
   openGraph: {
     type: "website",
     siteName: "Kalai Safaris",
-    title: "Kalai Safaris — Zambezi River Cruises",
-    description: "Experience peaceful and adventurous cruises on the mighty Zambezi River above Victoria Falls.",
-    images: [
-      {
-        url: "/og-image.jpg",
-        width: 1200,
-        height: 630,
-        alt: "Kalai Safaris — Zambezi River Cruises",
-      },
-    ],
+    locale: "en_GB",
+    title: "Kalai Safaris — Zambezi River cruises above Victoria Falls",
+    description: "Sunrise, lunch and sunset cruises on the Zambezi River above Victoria Falls. Book online and pay by card or mobile money.",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Kalai Safaris — Zambezi River Cruises",
-    description: "Affordable safari cruises on the mighty Zambezi River above Victoria Falls.",
-    images: ["/og-image.jpg"],
+    title: "Kalai Safaris — Zambezi River cruises above Victoria Falls",
+    description: "Sunrise, lunch and sunset cruises on the Zambezi River above Victoria Falls. Book online and pay by card or mobile money.",
   },
 };
 
