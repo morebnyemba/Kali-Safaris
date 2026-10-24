@@ -251,8 +251,9 @@ class Booking(models.Model):
     start_date = models.DateField(_("Tour Start Date"))
     start_time = models.TimeField(
         _("Departure Time"), null=True, blank=True,
-        help_text=_("Chosen departure, for tours with fixed departure times (e.g. 06:00 sunrise cruise)."),
+        help_text=_("Chosen time slot start, for tours with time slots (e.g. 06:00 sunrise cruise)."),
     )
+    end_time = models.TimeField(_("Slot End Time"), null=True, blank=True)
     end_date = models.DateField(_("Tour End Date"))
 
     number_of_adults = models.PositiveIntegerField(_("Number of Adults"), default=1)
@@ -448,6 +449,14 @@ class Booking(models.Model):
         self.amount_paid = self.get_total_paid()
         if commit:
             self.save(update_fields=['amount_paid'])
+
+    @property
+    def departure_display(self) -> str:
+        """'08:00–10:00', '16:00', or '' for bookings without a time slot."""
+        if not self.start_time:
+            return ''
+        start = self.start_time.strftime('%H:%M')
+        return f"{start}–{self.end_time.strftime('%H:%M')}" if self.end_time else start
 
     def update_to_shared_reference(self, commit=True):
         """

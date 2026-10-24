@@ -142,7 +142,7 @@ def collect_manifest_groups(booking_date):
             'name': booking_group_name(booking, travelers),
             'reference': booking.booking_reference,
             # Departure time is part of the label so the 06:00 and 16:00 groups of one tour are told apart.
-            'tour': f"{booking.tour_name} · {booking.start_time.strftime('%H:%M')}" if booking.start_time else booking.tour_name,
+            'tour': f"{booking.tour_name} · {booking.departure_display}" if booking.start_time else booking.tour_name,
             'departs': booking.start_time,
             'status': booking.get_payment_status_display(),
             'travelers': travelers,

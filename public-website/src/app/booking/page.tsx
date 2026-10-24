@@ -342,7 +342,7 @@ function BookingPageContent() {
             onClose={handleBackToSelect}
             cruiseType={selectedCruise}
             amountUsd={selectedAmountUsd}
-            departureTimes={tours.find((t) => t.name.toLowerCase() === selectedCruise.toLowerCase())?.departure_times ?? []}
+            timeSlots={tours.find((t) => t.name.toLowerCase() === selectedCruise.toLowerCase())?.time_slots}
             initialPaymentMode={queryPaymentMode === 'card' || queryPaymentMode === 'ecocash' || queryPaymentMode === 'omari' ? queryPaymentMode : undefined}
             initialBookingReference={queryBookingReference || undefined}
             // Only an existing booking's URL amount is trustworthy (the backend

@@ -317,7 +317,7 @@ class BookingStatsAPIView(BaseAnalyticsView):
             key = (booking.start_date, booking.start_time, booking.tour_name)
             row = departures.setdefault(key, {
                 'date': booking.start_date.isoformat(), 'tour_name': booking.tour_name,
-                'time': booking.start_time.strftime('%H:%M') if booking.start_time else None,
+                'time': booking.departure_display or None,
                 'bookings': 0, 'passengers': 0, 'held_bookings': 0,
             })
             if booking.payment_status == awaiting:

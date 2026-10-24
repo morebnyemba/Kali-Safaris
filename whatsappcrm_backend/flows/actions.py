@@ -432,3 +432,71 @@ def save_travelers_to_booking(contact, context: dict, params: dict) -> dict:
         logger.error(f"Error saving travelers to booking: {e}", exc_info=True)
     
     return context
+
+
+# --- Departure time slots (WhatsApp booking flow) -------------------------
+
+def _slot_row_id(slot) -> str:
+    return f"slot_{slot.start_time.strftime('%H%M')}"
+
+
+def _departure_context(slot) -> dict:
+    return {
+        'start_time': slot.start_time.strftime('%H:%M'),
+        'end_time': slot.end_time.strftime('%H:%M') if slot.end_time else '',
+        'departure_display': slot.display,
+    }
+
+
+@register_flow_action('load_departure_slots')
+def load_departure_slots(contact, context: dict, params: dict) -> dict:
+    """
+    Works out the time-slot step for the chosen tour and date. Sets
+    `departure_state` to one of:
+      'none'   - tour has no time slots: book by date only
+      'chosen' - the tour has a single slot and it's still open: picked for them
+      'ask'    - show `departure_rows` (WhatsApp list rows) and let them choose
+      'full'   - every slot that day has already left: pick another date
+    Uses the same rules as website checkout (products_and_services.departures).
+    """
+    from django.utils.dateparse import parse_date
+    from products_and_services.departures import open_slots
+    from products_and_services.models import Tour
+
+    result = {'departure_state': 'none', 'departure_rows': [], 'start_time': '', 'end_time': '', 'departure_display': ''}
+    tour = Tour.objects.filter(pk=params.get('tour_id')).prefetch_related('time_slots').first()
+    on_date = parse_date(str(params.get('start_date') or '')[:10])
+    if not tour or not on_date or not tour.active_time_slots():
+        return result
+
+    available = open_slots(tour, on_date)
+    if not available:
+        result['departure_state'] = 'full'
+    elif len(tour.active_time_slots()) == 1:
+        result.update(departure_state='chosen', **_departure_context(available[0]))
+    else:
+        result['departure_state'] = 'ask'
+        # WhatsApp list rows: title ≤ 24 chars, description ≤ 72, at most 10 rows.
+        result['departure_rows'] = [
+            {'id': _slot_row_id(s), 'title': s.time_range[:24], 'description': s.label[:72]}
+            for s in available[:10]
+        ]
+    return result
+
+
+@register_flow_action('select_departure_slot')
+def select_departure_slot(contact, context: dict, params: dict) -> dict:
+    """Validates the list reply against the still-open slots; sets start_time/end_time or departure_valid=False."""
+    from django.utils.dateparse import parse_date
+    from products_and_services.departures import open_slots
+    from products_and_services.models import Tour
+
+    tour = Tour.objects.filter(pk=params.get('tour_id')).prefetch_related('time_slots').first()
+    on_date = parse_date(str(params.get('start_date') or '')[:10])
+    reply = str(params.get('reply_id') or '')
+    slot = None
+    if tour and on_date:
+        slot = next((s for s in open_slots(tour, on_date) if _slot_row_id(s) == reply), None)
+    if slot is None:
+        return {'departure_valid': False}
+    return {'departure_valid': True, **_departure_context(slot)}

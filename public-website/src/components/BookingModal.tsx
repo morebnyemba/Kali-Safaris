@@ -11,14 +11,15 @@ import {
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
 import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
+import type { TimeSlot } from '@/lib/tours';
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   cruiseType: string;
   amountUsd: number;
-  /** "HH:MM" departures for this tour; when non-empty the customer must pick one. */
-  departureTimes?: string[];
+  /** Admin-defined departures for this tour; when non-empty the customer must pick one. */
+  timeSlots?: TimeSlot[];
   initialPaymentMode?: PaymentMode;
   initialBookingReference?: string;
   fixedAmountUsd?: number;
@@ -207,7 +208,7 @@ export default function BookingModal({
   onClose,
   cruiseType,
   amountUsd,
-  departureTimes = [],
+  timeSlots,
   initialPaymentMode,
   initialBookingReference,
   fixedAmountUsd,
@@ -604,11 +605,13 @@ export default function BookingModal({
 
   // Departures that have already left today can't be booked (the server
   // enforces the same rule in Victoria Falls time).
+  const slots = timeSlots ?? [];
   const vfNow = victoriaFallsNow();
-  const isDeparturePast = (time: string) => selectedDate === vfNow.date && time <= vfNow.time;
-  const openDepartures = departureTimes.filter((time) => !isDeparturePast(time));
-  const chosenTime = departureTimes.length === 1 ? departureTimes[0] : selectedTime;
-  const departureTime = openDepartures.includes(chosenTime) ? chosenTime : '';
+  const isSlotPast = (slot: TimeSlot) => selectedDate === vfNow.date && slot.start <= vfNow.time;
+  const openSlots = slots.filter((slot) => !isSlotPast(slot));
+  const chosenStart = slots.length === 1 ? slots[0].start : selectedTime;
+  const chosenSlot = openSlots.find((slot) => slot.start === chosenStart);
+  const slotRange = (slot: TimeSlot) => (slot.end ? `${slot.start}–${slot.end}` : slot.start);
 
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
@@ -619,10 +622,10 @@ export default function BookingModal({
     if (!selectedDate) {
       return 'Select your preferred date.';
     }
-    if (departureTimes.length > 0 && openDepartures.length === 0) {
+    if (slots.length > 0 && openSlots.length === 0) {
       return 'All of today\'s departures have left — please choose another date.';
     }
-    if (departureTimes.length > 0 && !departureTime) {
+    if (slots.length > 0 && !chosenSlot) {
       return 'Choose a departure time.';
     }
 
@@ -710,7 +713,7 @@ export default function BookingModal({
     return {
       tour_name: cruiseType,
       selected_date: selectedDate,
-      ...(departureTime ? { selected_time: departureTime } : {}),
+      ...(chosenSlot ? { selected_time: chosenSlot.start } : {}),
       number_of_people: Number(numberOfPeople || '1'),
       customer: {
         full_name: traveler.fullName.trim(),
@@ -1526,45 +1529,48 @@ export default function BookingModal({
                       </div>
                     </div>
 
-                    {departureTimes.length > 0 && (
+                    {slots.length > 0 && (
                       <fieldset>
                         <legend className={labelBase}>
                           <FaClock className="text-[#E8600A]" size={12} /> Departure Time
                         </legend>
-                        {departureTimes.length === 1 ? (
-                          <p className={`text-sm ${openDepartures.length ? 'text-gray-700' : 'text-red-700'}`}>
-                            {openDepartures.length
-                              ? <>Departs at <span className="font-bold tabular-nums text-gray-900">{departureTimes[0]}</span> from our riverside jetty.</>
-                              : <>Today&apos;s {departureTimes[0]} departure has left — please choose another date.</>}
+                        {slots.length === 1 ? (
+                          <p className={`text-sm ${openSlots.length ? 'text-gray-700' : 'text-red-700'}`}>
+                            {openSlots.length
+                              ? <>Departs <span className="font-bold tabular-nums text-gray-900">{slotRange(slots[0])}</span> from our riverside jetty.</>
+                              : <>Today&apos;s {slots[0].start} departure has left — please choose another date.</>}
                           </p>
                         ) : (
-                          <div role="radiogroup" aria-label="Departure time" className="flex flex-wrap gap-2">
-                            {departureTimes.map((time) => {
-                              const past = isDeparturePast(time);
-                              const active = departureTime === time;
+                          <div role="radiogroup" aria-label="Departure time" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {slots.map((slot) => {
+                              const past = isSlotPast(slot);
+                              const active = chosenSlot?.id === slot.id;
                               return (
                                 <button
-                                  key={time}
+                                  key={slot.id}
                                   type="button"
                                   role="radio"
                                   aria-checked={active}
                                   disabled={past}
-                                  onClick={() => setSelectedTime(time)}
-                                  className={`min-w-[84px] rounded-full border px-4 py-2 text-sm font-bold tabular-nums transition ${
+                                  onClick={() => setSelectedTime(slot.start)}
+                                  className={`rounded-xl border px-3 py-2.5 text-left transition ${
                                     active
                                       ? 'border-[#C8102E] bg-[#C8102E] text-white'
-                                      : 'border-gray-300 bg-white text-gray-800 hover:border-gray-900'
-                                  } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-300 disabled:line-through`}
+                                      : 'border-gray-300 bg-white text-gray-900 hover:border-gray-900'
+                                  } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-300`}
                                 >
-                                  {time}
+                                  <span className={`block text-sm font-bold tabular-nums ${past ? 'line-through' : ''}`}>{slotRange(slot)}</span>
+                                  {slot.label && (
+                                    <span className={`block text-xs ${active ? 'text-white/85' : past ? '' : 'text-gray-500'}`}>{slot.label}</span>
+                                  )}
                                 </button>
                               );
                             })}
                           </div>
                         )}
-                        {selectedDate === vfNow.date && departureTimes.length > 1 && openDepartures.length < departureTimes.length && (
+                        {selectedDate === vfNow.date && slots.length > 1 && openSlots.length < slots.length && (
                           <p className="mt-2 text-xs text-gray-500">
-                            {openDepartures.length ? 'Earlier departures today have already left.' : 'All of today\'s departures have left — please choose another date.'}
+                            {openSlots.length ? 'Earlier departures today have already left.' : 'All of today\'s departures have left — please choose another date.'}
                           </p>
                         )}
                       </fieldset>
@@ -2126,10 +2132,10 @@ export default function BookingModal({
                         <span className="font-medium text-gray-800">{selectedDate}</span>
                       </div>
                     )}
-                    {departureTime && (
+                    {chosenSlot && (
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5"><FaClock size={12} className="text-[#E8600A]" /> Departs</span>
-                        <span className="font-medium tabular-nums text-gray-800">{departureTime}</span>
+                        <span className="font-medium tabular-nums text-gray-800">{slotRange(chosenSlot)}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between">

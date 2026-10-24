@@ -231,7 +231,7 @@ class BookingSerializer(serializers.ModelSerializer):
         model = Booking
         fields = [
             'id', 'booking_reference', 'customer', 'customer_id', 'tour', 'tour_id', 'tour_name',
-            'start_date', 'start_time', 'end_date', 'number_of_adults', 'number_of_children',
+            'start_date', 'start_time', 'end_time', 'end_date', 'number_of_adults', 'number_of_children',
             'total_amount', 'amount_paid', 'payment_status', 'payment_status_display',
             'held_payment_status', 'traveler_count', 'traveler_details_problems',
             'source', 'source_display', 'notes', 'assigned_agent', 'assigned_agent_id',

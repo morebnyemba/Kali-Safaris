@@ -1,25 +1,6 @@
-import re
-from datetime import time
-
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
-
-_TIME_RE = re.compile(r'^([01]?\d|2[0-3]):([0-5]\d)$')
-
-
-def parse_departure_times(raw: str) -> list[time]:
-    """'16:00, 6:00 ,12:00' -> [06:00, 12:00, 16:00]. Raises ValueError on a bad entry."""
-    times = set()
-    for part in (raw or '').replace(';', ',').split(','):
-        part = part.strip()
-        if not part:
-            continue
-        match = _TIME_RE.match(part)
-        if not match:
-            raise ValueError(part)
-        times.add(time(int(match.group(1)), int(match.group(2))))
-    return sorted(times)
 
 class Tour(models.Model):
     """
@@ -77,13 +58,6 @@ class Tour(models.Model):
     )
     
     location = models.CharField(_("Location / Region"), max_length=255, blank=True)
-    departure_times = models.CharField(
-        _("Departure Times"),
-        max_length=200,
-        blank=True,
-        help_text=_("24-hour times customers can choose from, comma-separated, e.g. \"06:00, 12:00, 16:00\". "
-                    "Leave blank for trips with no fixed departure (day trips, venue hire)."),
-    )
     image = models.ImageField(_("Tour Image"), upload_to='tours/', blank=True, null=True, help_text=_("A representative image for the tour."))
     is_active = models.BooleanField(_("Is Active"), default=True, help_text=_("Is this tour currently available for booking?"))
 
@@ -120,19 +94,12 @@ class Tour(models.Model):
             return max(1, (self.duration_value + self.HOURS_PER_DAY - 1) // self.HOURS_PER_DAY)
         return self.duration_value
     
-    def get_departure_times(self) -> list[time]:
-        try:
-            return parse_departure_times(self.departure_times)
-        except ValueError:
-            return []
+    def active_time_slots(self):
+        """Bookable departure slots, earliest first. Empty for tours without fixed departures."""
+        return [slot for slot in self.time_slots.all() if slot.is_active]
 
     def clean(self):
-        """Validate duration values and normalise departure times."""
-        try:
-            self.departure_times = ', '.join(t.strftime('%H:%M') for t in parse_departure_times(self.departure_times))
-        except ValueError as exc:
-            raise ValidationError({'departure_times': f'"{exc}" is not a valid 24-hour time (use HH:MM, e.g. 06:00).'})
-
+        """Validate duration values."""
         if self.duration_value <= 0:
             raise ValidationError({'duration_value': 'Duration value must be greater than 0.'})
         
@@ -162,6 +129,46 @@ class Tour(models.Model):
         ordering = ['name']
         verbose_name = _("Tour Package")
         verbose_name_plural = _("Tour Packages")
+
+
+class TourTimeSlot(models.Model):
+    """
+    A departure customers can book, e.g. 08:00–10:00 "Sunrise". Tours with no
+    slots (day trips, venue hire) are booked by date only. Bookings copy the
+    slot's times rather than linking to it, so editing a slot later never
+    rewrites past bookings.
+    """
+    tour = models.ForeignKey(Tour, on_delete=models.CASCADE, related_name='time_slots', verbose_name=_("Tour"))
+    start_time = models.TimeField(_("Starts"))
+    end_time = models.TimeField(_("Ends"), null=True, blank=True,
+                                help_text=_("Optional. Leave blank for open-ended trips such as \"until after sunset\"."))
+    label = models.CharField(_("Label"), max_length=40, blank=True,
+                             help_text=_("Optional name shown to customers, e.g. \"Sunrise\" or \"Breakfast\"."))
+    is_active = models.BooleanField(_("Bookable"), default=True)
+
+    class Meta:
+        ordering = ['start_time']
+        verbose_name = _("Time Slot")
+        verbose_name_plural = _("Time Slots")
+        constraints = [
+            models.UniqueConstraint(fields=['tour', 'start_time'], name='unique_tour_slot_start'),
+        ]
+
+    def clean(self):
+        if self.end_time and self.start_time and self.end_time <= self.start_time:
+            raise ValidationError({'end_time': _("The end time must be after the start time.")})
+
+    @property
+    def time_range(self) -> str:
+        start = self.start_time.strftime('%H:%M')
+        return f"{start}–{self.end_time.strftime('%H:%M')}" if self.end_time else start
+
+    @property
+    def display(self) -> str:
+        return f"{self.label} · {self.time_range}" if self.label else self.time_range
+
+    def __str__(self):
+        return f"{self.tour.name} {self.display}"
 
 
 class SeasonalTourPrice(models.Model):
