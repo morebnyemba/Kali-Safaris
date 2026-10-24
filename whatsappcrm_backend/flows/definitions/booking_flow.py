@@ -233,10 +233,74 @@ BOOKING_FLOW = {
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "date_confirmation"}
             },
             "transitions": [
-                {"to_step": "query_seasonal_pricing", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_dates"}},
+                {"to_step": "load_departure_slots", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_dates"}},
                 {"to_step": "query_date_picker_whatsapp_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_dates"}},
+                {"to_step": "load_departure_slots", "priority": 3, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        # Time slots: tours with admin-defined slots (e.g. 08:00–10:00) ask which
+        # departure; tours without slots skip straight to pricing. Same rules as
+        # website checkout (products_and_services.departures).
+        {
+            "name": "load_departure_slots",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "load_departure_slots",
+                    "params_template": {"tour_id": "{{ tour_id }}", "start_date": "{{ start_date }}"}
+                }]
+            },
+            "transitions": [
+                {"to_step": "ask_departure_time", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "departure_state", "value": "ask"}},
+                {"to_step": "departures_full", "priority": 2, "condition_config": {"type": "variable_equals", "variable_name": "departure_state", "value": "full"}},
                 {"to_step": "query_seasonal_pricing", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
+        },
+        {
+            "name": "ask_departure_time",
+            "type": "question",
+            "config": {
+                "message_config": {
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "list",
+                        "header": {"type": "text", "text": "Departure time"},
+                        "body": {"text": "Which departure would you like for *{{ tour_name }}* on *{{ start_date }}*?"},
+                        "footer": {"text": "All cruises leave from our riverside jetty."},
+                        "action": {
+                            "button": "Choose a time",
+                            "sections": [{"title": "Departures", "rows": "{{ departure_rows | tojson }}"}]
+                        }
+                    }
+                },
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "departure_reply"},
+                "fallback_config": {"re_prompt_message_text": "Please tap *Choose a time* and pick one of the departures."}
+            },
+            "transitions": [{"to_step": "process_departure_selection", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "process_departure_selection",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "select_departure_slot",
+                    "params_template": {"tour_id": "{{ tour_id }}", "start_date": "{{ start_date }}", "reply_id": "{{ departure_reply }}"}
+                }]
+            },
+            "transitions": [
+                {"to_step": "query_seasonal_pricing", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "departure_valid", "value": "True"}},
+                # The slot left (or became unavailable) while they were choosing: show the current list again.
+                {"to_step": "load_departure_slots", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "departures_full",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "Sorry, all *{{ tour_name }}* departures on *{{ start_date }}* have already left. Please choose another date."}
+            },
+            "transitions": [{"to_step": "query_date_picker_whatsapp_flow", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "query_seasonal_pricing",
@@ -693,7 +757,7 @@ BOOKING_FLOW = {
                     "interactive": {
                         "type": "button",
                         "body": {
-                            "text": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n\n*Pricing:*\n- Price per Adult: ${{ '%.2f'|format((price_per_adult or tour_details.0.base_price)|float) }}\n- Price per Child: ${{ '%.2f'|format(((price_per_child or price_per_adult or tour_details.0.base_price))|float) }}\n- Subtotal Adults: ${{ '%.2f'|format(((price_per_adult or tour_details.0.base_price)|float * (num_adults|int))) }}\n- Subtotal Children: ${{ '%.2f'|format((((price_per_child or price_per_adult or tour_details.0.base_price)|float) * (num_children|int))) }}\n\n*Travelers:*\n{% set valid_travelers = travelers_details | selectattr('name', 'defined') | selectattr('name') | list %}{% for t in valid_travelers[:10] %}\n- {{ t.name }} (Age: {{ t.age }}){% endfor %}{% if valid_travelers|length > 10 %}\n... and {{ valid_travelers|length - 10 }} more traveler(s){% endif %}\n\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"
+                            "text": "Please review your booking details:\n\n*Tour:* {{ tour_name }}\n*Dates:* {{ start_date }} to {{ end_date }}\n{% if departure_display %}*Departure:* {{ departure_display }}\n{% endif %}*Guests:* {{ num_adults }} Adult(s), {{ num_children }} Child(ren)\n\n*Pricing:*\n- Price per Adult: ${{ '%.2f'|format((price_per_adult or tour_details.0.base_price)|float) }}\n- Price per Child: ${{ '%.2f'|format(((price_per_child or price_per_adult or tour_details.0.base_price))|float) }}\n- Subtotal Adults: ${{ '%.2f'|format(((price_per_adult or tour_details.0.base_price)|float * (num_adults|int))) }}\n- Subtotal Children: ${{ '%.2f'|format((((price_per_child or price_per_adult or tour_details.0.base_price)|float) * (num_children|int))) }}\n\n*Travelers:*\n{% set valid_travelers = travelers_details | selectattr('name', 'defined') | selectattr('name') | list %}{% for t in valid_travelers[:10] %}\n- {{ t.name }} (Age: {{ t.age }}){% endfor %}{% if valid_travelers|length > 10 %}\n... and {{ valid_travelers|length - 10 }} more traveler(s){% endif %}\n\n*Email:* {{ inquiry_email }}\n*Total Cost:* *${{ '%.2f'|format(total_cost|float) }}*\n\nIs everything correct?"
                         },
                         "action": {
                             "buttons": [
@@ -845,6 +909,8 @@ BOOKING_FLOW = {
                         "tour_name": "{{ tour_name }}",
                         "tour_id": "{{ tour_id }}",
                         "start_date": "{{ start_date | parse_date }}",
+                        "start_time": "{{ start_time }}",
+                        "end_time": "{{ end_time }}",
                         "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
@@ -1055,6 +1121,8 @@ BOOKING_FLOW = {
                         "tour_id": "{{ tour_id }}",
                         "tour_name": "{{ tour_name }}",
                         "start_date": "{{ start_date | parse_date }}",
+                        "start_time": "{{ start_time }}",
+                        "end_time": "{{ end_time }}",
                         "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
@@ -1125,6 +1193,8 @@ BOOKING_FLOW = {
                         "tour_id": "{{ tour_id }}",
                         "tour_name": "{{ tour_name }}",
                         "start_date": "{{ start_date | parse_date }}",
+                        "start_time": "{{ start_time }}",
+                        "end_time": "{{ end_time }}",
                         "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
@@ -1297,6 +1367,8 @@ BOOKING_FLOW = {
                         "tour_name": "{{ tour_name }}",
                         "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
                         "start_date": "{{ start_date | parse_date }}",
+                        "start_time": "{{ start_time }}",
+                        "end_time": "{{ end_time }}",
                         "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",
@@ -1346,6 +1418,8 @@ BOOKING_FLOW = {
                         "tour_name": "{{ tour_name }}",
                         "tour_id": "{{ tour_id }}",  # Sets the tour ForeignKey by ID (must be existing Tour PK)
                         "start_date": "{{ start_date | parse_date }}",
+                        "start_time": "{{ start_time }}",
+                        "end_time": "{{ end_time }}",
                         "end_date": "{{ end_date | parse_date }}",
                         "number_of_adults": "{{ num_adults }}",
                         "number_of_children": "{{ num_children }}",

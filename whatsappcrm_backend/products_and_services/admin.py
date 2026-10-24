@@ -1,12 +1,20 @@
 from django.contrib import admin
-from .models import Tour, SeasonalTourPrice
+from .models import Tour, SeasonalTourPrice, TourTimeSlot
+
+
+class TourTimeSlotInline(admin.TabularInline):
+    model = TourTimeSlot
+    extra = 1
+    fields = ('start_time', 'end_time', 'label', 'is_active')
+    verbose_name_plural = 'Time slots — customers must pick one when booking (leave empty for trips with no fixed time)'
+
 
 @admin.register(Tour)
 class TourAdmin(admin.ModelAdmin):
     """
     Admin interface for the Tour model.
     """
-    list_display = ('name', 'category', 'location', 'get_duration_display', 'base_price', 'is_active')
+    list_display = ('name', 'category', 'location', 'get_duration_display', 'get_time_slots', 'base_price', 'is_active')
     list_filter = ('category', 'is_active', 'location', 'duration_unit')
     search_fields = ('name', 'description', 'location')
     list_editable = ('base_price', 'is_active')
@@ -23,6 +31,15 @@ class TourAdmin(admin.ModelAdmin):
         }),
     )
     
+    inlines = [TourTimeSlotInline]
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).prefetch_related('time_slots')
+
+    @admin.display(description='Time slots')
+    def get_time_slots(self, obj):
+        return ', '.join(s.time_range for s in obj.active_time_slots()) or '—'
+
     def get_duration_display(self, obj):
         """Display duration in a human-readable format."""
         return obj.get_duration_display_text()

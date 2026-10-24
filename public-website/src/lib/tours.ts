@@ -1,3 +1,13 @@
+export interface TimeSlot {
+  id: number;
+  /** "HH:MM", Victoria Falls time — also what checkout sends as selected_time. */
+  start: string;
+  end: string | null;
+  label: string;
+  /** e.g. "Sunrise · 06:00–08:00" */
+  display: string;
+}
+
 export interface Tour {
   id: number;
   name: string;
@@ -13,6 +23,8 @@ export interface Tour {
   duration_days: number;
   duration_display: string;
   image_url: string | null;
+  /** Admin-defined departures to choose from; empty when the trip has no fixed time. */
+  time_slots: TimeSlot[];
 }
 
 interface ToursResponse {

@@ -94,6 +94,10 @@ class Tour(models.Model):
             return max(1, (self.duration_value + self.HOURS_PER_DAY - 1) // self.HOURS_PER_DAY)
         return self.duration_value
     
+    def active_time_slots(self):
+        """Bookable departure slots, earliest first. Empty for tours without fixed departures."""
+        return [slot for slot in self.time_slots.all() if slot.is_active]
+
     def clean(self):
         """Validate duration values."""
         if self.duration_value <= 0:
@@ -125,6 +129,46 @@ class Tour(models.Model):
         ordering = ['name']
         verbose_name = _("Tour Package")
         verbose_name_plural = _("Tour Packages")
+
+
+class TourTimeSlot(models.Model):
+    """
+    A departure customers can book, e.g. 08:00–10:00 "Sunrise". Tours with no
+    slots (day trips, venue hire) are booked by date only. Bookings copy the
+    slot's times rather than linking to it, so editing a slot later never
+    rewrites past bookings.
+    """
+    tour = models.ForeignKey(Tour, on_delete=models.CASCADE, related_name='time_slots', verbose_name=_("Tour"))
+    start_time = models.TimeField(_("Starts"))
+    end_time = models.TimeField(_("Ends"), null=True, blank=True,
+                                help_text=_("Optional. Leave blank for open-ended trips such as \"until after sunset\"."))
+    label = models.CharField(_("Label"), max_length=40, blank=True,
+                             help_text=_("Optional name shown to customers, e.g. \"Sunrise\" or \"Breakfast\"."))
+    is_active = models.BooleanField(_("Bookable"), default=True)
+
+    class Meta:
+        ordering = ['start_time']
+        verbose_name = _("Time Slot")
+        verbose_name_plural = _("Time Slots")
+        constraints = [
+            models.UniqueConstraint(fields=['tour', 'start_time'], name='unique_tour_slot_start'),
+        ]
+
+    def clean(self):
+        if self.end_time and self.start_time and self.end_time <= self.start_time:
+            raise ValidationError({'end_time': _("The end time must be after the start time.")})
+
+    @property
+    def time_range(self) -> str:
+        start = self.start_time.strftime('%H:%M')
+        return f"{start}–{self.end_time.strftime('%H:%M')}" if self.end_time else start
+
+    @property
+    def display(self) -> str:
+        return f"{self.label} · {self.time_range}" if self.label else self.time_range
+
+    def __str__(self):
+        return f"{self.tour.name} {self.display}"
 
 
 class SeasonalTourPrice(models.Model):

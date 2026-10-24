@@ -35,6 +35,7 @@ from django.core.files.base import ContentFile
 from customer_data.models import Booking, Payment, Traveler, CustomerProfile
 from customer_data.traveler_validation import validate_traveler_list
 from conversations.models import Contact
+from products_and_services.departures import open_slots, parse_time
 from products_and_services.models import Tour, resolve_tour_price
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
@@ -452,6 +453,38 @@ def _resolve_web_customer_profile(name: str, email: str, phone: str, country: st
         return None
 
 
+def _validate_departure(tour: Tour, start_date: date, raw_time: Any):
+    """
+    The time slot the customer chose, checked against the tour's active slots
+    and the clock (Africa/Harare). Returns the slot, or None for tours without
+    time slots (day trips, venue hire), which take no time.
+
+    Raises PricingError with a customer-facing message.
+    """
+    now = timezone.localtime()
+    if start_date < now.date():
+        raise PricingError("That date has already passed — please choose another date.")
+
+    slots = tour.active_time_slots()
+    if not slots:
+        return None
+
+    available = open_slots(tour, start_date, now)
+    if not available:
+        raise PricingError(f"All {tour.name} departures on {start_date.strftime('%d %b')} have left — please choose another date.")
+
+    chosen = parse_time(raw_time)
+    slot = next((s for s in slots if s.start_time == chosen), None)
+    if slot is None:
+        choices = ', '.join(s.time_range for s in available)
+        raise PricingError(f"Choose a departure time for {tour.name} ({choices}).")
+    if slot not in available:
+        raise PricingError(
+            f"The {slot.time_range} departure on {start_date.strftime('%d %b')} has already left — "
+            "please choose a later time or another date."
+        )
+    return slot
+
 def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) -> tuple[Optional[Booking], Decimal]:
     """
     Resolve a booking by reference, or create a website draft booking when
@@ -511,6 +544,8 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
     if not tour:
         raise PricingError(f"Unknown or inactive tour: {tour_name}")
 
+    slot = _validate_departure(tour, start_date, details.get('selected_time') or payload.get('selected_time'))
+
     # Priced the same way the public tour listing prices it (today's date,
     # not the future trip date) — so this matches whatever price the
     # customer actually saw on the booking screen.
@@ -561,6 +596,8 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
                 tour=tour,
                 tour_name=str(tour_name).strip(),
                 start_date=start_date,
+                start_time=slot.start_time if slot else None,
+                end_time=slot.end_time if slot else None,
                 end_date=start_date,
                 number_of_adults=adults,
                 number_of_children=0,

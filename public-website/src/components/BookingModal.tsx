@@ -7,16 +7,19 @@ import {
   FaCcAmex, FaCcDinersClub, FaCcDiscover, FaCcJcb, FaCcMastercard, FaCcVisa, FaCreditCard,
   FaLock, FaShieldAlt, FaCheckCircle,
   FaUser, FaEnvelope, FaPhone, FaGlobeAmericas, FaCalendarAlt, FaUsers, FaMobileAlt, FaWallet,
-  FaIdCard, FaNotesMedical, FaFileUpload,
+  FaIdCard, FaNotesMedical, FaFileUpload, FaClock,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
 import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
+import type { TimeSlot } from '@/lib/tours';
 
 interface BookingModalProps {
   isOpen: boolean;
   onClose: () => void;
   cruiseType: string;
   amountUsd: number;
+  /** Admin-defined departures for this tour; when non-empty the customer must pick one. */
+  timeSlots?: TimeSlot[];
   initialPaymentMode?: PaymentMode;
   initialBookingReference?: string;
   fixedAmountUsd?: number;
@@ -153,6 +156,17 @@ const PENDING_BOOKING_REFERENCE_KEY = 'kalai_pending_booking_reference';
 const RETURN_TO_WHATSAPP_KEY = 'kalai_return_to_whatsapp';
 const WHATSAPP_NUMBER = '263712629336';
 
+/** Today's date and time in Victoria Falls, whatever the visitor's own timezone is. */
+const victoriaFallsNow = () => {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Africa/Harare', year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+    }).formatToParts(new Date()).map((p) => [p.type, p.value]),
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+};
+
 const getSessionItem = (key: string) => {
   if (typeof window === 'undefined') {
     return '';
@@ -194,6 +208,7 @@ export default function BookingModal({
   onClose,
   cruiseType,
   amountUsd,
+  timeSlots,
   initialPaymentMode,
   initialBookingReference,
   fixedAmountUsd,
@@ -202,6 +217,7 @@ export default function BookingModal({
   onCheckoutStepChange,
 }: BookingModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
   const [numberOfPeople, setNumberOfPeople] = useState('1');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('ecocash');
   const [ecocash, setEcocash] = useState<EcoCashPaymentState>({ msisdn: '' });
@@ -587,6 +603,16 @@ export default function BookingModal({
 
   const totalAmount = fixedAmountUsd ?? (Number(numberOfPeople || '1') * amountUsd);
 
+  // Departures that have already left today can't be booked (the server
+  // enforces the same rule in Victoria Falls time).
+  const slots = timeSlots ?? [];
+  const vfNow = victoriaFallsNow();
+  const isSlotPast = (slot: TimeSlot) => selectedDate === vfNow.date && slot.start <= vfNow.time;
+  const openSlots = slots.filter((slot) => !isSlotPast(slot));
+  const chosenStart = slots.length === 1 ? slots[0].start : selectedTime;
+  const chosenSlot = openSlots.find((slot) => slot.start === chosenStart);
+  const slotRange = (slot: TimeSlot) => (slot.end ? `${slot.start}–${slot.end}` : slot.start);
+
   const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   const validateBookingDetails = () => {
@@ -595,6 +621,12 @@ export default function BookingModal({
     }
     if (!selectedDate) {
       return 'Select your preferred date.';
+    }
+    if (slots.length > 0 && openSlots.length === 0) {
+      return 'All of today\'s departures have left — please choose another date.';
+    }
+    if (slots.length > 0 && !chosenSlot) {
+      return 'Choose a departure time.';
     }
 
     const people = Number(numberOfPeople || '0');
@@ -681,6 +713,7 @@ export default function BookingModal({
     return {
       tour_name: cruiseType,
       selected_date: selectedDate,
+      ...(chosenSlot ? { selected_time: chosenSlot.start } : {}),
       number_of_people: Number(numberOfPeople || '1'),
       customer: {
         full_name: traveler.fullName.trim(),
@@ -1476,7 +1509,7 @@ export default function BookingModal({
                           ref={detailsDateInputRef}
                           value={selectedDate}
                           onChange={(e) => setSelectedDate(e.target.value)}
-                          min={new Date().toISOString().split('T')[0]}
+                          min={vfNow.date}
                           className={inputBase}
                         />
                       </div>
@@ -1495,6 +1528,53 @@ export default function BookingModal({
                         />
                       </div>
                     </div>
+
+                    {slots.length > 0 && (
+                      <fieldset>
+                        <legend className={labelBase}>
+                          <FaClock className="text-[#E8600A]" size={12} /> Departure Time
+                        </legend>
+                        {slots.length === 1 ? (
+                          <p className={`text-sm ${openSlots.length ? 'text-gray-700' : 'text-red-700'}`}>
+                            {openSlots.length
+                              ? <>Departs <span className="font-bold tabular-nums text-gray-900">{slotRange(slots[0])}</span> from our riverside jetty.</>
+                              : <>Today&apos;s {slots[0].start} departure has left — please choose another date.</>}
+                          </p>
+                        ) : (
+                          <div role="radiogroup" aria-label="Departure time" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                            {slots.map((slot) => {
+                              const past = isSlotPast(slot);
+                              const active = chosenSlot?.id === slot.id;
+                              return (
+                                <button
+                                  key={slot.id}
+                                  type="button"
+                                  role="radio"
+                                  aria-checked={active}
+                                  disabled={past}
+                                  onClick={() => setSelectedTime(slot.start)}
+                                  className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                                    active
+                                      ? 'border-[#C8102E] bg-[#C8102E] text-white'
+                                      : 'border-gray-300 bg-white text-gray-900 hover:border-gray-900'
+                                  } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-300`}
+                                >
+                                  <span className={`block text-sm font-bold tabular-nums ${past ? 'line-through' : ''}`}>{slotRange(slot)}</span>
+                                  {slot.label && (
+                                    <span className={`block text-xs ${active ? 'text-white/85' : past ? '' : 'text-gray-500'}`}>{slot.label}</span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {selectedDate === vfNow.date && slots.length > 1 && openSlots.length < slots.length && (
+                          <p className="mt-2 text-xs text-gray-500">
+                            {openSlots.length ? 'Earlier departures today have already left.' : 'All of today\'s departures have left — please choose another date.'}
+                          </p>
+                        )}
+                      </fieldset>
+                    )}
 
                     <div className="rounded-2xl border border-gray-200 p-5 space-y-4">
                       <p className="flex items-center gap-2 text-sm font-bold text-gray-800">
@@ -2050,6 +2130,12 @@ export default function BookingModal({
                       <div className="flex items-center justify-between">
                         <span className="flex items-center gap-1.5"><FaCalendarAlt size={12} className="text-[#E8600A]" /> Date</span>
                         <span className="font-medium text-gray-800">{selectedDate}</span>
+                      </div>
+                    )}
+                    {chosenSlot && (
+                      <div className="flex items-center justify-between">
+                        <span className="flex items-center gap-1.5"><FaClock size={12} className="text-[#E8600A]" /> Departs</span>
+                        <span className="font-medium tabular-nums text-gray-800">{slotRange(chosenSlot)}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between">

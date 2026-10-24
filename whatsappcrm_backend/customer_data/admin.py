@@ -111,7 +111,7 @@ class BookingAdmin(admin.ModelAdmin):
     """
     Admin interface for the Booking model.
     """
-    list_display = ('booking_reference', 'customer', 'tour_name', 'start_date', 'payment_status', 'total_amount', 'assigned_agent', 'get_traveler_count')
+    list_display = ('booking_reference', 'customer', 'tour_name', 'start_date', 'start_time', 'payment_status', 'total_amount', 'assigned_agent', 'get_traveler_count')
     list_filter = ('payment_status', 'source', 'start_date', 'assigned_agent')
     search_fields = ('booking_reference', 'tour_name', 'customer__first_name', 'customer__last_name', 'customer__contact__whatsapp_id')
     autocomplete_fields = ['customer', 'tour', 'assigned_agent']
@@ -124,7 +124,7 @@ class BookingAdmin(admin.ModelAdmin):
             'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')
         }),
         ('Dates & Guests', {
-            'fields': (('start_date', 'end_date'), ('number_of_adults', 'number_of_children'))
+            'fields': (('start_date', 'start_time', 'end_time', 'end_date'), ('number_of_adults', 'number_of_children'))
         }),
         ('Financials & Source', {
             'fields': (('total_amount', 'amount_paid'), ('payment_status', 'held_payment_status'), 'source'),
@@ -484,7 +484,8 @@ class PaymentAdmin(admin.ModelAdmin):
                                     f"✅ *Payment Approved!*\n\n"
                                     f"Your payment of ${payment.amount:.2f} for booking *{booking.booking_reference}* has been approved.\n\n"
                                     f"Tour: {booking.tour_name}\n"
-                                    f"Date: {booking.start_date.strftime('%B %d, %Y')}\n"
+                                    f"Date: {booking.start_date.strftime('%B %d, %Y')}"
+                                    f"{' · ' + booking.departure_display if booking.start_time else ''}\n"
                                     f"Amount Paid: ${booking.amount_paid:.2f}\n"
                                     f"Total: ${booking.total_amount:.2f}\n"
                                 )

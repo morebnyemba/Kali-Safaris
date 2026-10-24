@@ -6,7 +6,7 @@ import re
 from typing import List, Dict, Any, Optional, Union, Literal
 
 from django.utils import timezone
-from django.utils.dateparse import parse_datetime, parse_date
+from django.utils.dateparse import parse_datetime, parse_date, parse_time
 from django.db import transaction
 from django.apps import apps
 from django.forms.models import model_to_dict
@@ -428,6 +428,13 @@ def _coerce_model_field_value(field: models.Field, value: Any) -> Any:
         if isinstance(value, date) and not isinstance(value, datetime):
             return datetime.combine(value, datetime.min.time())
 
+    # TimeField: "08:00" from a template; "" (no time slot) means no time.
+    if isinstance(field, models.TimeField) and isinstance(value, str):
+        stripped = value.strip()
+        if not stripped or stripped.lower() in {'none', 'null'}:
+            return None
+        return parse_time(stripped) or value
+
     # DecimalField
     if isinstance(field, models.DecimalField) and isinstance(value, str):
         try:
@@ -587,6 +594,20 @@ def _execute_step_actions(step: FlowStep, contact: Contact, flow_context: dict, 
                 
                 # Resolve templates directly within the dictionary structure
                 final_api_data_structure = _resolve_value(interactive_payload_dict, current_step_context, contact)
+                # List rows may be a template that renders to a JSON array (e.g.
+                # "{{ rows | tojson }}" or the to_interactive_rows filter); WhatsApp
+                # needs the actual list, so parse it back.
+                for section in (final_api_data_structure.get('action') or {}).get('sections') or []:
+                    rows = section.get('rows') if isinstance(section, dict) else None
+                    if isinstance(rows, str):
+                        try:
+                            parsed_rows = json.loads(rows)
+                        except ValueError:
+                            parsed_rows = None
+                        if isinstance(parsed_rows, list):
+                            section['rows'] = parsed_rows
+                        else:
+                            logger.error(f"Contact {contact.id}: list rows in step '{step.name}' did not render to a JSON list: {rows[:200]}")
 
             elif actual_message_type == "template" and send_message_config.template:
                 template_payload_validated = send_message_config.template
