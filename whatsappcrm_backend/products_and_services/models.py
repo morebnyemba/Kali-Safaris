@@ -1,6 +1,25 @@
+import re
+from datetime import time
+
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
+
+_TIME_RE = re.compile(r'^([01]?\d|2[0-3]):([0-5]\d)$')
+
+
+def parse_departure_times(raw: str) -> list[time]:
+    """'16:00, 6:00 ,12:00' -> [06:00, 12:00, 16:00]. Raises ValueError on a bad entry."""
+    times = set()
+    for part in (raw or '').replace(';', ',').split(','):
+        part = part.strip()
+        if not part:
+            continue
+        match = _TIME_RE.match(part)
+        if not match:
+            raise ValueError(part)
+        times.add(time(int(match.group(1)), int(match.group(2))))
+    return sorted(times)
 
 class Tour(models.Model):
     """
@@ -58,6 +77,13 @@ class Tour(models.Model):
     )
     
     location = models.CharField(_("Location / Region"), max_length=255, blank=True)
+    departure_times = models.CharField(
+        _("Departure Times"),
+        max_length=200,
+        blank=True,
+        help_text=_("24-hour times customers can choose from, comma-separated, e.g. \"06:00, 12:00, 16:00\". "
+                    "Leave blank for trips with no fixed departure (day trips, venue hire)."),
+    )
     image = models.ImageField(_("Tour Image"), upload_to='tours/', blank=True, null=True, help_text=_("A representative image for the tour."))
     is_active = models.BooleanField(_("Is Active"), default=True, help_text=_("Is this tour currently available for booking?"))
 
@@ -94,8 +120,19 @@ class Tour(models.Model):
             return max(1, (self.duration_value + self.HOURS_PER_DAY - 1) // self.HOURS_PER_DAY)
         return self.duration_value
     
+    def get_departure_times(self) -> list[time]:
+        try:
+            return parse_departure_times(self.departure_times)
+        except ValueError:
+            return []
+
     def clean(self):
-        """Validate duration values."""
+        """Validate duration values and normalise departure times."""
+        try:
+            self.departure_times = ', '.join(t.strftime('%H:%M') for t in parse_departure_times(self.departure_times))
+        except ValueError as exc:
+            raise ValidationError({'departure_times': f'"{exc}" is not a valid 24-hour time (use HH:MM, e.g. 06:00).'})
+
         if self.duration_value <= 0:
             raise ValidationError({'duration_value': 'Duration value must be greater than 0.'})
         

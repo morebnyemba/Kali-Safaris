@@ -6,7 +6,7 @@ class TourAdmin(admin.ModelAdmin):
     """
     Admin interface for the Tour model.
     """
-    list_display = ('name', 'category', 'location', 'get_duration_display', 'base_price', 'is_active')
+    list_display = ('name', 'category', 'location', 'get_duration_display', 'departure_times', 'base_price', 'is_active')
     list_filter = ('category', 'is_active', 'location', 'duration_unit')
     search_fields = ('name', 'description', 'location')
     list_editable = ('base_price', 'is_active')
@@ -20,6 +20,10 @@ class TourAdmin(admin.ModelAdmin):
         }),
         ('Details & Pricing', {
             'fields': ('location', 'base_price', 'is_active')
+        }),
+        ('Departure Times', {
+            'fields': ('departure_times',),
+            'description': 'When set, customers must pick one of these times when booking on the website.'
         }),
     )
     

@@ -249,6 +249,10 @@ class Booking(models.Model):
     
     tour_name = models.CharField(_("Tour Name"), max_length=255, help_text=_("Name of the tour at the time of booking"))
     start_date = models.DateField(_("Tour Start Date"))
+    start_time = models.TimeField(
+        _("Departure Time"), null=True, blank=True,
+        help_text=_("Chosen departure, for tours with fixed departure times (e.g. 06:00 sunrise cruise)."),
+    )
     end_date = models.DateField(_("Tour End Date"))
 
     number_of_adults = models.PositiveIntegerField(_("Number of Adults"), default=1)
@@ -304,7 +308,7 @@ class Booking(models.Model):
             # tour_id is accessible even when tour is None (if tour_id was set directly).
             # This allows checking for tour association before accessing the tour object.
             if self.tour_id and self.start_date:
-                shared_ref = generate_shared_booking_reference(self.tour_id, self.start_date)
+                shared_ref = generate_shared_booking_reference(self.tour_id, self.start_date, self.start_time)
                 self.booking_reference = shared_ref
             else:
                 # Fall back to unique reference for non-tour bookings or custom bookings
@@ -456,7 +460,7 @@ class Booking(models.Model):
         if self.tour_id and self.start_date:
             from .reference_generator import generate_shared_booking_reference
             old_reference = self.booking_reference
-            new_reference = generate_shared_booking_reference(self.tour_id, self.start_date)
+            new_reference = generate_shared_booking_reference(self.tour_id, self.start_date, self.start_time)
             
             # Only update if the reference actually changed
             if old_reference != new_reference:

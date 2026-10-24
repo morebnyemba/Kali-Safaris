@@ -13,6 +13,8 @@ export interface Tour {
   duration_days: number;
   duration_display: string;
   image_url: string | null;
+  /** "HH:MM" departures to choose from; empty when the trip has no fixed time. */
+  departure_times: string[];
 }
 
 interface ToursResponse {

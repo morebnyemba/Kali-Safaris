@@ -312,10 +312,12 @@ class BookingStatsAPIView(BaseAnalyticsView):
         )
 
         departures = {}
-        for booking in upcoming.order_by('start_date', 'tour_name'):
-            key = (booking.start_date, booking.tour_name)
+        for booking in upcoming.order_by('start_date', 'start_time', 'tour_name'):
+            # One row per departure: the 06:00 and 16:00 runs of a tour are different boats.
+            key = (booking.start_date, booking.start_time, booking.tour_name)
             row = departures.setdefault(key, {
                 'date': booking.start_date.isoformat(), 'tour_name': booking.tour_name,
+                'time': booking.start_time.strftime('%H:%M') if booking.start_time else None,
                 'bookings': 0, 'passengers': 0, 'held_bookings': 0,
             })
             if booking.payment_status == awaiting:

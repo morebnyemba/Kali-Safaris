@@ -17,7 +17,7 @@ import re
 import base64
 import binascii
 import mimetypes
-from datetime import date
+from datetime import date, datetime
 from urllib.parse import parse_qs, urlparse, urlunparse, urlencode, quote
 
 from decimal import Decimal, InvalidOperation
@@ -35,7 +35,7 @@ from django.core.files.base import ContentFile
 from customer_data.models import Booking, Payment, Traveler, CustomerProfile
 from customer_data.traveler_validation import validate_traveler_list
 from conversations.models import Contact
-from products_and_services.models import Tour, resolve_tour_price
+from products_and_services.models import Tour, parse_departure_times, resolve_tour_price
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
 from .constants import RESULT_CODE_SUCCESS, STATUS_APPROVED, IVERI_STATUS_MAP, IVERI_RETRIABLE_CODES
@@ -452,6 +452,40 @@ def _resolve_web_customer_profile(name: str, email: str, phone: str, country: st
         return None
 
 
+def _validate_departure(tour: Tour, start_date: date, raw_time: Any):
+    """
+    The departure the customer chose, checked against the tour's departure
+    times and the clock (Africa/Harare). Tours without departure times
+    (day trips, venue hire) take no time and return None.
+
+    Raises PricingError with a customer-facing message.
+    """
+    now = timezone.localtime()
+    if start_date < now.date():
+        raise PricingError("That date has already passed — please choose another date.")
+
+    departures = tour.get_departure_times()
+    if not departures:
+        return None
+
+    choices = ', '.join(t.strftime('%H:%M') for t in departures)
+    try:
+        parsed = parse_departure_times(str(raw_time or ''))
+    except ValueError:
+        parsed = []
+    if len(parsed) != 1 or parsed[0] not in departures:
+        raise PricingError(f"Choose a departure time for {tour.name} ({choices}).")
+
+    start_time = parsed[0]
+    departs_at = timezone.make_aware(datetime.combine(start_date, start_time), now.tzinfo)
+    if departs_at <= now:
+        raise PricingError(
+            f"The {start_time.strftime('%H:%M')} departure on {start_date.strftime('%d %b')} has already left — "
+            "please choose a later time or another date."
+        )
+    return start_time
+
+
 def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) -> tuple[Optional[Booking], Decimal]:
     """
     Resolve a booking by reference, or create a website draft booking when
@@ -511,6 +545,8 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
     if not tour:
         raise PricingError(f"Unknown or inactive tour: {tour_name}")
 
+    start_time = _validate_departure(tour, start_date, details.get('selected_time') or payload.get('selected_time'))
+
     # Priced the same way the public tour listing prices it (today's date,
     # not the future trip date) — so this matches whatever price the
     # customer actually saw on the booking screen.
@@ -561,6 +597,7 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
                 tour=tour,
                 tour_name=str(tour_name).strip(),
                 start_date=start_date,
+                start_time=start_time,
                 end_date=start_date,
                 number_of_adults=adults,
                 number_of_children=0,

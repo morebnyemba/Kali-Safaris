@@ -35,6 +35,7 @@ def _serialize_tour(tour: Tour, today: date, request: HttpRequest) -> dict:
         'duration_days': tour.duration_days,
         'duration_display': tour.get_duration_display_text(),
         'image_url': image_url,
+        'departure_times': [t.strftime('%H:%M') for t in tour.get_departure_times()],
     }
 
 

@@ -41,7 +41,7 @@ const STATUS_OPTIONS = [
 const SOURCE_OPTIONS = [['manual_entry', 'Manual entry'], ['phone_call', 'Phone call'], ['whatsapp', 'WhatsApp'], ['email_import', 'Email import']];
 
 const EMPTY_FORM = {
-  customer_id: null, customer_label: '', tour_id: '', tour_name: '', start_date: '', end_date: '',
+  customer_id: null, customer_label: '', tour_id: '', tour_name: '', start_date: '', start_time: '', end_date: '',
   number_of_adults: 1, number_of_children: 0, total_amount: '', payment_status: 'pending', source: 'manual_entry', notes: '',
 };
 
@@ -111,7 +111,7 @@ export default function BookingsPage() {
       customer_label: b.customer?.full_name || '',
       tour_id: b.tour?.id ? String(b.tour.id) : '',
       tour_name: b.tour_name || '',
-      start_date: b.start_date || '', end_date: b.end_date || '',
+      start_date: b.start_date || '', start_time: (b.start_time || '').slice(0, 5), end_date: b.end_date || '',
       number_of_adults: b.number_of_adults ?? 1, number_of_children: b.number_of_children ?? 0,
       total_amount: b.total_amount || '', payment_status: b.payment_status || 'pending',
       source: b.source || 'manual_entry', notes: b.notes || '',
@@ -168,7 +168,7 @@ export default function BookingsPage() {
       customer_id: form.customer_id,
       tour_id: form.tour_id ? Number(form.tour_id) : null,
       tour_name: form.tour_name.trim(),
-      start_date: form.start_date, end_date: form.end_date,
+      start_date: form.start_date, start_time: form.start_time || null, end_date: form.end_date,
       number_of_adults: Number(form.number_of_adults || 0),
       number_of_children: Number(form.number_of_children || 0),
       total_amount: form.total_amount === '' ? '0.00' : form.total_amount,
@@ -291,6 +291,7 @@ export default function BookingsPage() {
                       <td className="px-4 py-3">{b.tour_name}</td>
                       <td className="whitespace-nowrap px-4 py-3">
                         {formatDate(b.start_date)}
+                        {b.start_time && <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{b.start_time.slice(0, 5)}</span>}
                         {b.end_date && b.end_date !== b.start_date && <span className="block text-xs text-muted-foreground">to {formatDate(b.end_date)}</span>}
                       </td>
                       <td className="px-4 py-3">
@@ -364,6 +365,10 @@ export default function BookingsPage() {
               <div>
                 <Label htmlFor="b-start" className="mb-1.5">Start date</Label>
                 <Input id="b-start" type="date" value={form.start_date} onChange={set('start_date')} required />
+              </div>
+              <div>
+                <Label htmlFor="b-time" className="mb-1.5">Departure time <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                <Input id="b-time" type="time" value={form.start_time} onChange={set('start_time')} />
               </div>
               <div>
                 <Label htmlFor="b-end" className="mb-1.5">End date</Label>

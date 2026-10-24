@@ -141,7 +141,9 @@ def collect_manifest_groups(booking_date):
             'booking': booking,
             'name': booking_group_name(booking, travelers),
             'reference': booking.booking_reference,
-            'tour': booking.tour_name,
+            # Departure time is part of the label so the 06:00 and 16:00 groups of one tour are told apart.
+            'tour': f"{booking.tour_name} · {booking.start_time.strftime('%H:%M')}" if booking.start_time else booking.tour_name,
+            'departs': booking.start_time,
             'status': booking.get_payment_status_display(),
             'travelers': travelers,
             'headcount': len(travelers),
@@ -153,7 +155,7 @@ def collect_manifest_groups(booking_date):
     if incomplete:
         raise ManifestIncompleteError(incomplete)
 
-    groups.sort(key=lambda g: ((g['tour'] or '').lower(), g['name'].lower(), g['reference'] or ''))
+    groups.sort(key=lambda g: (g['departs'] is None, g['departs'] or '', (g['tour'] or '').lower(), g['name'].lower(), g['reference'] or ''))
 
     held = [
         {
