@@ -4,8 +4,16 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { FaEnvelope, FaLock, FaMapMarkerAlt, FaPhone, FaWhatsapp } from 'react-icons/fa';
-import { NAV_LINKS, SITE, whatsappLink } from '@/lib/site';
+import { FaChevronDown, FaEnvelope, FaLock, FaMapMarkerAlt, FaPhone, FaSun, FaWhatsapp } from 'react-icons/fa';
+import { BsSunriseFill, BsSunsetFill } from 'react-icons/bs';
+import type { IconType } from 'react-icons';
+import { NAV, SITE, whatsappLink, type NavLink } from '@/lib/site';
+
+const CRUISE_ICONS: Record<string, IconType> = {
+  '/#sunrise': BsSunriseFill,
+  '/#lunch': FaSun,
+  '/#sunset': BsSunsetFill,
+};
 
 function Logo({ className = 'w-[132px] md:w-[150px]' }: { className?: string }) {
   return (
@@ -47,6 +55,10 @@ export default function Header() {
   const setOpen = (value: boolean | ((v: boolean) => boolean)) =>
     setOpenOnPath((typeof value === 'function' ? value(open) : value) ? pathname : null);
   const [scrolled, setScrolled] = useState(false);
+  // Desktop dropdown (by group label) and the mobile accordion, both closed by navigation.
+  const [dropdown, setDropdown] = useState<string | null>(null);
+  const [mobileGroup, setMobileGroup] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLLIElement>(null);
   const [hash, setHash] = useState('');
   // The panel sits flush under the header, whose height changes with breakpoint
   // (64px phone, 72px tablet) — measured rather than hard-coded.
@@ -73,6 +85,21 @@ export default function Header() {
       window.removeEventListener('hashchange', onHash);
     };
   }, []);
+
+  // Close the desktop dropdown on outside click or Escape.
+  useEffect(() => {
+    if (!dropdown) return;
+    const onDown = (e: PointerEvent) => {
+      if (!dropdownRef.current?.contains(e.target as Node)) setDropdown(null);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setDropdown(null);
+    document.addEventListener('pointerdown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [dropdown]);
 
   // While the mobile menu is open: lock page scroll, close on Escape, and close
   // if the viewport grows to desktop (e.g. a tablet rotated) so the page isn't
@@ -103,6 +130,9 @@ export default function Header() {
     if (href.startsWith('/#')) return pathname === '/' && hash === href.slice(1);
     return pathname === href;
   };
+  const groupActive = (links: NavLink[]) => links.some(({ href }) => isActive(href));
+  const linkClass =
+    'relative rounded-full px-3.5 py-2 text-[15px] font-medium text-gray-700 transition hover:bg-gray-100 hover:text-gray-950 aria-[current=page]:text-[#C8102E]';
 
   return (
     <>
@@ -127,18 +157,78 @@ export default function Header() {
         <nav className="container mx-auto flex h-16 items-center justify-between gap-4 px-4 md:h-[72px] md:px-6" aria-label="Main">
           <Logo />
 
-          <ul className="hidden items-center gap-1 lg:flex">
-            {NAV_LINKS.map(({ label, href }) => (
-              <li key={href}>
-                <Link
-                  href={href}
-                  aria-current={isActive(href) ? 'page' : undefined}
-                  className="relative rounded-full px-3 py-2 text-[15px] font-medium text-gray-700 transition hover:bg-gray-100 hover:text-gray-950 aria-[current=page]:text-[#C8102E]"
+          <ul className="hidden items-center gap-0.5 lg:flex">
+            {NAV.map((item) =>
+              'children' in item ? (
+                <li
+                  key={item.label}
+                  ref={dropdown === item.label ? dropdownRef : undefined}
+                  className="relative"
+                  onMouseEnter={() => setDropdown(item.label)}
+                  onMouseLeave={() => setDropdown(null)}
                 >
-                  {label}
-                </Link>
-              </li>
-            ))}
+                  <button
+                    type="button"
+                    onClick={() => setDropdown((d) => (d === item.label ? null : item.label))}
+                    aria-expanded={dropdown === item.label}
+                    aria-haspopup="true"
+                    aria-current={groupActive(item.children) ? 'page' : undefined}
+                    className={`${linkClass} inline-flex items-center gap-1.5`}
+                  >
+                    {item.label}
+                    <FaChevronDown size={10} className={`transition-transform ${dropdown === item.label ? 'rotate-180' : ''}`} aria-hidden />
+                  </button>
+                  {/* pt bridges the gap so the hover doesn't drop between trigger and panel */}
+                  <div
+                    className={`absolute left-1/2 top-full w-72 -translate-x-1/2 pt-2 transition duration-150 ${
+                      dropdown === item.label ? 'visible translate-y-0 opacity-100' : 'invisible -translate-y-1 opacity-0'
+                    }`}
+                  >
+                    <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_18px_40px_-16px_rgba(0,0,0,0.3)]">
+                      <ul className="p-2">
+                        {item.children.map(({ label, href, detail }) => {
+                          const Icon = CRUISE_ICONS[href];
+                          return (
+                            <li key={href}>
+                              <Link
+                                href={href}
+                                onClick={() => setDropdown(null)}
+                                aria-current={isActive(href) ? 'page' : undefined}
+                                className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-[#FFF5EC]"
+                              >
+                                {Icon && (
+                                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#FFF1E2] text-[#E8600A] transition group-hover:bg-[#E8600A] group-hover:text-white">
+                                    <Icon size={16} aria-hidden />
+                                  </span>
+                                )}
+                                <span className="min-w-0">
+                                  <span className="block text-sm font-semibold text-gray-900 group-aria-[current=page]:text-[#C8102E]">{label}</span>
+                                  {detail && <span className="block text-xs text-gray-500">{detail}</span>}
+                                </span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                      <Link
+                        href={item.overview.href}
+                        onClick={() => setDropdown(null)}
+                        className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-5 py-3 text-sm font-semibold text-[#C8102E] transition hover:bg-gray-100"
+                      >
+                        {item.overview.label}
+                        <span aria-hidden>→</span>
+                      </Link>
+                    </div>
+                  </div>
+                </li>
+              ) : (
+                <li key={item.href}>
+                  <Link href={item.href} aria-current={isActive(item.href) ? 'page' : undefined} className={linkClass}>
+                    {item.label}
+                  </Link>
+                </li>
+              ),
+            )}
           </ul>
 
           <div className="flex items-center gap-2">
@@ -186,19 +276,62 @@ export default function Header() {
           }`}
         >
           <ul className="container mx-auto px-4 py-3">
-            {NAV_LINKS.map(({ label, href }) => (
-              <li key={href}>
-                <Link
-                  href={href}
-                  onClick={() => setOpen(false)}
-                  aria-current={isActive(href) ? 'page' : undefined}
-                  className="flex items-center justify-between border-b border-gray-100 py-4 text-lg font-medium text-gray-900 aria-[current=page]:text-[#C8102E]"
-                >
-                  {label}
-                  <span className="text-gray-300" aria-hidden>›</span>
-                </Link>
-              </li>
-            ))}
+            {NAV.map((item) =>
+              'children' in item ? (
+                <li key={item.label} className="border-b border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setMobileGroup((g) => (g === item.label ? null : item.label))}
+                    aria-expanded={mobileGroup === item.label}
+                    aria-controls="mobile-cruises"
+                    className={`flex w-full items-center justify-between py-4 text-lg font-medium ${groupActive(item.children) ? 'text-[#C8102E]' : 'text-gray-900'}`}
+                  >
+                    {item.label}
+                    <FaChevronDown size={14} className={`text-gray-400 transition-transform ${mobileGroup === item.label ? 'rotate-180' : ''}`} aria-hidden />
+                  </button>
+                  <div
+                    id="mobile-cruises"
+                    className={`grid transition-[grid-template-rows] duration-200 ${mobileGroup === item.label ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
+                  >
+                    <ul className="overflow-hidden" inert={mobileGroup !== item.label}>
+                      {[...item.children, item.overview].map(({ label, href, detail }) => {
+                        const Icon = CRUISE_ICONS[href];
+                        return (
+                          <li key={href}>
+                            <Link
+                              href={href}
+                              onClick={() => setOpen(false)}
+                              aria-current={isActive(href) ? 'page' : undefined}
+                              className="flex items-center gap-3 rounded-xl px-2 py-3 text-base text-gray-800 aria-[current=page]:text-[#C8102E]"
+                            >
+                              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#FFF1E2] text-[#E8600A]">
+                                {Icon ? <Icon size={16} aria-hidden /> : <span aria-hidden>→</span>}
+                              </span>
+                              <span>
+                                <span className="block font-semibold">{label}</span>
+                                {detail && <span className="block text-xs text-gray-500">{detail}</span>}
+                              </span>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </li>
+              ) : (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    aria-current={isActive(item.href) ? 'page' : undefined}
+                    className="flex items-center justify-between border-b border-gray-100 py-4 text-lg font-medium text-gray-900 aria-[current=page]:text-[#C8102E]"
+                  >
+                    {item.label}
+                    <span className="text-gray-300" aria-hidden>›</span>
+                  </Link>
+                </li>
+              ),
+            )}
           </ul>
           <div className="container mx-auto space-y-3 px-4 pb-8 pt-2">
             <Link href="/booking" onClick={() => setOpen(false)} className="block rounded-full bg-[#C8102E] py-3.5 text-center font-bold text-white">
