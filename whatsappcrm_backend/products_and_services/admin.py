@@ -2,7 +2,6 @@ from django.contrib import admin
 from django.utils.html import format_html
 
 from .models import GalleryImage, Tour, SeasonalTourPrice
-from .views import gallery_image_url
 
 @admin.register(Tour)
 class TourAdmin(admin.ModelAdmin):
@@ -68,8 +67,8 @@ class GalleryImageAdmin(admin.ModelAdmin):
 
     @admin.display(description='Photo')
     def thumbnail(self, obj):
-        return format_html('<img src="{}" style="height:56px;width:84px;object-fit:cover;border-radius:6px">', gallery_image_url(obj)) if obj.pk and obj.image else '—'
+        return format_html('<img src="{}" style="height:56px;width:84px;object-fit:cover;border-radius:6px">', obj.file_path() + '/') if obj.pk and obj.image else '—'
 
     @admin.display(description='Preview')
     def preview(self, obj):
-        return format_html('<img src="{}" style="max-height:240px;border-radius:8px">', gallery_image_url(obj)) if obj.pk and obj.image else '—'
+        return format_html('<img src="{}" style="max-height:240px;border-radius:8px">', obj.file_path() + '/') if obj.pk and obj.image else '—'

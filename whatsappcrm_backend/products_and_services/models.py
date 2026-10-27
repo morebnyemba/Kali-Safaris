@@ -1,6 +1,7 @@
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 
 class Tour(models.Model):
     """
@@ -213,6 +214,16 @@ class GalleryImage(models.Model):
 
     def __str__(self):
         return self.caption or f"{self.get_category_display()} photo #{self.pk}"
+
+    def file_path(self) -> str:
+        """
+        Site-relative URL that streams the photo through this backend. The website
+        proxies /crm-api/ to us, so photos load without separate media hosting. The
+        version segment changes whenever the entry is saved, so the URL can be
+        cached for a long time and still pick up a replaced photo. No trailing
+        slash: the website redirects those away, and its proxy adds it back.
+        """
+        return reverse('gallery_api:gallery_image_file', args=[self.pk, int(self.updated_at.timestamp())]).rstrip('/')
 
     def clean(self):
         if self.year is not None and not 1900 <= self.year <= 2100:
