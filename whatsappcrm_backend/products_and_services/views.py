@@ -8,12 +8,15 @@ same source of truth over HTTP so the marketing website's trip listing and
 booking form always match what customers see on WhatsApp, instead of a
 hardcoded list that can drift out of sync.
 """
+import mimetypes
 from datetime import date
 
-from django.http import HttpRequest, JsonResponse
+from django.http import FileResponse, Http404, HttpRequest, JsonResponse
+from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.views.decorators.http import require_http_methods
 
-from .models import Tour, resolve_tour_price
+from .models import GalleryImage, Tour, resolve_tour_price
 
 
 def _serialize_tour(tour: Tour, today: date, request: HttpRequest) -> dict:
@@ -53,3 +56,52 @@ def public_tours_list_view(request: HttpRequest) -> JsonResponse:
     data = [_serialize_tour(tour, today, request) for tour in tours]
 
     return JsonResponse({'success': True, 'count': len(data), 'tours': data})
+
+
+def gallery_image_url(image: GalleryImage) -> str:
+    """
+    Site-relative URL that streams the photo through this backend. The website
+    proxies /crm-api/ to us, so photos load without separate media hosting. The
+    version segment changes whenever the entry is saved, so the URL can be
+    cached for a long time and still pick up a replaced photo. No trailing
+    slash: the website redirects those away, and its proxy adds it back.
+    """
+    return reverse('gallery_api:gallery_image_file', args=[image.pk, int(image.updated_at.timestamp())]).rstrip('/')
+
+
+@require_http_methods(["GET"])
+def public_gallery_list_view(request: HttpRequest) -> JsonResponse:
+    """
+    GET /crm-api/gallery/
+
+    Public list of the photos shown on the website gallery, in display order.
+    """
+    images = GalleryImage.objects.filter(is_active=True).exclude(image='')
+    data = [
+        {
+            'id': image.id,
+            'url': gallery_image_url(image),
+            'category': image.category,
+            'category_display': image.get_category_display(),
+            'caption': image.caption,
+            'year': image.year,
+        }
+        for image in images
+    ]
+    return JsonResponse({'success': True, 'count': len(data), 'images': data})
+
+
+@require_http_methods(["GET", "HEAD"])
+def public_gallery_image_view(request: HttpRequest, pk: int, version: int) -> FileResponse:
+    """GET /crm-api/gallery/<pk>/<version>/ — the photo file itself."""
+    image = get_object_or_404(GalleryImage, pk=pk)
+    # Hidden photos stay viewable to staff so the admin can still preview them.
+    if not image.image or not (image.is_active or request.user.is_staff):
+        raise Http404
+    try:
+        file = image.image.open('rb')
+    except FileNotFoundError:
+        raise Http404
+    response = FileResponse(file, content_type=mimetypes.guess_type(image.image.name)[0] or 'application/octet-stream')
+    response['Cache-Control'] = 'public, max-age=31536000, immutable'
+    return response

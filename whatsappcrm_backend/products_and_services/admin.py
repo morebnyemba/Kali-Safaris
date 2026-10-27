@@ -1,5 +1,8 @@
 from django.contrib import admin
-from .models import Tour, SeasonalTourPrice
+from django.utils.html import format_html
+
+from .models import GalleryImage, Tour, SeasonalTourPrice
+from .views import gallery_image_url
 
 @admin.register(Tour)
 class TourAdmin(admin.ModelAdmin):
@@ -48,3 +51,25 @@ class SeasonalTourPriceAdmin(admin.ModelAdmin):
             'fields': ('price_per_adult', 'price_per_child')
         }),
     )
+
+
+@admin.register(GalleryImage)
+class GalleryImageAdmin(admin.ModelAdmin):
+    """
+    Photos on the website's gallery page. Deleting an entry also deletes its file.
+    """
+    list_display = ('thumbnail', '__str__', 'category', 'year', 'sort_order', 'is_active')
+    list_display_links = ('thumbnail', '__str__')
+    list_filter = ('category', 'is_active', 'year')
+    search_fields = ('caption',)
+    list_editable = ('category', 'year', 'sort_order', 'is_active')
+    readonly_fields = ('preview',)
+    fields = ('image', 'preview', 'category', 'caption', 'year', 'sort_order', 'is_active')
+
+    @admin.display(description='Photo')
+    def thumbnail(self, obj):
+        return format_html('<img src="{}" style="height:56px;width:84px;object-fit:cover;border-radius:6px">', gallery_image_url(obj)) if obj.pk and obj.image else '—'
+
+    @admin.display(description='Preview')
+    def preview(self, obj):
+        return format_html('<img src="{}" style="max-height:240px;border-radius:8px">', gallery_image_url(obj)) if obj.pk and obj.image else '—'
