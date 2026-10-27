@@ -1,30 +1,13 @@
 'use client';
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { IconType } from "react-icons";
 import { FaShip, FaAnchor, FaTimes } from "react-icons/fa";
 import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
 import FooterSection from "@/components/FooterSection";
+import { fetchGallery, type GalleryImage } from "@/lib/gallery";
 
-const galleryImages = [
-  { src: "/images/kalai_intro.jpeg", alt: "Kalai Safari Enigma Boat", category: "boat" },
-  { src: "/images/sunrise.jpeg", alt: "Sunrise on the Zambezi", category: "sunrise" },
-  { src: "/images/sunset.jpeg", alt: "Sunset Cruise", category: "sunset" },
-  { src: "/images/Kalai Sunset background shot.jpeg", alt: "Golden Sunset on the Zambezi", category: "sunset" },
-  { src: "/images/work_no_play.jpeg", alt: "Lunch Cruise Experience", category: "boat" },
-  { src: "/images/jetty_venue.jpg", alt: "Jetty Venue", category: "jetty" },
-  { src: "/images/Kalai Safaris interior chairs.jpeg", alt: "Boat Interior Setup", category: "boat" },
-  { src: "/images/Kalai Safaris jetty site.jpeg", alt: "Jetty Site View", category: "jetty" },
-  { src: "/images/cruise boat.jpg", alt: "Cruise Boat on Water", category: "boat" },
-  { src: "/images/Boats .jpg", alt: "Safari Boats Docked", category: "boat" },
-  { src: "/images/jetty site 2.jpg", alt: "Riverside Jetty", category: "jetty" },
-  { src: "/images/jetty 3.jpg", alt: "Jetty Evening View", category: "jetty" },
-  { src: "/images/Kalai Safaris Rendezvous.jpeg", alt: "Rendezvous Vessel", category: "boat" },
-  { src: "/images/Kalai Safaris On the River.jpeg", alt: "Cruising on the Zambezi", category: "boat" },
-  { src: "/images/cruise with palms.jpg", alt: "Cruise with Palm Trees", category: "boat" },
-  { src: "/images/boat entry.jpg", alt: "Boarding the Boat", category: "boat" },
-];
 
 const categories: { key: string; label: string; icon?: IconType }[] = [
   { key: "all", label: "All" },
@@ -36,11 +19,16 @@ const categories: { key: string; label: string; icon?: IconType }[] = [
 
 export default function GalleryPage() {
   const [activeCategory, setActiveCategory] = useState("all");
-  const [lightboxImage, setLightboxImage] = useState<string | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
+  const [images, setImages] = useState<GalleryImage[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  const filtered = activeCategory === "all"
-    ? galleryImages
-    : galleryImages.filter((img) => img.category === activeCategory);
+  useEffect(() => {
+    fetchGallery().then(setImages, () => setFailed(true));
+  }, []);
+
+  const filtered = (images ?? []).filter((img) => activeCategory === "all" || img.category === activeCategory);
+  const describe = (img: GalleryImage) => img.caption || img.category_display;
 
   return (
     <div className="min-h-screen">
@@ -91,27 +79,37 @@ export default function GalleryPage() {
 
           {/* Image Grid */}
           <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">
-            {filtered.map((image, index) => (
+            {images === null && !failed &&
+              Array.from({ length: 6 }, (_, i) => (
+                <div key={i} className={`break-inside-avoid animate-pulse rounded-2xl bg-gray-200/70 ${i % 2 ? "h-72" : "h-56"}`} />
+              ))}
+            {filtered.map((image) => (
               <div
-                key={index}
+                key={image.id}
                 className="relative break-inside-avoid overflow-hidden rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 group cursor-pointer"
-                onClick={() => setLightboxImage(image.src)}
+                onClick={() => setLightboxImage(image)}
               >
                 <Image
-                  src={image.src}
-                  alt={image.alt}
+                  src={image.url}
+                  alt={describe(image)}
                   width={600}
                   height={400}
                   className="w-full h-auto object-cover group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-                  <p className="text-white text-sm font-medium drop-shadow-md">{image.alt}</p>
+                  <p className="text-white text-sm font-medium drop-shadow-md">
+                    {describe(image)}
+                    {image.year && <span className="ml-2 text-white/70">{image.year}</span>}
+                  </p>
                 </div>
               </div>
             ))}
           </div>
 
-          {filtered.length === 0 && (
+          {failed && (
+            <p className="text-center text-gray-500 py-12">The gallery couldn&apos;t be loaded right now. Please try again shortly.</p>
+          )}
+          {images !== null && filtered.length === 0 && (
             <p className="text-center text-gray-500 py-12">No images in this category yet.</p>
           )}
         </div>
@@ -132,12 +130,19 @@ export default function GalleryPage() {
           </button>
           <div className="relative max-w-5xl max-h-[85vh] w-full" onClick={(e) => e.stopPropagation()}>
             <Image
-              src={lightboxImage}
-              alt="Gallery image full view"
+              src={lightboxImage.url}
+              alt={describe(lightboxImage)}
               width={1200}
               height={800}
-              className="w-full h-auto max-h-[85vh] object-contain rounded-lg"
+              className="w-full h-auto max-h-[80vh] object-contain rounded-lg"
             />
+            {(lightboxImage.caption || lightboxImage.year) && (
+              <p className="mt-3 text-center text-sm text-white/85">
+                {lightboxImage.caption}
+                {lightboxImage.caption && lightboxImage.year && " · "}
+                {lightboxImage.year}
+              </p>
+            )}
           </div>
         </div>
       )}

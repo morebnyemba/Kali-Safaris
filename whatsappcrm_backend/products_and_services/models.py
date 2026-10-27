@@ -189,3 +189,36 @@ def resolve_tour_price(tour: Tour, on_date):
     if seasonal and seasonal.price_per_adult is not None:
         return seasonal.price_per_adult, seasonal.price_per_child
     return tour.base_price, None
+
+
+class GalleryImage(models.Model):
+    """
+    A photo on the public website's gallery page. Staff add, edit and delete
+    these in the admin; the website reads them from /crm-api/gallery/.
+    """
+    class Category(models.TextChoices):
+        BOAT = 'boat', _('Boats & Cruises')
+        SUNSET = 'sunset', _('Sunset')
+        SUNRISE = 'sunrise', _('Sunrise')
+        JETTY = 'jetty', _('Jetty Venue')
+
+    image = models.ImageField(_("Image"), upload_to='gallery/')
+    category = models.CharField(_("Category"), max_length=20, choices=Category.choices, default=Category.BOAT)
+    caption = models.CharField(_("Caption"), max_length=200, blank=True, help_text=_("Optional. Shown on the photo and used as its description for screen readers."))
+    year = models.PositiveSmallIntegerField(_("Year"), blank=True, null=True, help_text=_("Optional. The year the photo was taken."))
+    sort_order = models.PositiveIntegerField(_("Sort Order"), default=0, help_text=_("Lower numbers appear first."))
+    is_active = models.BooleanField(_("Show on website"), default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.caption or f"{self.get_category_display()} photo #{self.pk}"
+
+    def clean(self):
+        if self.year is not None and not 1900 <= self.year <= 2100:
+            raise ValidationError({'year': _("Enter a four-digit year.")})
+
+    class Meta:
+        ordering = ['sort_order', '-created_at']
+        verbose_name = _("Gallery Image")
+        verbose_name_plural = _("Gallery Images")
