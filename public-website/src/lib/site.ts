@@ -15,13 +15,23 @@ export function whatsappLink(message = "Hi, I'm interested in a Zambezi cruise. 
   return `https://wa.me/${SITE.whatsappNumber}?text=${encodeURIComponent(`*[Message from Kalai Safaris Website]*\n\n${message}`)}`;
 }
 
-export const NAV_LINKS = [
+export type NavLink = { label: string; href: string; detail?: string };
+export type NavItem = NavLink | { label: string; children: NavLink[]; overview: NavLink };
+
+// The three river cruises, grouped under one "Cruises" menu in the header.
+export const CRUISE_LINKS: NavLink[] = [
+  { label: 'Sunrise cruise', href: '/#sunrise', detail: '06:00 – 08:00' },
+  { label: 'Lunch cruise', href: '/#lunch', detail: '12:00 – 14:00' },
+  { label: 'Sunset cruise', href: '/#sunset', detail: '16:00 – after sunset' },
+];
+
+export const NAV: NavItem[] = [
   { label: 'About', href: '/about' },
-  { label: 'Prices', href: '/#prices' },
-  { label: 'Sunrise', href: '/#sunrise' },
-  { label: 'Lunch', href: '/#lunch' },
-  { label: 'Sunset', href: '/#sunset' },
+  { label: 'Cruises', children: CRUISE_LINKS, overview: { label: 'Compare all cruises', href: '/#cruises' } },
   { label: 'Jetty venue', href: '/#jetty' },
   { label: 'Gallery', href: '/gallery' },
   { label: 'Contact', href: '#contact' },
 ];
+
+/** Flat list of every nav destination, for places without dropdowns (e.g. the footer). */
+export const NAV_LINKS: NavLink[] = NAV.flatMap((item) => ('children' in item ? item.children : [item]));
