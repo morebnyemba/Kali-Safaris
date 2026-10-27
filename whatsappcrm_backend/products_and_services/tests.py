@@ -46,8 +46,11 @@ class DeactivateDuplicateToursMigrationTests(TestCase):
         self.assertIn('Dinner Cruise', names)
 
 
+import io
 import shutil
 import tempfile
+
+from PIL import Image
 
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -93,13 +96,48 @@ class GalleryTests(TestCase):
         self.assertEqual(len(images), 2)
         self.assertEqual({(i['caption'], i['year']) for i in images}, {('Hippos', 2024), ('', None)})
 
-    def test_hidden_image_file_is_staff_only(self):
+    def test_hidden_image_file_still_loads_for_previews(self):
         image = self.make(is_active=False)
-        url = f'/crm-api/gallery/{image.pk}/0/'
-        self.assertEqual(self.client.get(url).status_code, 404)
-        staff = get_user_model().objects.create_user('staff', password='x', is_staff=True)
-        self.client.force_login(staff)
-        self.assertEqual(self.client.get(url).status_code, 200)
+        self.assertEqual(self.client.get(f'/crm-api/gallery/{image.pk}/0/').status_code, 200)
+
+    def test_manage_api_requires_login(self):
+        self.assertEqual(self.client.get('/crm-api/gallery/manage/').status_code, 401)
+
+    def test_manage_api_upload_edit_delete(self):
+        GalleryImage.objects.all().delete()
+        user = get_user_model().objects.create_user('agent', password='x')
+        self.client.force_login(user)
+
+        photo = io.BytesIO()
+        Image.new('RGB', (4, 4), 'orange').save(photo, 'JPEG')
+        photo.seek(0)
+        photo.name = 'river.jpg'
+        response = self.client.post('/crm-api/gallery/manage/', {'image': photo, 'category': 'sunset', 'caption': 'Hippos', 'year': 2025})
+        self.assertEqual(response.status_code, 201, response.content)
+        created = response.json()
+        self.assertEqual((created['caption'], created['year'], created['category']), ('Hippos', 2025, 'sunset'))
+        self.assertTrue(created['is_active'])
+        self.assertEqual(self.client.get('/crm-api/gallery/').json()['count'], 1)
+        self.assertEqual(self.client.get(created['image_url']).status_code, 200)
+
+        # Caption and year are optional and can be cleared.
+        response = self.client.patch(f"/crm-api/gallery/manage/{created['id']}/", {'caption': '', 'year': None, 'is_active': False}, content_type='application/json')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual((response.json()['caption'], response.json()['year']), ('', None))
+        self.assertEqual(self.client.get('/crm-api/gallery/').json()['count'], 0)
+
+        bad = self.client.patch(f"/crm-api/gallery/manage/{created['id']}/", {'year': 25}, content_type='application/json')
+        self.assertEqual(bad.status_code, 400)
+
+        entry = GalleryImage.objects.get(pk=created['id'])
+        storage, name = entry.image.storage, entry.image.name
+        self.assertEqual(self.client.delete(f"/crm-api/gallery/manage/{created['id']}/").status_code, 204)
+        self.assertFalse(storage.exists(name))
+
+    def test_manage_api_requires_a_photo_on_upload(self):
+        self.client.force_login(get_user_model().objects.create_user('agent', password='x'))
+        response = self.client.post('/crm-api/gallery/manage/', {'category': 'boat'})
+        self.assertEqual(response.status_code, 400)
 
     def test_deleting_or_replacing_removes_file(self):
         image = self.make()

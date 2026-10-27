@@ -4,7 +4,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import {
   FiActivity, FiBarChart2, FiCalendar, FiChevronLeft, FiChevronRight, FiClipboard, FiGitBranch,
   FiHome, FiImage, FiLogOut, FiMenu, FiMessageSquare, FiMonitor, FiMoon, FiShield, FiSun,
-  FiUsers, FiX, FiSettings, FiUserCheck, FiList,
+  FiUsers, FiX, FiSettings, FiUserCheck, FiList, FiGlobe,
 } from 'react-icons/fi';
 import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
@@ -39,6 +39,12 @@ const NAV_GROUPS = [
     items: [
       { to: '/flows', label: 'Flows', icon: FiGitBranch },
       { to: '/media-library', label: 'Media library', icon: FiImage },
+    ],
+  },
+  {
+    label: 'Website',
+    items: [
+      { to: '/website-gallery', label: 'Gallery', icon: FiGlobe },
     ],
   },
   {
