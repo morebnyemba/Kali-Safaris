@@ -181,3 +181,129 @@ class WhatsAppSlotFlowTests(SlotFixtureMixin, TestCase):
         self.assertEqual(_coerce_model_field_value(start, '08:00'), time(8))
         self.assertIsNone(_coerce_model_field_value(end, ''))
         self.assertIsNone(_coerce_model_field_value(end, 'None'))
+
+
+class SlotCapacityTests(SlotFixtureMixin, TestCase):
+    """Seats per slot: paid bookings always hold seats, unpaid ones only for the hold window."""
+
+    def setUp(self):
+        self.make_tours()
+        self.morning = TourTimeSlot.objects.get(tour=self.tour, start_time=time(8))
+        self.morning.capacity = 3
+        self.morning.save()
+        self.contact = Contact.objects.create(whatsapp_id='263770000098', name='Cap Test')
+
+    def _book(self, adults=1, status=Booking.PaymentStatus.PAID, created_minutes_ago=0, children=0):
+        booking = Booking.objects.create(
+            tour=self.tour, tour_name=self.tour.name, start_date=self.day, start_time=time(8), end_time=time(10),
+            end_date=self.day, number_of_adults=adults, number_of_children=children, payment_status=status,
+        )
+        if created_minutes_ago:
+            Booking.objects.filter(pk=booking.pk).update(created_at=timezone.now() - timedelta(minutes=created_minutes_ago))
+        return booking
+
+    def _checkout(self, people=1):
+        details = {
+            'tour_name': 'Slot Cruise', 'selected_date': self.day.isoformat(), 'selected_time': '08:00',
+            'number_of_people': people,
+            'customer': {'full_name': 'Ann Moyo', 'email': 'ann@example.com', 'phone': '0771234567'},
+            'travelers': [_traveler(f'P{i}') for i in range(people)],
+        }
+        return _resolve_or_create_booking({'booking_details': details}, Decimal('30.00') * people)
+
+    def test_what_holds_seats(self):
+        from products_and_services.departures import seats_left
+        self._book(adults=1, children=1)                                            # paid: 2 seats
+        self._book(status=Booking.PaymentStatus.CANCELLED)                           # never holds
+        self._book(status=Booking.PaymentStatus.PENDING, created_minutes_ago=45)     # hold expired
+        self.assertEqual(seats_left(self.morning, self.day), 1)
+        self._book(status=Booking.PaymentStatus.PENDING, created_minutes_ago=5)      # active checkout
+        self.assertEqual(seats_left(self.morning, self.day), 0)
+        unlimited = TourTimeSlot.objects.get(tour=self.tour, start_time=time(16))
+        self.assertIsNone(seats_left(unlimited, self.day))
+
+    def test_checkout_refuses_when_full_and_says_how_many_are_left(self):
+        self._book(adults=2)
+        with self.assertRaisesMessage(PricingError, 'Only 1 seat left'):
+            self._checkout(people=2)
+        booking, _ = self._checkout(people=1)       # the last seat
+        self.assertIsNotNone(booking)
+        with self.assertRaisesMessage(PricingError, 'fully booked'):
+            self._checkout(people=1)
+        self.assertEqual(Booking.objects.filter(start_time=time(8)).count(), 2)
+
+    def test_paying_an_unpaid_booking_after_its_hold_rechecks_seats(self):
+        late = self._book(adults=2, status=Booking.PaymentStatus.PENDING, created_minutes_ago=60)
+        late.booking_reference = 'BK-LATE-1'
+        late.total_amount = Decimal('60.00')
+        late.save()
+        self._book(adults=1)
+        # 1 paid + 2 unpaid = 3 seats: still fits.
+        _resolve_or_create_booking({'booking_reference': 'BK-LATE-1'}, Decimal('60.00'))
+        self._book(adults=1)
+        with self.assertRaisesMessage(PricingError, 'Only 1 seat left'):
+            _resolve_or_create_booking({'booking_reference': 'BK-LATE-1'}, Decimal('60.00'))
+
+    def test_availability_endpoint(self):
+        self._book(adults=2)
+        body = self.client.get(f'/crm-api/tours/{self.tour.id}/availability/?date={self.day.isoformat()}',
+                               HTTP_HOST='localhost').json()
+        by_start = {s['start']: s for s in body['slots']}
+        self.assertEqual((by_start['08:00']['capacity'], by_start['08:00']['seats_left']), (3, 1))
+        self.assertIsNone(by_start['16:00']['seats_left'])
+        self.assertFalse(by_start['08:00']['departed'])
+        for bad in ('', 'tomorrow', '2026-02-30'):
+            self.assertEqual(self.client.get(f'/crm-api/tours/{self.tour.id}/availability/?date={bad}',
+                                             HTTP_HOST='localhost').status_code, 400)
+
+    def test_whatsapp_hides_slots_without_room_and_rechecks_before_payment(self):
+        params = {'tour_id': self.tour.id, 'start_date': self.day.isoformat()}
+        self._book(adults=2)
+        rows = load_departure_slots(self.contact, {}, {**params, 'party': '1'})['departure_rows']
+        self.assertEqual(rows[0], {'id': 'slot_0800', 'title': '08:00–10:00', 'description': 'Morning · 1 seat left'})
+        rows = load_departure_slots(self.contact, {}, {**params, 'party': '2'})['departure_rows']
+        self.assertEqual([r['id'] for r in rows], ['slot_1600'])
+        self.assertEqual(select_departure_slot(self.contact, {}, {**params, 'party': '2', 'reply_id': 'slot_0800'}),
+                         {'departure_valid': False})
+
+        from flows.actions import check_departure_capacity
+        self.assertTrue(check_departure_capacity(self.contact, {}, {**params, 'start_time': '08:00', 'party': '1'})['departure_still_open'])
+        self._book(adults=1)
+        self.assertFalse(check_departure_capacity(self.contact, {}, {**params, 'start_time': '08:00', 'party': '1'})['departure_still_open'])
+        self.assertTrue(check_departure_capacity(self.contact, {}, {'tour_id': self.untimed.id, 'start_date': self.day.isoformat(),
+                                                                    'start_time': '', 'party': '9'})['departure_still_open'])
+
+    def test_whatsapp_reports_fully_booked_day(self):
+        TourTimeSlot.objects.filter(tour=self.tour, start_time=time(16)).update(capacity=1)
+        self._book(adults=3)
+        Booking.objects.create(tour=self.tour, tour_name=self.tour.name, start_date=self.day, start_time=time(16),
+                               end_date=self.day, number_of_adults=1, payment_status=Booking.PaymentStatus.PAID)
+        state = load_departure_slots(self.contact, {}, {'tour_id': self.tour.id, 'start_date': self.day.isoformat(), 'party': '1'})
+        self.assertEqual((state['departure_state'], state['departure_full_reason']), ('full', 'booked'))
+
+
+class SlotFlowWiringTests(TestCase):
+    """The WhatsApp re-check before payment and the re-pick route are wired as intended."""
+
+    def setUp(self):
+        from flows.definitions.booking_flow import BOOKING_FLOW
+        self.steps = {s['name']: s for s in BOOKING_FLOW['steps']}
+
+    def targets(self, name):
+        return [(t['to_step'], t.get('priority')) for t in self.steps[name]['transitions']]
+
+    def test_summary_confirm_rechecks_seats_before_payment(self):
+        self.assertTrue(all(to == 'recheck_departure_capacity'
+                            for to, _ in self.targets('show_booking_summary') if to != 'edit_booking_details'))
+        self.assertIn(('departure_filled_up', 1), self.targets('recheck_departure_capacity'))
+        self.assertIn(('ask_payment_option', 2), self.targets('recheck_departure_capacity'))
+
+    def test_repick_goes_back_through_traveler_gate_to_summary(self):
+        self.assertEqual(self.targets('set_departure_repick'), [('load_departure_slots', None)])
+        self.assertIn(('validate_travelers_before_booking', 1), self.targets('departure_chosen'))
+        self.assertIn(('repick_travelers_checked', 0), self.targets('validate_travelers_before_booking'))
+        self.assertIn(('show_booking_summary', 1), self.targets('repick_travelers_checked'))
+        # The flag is cleared at the start of every booking, so it can't leak into the next one.
+        resets = [a for a in self.steps['query_tour_details']['config']['actions_to_run']
+                  if a.get('variable_name') == 'departure_repick']
+        self.assertEqual(resets[0]['value_template'], 'False')

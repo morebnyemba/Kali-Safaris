@@ -113,7 +113,12 @@ function DeparturesCard({ data, loading }) {
                         )}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold tabular-nums">{d.passengers}</td>
+                    <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                      {d.passengers}
+                      {d.capacity != null && (
+                        <span className={`font-normal ${d.passengers >= d.capacity ? 'text-destructive' : 'text-muted-foreground'}`}> / {d.capacity}</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <Button variant="outline" size="sm" onClick={() => download(d.date)} disabled={busy === d.date || d.passengers === 0}>
                         <FiDownload /> {busy === d.date ? 'Preparing…' : 'Manifest'}

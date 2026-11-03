@@ -6,6 +6,8 @@ export interface TimeSlot {
   label: string;
   /** e.g. "Sunrise · 06:00–08:00" */
   display: string;
+  /** Seats per day on this departure; null = no limit. */
+  capacity: number | null;
 }
 
 export interface Tour {

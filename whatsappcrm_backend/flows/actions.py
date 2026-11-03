@@ -448,55 +448,92 @@ def _departure_context(slot) -> dict:
     }
 
 
+def _party_size(params: dict) -> int:
+    try:
+        return max(int(params.get('party') or 1), 1)
+    except (TypeError, ValueError):
+        return 1
+
+
+def _tour_and_date(params: dict):
+    from django.utils.dateparse import parse_date
+    from products_and_services.models import Tour
+
+    tour = Tour.objects.filter(pk=params.get('tour_id')).prefetch_related('time_slots').first()
+    try:
+        on_date = parse_date(str(params.get('start_date') or '')[:10])
+    except ValueError:
+        on_date = None
+    return tour, on_date
+
+
 @register_flow_action('load_departure_slots')
 def load_departure_slots(contact, context: dict, params: dict) -> dict:
     """
-    Works out the time-slot step for the chosen tour and date. Sets
-    `departure_state` to one of:
+    Works out the time-slot step for the chosen tour, date and party size.
+    Sets `departure_state` to one of:
       'none'   - tour has no time slots: book by date only
-      'chosen' - the tour has a single slot and it's still open: picked for them
+      'chosen' - the tour has a single slot and it has room: picked for them
       'ask'    - show `departure_rows` (WhatsApp list rows) and let them choose
-      'full'   - every slot that day has already left: pick another date
-    Uses the same rules as website checkout (products_and_services.departures).
+      'full'   - nothing bookable that day; `departure_full_reason` is
+                 'departed' (all left already) or 'booked' (no seats for the party)
+    Same rules as website checkout (products_and_services.departures).
     """
-    from django.utils.dateparse import parse_date
-    from products_and_services.departures import open_slots
-    from products_and_services.models import Tour
+    from products_and_services.departures import has_room, open_slots, seats_left
 
-    result = {'departure_state': 'none', 'departure_rows': [], 'start_time': '', 'end_time': '', 'departure_display': ''}
-    tour = Tour.objects.filter(pk=params.get('tour_id')).prefetch_related('time_slots').first()
-    on_date = parse_date(str(params.get('start_date') or '')[:10])
+    result = {'departure_state': 'none', 'departure_rows': [], 'departure_full_reason': '',
+              'start_time': '', 'end_time': '', 'departure_display': ''}
+    tour, on_date = _tour_and_date(params)
     if not tour or not on_date or not tour.active_time_slots():
         return result
 
-    available = open_slots(tour, on_date)
-    if not available:
-        result['departure_state'] = 'full'
+    party = _party_size(params)
+    not_departed = open_slots(tour, on_date)
+    bookable = [s for s in not_departed if has_room(s, on_date, party)]
+    if not bookable:
+        result.update(departure_state='full', departure_full_reason='booked' if not_departed else 'departed')
     elif len(tour.active_time_slots()) == 1:
-        result.update(departure_state='chosen', **_departure_context(available[0]))
+        result.update(departure_state='chosen', **_departure_context(bookable[0]))
     else:
         result['departure_state'] = 'ask'
-        # WhatsApp list rows: title ≤ 24 chars, description ≤ 72, at most 10 rows.
-        result['departure_rows'] = [
-            {'id': _slot_row_id(s), 'title': s.time_range[:24], 'description': s.label[:72]}
-            for s in available[:10]
-        ]
+        rows = []
+        for s in bookable[:10]:  # WhatsApp lists: ≤10 rows, title ≤24 chars, description ≤72
+            left = seats_left(s, on_date)
+            detail = [s.label] if s.label else []
+            if left is not None:
+                detail.append(f"{left} seat{'s' if left != 1 else ''} left")
+            rows.append({'id': _slot_row_id(s), 'title': s.time_range[:24], 'description': ' · '.join(detail)[:72]})
+        result['departure_rows'] = rows
     return result
 
 
 @register_flow_action('select_departure_slot')
 def select_departure_slot(contact, context: dict, params: dict) -> dict:
-    """Validates the list reply against the still-open slots; sets start_time/end_time or departure_valid=False."""
-    from django.utils.dateparse import parse_date
-    from products_and_services.departures import open_slots
-    from products_and_services.models import Tour
+    """Validates the list reply against slots that are still open and have room for the party."""
+    from products_and_services.departures import has_room, open_slots
 
-    tour = Tour.objects.filter(pk=params.get('tour_id')).prefetch_related('time_slots').first()
-    on_date = parse_date(str(params.get('start_date') or '')[:10])
+    tour, on_date = _tour_and_date(params)
     reply = str(params.get('reply_id') or '')
     slot = None
     if tour and on_date:
         slot = next((s for s in open_slots(tour, on_date) if _slot_row_id(s) == reply), None)
-    if slot is None:
+    if slot is None or not has_room(slot, on_date, _party_size(params)):
         return {'departure_valid': False}
     return {'departure_valid': True, **_departure_context(slot)}
+
+
+@register_flow_action('check_departure_capacity')
+def check_departure_capacity(contact, context: dict, params: dict) -> dict:
+    """
+    Re-checks the chosen departure just before payment: seats may have gone
+    while the customer entered traveller details. Sets departure_still_open.
+    Tours without slots always pass.
+    """
+    from products_and_services.departures import has_room, open_slots, parse_time
+
+    tour, on_date = _tour_and_date(params)
+    start = parse_time(params.get('start_time'))
+    if not tour or not on_date or not start or not tour.active_time_slots():
+        return {'departure_still_open': True}
+    slot = next((s for s in open_slots(tour, on_date) if s.start_time == start), None)
+    return {'departure_still_open': bool(slot and has_room(slot, on_date, _party_size(params)))}

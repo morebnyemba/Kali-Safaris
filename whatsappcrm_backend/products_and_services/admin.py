@@ -7,7 +7,7 @@ from .models import GalleryImage, Tour, SeasonalTourPrice, TourTimeSlot
 class TourTimeSlotInline(admin.TabularInline):
     model = TourTimeSlot
     extra = 1
-    fields = ('start_time', 'end_time', 'label', 'is_active')
+    fields = ('start_time', 'end_time', 'label', 'capacity', 'is_active')
     verbose_name_plural = 'Time slots — customers must pick one when booking (leave empty for trips with no fixed time)'
 
 
