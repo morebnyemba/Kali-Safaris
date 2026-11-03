@@ -57,6 +57,8 @@ BOOKING_FLOW = {
                     },
                     "fields_to_return": ["duration_days", "name", "base_price"],
                     "limit": 1
+                }, {
+                    "action_type": "set_context_variable", "variable_name": "departure_repick", "value_template": "False"
                 }]
             },
             "transitions": [
@@ -247,7 +249,7 @@ BOOKING_FLOW = {
             "config": {
                 "actions_to_run": [{
                     "action_type": "load_departure_slots",
-                    "params_template": {"tour_id": "{{ tour_id }}", "start_date": "{{ start_date }}"}
+                    "params_template": {"tour_id": "{{ tour_id }}", "start_date": "{{ start_date }}", "party": "{{ (num_adults|int) + (num_children|int) }}"}
                 }]
             },
             "transitions": [
@@ -284,13 +286,34 @@ BOOKING_FLOW = {
             "config": {
                 "actions_to_run": [{
                     "action_type": "select_departure_slot",
-                    "params_template": {"tour_id": "{{ tour_id }}", "start_date": "{{ start_date }}", "reply_id": "{{ departure_reply }}"}
+                    "params_template": {"tour_id": "{{ tour_id }}", "start_date": "{{ start_date }}", "reply_id": "{{ departure_reply }}", "party": "{{ (num_adults|int) + (num_children|int) }}"}
                 }]
             },
             "transitions": [
-                {"to_step": "query_seasonal_pricing", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "departure_valid", "value": "True"}},
-                # The slot left (or became unavailable) while they were choosing: show the current list again.
+                # Re-picking after the first choice filled up: details are already collected, go back to the summary.
+                {"to_step": "departure_chosen", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "departure_valid", "value": "True"}},
+                # The slot left or filled up while they were choosing: show the current list again.
                 {"to_step": "load_departure_slots", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            # Re-picking a time (first choice filled up) keeps the travelers already
+            # entered and returns to the summary; a first pick continues to pricing.
+            "name": "departure_chosen",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "departure_was_repick", "value_template": "{{ departure_repick }}"}, {"action_type": "set_context_variable", "variable_name": "departure_repick", "value_template": "False"}]},
+            "transitions": [
+                {"to_step": "validate_travelers_before_booking", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "departure_was_repick", "value": "True"}},
+                {"to_step": "query_seasonal_pricing", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "repick_travelers_checked",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "departure_was_repick", "value_template": "False"}]},
+            "transitions": [
+                {"to_step": "show_booking_summary", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "travelers_valid", "value": "yes"}},
+                {"to_step": "travelers_invalid_restart", "priority": 2, "condition_config": {"type": "always_true"}}
             ]
         },
         {
@@ -298,9 +321,46 @@ BOOKING_FLOW = {
             "type": "send_message",
             "config": {
                 "message_type": "text",
-                "text": {"body": "Sorry, all *{{ tour_name }}* departures on *{{ start_date }}* have already left. Please choose another date."}
+                "text": {"body": "{% if departure_full_reason == 'booked' %}Sorry, *{{ tour_name }}* on *{{ start_date }}* is fully booked for {{ (num_adults|int) + (num_children|int) }} traveler(s).{% else %}Sorry, all *{{ tour_name }}* departures on *{{ start_date }}* have already left.{% endif %} Please choose another date."}
             },
+            "transitions": [{"to_step": "reset_departure_repick", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            # A new date means new pricing, so a re-pick that changes the date starts the normal path again.
+            "name": "reset_departure_repick",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "departure_repick", "value_template": "False"}]},
             "transitions": [{"to_step": "query_date_picker_whatsapp_flow", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            # Seats can go while the customer is entering traveler details: check again before taking payment.
+            "name": "recheck_departure_capacity",
+            "type": "action",
+            "config": {
+                "actions_to_run": [{
+                    "action_type": "check_departure_capacity",
+                    "params_template": {"tour_id": "{{ tour_id }}", "start_date": "{{ start_date }}", "start_time": "{{ start_time }}", "party": "{{ (num_adults|int) + (num_children|int) }}"}
+                }]
+            },
+            "transitions": [
+                {"to_step": "departure_filled_up", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "departure_still_open", "value": "False"}},
+                {"to_step": "ask_payment_option", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "departure_filled_up",
+            "type": "send_message",
+            "config": {
+                "message_type": "text",
+                "text": {"body": "Sorry, the *{{ departure_display }}* departure has just filled up. Let's pick another time — your traveler details are saved."}
+            },
+            "transitions": [{"to_step": "set_departure_repick", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            "name": "set_departure_repick",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "departure_repick", "value_template": "True"}]},
+            "transitions": [{"to_step": "load_departure_slots", "condition_config": {"type": "always_true"}}]
         },
         {
             "name": "query_seasonal_pricing",
@@ -687,7 +747,9 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "ask_email", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "travelers_valid", "value": "yes"}},
-                {"to_step": "travelers_invalid_restart", "priority": 2, "condition_config": {"type": "always_true"}}
+                {"to_step": "travelers_invalid_restart", "priority": 2, "condition_config": {"type": "always_true"}},
+                # Re-picking a departure: email is already known, so a valid party goes straight back to the summary.
+                {"to_step": "repick_travelers_checked", "priority": 0, "condition_config": {"type": "variable_equals", "variable_name": "departure_was_repick", "value": "True"}}
             ]
         },
         {
@@ -782,9 +844,9 @@ BOOKING_FLOW = {
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "summary_confirmation"}
             },
             "transitions": [
-                {"to_step": "ask_payment_option", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_booking"}},
+                {"to_step": "recheck_departure_capacity", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "confirm_booking"}},
                 {"to_step": "edit_booking_details", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "edit_booking"}},
-                {"to_step": "ask_payment_option", "priority": 3, "condition_config": {"type": "always_true"}}
+                {"to_step": "recheck_departure_capacity", "priority": 3, "condition_config": {"type": "always_true"}}
             ]
         },
         # Step 9b: Edit booking details (simple restart for now)

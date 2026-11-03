@@ -35,7 +35,8 @@ from django.core.files.base import ContentFile
 from customer_data.models import Booking, Payment, Traveler, CustomerProfile
 from customer_data.traveler_validation import validate_traveler_list
 from conversations.models import Contact
-from products_and_services.departures import open_slots, parse_time
+from products_and_services.departures import full_message, has_room, open_slots, parse_time, seats_left
+from products_and_services.models import TourTimeSlot
 from products_and_services.models import Tour, resolve_tour_price
 from .models import CBZConfig, CBZTransaction
 from .services import IVeriClient, IVeriCertificateClient, build_certificate_client_from_settings
@@ -485,6 +486,23 @@ def _validate_departure(tour: Tour, start_date: date, raw_time: Any):
         )
     return slot
 
+def _check_unpaid_booking_still_fits(booking: Booking) -> None:
+    """
+    An unpaid booking only holds its seats for a short while. When the
+    customer comes back to pay later (retry from the payment step), make sure
+    its departure still has room for it before taking the money.
+    """
+    if booking.payment_status != Booking.PaymentStatus.PENDING or not (booking.tour_id and booking.start_time):
+        return
+    slot = TourTimeSlot.objects.filter(tour_id=booking.tour_id, start_time=booking.start_time).first()
+    if slot is None or slot.capacity is None:
+        return
+    party = booking.number_of_adults + booking.number_of_children
+    if not has_room(slot, booking.start_date, party, exclude_booking_id=booking.pk):
+        left = seats_left(slot, booking.start_date, exclude_booking_id=booking.pk)
+        raise PricingError(full_message(slot, booking.start_date, party, left))
+
+
 def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) -> tuple[Optional[Booking], Decimal]:
     """
     Resolve a booking by reference, or create a website draft booking when
@@ -516,6 +534,7 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
         balance_due = (booking.total_amount - booking.amount_paid).quantize(Decimal('0.01'))
         if balance_due <= 0:
             raise PricingError("This booking has already been paid in full.")
+        _check_unpaid_booking_still_fits(booking)
         if client_amount > balance_due + Decimal('0.01'):
             raise PricingError(
                 f"Amount ${client_amount} exceeds the outstanding balance of ${balance_due} for this booking."
@@ -591,6 +610,11 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
         )
 
         with db_transaction.atomic():
+            if slot is not None and slot.capacity is not None:
+                # Lock the slot so two checkouts can't both take the last seats.
+                TourTimeSlot.objects.select_for_update().filter(pk=slot.pk).first()
+                if not has_room(slot, start_date, adults):
+                    raise PricingError(full_message(slot, start_date, adults, seats_left(slot, start_date)))
             booking = Booking.objects.create(
                 booking_reference=f"PENDING-WEB-{uuid.uuid4().hex[:10].upper()}",
                 tour=tour,
@@ -620,6 +644,8 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
                         declared_mime=str(raw.get('id_document_mime_type') or '').strip(),
                     )
                     traveler_obj.save(update_fields=['id_document', 'updated_at'])
+    except PricingError:
+        raise
     except Exception as exc:
         logger.warning("Error creating draft booking for website payment: %s", exc)
         booking = None

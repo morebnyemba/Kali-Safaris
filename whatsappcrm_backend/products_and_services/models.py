@@ -146,6 +146,10 @@ class TourTimeSlot(models.Model):
     label = models.CharField(_("Label"), max_length=40, blank=True,
                              help_text=_("Optional name shown to customers, e.g. \"Sunrise\" or \"Breakfast\"."))
     is_active = models.BooleanField(_("Bookable"), default=True)
+    capacity = models.PositiveIntegerField(
+        _("Seats"), null=True, blank=True,
+        help_text=_("Passengers this departure can take per day. Leave blank for no limit."),
+    )
 
     class Meta:
         ordering = ['start_time']

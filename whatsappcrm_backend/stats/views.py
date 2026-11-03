@@ -311,6 +311,12 @@ class BookingStatsAPIView(BaseAnalyticsView):
             .annotate(pax=Count('travelers'))
         )
 
+        from products_and_services.models import TourTimeSlot
+        capacities = {
+            (tour_id, start): cap for tour_id, start, cap in
+            TourTimeSlot.objects.filter(capacity__isnull=False).values_list('tour_id', 'start_time', 'capacity')
+        }
+
         departures = {}
         for booking in upcoming.order_by('start_date', 'start_time', 'tour_name'):
             # One row per departure: the 06:00 and 16:00 runs of a tour are different boats.
@@ -318,6 +324,7 @@ class BookingStatsAPIView(BaseAnalyticsView):
             row = departures.setdefault(key, {
                 'date': booking.start_date.isoformat(), 'tour_name': booking.tour_name,
                 'time': booking.departure_display or None,
+                'capacity': capacities.get((booking.tour_id, booking.start_time)) if booking.start_time else None,
                 'bookings': 0, 'passengers': 0, 'held_bookings': 0,
             })
             if booking.payment_status == awaiting:

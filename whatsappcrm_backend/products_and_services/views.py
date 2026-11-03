@@ -17,7 +17,7 @@ from django.views.decorators.http import require_http_methods
 from rest_framework import permissions, viewsets
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 
-from .departures import serialize_slot
+from .departures import availability, serialize_slot
 from .models import GalleryImage, Tour, resolve_tour_price
 from .serializers import GalleryImageSerializer
 
@@ -119,3 +119,25 @@ class GalleryImageViewSet(viewsets.ModelViewSet):
         if category in GalleryImage.Category.values:
             queryset = queryset.filter(category=category)
         return queryset
+
+
+@require_http_methods(["GET"])
+def tour_availability_view(request: HttpRequest, tour_id: int) -> JsonResponse:
+    """
+    GET /crm-api/tours/<id>/availability/?date=YYYY-MM-DD
+
+    Time slots for one date with seats left (null = no limit) and whether each
+    has already departed. Public: it exposes headcounts, never who booked.
+    """
+    from django.utils.dateparse import parse_date
+
+    tour = Tour.objects.filter(pk=tour_id, is_active=True).prefetch_related('time_slots').first()
+    if tour is None:
+        return JsonResponse({'success': False, 'message': 'Tour not found.'}, status=404)
+    try:
+        on_date = parse_date(request.GET.get('date') or '')
+    except ValueError:  # well-formed but impossible, e.g. 2026-02-30
+        on_date = None
+    if on_date is None:
+        return JsonResponse({'success': False, 'message': 'Pass ?date=YYYY-MM-DD.'}, status=400)
+    return JsonResponse({'success': True, 'date': on_date.isoformat(), 'slots': availability(tour, on_date)})

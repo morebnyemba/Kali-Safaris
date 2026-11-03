@@ -342,6 +342,7 @@ function BookingPageContent() {
             onClose={handleBackToSelect}
             cruiseType={selectedCruise}
             amountUsd={selectedAmountUsd}
+            tourId={tours.find((t) => t.name.toLowerCase() === selectedCruise.toLowerCase())?.id}
             timeSlots={tours.find((t) => t.name.toLowerCase() === selectedCruise.toLowerCase())?.time_slots}
             initialPaymentMode={queryPaymentMode === 'card' || queryPaymentMode === 'ecocash' || queryPaymentMode === 'omari' ? queryPaymentMode : undefined}
             initialBookingReference={queryBookingReference || undefined}

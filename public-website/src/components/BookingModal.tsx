@@ -21,6 +21,8 @@ interface BookingModalProps {
   amountUsd: number;
   /** Admin-defined departures for this tour; when non-empty the customer must pick one. */
   timeSlots?: TimeSlot[];
+  /** Tour id, used to look up seats left per slot for the chosen date. */
+  tourId?: number;
   initialPaymentMode?: PaymentMode;
   initialBookingReference?: string;
   fixedAmountUsd?: number;
@@ -210,6 +212,7 @@ export default function BookingModal({
   cruiseType,
   amountUsd,
   timeSlots,
+  tourId,
   initialPaymentMode,
   initialBookingReference,
   fixedAmountUsd,
@@ -219,6 +222,28 @@ export default function BookingModal({
 }: BookingModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+  const [slotAvailability, setSlotAvailability] = useState<{ key: string; seatsLeft: Record<string, number | null> } | null>(null);
+  const hasTimeSlots = Boolean(timeSlots?.length);
+
+  useEffect(() => {
+    if (!tourId || !selectedDate || !hasTimeSlots) return;
+    let cancelled = false;
+    fetch(`${API_BASE}/crm-api/tours/${tourId}/availability/?date=${encodeURIComponent(selectedDate)}`, { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data: { success?: boolean; slots?: { start: string; seats_left: number | null }[] }) => {
+        if (cancelled || !data.success || !data.slots) return;
+        setSlotAvailability({
+          key: `${tourId}|${selectedDate}`,
+          seatsLeft: Object.fromEntries(data.slots.map((slot) => [slot.start, slot.seats_left])),
+        });
+      })
+      .catch(() => {
+        // Without availability the form still works; checkout re-checks seats on the server.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tourId, selectedDate, hasTimeSlots]);
   const [numberOfPeople, setNumberOfPeople] = useState('1');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('ecocash');
   const [ecocash, setEcocash] = useState<EcoCashPaymentState>({ msisdn: '' });
@@ -608,8 +633,15 @@ export default function BookingModal({
   // enforces the same rule in Victoria Falls time).
   const slots = timeSlots ?? [];
   const vfNow = victoriaFallsNow();
+  const party = Math.max(Number(numberOfPeople || '1') || 1, 1);
+  // Seats left for the chosen date (fetched below); the server enforces the same limit at payment.
+  const availabilityKey = `${tourId ?? ''}|${selectedDate}`;
+  const seatsLeft = slotAvailability?.key === availabilityKey ? slotAvailability.seatsLeft : {};
+  const slotSeats = (slot: TimeSlot) => seatsLeft[slot.start] ?? null;
   const isSlotPast = (slot: TimeSlot) => selectedDate === vfNow.date && slot.start <= vfNow.time;
-  const openSlots = slots.filter((slot) => !isSlotPast(slot));
+  const isSlotFull = (slot: TimeSlot) => { const left = slotSeats(slot); return left !== null && left < party; };
+  const openSlots = slots.filter((slot) => !isSlotPast(slot) && !isSlotFull(slot));
+  const allRemainingFull = openSlots.length === 0 && slots.some((slot) => !isSlotPast(slot));
   const chosenStart = slots.length === 1 ? slots[0].start : selectedTime;
   const chosenSlot = openSlots.find((slot) => slot.start === chosenStart);
   const slotRange = (slot: TimeSlot) => (slot.end ? `${slot.start}–${slot.end}` : slot.start);
@@ -622,6 +654,9 @@ export default function BookingModal({
     }
     if (!selectedDate) {
       return 'Select your preferred date.';
+    }
+    if (slots.length > 0 && allRemainingFull) {
+      return `No departure on that date has ${party} seat${party === 1 ? '' : 's'} left — please choose another date or fewer travelers.`;
     }
     if (slots.length > 0 && openSlots.length === 0) {
       return 'All of today\'s departures have left — please choose another date.';
@@ -1538,13 +1573,17 @@ export default function BookingModal({
                         {slots.length === 1 ? (
                           <p className={`text-sm ${openSlots.length ? 'text-gray-700' : 'text-red-700'}`}>
                             {openSlots.length
-                              ? <>Departs <span className="font-bold tabular-nums text-gray-900">{slotRange(slots[0])}</span> from our riverside jetty.</>
-                              : <>Today&apos;s {slots[0].start} departure has left — please choose another date.</>}
+                              ? <>Departs <span className="font-bold tabular-nums text-gray-900">{slotRange(slots[0])}</span> from our riverside jetty.{slotSeats(slots[0]) !== null && (slotSeats(slots[0]) ?? 0) <= 10 && <> Only {slotSeats(slots[0])} seat{slotSeats(slots[0]) === 1 ? '' : 's'} left.</>}</>
+                              : isSlotFull(slots[0])
+                                ? <>This departure doesn&apos;t have {party} seat{party === 1 ? '' : 's'} left on that date — please choose another date{party > 1 ? ' or fewer travelers' : ''}.</>
+                                : <>Today&apos;s {slots[0].start} departure has left — please choose another date.</>}
                           </p>
                         ) : (
                           <div role="radiogroup" aria-label="Departure time" className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                             {slots.map((slot) => {
                               const past = isSlotPast(slot);
+                              const full = !past && isSlotFull(slot);
+                              const left = slotSeats(slot);
                               const active = chosenSlot?.id === slot.id;
                               return (
                                 <button
@@ -1552,7 +1591,7 @@ export default function BookingModal({
                                   type="button"
                                   role="radio"
                                   aria-checked={active}
-                                  disabled={past}
+                                  disabled={past || full}
                                   onClick={() => setSelectedTime(slot.start)}
                                   className={`rounded-xl border px-3 py-2.5 text-left transition ${
                                     active
@@ -1561,15 +1600,22 @@ export default function BookingModal({
                                   } disabled:cursor-not-allowed disabled:border-gray-200 disabled:bg-gray-50 disabled:text-gray-300`}
                                 >
                                   <span className={`block text-sm font-bold tabular-nums ${past ? 'line-through' : ''}`}>{slotRange(slot)}</span>
-                                  {slot.label && (
-                                    <span className={`block text-xs ${active ? 'text-white/85' : past ? '' : 'text-gray-500'}`}>{slot.label}</span>
+                                  {(slot.label || full || (left !== null && left <= 10 && !past)) && (
+                                    <span className={`block text-xs ${active ? 'text-white/85' : past || full ? '' : 'text-gray-500'}`}>
+                                      {full ? (left ? `Only ${left} left` : 'Fully booked') : [slot.label, left !== null && left <= 10 && !past ? `${left} left` : ''].filter(Boolean).join(' · ')}
+                                    </span>
                                   )}
                                 </button>
                               );
                             })}
                           </div>
                         )}
-                        {selectedDate === vfNow.date && slots.length > 1 && openSlots.length < slots.length && (
+                        {slots.length > 1 && allRemainingFull && (
+                          <p className="mt-2 text-xs text-red-700">
+                            No departure on that date has {party} seat{party === 1 ? '' : 's'} left — please choose another date or fewer travelers.
+                          </p>
+                        )}
+                        {selectedDate === vfNow.date && slots.length > 1 && !allRemainingFull && slots.some(isSlotPast) && (
                           <p className="mt-2 text-xs text-gray-500">
                             {openSlots.length ? 'Earlier departures today have already left.' : 'All of today\'s departures have left — please choose another date.'}
                           </p>
