@@ -41,7 +41,7 @@ def unseed(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('products_and_services', '0007_tourtimeslot'),
+        ('products_and_services', '0009_tourtimeslot'),
     ]
 
     operations = [

@@ -16,6 +16,7 @@ const ApiSettings = lazy(() => import('./pages/ApiSettings'));
 const FlowsPage = lazy(() => import('./pages/FlowsPage'));
 const FlowEditorPage = lazy(() => import('./pages/FlowEditorPage'));
 const MediaLibraryPage = lazy(() => import('./pages/MediaLibraryPage'));
+const WebsiteGalleryPage = lazy(() => import('./pages/WebsiteGalleryPage'));
 const ContactsPage = lazy(() => import('./pages/ContactsPage'));
 const Conversation = lazy(() => import('./pages/Conversation'));
 const BookingsPage = lazy(() => import('./pages/BookingsPage'));
@@ -67,6 +68,7 @@ const router = createBrowserRouter([
       
   // Other sections
   { path: 'media-library', element: <MediaLibraryPage /> },
+  { path: 'website-gallery', element: <WebsiteGalleryPage /> },
   { path: 'contacts', element: <ContactsPage /> },
   { path: 'analytics', element: <AnalyticsPage />},
   { path: 'bookings', element: <BookingsPage /> },

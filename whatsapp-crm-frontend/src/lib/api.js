@@ -227,6 +227,17 @@ export const mediaAssetsApi = {
   sync: (id) => apiClient.post(`${MEDIA_BASE}${id}/sync-with-whatsapp/`),
 };
 
+// --- Website gallery API ---
+const GALLERY_BASE = '/crm-api/gallery/manage/';
+export const galleryApi = {
+  list: (params) => apiClient.get(GALLERY_BASE, { params }),
+  create: (formData) => apiClient.post(GALLERY_BASE, formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  // JSON for field edits; FormData when the photo itself is being replaced.
+  update: (id, data) => apiClient.patch(`${GALLERY_BASE}${id}/`, data,
+    data instanceof FormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : undefined),
+  delete: (id) => apiClient.delete(`${GALLERY_BASE}${id}/`),
+};
+
 // Backward-compatible apiCall function.
 // It's recommended to migrate away from this and use the specific service APIs above.
 /**

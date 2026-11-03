@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("products_and_services", "0006_deactivate_duplicate_tours"),
+        ("products_and_services", "0008_seed_gallery_images"),
     ]
 
     operations = [
