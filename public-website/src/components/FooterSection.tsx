@@ -3,6 +3,7 @@ import Image from 'next/image';
 import { FaCcMastercard, FaCcVisa, FaDirections, FaEnvelope, FaFacebook, FaMapMarkerAlt, FaPhone, FaSun, FaTripadvisor, FaWhatsapp } from 'react-icons/fa';
 import { BsSunriseFill, BsSunsetFill } from 'react-icons/bs';
 import { NAV_LINKS, SITE, whatsappLink } from '@/lib/site';
+import { PaymentLogo } from '@/components/PaymentLogo';
 
 const HOURS = [
   { icon: BsSunriseFill, name: 'Sunrise cruise', time: '06:00 – 08:00' },
@@ -113,9 +114,9 @@ export default function FooterSection() {
           <ul className="flex flex-wrap items-center gap-2" aria-label="Accepted payment methods">
             <li><FaCcVisa className="text-3xl text-white/80" title="Visa" aria-label="Visa" /></li>
             <li><FaCcMastercard className="text-3xl text-white/80" title="Mastercard" aria-label="Mastercard" /></li>
-            {['ZimSwitch', 'EcoCash', 'Omari'].map((m) => (
-              <li key={m} className="rounded-md border border-white/15 px-2 py-1 text-[11px] font-semibold tracking-wide text-white/80">{m}</li>
-            ))}
+            <li><PaymentLogo brand="zimswitch" size="sm" /></li>
+            <li><PaymentLogo brand="ecocash" size="sm" /></li>
+            <li><PaymentLogo brand="omari" size="sm" /></li>
           </ul>
         </div>
 

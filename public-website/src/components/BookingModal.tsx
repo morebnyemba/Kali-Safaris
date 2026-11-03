@@ -11,6 +11,7 @@ import {
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
 import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
+import { PaymentLogo } from '@/components/PaymentLogo';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -1669,22 +1670,26 @@ export default function BookingModal({
                     <legend className={labelBase}>Pay with</legend>
                     <div className={`grid gap-2 ${isOmariAvailable ? 'grid-cols-3' : 'grid-cols-2'}`} role="radiogroup">
                       {([
-                        { mode: 'card' as const, icon: FaCreditCard, title: 'Card', hint: 'Visa · Mastercard · ZimSwitch' },
-                        { mode: 'ecocash' as const, icon: FaMobileAlt, title: 'EcoCash', hint: 'Mobile money' },
-                        ...(isOmariAvailable ? [{ mode: 'omari' as const, icon: FaWallet, title: 'Omari', hint: 'Omari wallet' }] : []),
-                      ]).map(({ mode, icon: Icon, title, hint }) => (
+                        { mode: 'card' as const, title: 'Card', hint: 'Visa · Mastercard · ZimSwitch' },
+                        { mode: 'ecocash' as const, title: 'EcoCash', hint: 'Mobile money' },
+                        ...(isOmariAvailable ? [{ mode: 'omari' as const, title: 'Omari', hint: 'Omari wallet' }] : []),
+                      ]).map(({ mode, title, hint }) => (
                         <button
                           key={mode}
                           type="button"
                           role="radio"
                           aria-checked={paymentMode === mode}
                           onClick={() => { setPaymentMode(mode); setPaymentMessage(''); }}
-                          className={`flex flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 text-center transition ${
+                          className={`flex min-w-0 flex-col items-center gap-1 rounded-2xl border-2 px-2 py-3 text-center transition ${
                             paymentMode === mode ? 'border-[#E8600A] bg-[#FFF9F5] text-gray-900' : 'border-gray-200 text-gray-600 hover:border-gray-300'
                           }`}
                         >
-                          <Icon size={18} className={paymentMode === mode ? 'text-[#E8600A]' : 'text-gray-400'} aria-hidden />
-                          <span className="text-sm font-bold">{title}</span>
+                          <span className="flex h-8 items-center" aria-hidden>
+                            {mode === 'card'
+                              ? <FaCreditCard size={18} className={paymentMode === mode ? 'text-[#E8600A]' : 'text-gray-400'} />
+                              : <PaymentLogo brand={mode} decorative bare />}
+                          </span>
+                          <span className={mode === 'card' ? 'text-sm font-bold' : 'sr-only'}>{title}</span>
                           <span className="hidden text-[11px] leading-tight text-gray-500 sm:block">{hint}</span>
                         </button>
                       ))}
