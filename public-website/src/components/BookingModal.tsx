@@ -11,7 +11,7 @@ import {
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
 import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
-import { MobileMoneyLogo } from '@/components/MobileMoneyLogo';
+import { PaymentLogo } from '@/components/PaymentLogo';
 
 interface BookingModalProps {
   isOpen: boolean;
@@ -1687,7 +1687,7 @@ export default function BookingModal({
                           <span className="flex h-8 items-center" aria-hidden>
                             {mode === 'card'
                               ? <FaCreditCard size={18} className={paymentMode === mode ? 'text-[#E8600A]' : 'text-gray-400'} />
-                              : <MobileMoneyLogo operator={mode} decorative bare />}
+                              : <PaymentLogo brand={mode} decorative bare />}
                           </span>
                           <span className={mode === 'card' ? 'text-sm font-bold' : 'sr-only'}>{title}</span>
                           <span className="hidden text-[11px] leading-tight text-gray-500 sm:block">{hint}</span>
