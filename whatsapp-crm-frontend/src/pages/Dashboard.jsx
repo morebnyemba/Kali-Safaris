@@ -99,8 +99,11 @@ function DeparturesCard({ data, loading }) {
               </thead>
               <tbody className="divide-y">
                 {data.upcoming_departures.map((d) => (
-                  <tr key={`${d.date}-${d.tour_name}`} className="hover:bg-muted/30">
-                    <td className="whitespace-nowrap px-4 py-3 font-medium">{formatDate(d.date, 'EEE d MMM')}</td>
+                  <tr key={`${d.date}-${d.time ?? ''}-${d.tour_name}`} className="hover:bg-muted/30">
+                    <td className="whitespace-nowrap px-4 py-3 font-medium">
+                      {formatDate(d.date, 'EEE d MMM')}
+                      {d.time && <span className="block text-xs font-normal tabular-nums text-muted-foreground">{d.time}</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <span className="block">{d.tour_name}</span>
                       <span className="text-xs text-muted-foreground">

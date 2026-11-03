@@ -17,6 +17,7 @@ from django.views.decorators.http import require_http_methods
 from rest_framework import permissions, viewsets
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 
+from .departures import serialize_slot
 from .models import GalleryImage, Tour, resolve_tour_price
 from .serializers import GalleryImageSerializer
 
@@ -40,6 +41,7 @@ def _serialize_tour(tour: Tour, today: date, request: HttpRequest) -> dict:
         'duration_days': tour.duration_days,
         'duration_display': tour.get_duration_display_text(),
         'image_url': image_url,
+        'time_slots': [serialize_slot(slot) for slot in tour.active_time_slots()],
     }
 
 
@@ -54,7 +56,7 @@ def public_tours_list_view(request: HttpRequest) -> JsonResponse:
     data.
     """
     today = date.today()
-    tours = Tour.objects.filter(is_active=True).order_by('name')
+    tours = Tour.objects.filter(is_active=True).prefetch_related('time_slots').order_by('name')
     data = [_serialize_tour(tour, today, request) for tour in tours]
 
     return JsonResponse({'success': True, 'count': len(data), 'tours': data})

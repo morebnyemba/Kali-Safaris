@@ -54,6 +54,8 @@ const experiences = [
 
 export default function CruiseTypesSection() {
   const [prices, setPrices] = useState<Record<string, number>>({});
+  // Admin-set time slots win over the fallback times written above.
+  const [slotTimes, setSlotTimes] = useState<Record<string, string>>({});
 
   // Prices come from the live Tour catalogue (same source as checkout); a card
   // just hides its price until/unless a tour with the same name exists.
@@ -63,6 +65,9 @@ export default function CruiseTypesSection() {
       .then((tours: Tour[]) => {
         if (cancelled) return;
         setPrices(Object.fromEntries(tours.map((t) => [t.name.toLowerCase(), tourPriceUsd(t)])));
+        setSlotTimes(Object.fromEntries(tours
+          .filter((t) => t.time_slots?.length)
+          .map((t) => [t.name.toLowerCase(), t.time_slots.map((s) => (s.end ? `${s.start} – ${s.end}` : `${s.start} onwards`)).join(' · ')])));
       })
       .catch(() => {});
     return () => {
@@ -112,7 +117,7 @@ export default function CruiseTypesSection() {
                 <div className="flex flex-1 flex-col p-5">
                   <h3 className="text-xl font-bold text-gray-950">{x.title}</h3>
                   <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600">
-                    <FaClock className="text-[#E8600A]" aria-hidden /> {x.time}
+                    <FaClock className="text-[#E8600A]" aria-hidden /> {slotTimes[x.tourName.toLowerCase()] ?? x.time}
                   </p>
                   <p className="mt-3 flex-1 text-[15px] leading-relaxed text-gray-600">{x.description}</p>
 
