@@ -1687,6 +1687,16 @@ BOOKING_FLOW = {
             }
         },
         {
+            # Reached when saving the booking failed in the card or EcoCash branch
+            # (no created_booking.id). Nothing was charged yet, so hand over to a person.
+            "name": "booking_creation_failed",
+            "type": "human_handover",
+            "config": {
+                "pre_handover_message_text": "Sorry, something went wrong while saving your booking for *{{ tour_name }}* on *{{ start_date }}*. You have not been charged.\n\nI'm passing you to a member of our team who will finish the booking with you here shortly.",
+                "notification_details": "Booking flow: saving the booking failed before payment. Tour: {{ tour_name }}, date: {{ start_date }}{% if departure_display %} ({{ departure_display }}){% endif %}, travelers: {{ num_adults }} adult(s), {{ num_children }} child(ren), total ${{ total_cost }}. Please complete the booking manually."
+            }
+        },
+        {
             "name": "end_booking_flow_final",
             "type": "end_flow"
         }
