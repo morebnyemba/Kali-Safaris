@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { FaCcMastercard, FaDirections, FaEnvelope, FaFacebook, FaMapMarkerAlt, FaPhone, FaSun, FaTripadvisor, FaWhatsapp } from 'react-icons/fa';
+import { FaDirections, FaEnvelope, FaFacebook, FaMapMarkerAlt, FaPhone, FaSun, FaTripadvisor, FaWhatsapp } from 'react-icons/fa';
 import { BsSunriseFill, BsSunsetFill } from 'react-icons/bs';
 import { NAV_LINKS, SITE, whatsappLink } from '@/lib/site';
 import { PAYMENT_LOGO_ORDER, PaymentLogo } from '@/components/PaymentLogo';
@@ -115,8 +115,6 @@ export default function FooterSection() {
             {PAYMENT_LOGO_ORDER.map((brand) => (
               <li key={brand}><PaymentLogo brand={brand} size="sm" /></li>
             ))}
-            {/* Placeholder until the official Mastercard artwork is supplied. */}
-            <li><FaCcMastercard className="text-3xl text-white/80" title="Mastercard" aria-label="Mastercard" /></li>
           </ul>
         </div>
 

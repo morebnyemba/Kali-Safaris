@@ -4,13 +4,13 @@ import Image from 'next/image';
  * Official payment brand marks, served from /public/images/payments.
  * See public/images/payments/README.md for sources and usage rules.
  *
- * EcoCash and Omari sit on a fixed backing (white for EcoCash's full-colour
- * wordmark, Omari green for Omari's reversed wordmark) so they read the same
- * on light and dark surfaces. ZimSwitch's artwork is already a self-contained
- * yellow badge, so it is drawn as-is at the full badge height.
+ * EcoCash, Omari, Visa and Mastercard are full-colour marks made for light
+ * backgrounds, so they sit on a white chip and read the same on light and dark
+ * surfaces. ZimSwitch's artwork is already a self-contained yellow badge, so it
+ * is drawn as-is at the full badge height.
  * Never recolour, stretch or crop the artwork itself.
  */
-export type PaymentBrand = 'ecocash' | 'omari' | 'zimswitch' | 'visa';
+export type PaymentBrand = 'ecocash' | 'omari' | 'zimswitch' | 'visa' | 'mastercard';
 
 type Mark = {
   src: string;
@@ -23,18 +23,18 @@ type Mark = {
 
 const MARKS: Record<PaymentBrand, Mark> = {
   ecocash: { src: '/images/payments/ecocash.webp', alt: 'EcoCash', width: 523, height: 96, backing: 'bg-white ring-1 ring-black/10' },
-  omari: { src: '/images/payments/omari-white.webp', alt: 'Omari', width: 311, height: 96, backing: 'bg-[#1A9C68]' },
+  omari: { src: '/images/payments/omari.webp', alt: 'Omari', width: 307, height: 96, backing: 'bg-white ring-1 ring-black/10' },
   zimswitch: { src: '/images/payments/zimswitch.svg', alt: 'ZimSwitch', width: 117, height: 58, backing: null },
   // Visa Blue wordmark: always on white.
   visa: { src: '/images/payments/visa.webp', alt: 'Visa', width: 296, height: 96, backing: 'bg-white ring-1 ring-black/10' },
+  mastercard: { src: '/images/payments/mastercard.webp', alt: 'Mastercard', width: 154, height: 96, backing: 'bg-white ring-1 ring-black/10' },
 };
 
 /**
  * Order the client set for every list of payment methods: mobile money first,
  * then ZimSwitch, then (once live) InnBucks, then the international cards.
- * Mastercard isn't here yet: its official artwork is still to be supplied.
  */
-export const PAYMENT_LOGO_ORDER: PaymentBrand[] = ['ecocash', 'omari', 'zimswitch', 'visa'];
+export const PAYMENT_LOGO_ORDER: PaymentBrand[] = ['ecocash', 'omari', 'zimswitch', 'visa', 'mastercard'];
 
 // Badge height, inner clear space and logo height per size. In a container
 // narrower than the badge the logo scales down without distortion.
@@ -56,15 +56,15 @@ export function PaymentLogo({
   /** Set when an adjacent label already names the brand. */
   decorative?: boolean;
   /**
-   * Drop the backing chip. Only honoured for EcoCash and Visa on an already white
-   * or near-white surface, where the chip would just steal width from the wordmark.
+   * Drop the backing chip on an already white or near-white surface, where it
+   * would just steal width from the mark. Ignored for ZimSwitch's own plate.
    */
   bare?: boolean;
 }) {
   const mark = MARKS[brand];
   const s = SIZES[size];
   const selfPlated = mark.backing === null;
-  const chip = selfPlated || (bare && (brand === 'ecocash' || brand === 'visa')) ? '' : `${mark.backing} ${s.pad}`;
+  const chip = selfPlated || bare ? '' : `${mark.backing} ${s.pad}`;
   return (
     <span className={`inline-flex min-w-0 max-w-full items-center justify-center rounded-md ${s.height} ${chip} ${className}`}>
       <Image

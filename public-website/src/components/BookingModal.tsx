@@ -1989,7 +1989,7 @@ export default function BookingModal({
                               <span className="min-w-0 flex-1">
                                 <span className="flex items-center justify-between gap-2">
                                   <span className="text-sm font-bold text-gray-900">Visa or Mastercard</span>
-                                  <span className="flex items-center gap-1.5" aria-hidden><PaymentLogo brand="visa" size="sm" decorative bare /><FaCcMastercard className="text-2xl text-[#EB001B]" /></span>
+                                  <span className="flex items-center gap-1.5" aria-hidden><PaymentLogo brand="visa" size="sm" decorative bare /><PaymentLogo brand="mastercard" size="sm" decorative bare /></span>
                                 </span>
                                 <span className="mt-0.5 block text-xs text-gray-500">International and local cards. Your bank may ask you to confirm (3D Secure).</span>
                               </span>
