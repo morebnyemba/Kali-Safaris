@@ -1,24 +1,38 @@
 'use client';
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import type { IconType } from "react-icons";
-import { FaShip, FaAnchor, FaTimes } from "react-icons/fa";
+import { FaShip, FaAnchor, FaSun, FaTimes } from "react-icons/fa";
 import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
 import FooterSection from "@/components/FooterSection";
+import { CRUISES, bookingHref, cruisePath } from "@/lib/cruises";
 import { fetchGallery, type GalleryImage } from "@/lib/gallery";
 
-
+// Tabs mirror what we sell: each cruise, then the venue, then the boats.
 const categories: { key: string; label: string; icon?: IconType }[] = [
   { key: "all", label: "All" },
-  { key: "boat", label: "Boats & Cruises", icon: FaShip },
-  { key: "sunset", label: "Sunset", icon: BsSunsetFill },
-  { key: "sunrise", label: "Sunrise", icon: BsSunriseFill },
-  { key: "jetty", label: "Jetty Venue", icon: FaAnchor },
+  { key: "sunrise", label: "Sunrise cruise", icon: BsSunriseFill },
+  { key: "lunch", label: "Lunch cruise", icon: FaSun },
+  { key: "sunset", label: "Sunset cruise", icon: BsSunsetFill },
+  { key: "jetty", label: "Jetty venue", icon: FaAnchor },
+  { key: "boat", label: "Our boats", icon: FaShip },
 ];
 
 export default function GalleryPage() {
-  const [activeCategory, setActiveCategory] = useState("all");
+  return (
+    <Suspense fallback={null}>
+      <GalleryContent />
+    </Suspense>
+  );
+}
+
+function GalleryContent() {
+  const requested = useSearchParams().get("category") ?? "";
+  const [activeCategory, setActiveCategory] = useState(categories.some((c) => c.key === requested) ? requested : "all");
+  const activeCruise = CRUISES.find((c) => c.galleryCategory === activeCategory);
   const [lightboxImage, setLightboxImage] = useState<GalleryImage | null>(null);
   const [images, setImages] = useState<GalleryImage[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -76,6 +90,17 @@ export default function GalleryPage() {
               </button>
             ))}
           </div>
+
+          {activeCruise && (
+            <div className="mx-auto -mt-4 mb-8 flex max-w-xl flex-col items-center justify-between gap-3 rounded-2xl border border-gray-200 bg-white px-5 py-4 sm:flex-row">
+              <p className="text-sm text-gray-700">
+                Like what you see? <Link href={cruisePath(activeCruise.slug)} className="font-semibold text-gray-950 underline-offset-2 hover:underline">{activeCruise.title}</Link> — {activeCruise.tagline.toLowerCase()}.
+              </p>
+              <Link href={bookingHref(activeCruise.tourName)} className="shrink-0 rounded-full bg-[#C8102E] px-5 py-2 text-sm font-bold text-white transition hover:bg-[#A00D24]">
+                Book this cruise
+              </Link>
+            </div>
+          )}
 
           {/* Image Grid */}
           <div className="columns-1 sm:columns-2 lg:columns-3 gap-4 space-y-4">

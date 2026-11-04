@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import FooterSection from "@/components/FooterSection";
 import BookingModal from "@/components/BookingModal";
 import { fetchTours, tourPriceUsd, type Tour } from "@/lib/tours";
+import { whatsappLink } from "@/lib/site";
 import { FaWhatsapp, FaPhone, FaEnvelope, FaSun, FaMoon, FaShip, FaMapMarkerAlt } from "react-icons/fa";
 import { BsSunriseFill, BsSunsetFill } from "react-icons/bs";
 import { MdCelebration } from "react-icons/md";
@@ -44,6 +45,35 @@ function getTourIcon(tour: Tour): IconType {
   return FaShip;
 }
 
+function BookingUnavailable({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="max-w-xl mx-auto mb-12 text-center bg-white border border-gray-200 shadow-lg rounded-2xl p-8">
+      <p className="text-lg font-bold text-gray-900 mb-2">Online booking is temporarily unavailable</p>
+      <p className="text-gray-600">
+        We couldn&apos;t load our cruises just now. Please try again, or book with us on WhatsApp — same prices, and an
+        agent will confirm your booking.
+      </p>
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <a
+          href={whatsappLink("Hi, I'd like to book a cruise. The website booking wasn't loading.")}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#25D366] px-6 py-3 font-bold text-white transition hover:bg-[#1EBE5A]"
+        >
+          <FaWhatsapp aria-hidden /> Book on WhatsApp
+        </a>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-full border border-gray-300 px-6 py-3 font-bold text-gray-900 transition hover:border-gray-900"
+        >
+          Try again
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type PageStep = 'select' | 'booking';
 
 function BookingPageContent() {
@@ -52,6 +82,7 @@ function BookingPageContent() {
   const [tours, setTours] = useState<Tour[]>([]);
   const [toursLoading, setToursLoading] = useState(true);
   const [toursError, setToursError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [selectedCruise, setSelectedCruise] = useState('');
   const [selectedAmountUsd, setSelectedAmountUsd] = useState(0);
   const [isPaymentScreen, setIsPaymentScreen] = useState(false);
@@ -60,6 +91,7 @@ function BookingPageContent() {
   const queryPaymentMode = useMemo(() => (searchParams.get('payment_mode') ?? '').toLowerCase(), [searchParams]);
   const querySource = useMemo(() => (searchParams.get('source') ?? '').toLowerCase(), [searchParams]);
   const queryTourName = useMemo(() => searchParams.get('tour_name') ?? '', [searchParams]);
+  const queryDeparture = useMemo(() => searchParams.get('departure') ?? '', [searchParams]);
   const queryAmountUsd = useMemo(() => {
     const raw = searchParams.get('amount') ?? '';
     const parsed = Number(raw);
@@ -109,7 +141,7 @@ function BookingPageContent() {
     return () => {
       isCancelled = true;
     };
-  }, [queryTourName]);
+  }, [queryTourName, reloadKey]);
 
   // Deep-links from WhatsApp or from cruise cards on other pages skip straight to booking form
   useEffect(() => {
@@ -212,14 +244,7 @@ function BookingPageContent() {
             )}
 
             {!toursLoading && (toursError || tours.length === 0) && (
-              <div className="max-w-xl mx-auto mb-12 text-center bg-white/80 backdrop-blur-lg border border-white/60 shadow-lg rounded-2xl p-8">
-                <p className="text-lg font-semibold text-gray-900 mb-2">
-                  We&apos;re updating our tour packages
-                </p>
-                <p className="text-gray-600">
-                  Please check back shortly, or reach out below and one of our agents will help you book a custom tour.
-                </p>
-              </div>
+              <BookingUnavailable onRetry={() => setReloadKey((k) => k + 1)} />
             )}
 
             {!toursLoading && !toursError && tours.length > 0 && (
@@ -336,6 +361,10 @@ function BookingPageContent() {
 
       <section className={`${isPaymentScreen ? 'fixed inset-x-0 bottom-0 top-14 z-40 overflow-y-auto bg-white py-6' : 'py-10 relative overflow-hidden'}`}>
         <div className="container mx-auto px-6 relative">
+          {/* A fresh booking needs the live price; never show a $0 form that can't be paid. */}
+          {!queryBookingReference && querySource !== 'whatsapp' && !toursLoading && selectedAmountUsd <= 0 ? (
+            <BookingUnavailable onRetry={() => setReloadKey((k) => k + 1)} />
+          ) : (
           <BookingModal
             key={`${selectedCruise}-${selectedAmountUsd}-${queryBookingReference}-${queryPaymentMode}`}
             isOpen={true}
@@ -353,7 +382,9 @@ function BookingPageContent() {
             launchedFromWhatsApp={querySource === 'whatsapp'}
             presentation="page"
             onCheckoutStepChange={(step) => setIsPaymentScreen(step === 'payment')}
+            initialDeparture={queryDeparture || undefined}
           />
+          )}
         </div>
       </section>
 

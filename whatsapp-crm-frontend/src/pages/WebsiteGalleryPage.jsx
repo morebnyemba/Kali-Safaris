@@ -17,11 +17,13 @@ import { apiErrorMessage } from '@/lib/format';
 
 const WEBSITE_GALLERY_URL = 'https://kalaisafaris.com/gallery';
 
+// Same order as the website gallery tabs, which mirror the packages we sell.
 const CATEGORIES = [
-  { key: 'boat', label: 'Boats & Cruises' },
-  { key: 'sunset', label: 'Sunset' },
-  { key: 'sunrise', label: 'Sunrise' },
+  { key: 'sunrise', label: 'Sunrise cruise' },
+  { key: 'lunch', label: 'Lunch cruise' },
+  { key: 'sunset', label: 'Sunset cruise' },
   { key: 'jetty', label: 'Jetty Venue' },
+  { key: 'boat', label: 'Boats & Cruises' },
 ];
 const MAX_MB = 15;
 

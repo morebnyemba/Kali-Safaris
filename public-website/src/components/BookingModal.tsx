@@ -23,6 +23,8 @@ interface BookingModalProps {
   timeSlots?: TimeSlot[];
   /** Tour id, used to look up seats left per slot for the chosen date. */
   tourId?: number;
+  /** "HH:MM" slot to preselect (e.g. a cruise page's "Book the premium sunrise cruise"). */
+  initialDeparture?: string;
   initialPaymentMode?: PaymentMode;
   initialBookingReference?: string;
   fixedAmountUsd?: number;
@@ -213,6 +215,7 @@ export default function BookingModal({
   amountUsd,
   timeSlots,
   tourId,
+  initialDeparture,
   initialPaymentMode,
   initialBookingReference,
   fixedAmountUsd,
@@ -221,7 +224,7 @@ export default function BookingModal({
   onCheckoutStepChange,
 }: BookingModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
-  const [selectedTime, setSelectedTime] = useState('');
+  const [selectedTime, setSelectedTime] = useState(initialDeparture ?? '');
   const [slotAvailability, setSlotAvailability] = useState<{ key: string; seatsLeft: Record<string, number | null> } | null>(null);
   const hasTimeSlots = Boolean(timeSlots?.length);
 
@@ -1796,9 +1799,9 @@ export default function BookingModal({
                     <legend className={labelBase}>Pay with</legend>
                     <div className={`grid gap-2 ${isOmariAvailable ? 'grid-cols-3' : 'grid-cols-2'}`} role="radiogroup">
                       {([
-                        { mode: 'card' as const, title: 'Card', hint: 'Visa · Mastercard · ZimSwitch' },
                         { mode: 'ecocash' as const, title: 'EcoCash', hint: 'Mobile money' },
                         ...(isOmariAvailable ? [{ mode: 'omari' as const, title: 'Omari', hint: 'Omari wallet' }] : []),
+                        { mode: 'card' as const, title: 'Card', hint: 'ZimSwitch · Visa · Mastercard' },
                       ]).map(({ mode, title, hint }) => (
                         <button
                           key={mode}
@@ -1952,26 +1955,6 @@ export default function BookingModal({
                       <fieldset>
                         <legend className={labelBase}>Which card?</legend>
                         <div className="grid gap-2 sm:grid-cols-2" role="radiogroup">
-                          {isCbzDirectAvailable && (
-                            <button
-                              type="button"
-                              role="radio"
-                              aria-checked={cardProvider === 'cbz_direct'}
-                              onClick={() => { setCardProvider('cbz_direct'); setPaymentMessage(''); }}
-                              className={`flex items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition ${cardProvider === 'cbz_direct' ? 'border-[#E8600A] bg-[#FFF9F5]' : 'border-gray-200 hover:border-gray-300'}`}
-                            >
-                              <span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-2 ${cardProvider === 'cbz_direct' ? 'border-[#E8600A]' : 'border-gray-300'}`}>
-                                {cardProvider === 'cbz_direct' && <span className="size-2 rounded-full bg-[#E8600A]" />}
-                              </span>
-                              <span className="min-w-0 flex-1">
-                                <span className="flex items-center justify-between gap-2">
-                                  <span className="text-sm font-bold text-gray-900">Visa or Mastercard</span>
-                                  <span className="flex gap-1 text-2xl" aria-hidden><FaCcVisa className="text-[#1434CB]" /><FaCcMastercard className="text-[#EB001B]" /></span>
-                                </span>
-                                <span className="mt-0.5 block text-xs text-gray-500">International and local cards. Your bank may ask you to confirm (3D Secure).</span>
-                              </span>
-                            </button>
-                          )}
                           {isCopyAndPayAvailable && (
                             <button
                               type="button"
@@ -1986,9 +1969,29 @@ export default function BookingModal({
                               <span className="min-w-0 flex-1">
                                 <span className="flex items-center justify-between gap-2">
                                   <span className="text-sm font-bold text-gray-900">Zimbabwe bank card</span>
-                                  <span className="rounded border border-gray-300 px-1.5 py-0.5 text-[10px] font-bold tracking-wider text-gray-600">ZIMSWITCH</span>
+                                  <PaymentLogo brand="zimswitch" size="sm" decorative />
                                 </span>
                                 <span className="mt-0.5 block text-xs text-gray-500">Local ZimSwitch debit cards. You&apos;ll enter the card on the bank&apos;s secure page.</span>
+                              </span>
+                            </button>
+                          )}
+                          {isCbzDirectAvailable && (
+                            <button
+                              type="button"
+                              role="radio"
+                              aria-checked={cardProvider === 'cbz_direct'}
+                              onClick={() => { setCardProvider('cbz_direct'); setPaymentMessage(''); }}
+                              className={`flex items-start gap-3 rounded-2xl border-2 p-3.5 text-left transition ${cardProvider === 'cbz_direct' ? 'border-[#E8600A] bg-[#FFF9F5]' : 'border-gray-200 hover:border-gray-300'}`}
+                            >
+                              <span className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full border-2 ${cardProvider === 'cbz_direct' ? 'border-[#E8600A]' : 'border-gray-300'}`}>
+                                {cardProvider === 'cbz_direct' && <span className="size-2 rounded-full bg-[#E8600A]" />}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="flex items-center justify-between gap-2">
+                                  <span className="text-sm font-bold text-gray-900">Visa or Mastercard</span>
+                                  <span className="flex items-center gap-1.5" aria-hidden><PaymentLogo brand="visa" size="sm" decorative bare /><PaymentLogo brand="mastercard" size="sm" decorative bare /></span>
+                                </span>
+                                <span className="mt-0.5 block text-xs text-gray-500">International and local cards. Your bank may ask you to confirm (3D Secure).</span>
                               </span>
                             </button>
                           )}

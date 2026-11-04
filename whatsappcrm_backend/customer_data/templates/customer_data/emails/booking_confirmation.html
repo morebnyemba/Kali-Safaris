@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<body style="margin:0;padding:0;background:#FFF9F5;font-family:Arial,Helvetica,sans-serif;color:#1a1a1a;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#FFF9F5;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #eee;">
+        <tr><td style="background:#C8102E;padding:20px 24px;color:#ffffff;">
+          <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;opacity:.85;">Kalai Safaris</div>
+          <div style="font-size:22px;font-weight:bold;margin-top:4px;">Your booking is confirmed</div>
+        </td></tr>
+        <tr><td style="padding:24px;">
+          <p style="margin:0 0 16px;">Hi{% if first_name %} {{ first_name }}{% endif %}, thank you for booking with us.</p>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:15px;border-collapse:collapse;">
+            <tr><td style="padding:6px 0;color:#666;width:42%;">Booking reference</td><td style="padding:6px 0;font-weight:bold;font-family:monospace;">{{ booking.booking_reference }}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Cruise</td><td style="padding:6px 0;font-weight:bold;">{{ booking.tour_name }}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Date</td><td style="padding:6px 0;">{{ booking.start_date|date:"l j F Y" }}</td></tr>
+            {% if departure %}<tr><td style="padding:6px 0;color:#666;">Departure</td><td style="padding:6px 0;">{{ departure }}</td></tr>{% endif %}
+            <tr><td style="padding:6px 0;color:#666;">Guests</td><td style="padding:6px 0;">{{ booking.number_of_adults }} adult{{ booking.number_of_adults|pluralize }}{% if booking.number_of_children %}, {{ booking.number_of_children }} child{{ booking.number_of_children|pluralize:"ren" }}{% endif %}</td></tr>
+            {% if travelers %}<tr><td style="padding:6px 0;color:#666;vertical-align:top;">Passengers</td><td style="padding:6px 0;">{% for t in travelers %}{{ t.name }}{% if not forloop.last %}<br>{% endif %}{% endfor %}</td></tr>{% endif %}
+            <tr><td style="padding:6px 0;color:#666;">Total</td><td style="padding:6px 0;">${{ booking.total_amount|floatformat:2 }}</td></tr>
+            <tr><td style="padding:6px 0;color:#666;">Paid</td><td style="padding:6px 0;">${{ booking.amount_paid|floatformat:2 }}</td></tr>
+            {% if balance %}<tr><td style="padding:6px 0;color:#C8102E;">Balance due</td><td style="padding:6px 0;color:#C8102E;font-weight:bold;">${{ balance|floatformat:2 }}</td></tr>{% endif %}
+          </table>
+
+          <h3 style="font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:#E8600A;margin:24px 0 6px;">Meeting point</h3>
+          <p style="margin:0;">{{ contact.address }}<br>Please arrive a little before your departure time. <a href="{{ contact.maps }}" style="color:#C8102E;">Get directions</a></p>
+
+          <h3 style="font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:#E8600A;margin:24px 0 6px;">Good to know</h3>
+          <ul style="margin:0;padding-left:18px;line-height:1.6;">
+            <li>The National Parks river usage fee is not included in the cruise price.</li>
+            <li>Bring a hat, sunscreen, a light jacket for evening cruises, camera and binoculars.</li>
+            <li>Please quote your booking reference if you contact us.</li>
+          </ul>
+
+          <p style="margin:24px 0 0;">Questions or changes? <a href="{{ contact.whatsapp }}" style="color:#C8102E;">WhatsApp</a> or call us on {{ contact.phone }}, or reply to this email.</p>
+          <p style="margin:16px 0 0;">See you on the river,<br><strong>Kalai Safaris</strong></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

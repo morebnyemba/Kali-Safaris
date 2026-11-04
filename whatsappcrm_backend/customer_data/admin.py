@@ -118,7 +118,29 @@ class BookingAdmin(admin.ModelAdmin):
     list_editable = ('payment_status',)
     date_hierarchy = 'start_date'
     inlines = [TravelerInline]
-    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date', 'export_passenger_summary_for_date', 'download_all_id_documents']
+    actions = ['export_booking_travelers_pdf', 'export_booking_travelers_excel', 'export_manifest_for_date', 'export_passenger_summary_for_date', 'download_all_id_documents', 'resend_confirmation_email']
+
+    @admin.action(description="Resend the booking confirmation email to the customer")
+    def resend_confirmation_email(self, request, queryset):
+        from .booking_emails import customer_email
+        from .tasks import send_booking_confirmation_email_task
+
+        sent, skipped = 0, []
+        for booking in queryset:
+            if booking.payment_status not in Booking.CONFIRMED_PAYMENT_STATUSES or not customer_email(booking):
+                skipped.append(booking.booking_reference)
+                continue
+            Booking.objects.filter(pk=booking.pk).update(confirmation_email_sent_at=None)
+            send_booking_confirmation_email_task.delay(booking.pk)
+            sent += 1
+        if sent:
+            self.message_user(request, f"Queued the confirmation email for {sent} booking(s).", level=messages.SUCCESS)
+        if skipped:
+            self.message_user(
+                request,
+                f"Not sent (not paid, or no customer email): {', '.join(skipped[:10])}",
+                level=messages.WARNING,
+            )
     fieldsets = (
         ('Booking Core Info', {
             'fields': ('booking_reference', 'customer', 'tour', 'tour_name', 'assigned_agent')

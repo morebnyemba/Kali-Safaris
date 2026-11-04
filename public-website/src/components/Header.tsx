@@ -10,9 +10,9 @@ import type { IconType } from 'react-icons';
 import { NAV, SITE, whatsappLink, type NavLink } from '@/lib/site';
 
 const CRUISE_ICONS: Record<string, IconType> = {
-  '/#sunrise': BsSunriseFill,
-  '/#lunch': FaSun,
-  '/#sunset': BsSunsetFill,
+  '/cruises/sunrise': BsSunriseFill,
+  '/cruises/lunch': FaSun,
+  '/cruises/sunset': BsSunsetFill,
 };
 
 function Logo({ className = 'w-[132px] md:w-[150px]' }: { className?: string }) {
@@ -210,14 +210,6 @@ export default function Header() {
                           );
                         })}
                       </ul>
-                      <Link
-                        href={item.overview.href}
-                        onClick={() => setDropdown(null)}
-                        className="flex items-center justify-between border-t border-gray-100 bg-gray-50 px-5 py-3 text-sm font-semibold text-[#C8102E] transition hover:bg-gray-100"
-                      >
-                        {item.overview.label}
-                        <span aria-hidden>→</span>
-                      </Link>
                     </div>
                   </div>
                 </li>
@@ -294,7 +286,7 @@ export default function Header() {
                     className={`grid transition-[grid-template-rows] duration-200 ${mobileGroup === item.label ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}
                   >
                     <ul className="overflow-hidden" inert={mobileGroup !== item.label}>
-                      {[...item.children, item.overview].map(({ label, href, detail }) => {
+                      {item.children.map(({ label, href, detail }) => {
                         const Icon = CRUISE_ICONS[href];
                         return (
                           <li key={href}>

@@ -26,6 +26,8 @@ services:
   backend:
     build: ./whatsappcrm_backend
     container_name: whatsappcrm_backend_app
+    # Applies pending migrations, then starts Daphne (see the script for why).
+    command: ["sh", "/app/docker-entrypoint.sh"]
     volumes:
       - ./whatsappcrm_backend:/app
       - staticfiles_volume:/app/staticfiles # Mount the static files volume (used by collectstatic)

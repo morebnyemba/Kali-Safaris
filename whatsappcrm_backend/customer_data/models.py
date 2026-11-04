@@ -292,6 +292,12 @@ class Booking(models.Model):
         related_name='assigned_bookings'
     )
 
+    confirmation_email_sent_at = models.DateTimeField(
+        _("Confirmation Email Sent"), null=True, blank=True, editable=False,
+        help_text=_("When the booking confirmation email went to the customer. Set once; "
+                    "use the admin action to send it again."),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
