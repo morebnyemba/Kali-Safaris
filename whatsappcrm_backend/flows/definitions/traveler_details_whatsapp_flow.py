@@ -13,7 +13,12 @@ Important WhatsApp Flow API v7.3 Requirements:
    - Used in the screen's layout (e.g., in text interpolation like ${data.field_name}), OR
    - Passed in the navigation/completion payload to the next screen
    Unused data fields will cause validation errors during publishing.
+4. Dropdown data-source is capped at 200 options: the nationality list (197 + "Other")
+   fits; keep it under the cap if nationalities are added.
 """
+from customer_data.nationalities import whatsapp_options
+
+NATIONALITY_OPTIONS = whatsapp_options()
 
 TRAVELER_DETAILS_WHATSAPP_FLOW_METADATA = {
     "name": "traveler_details_whatsapp_flow",
@@ -41,7 +46,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                 },
                 "traveler_nationality": {
                     "type": "string",
-                    "__example__": "United States"
+                    "__example__": "zimbabwean"
                 },
                 "traveler_medical": {
                     "type": "string",
@@ -84,12 +89,19 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                         "helper-text": "Age in years (enter 0 for infants under 1)"
                     },
                     {
-                        "type": "TextInput",
+                        "type": "Dropdown",
                         "name": "traveler_nationality",
                         "label": "Nationality",
                         "required": True,
+                        "data-source": NATIONALITY_OPTIONS
+                    },
+                    {
+                        "type": "TextInput",
+                        "name": "traveler_nationality_other",
+                        "label": "Nationality (if not listed)",
+                        "required": False,
                         "input-type": "text",
-                        "helper-text": "Enter the traveler's nationality"
+                        "helper-text": "Only if you chose Other above"
                     },
                     {
                         "type": "TextInput",
@@ -140,6 +152,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                                 "traveler_name": "${form.traveler_name}",
                                 "traveler_age": "${form.traveler_age}",
                                 "traveler_nationality": "${form.traveler_nationality}",
+                                "traveler_nationality_other": "${form.traveler_nationality_other}",
                                 "traveler_medical": "${form.traveler_medical}",
                                 "traveler_gender": "${form.traveler_gender}",
                                 "traveler_id_number": "${form.traveler_id_number}"
@@ -163,7 +176,11 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                 },
                 "traveler_nationality": {
                     "type": "string",
-                    "__example__": "United States"
+                    "__example__": "zimbabwean"
+                },
+                "traveler_nationality_other": {
+                    "type": "string",
+                    "__example__": ""
                 },
                 "traveler_medical": {
                     "type": "string",
@@ -207,6 +224,7 @@ TRAVELER_DETAILS_WHATSAPP_FLOW = {
                                 "traveler_name": "${data.traveler_name}",
                                 "traveler_age": "${data.traveler_age}",
                                 "traveler_nationality": "${data.traveler_nationality}",
+                                "traveler_nationality_other": "${data.traveler_nationality_other}",
                                 "traveler_medical": "${data.traveler_medical}",
                                 "traveler_gender": "${data.traveler_gender}",
                                 "traveler_id_number": "${data.traveler_id_number}",

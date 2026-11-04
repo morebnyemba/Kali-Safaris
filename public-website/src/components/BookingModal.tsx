@@ -12,6 +12,7 @@ import {
 import type { IconType } from 'react-icons';
 import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
 import type { TimeSlot } from '@/lib/tours';
+import { COMMON_NATIONALITIES, OTHER_NATIONALITIES } from '@/lib/nationalities';
 import { PaymentLogo } from '@/components/PaymentLogo';
 
 interface BookingModalProps {
@@ -68,6 +69,8 @@ interface TravelerEntry {
   name: string;
   age: string;
   nationality: string;
+  /** Chose "Other" in the nationality list and is typing it instead. */
+  nationalityOther: boolean;
   gender: string;
   idNumber: string;
   medicalDietaryRequirements: string;
@@ -84,6 +87,7 @@ const createEmptyTraveler = (): TravelerEntry => ({
   name: '',
   age: '',
   nationality: '',
+  nationalityOther: false,
   gender: '',
   idNumber: '',
   medicalDietaryRequirements: '',
@@ -1717,13 +1721,39 @@ export default function BookingModal({
                               onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, age: e.target.value } : row)))}
                               className={inputBase}
                             />
-                            <input
-                              type="text"
-                              placeholder="Nationality"
-                              value={item.nationality}
-                              onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
-                              className={inputBase}
-                            />
+                            <div className="space-y-2">
+                              <select
+                                aria-label={`Traveler ${index + 1} nationality`}
+                                value={item.nationalityOther ? '__other__' : item.nationality}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setTravelers((prev) => prev.map((row, i) => (i === index
+                                    ? { ...row, nationalityOther: value === '__other__', nationality: value === '__other__' ? '' : value }
+                                    : row)));
+                                }}
+                                className={`${inputBase} ${item.nationality || item.nationalityOther ? '' : 'text-gray-400'}`}
+                              >
+                                <option value="" disabled>Nationality</option>
+                                <optgroup label="Most common">
+                                  {COMMON_NATIONALITIES.map((n) => <option key={n} value={n}>{n}</option>)}
+                                </optgroup>
+                                <optgroup label="All nationalities">
+                                  {OTHER_NATIONALITIES.map((n) => <option key={n} value={n}>{n}</option>)}
+                                </optgroup>
+                                <option value="__other__">Other (not listed)</option>
+                              </select>
+                              {item.nationalityOther && (
+                                <input
+                                  type="text"
+                                  placeholder="Type nationality (e.g. Kenyan)"
+                                  aria-label={`Traveler ${index + 1} nationality, not listed`}
+                                  value={item.nationality}
+                                  onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
+                                  className={`${inputBase}`}
+                                  autoFocus
+                                />
+                              )}
+                            </div>
                             <select
                               aria-label={`Traveler ${index + 1} gender`}
                               value={item.gender}

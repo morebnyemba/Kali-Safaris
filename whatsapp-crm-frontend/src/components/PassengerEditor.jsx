@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { travelerErrorMessage, travelersApi } from '@/services/travelers';
+import { ALL_NATIONALITIES, COMMON_NATIONALITIES, OTHER_NATIONALITIES } from '@/lib/nationalities';
 
 // Mirrors customer_data/traveler_validation.py (the server is authoritative).
 const ID_REQUIRED_FROM_AGE = 12;
@@ -13,6 +14,8 @@ const EMPTY_DRAFT = {
   name: '',
   age: '',
   nationality: '',
+  // Typing a nationality that isn't in the list (also used for older free-text values).
+  nationality_other: false,
   gender: '',
   id_number: '',
   traveler_type: 'adult',
@@ -85,6 +88,7 @@ export default function PassengerEditor({ booking, onChanged }) {
       name: traveler.name || '',
       age: traveler.age ?? '',
       nationality: traveler.nationality || '',
+      nationality_other: Boolean(traveler.nationality) && !ALL_NATIONALITIES.includes(traveler.nationality),
       gender: traveler.gender || '',
       id_number: traveler.id_number || '',
       traveler_type: traveler.traveler_type || 'adult',
@@ -119,8 +123,9 @@ export default function PassengerEditor({ booking, onChanged }) {
     }
     setSaving(true);
     setError('');
+    const { nationality_other: _nationalityOther, ...fields } = draft;
     const payload = {
-      ...draft,
+      ...fields,
       age: Number(draft.age),
       id_document: draft.id_document || undefined,
       remove_id_document: draft.remove_id_document || undefined,
@@ -247,7 +252,33 @@ export default function PassengerEditor({ booking, onChanged }) {
             </div>
             <div>
               <Label htmlFor="p-nationality">Nationality</Label>
-              <Input id="p-nationality" value={draft.nationality} onChange={(e) => setField('nationality', e.target.value)} />
+              <select
+                id="p-nationality"
+                className={selectClass}
+                value={draft.nationality_other ? '__other__' : draft.nationality}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setDraft((d) => ({ ...d, nationality_other: value === '__other__', nationality: value === '__other__' ? '' : value }));
+                }}
+              >
+                <option value="">Select…</option>
+                <optgroup label="Most common">
+                  {COMMON_NATIONALITIES.map((n) => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <optgroup label="All nationalities">
+                  {OTHER_NATIONALITIES.map((n) => <option key={n} value={n}>{n}</option>)}
+                </optgroup>
+                <option value="__other__">Other (not listed)</option>
+              </select>
+              {draft.nationality_other && (
+                <Input
+                  className="mt-2"
+                  aria-label="Nationality, not listed"
+                  placeholder="Type nationality"
+                  value={draft.nationality}
+                  onChange={(e) => setField('nationality', e.target.value)}
+                />
+              )}
             </div>
             <div>
               <Label htmlFor="p-gender">Gender</Label>

@@ -512,7 +512,7 @@ BOOKING_FLOW = {
                 "actions_to_run": [
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_name", "value_template": "{{ (traveler_details_response or {}).get('traveler_name', '') }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_age", "value_template": "{{ (traveler_details_response or {}).get('traveler_age', '') }}"},
-                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ (traveler_details_response or {}).get('traveler_nationality', '') }}"},
+                    {"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{% set r = traveler_details_response or {} %}{% if r.get('traveler_nationality', '') == 'other' %}{{ r.get('traveler_nationality_other', '') | trim }}{% else %}{{ r.get('traveler_nationality', '') | nationality }}{% endif %}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_medical", "value_template": "{{ (traveler_details_response or {}).get('traveler_medical', 'No special requirements') }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_gender", "value_template": "{{ (traveler_details_response or {}).get('traveler_gender', '') }}"},
                     {"action_type": "set_context_variable", "variable_name": "current_traveler_id_number", "value_template": "{{ (traveler_details_response or {}).get('traveler_id_number', '') }}"},
@@ -534,7 +534,7 @@ BOOKING_FLOW = {
                     "interactive": {
                         "type": "button",
                         "body": {
-                            "text": "Please confirm the details for Traveler {{ traveler_index }}:\n\n*Name:* {{ current_traveler_name }}\n*Age:* {{ current_traveler_age }}\n*Nationality:* {{ current_traveler_nationality }}\n*Gender:* {{ current_traveler_gender|capitalize }}\n*ID/Passport:* {{ (current_traveler_id_number|string)|length > 4 and ('***' ~ (current_traveler_id_number|string)[-4:]) or (current_traveler_id_number|string) }}\n*Medical/Dietary:* {{ 'Provided' if current_traveler_medical and (current_traveler_medical|lower) not in ['none', 'no', 'n/a', 'na'] else 'None' }}\n\nAre these details correct?"
+                            "text": "Please confirm the details for Traveler {{ traveler_index }}:\n\n*Name:* {{ current_traveler_name }}\n*Age:* {{ current_traveler_age }}\n*Nationality:* {{ current_traveler_nationality | nationality }}\n*Gender:* {{ current_traveler_gender|capitalize }}\n*ID/Passport:* {{ (current_traveler_id_number|string)|length > 4 and ('***' ~ (current_traveler_id_number|string)[-4:]) or (current_traveler_id_number|string) }}\n*Medical/Dietary:* {{ 'Provided' if current_traveler_medical and (current_traveler_medical|lower) not in ['none', 'no', 'n/a', 'na'] else 'None' }}\n\nAre these details correct?"
                         },
                         "action": {
                             "buttons": [
@@ -644,12 +644,50 @@ BOOKING_FLOW = {
             "type": "question",
             "config": {
                 "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "What is the nationality of *{{ current_traveler_name }}*?"}
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "list",
+                        "body": {"text": "What is the nationality of *{{ current_traveler_name }}*?"},
+                        "action": {
+                            "button": "Choose nationality",
+                            "sections": [{"title": "Nationality", "rows": [
+                                {"id": "zimbabwean", "title": "Zimbabwean"},
+                                {"id": "south_african", "title": "South African"},
+                                {"id": "zambian", "title": "Zambian"},
+                                {"id": "botswanan", "title": "Botswanan"},
+                                {"id": "namibian", "title": "Namibian"},
+                                {"id": "mozambican", "title": "Mozambican"},
+                                {"id": "british", "title": "British"},
+                                {"id": "american", "title": "American"},
+                                {"id": "german", "title": "German"},
+                                {"id": "other", "title": "Other", "description": "Type the nationality"}
+                            ]}]
+                        }
+                    }
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_nationality"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid nationality."}
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "current_traveler_nationality"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please tap *Choose nationality* and pick one, or pick *Other* to type it."}
             },
+            "transitions": [
+                {"to_step": "ask_traveler_nationality_text", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "other"}},
+                {"to_step": "set_traveler_nationality_name", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "ask_traveler_nationality_text",
+            "type": "question",
+            "config": {
+                "message_config": {"message_type": "text", "text": {"body": "Please type the nationality of *{{ current_traveler_name }}* (e.g. Kenyan)."}},
+                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_nationality"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please type a nationality."}
+            },
+            "transitions": [{"to_step": "set_traveler_nationality_name", "condition_config": {"type": "always_true"}}]
+        },
+        {
+            # 'south_african' (list id) or typed text -> 'South African' where it's on the list.
+            "name": "set_traveler_nationality_name",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "set_context_variable", "variable_name": "current_traveler_nationality", "value_template": "{{ current_traveler_nationality | nationality }}"}]},
             "transitions": [{"to_step": "ask_traveler_gender", "condition_config": {"type": "always_true"}}]
         },
         # Step 5c: Ask for gender
@@ -658,11 +696,19 @@ BOOKING_FLOW = {
             "type": "question",
             "config": {
                 "message_config": {
-                    "message_type": "text",
-                    "text": {"body": "What is the gender of *{{ current_traveler_name }}*? (Male/Female/Other)"}
+                    "message_type": "interactive",
+                    "interactive": {
+                        "type": "button",
+                        "body": {"text": "What is the gender of *{{ current_traveler_name }}*?"},
+                        "action": {"buttons": [
+                            {"type": "reply", "reply": {"id": "male", "title": "Male"}},
+                            {"type": "reply", "reply": {"id": "female", "title": "Female"}},
+                            {"type": "reply", "reply": {"id": "other", "title": "Other"}}
+                        ]}
+                    }
                 },
-                "reply_config": {"expected_type": "text", "save_to_variable": "current_traveler_gender", "validation_regex": "(?i)^(male|female|other|m|f)$"},
-                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please enter a valid gender (Male, Female, Other, or M/F)."}
+                "reply_config": {"expected_type": "interactive_id", "save_to_variable": "current_traveler_gender"},
+                "fallback_config": {"action": "re_prompt", "max_retries": 2, "re_prompt_message_text": "Please tap *Male*, *Female* or *Other*."}
             },
             "transitions": [{"to_step": "ask_traveler_id_number", "condition_config": {"type": "always_true"}}]
         },

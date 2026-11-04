@@ -285,6 +285,15 @@ jinja_env.filters['strftime'] = strftime_filter # Add the custom filter
 jinja_env.filters['parse_date'] = parse_date_filter # Add the parse_date filter for date string parsing
 jinja_env.filters['truncatewords'] = truncatewords_filter # Add the filter
 jinja_env.filters['to_interactive_rows'] = to_interactive_rows_filter # Add the new filter
+
+
+def nationality_filter(value):
+    """'south_african' / 'south african' -> 'South African' (see customer_data.nationalities)."""
+    from customer_data.nationalities import normalize_nationality
+    return normalize_nationality(value)
+
+
+jinja_env.filters['nationality'] = nationality_filter
 jinja_env.globals['now'] = timezone.now # Make 'now' globally available for date comparisons
 jinja_env.globals['timedelta'] = timedelta # Make 'timedelta' globally available for date arithmetic
 jinja_env.globals['get_whatsapp_flow_id'] = get_whatsapp_flow_id # Make flow_id lookup available in templates
