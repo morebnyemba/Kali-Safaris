@@ -8,7 +8,10 @@ from conversations.models import Contact
 from flows.models import FlowStep
 from flows.services import _execute_step_actions
 
-from .nationalities import COMMON, NATIONALITIES, OTHERS, nationality_id, normalize_nationality, whatsapp_options
+from .nationalities import (
+    COMMON, COMMON_COUNTRIES, COUNTRIES, COUNTRY_OF, NATIONALITIES, OTHER_COUNTRIES, OTHERS,
+    nationality_id, normalize_country, normalize_nationality, whatsapp_options,
+)
 from .traveler_validation import normalize_traveler
 
 REPO = Path(__file__).resolve().parents[2]
@@ -32,6 +35,16 @@ class NationalityListTests(SimpleTestCase):
             with self.subTest(path=path):
                 self.assertEqual(_js_array(path, 'COMMON_NATIONALITIES'), COMMON)
                 self.assertEqual(_js_array(path, 'OTHER_NATIONALITIES'), OTHERS)
+                self.assertEqual(_js_array(path, 'COMMON_COUNTRIES'), COMMON_COUNTRIES)
+                self.assertEqual(_js_array(path, 'OTHER_COUNTRIES'), OTHER_COUNTRIES)
+
+    def test_every_nationality_has_its_country(self):
+        self.assertEqual(set(COUNTRY_OF), set(NATIONALITIES))
+        self.assertEqual(len(COUNTRIES), len(set(COUNTRIES)))
+        self.assertEqual(COMMON_COUNTRIES[:3], ['Zimbabwe', 'South Africa', 'Zambia'])
+        self.assertEqual(OTHER_COUNTRIES, sorted(OTHER_COUNTRIES))
+        self.assertEqual(normalize_country('  zimbabwe '), 'Zimbabwe')
+        self.assertEqual(normalize_country('Atlantis'), 'Atlantis')
 
     def test_normalize(self):
         self.assertEqual(normalize_nationality('zimbabwean'), 'Zimbabwean')
@@ -85,3 +98,20 @@ class WhatsAppNationalityStepsTests(TestCase):
         self.assertTrue(all(normalize_nationality(r['id']) == r['title'] for r in rows if r['id'] != 'other'))
         buttons = self.steps['ask_traveler_gender']['config']['message_config']['interactive']['action']['buttons']
         self.assertEqual([b['reply']['id'] for b in buttons], ['male', 'female', 'other'])
+
+
+class CountryStorageTests(TestCase):
+    def test_website_checkout_and_profile_api_store_canonical_country(self):
+        from django.contrib.auth import get_user_model
+        from rest_framework.test import APIClient
+        from cbz_integration.views import _resolve_web_customer_profile
+        from .models import CustomerProfile
+
+        profile = _resolve_web_customer_profile('Ann Moyo', 'ann@example.com', '0771234567', 'south africa')
+        self.assertEqual(profile.country, 'South Africa')
+
+        client = APIClient()
+        client.force_authenticate(get_user_model().objects.create_superuser('root', 'r@example.com', 'x'))
+        response = client.patch(f'/crm-api/customer-data/profiles/{profile.pk}/', {'country': 'united kingdom'}, format='json')
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(CustomerProfile.objects.get(pk=profile.pk).country, 'United Kingdom')

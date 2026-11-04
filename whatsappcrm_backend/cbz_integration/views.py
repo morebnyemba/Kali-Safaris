@@ -33,6 +33,7 @@ from django.db import transaction as db_transaction
 from django.core.files.base import ContentFile
 
 from customer_data.models import Booking, Payment, Traveler, CustomerProfile
+from customer_data.nationalities import normalize_country
 from customer_data.traveler_validation import validate_traveler_list
 from conversations.models import Contact
 from products_and_services.departures import full_message, has_room, open_slots, parse_time, seats_left
@@ -424,6 +425,7 @@ def _resolve_web_customer_profile(name: str, email: str, phone: str, country: st
     Never matches on name: a first-name match would attach the booking — and
     its manifest group name — to an unrelated customer.
     """
+    country = normalize_country(country)
     try:
         profile = CustomerProfile.objects.filter(email__iexact=email).first() if email else None
 
@@ -593,7 +595,7 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
         customer_name = str(customer_details.get('full_name') or '').strip()
         customer_email = str(customer_details.get('email') or '').strip()
         customer_phone = str(customer_details.get('phone') or '').strip()
-        customer_country = str(customer_details.get('country') or '').strip()
+        customer_country = normalize_country(str(customer_details.get('country') or ''))
         customer_requests = str(customer_details.get('special_requests') or '').strip()
 
         note_parts = [

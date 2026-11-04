@@ -142,6 +142,11 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ('created_at', 'updated_at', 'last_interaction_date')
 
+    def validate_country(self, value):
+        # 'zimbabwe' -> 'Zimbabwe' when it's on the country list; anything else as typed.
+        from .nationalities import normalize_country
+        return normalize_country(value) or value
+
 class InteractionSerializer(serializers.ModelSerializer):
     """
     Serializer for creating and viewing customer interactions.

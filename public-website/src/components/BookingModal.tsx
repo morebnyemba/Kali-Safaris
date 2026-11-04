@@ -12,7 +12,7 @@ import {
 import type { IconType } from 'react-icons';
 import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
 import type { TimeSlot } from '@/lib/tours';
-import { COMMON_NATIONALITIES, OTHER_NATIONALITIES } from '@/lib/nationalities';
+import { COMMON_COUNTRIES, COMMON_NATIONALITIES, OTHER_COUNTRIES, OTHER_NATIONALITIES } from '@/lib/nationalities';
 import { PaymentLogo } from '@/components/PaymentLogo';
 
 interface BookingModalProps {
@@ -61,6 +61,8 @@ interface TravelerDetails {
   email: string;
   phone: string;
   country: string;
+  /** Chose "Other" in the country list and is typing it instead. */
+  countryOther: boolean;
   specialRequests: string;
   agreeToTerms: boolean;
 }
@@ -274,6 +276,7 @@ export default function BookingModal({
     email: '',
     phone: '',
     country: '',
+    countryOther: false,
     specialRequests: '',
     agreeToTerms: false,
   });
@@ -1666,14 +1669,36 @@ export default function BookingModal({
                       </div>
                       <div className="relative">
                         <FaGlobeAmericas className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <select
+                          aria-label="Country (optional)"
+                          value={traveler.countryOther ? '__other__' : traveler.country}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setTraveler((prev) => ({ ...prev, countryOther: value === '__other__', country: value === '__other__' ? '' : value }));
+                          }}
+                          className={`${inputWithIcon} ${traveler.country || traveler.countryOther ? '' : 'text-gray-400'}`}
+                        >
+                          <option value="">Country (optional)</option>
+                          <optgroup label="Most common">
+                            {COMMON_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </optgroup>
+                          <optgroup label="All countries">
+                            {OTHER_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </optgroup>
+                          <option value="__other__">Other (not listed)</option>
+                        </select>
+                      </div>
+                      {traveler.countryOther && (
                         <input
                           type="text"
-                          placeholder="Country (optional)"
+                          placeholder="Type country"
+                          aria-label="Country, not listed"
                           value={traveler.country}
                           onChange={(e) => setTraveler((prev) => ({ ...prev, country: e.target.value }))}
-                          className={inputWithIcon}
+                          className={inputBase}
+                          autoFocus
                         />
-                      </div>
+                      )}
                       <textarea
                         placeholder="Special requests (dietary, accessibility, occasion, pickup details)"
                         value={traveler.specialRequests}

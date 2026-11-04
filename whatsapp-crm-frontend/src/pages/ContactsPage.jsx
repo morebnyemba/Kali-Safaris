@@ -18,6 +18,7 @@ import StatusBadge from '@/components/app/StatusBadge';
 import { EmptyState, LoadingState } from '@/components/app/States';
 import { contactsApi, inquiriesApi, profilesApi } from '@/lib/api';
 import { ordersApi } from '@/services/orders';
+import { ALL_COUNTRIES, COMMON_COUNTRIES, OTHER_COUNTRIES } from '@/lib/nationalities';
 import { apiErrorMessage, formatDate, formatMoney, formatRelative } from '@/lib/format';
 
 const LEAD_STATUSES = [
@@ -57,6 +58,8 @@ function EditContactDialog({ open, onOpenChange, contact, profile, onSaved }) {
       address_line_1: profile?.address_line_1 || '', address_line_2: profile?.address_line_2 || '',
       city: profile?.city || '', state_province: profile?.state_province || '', postal_code: profile?.postal_code || '',
       country: profile?.country || '', lead_status: profile?.lead_status || 'new',
+      // Older free-text countries not on the list open as "Other" with the text kept.
+      country_other: Boolean(profile?.country) && !ALL_COUNTRIES.includes(profile.country),
       acquisition_source: profile?.acquisition_source || '', potential_value: profile?.potential_value ?? '',
       tags: (profile?.tags || []).join(', '), notes: profile?.notes || '',
     });
@@ -129,7 +132,30 @@ function EditContactDialog({ open, onOpenChange, contact, profile, onSaved }) {
               {input('first_name', 'First name')}
               {input('last_name', 'Last name')}
               {input('email', 'Email', { type: 'email' })}
-              {input('country', 'Country')}
+              <div>
+                <Label htmlFor="c-country" className="mb-1.5">Country</Label>
+                <select
+                  id="c-country"
+                  className={selectClass}
+                  value={form.country_other ? '__other__' : form.country}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setForm((f) => ({ ...f, country_other: value === '__other__', country: value === '__other__' ? '' : value }));
+                  }}
+                >
+                  <option value="">Select…</option>
+                  <optgroup label="Most common">
+                    {COMMON_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </optgroup>
+                  <optgroup label="All countries">
+                    {OTHER_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                  </optgroup>
+                  <option value="__other__">Other (not listed)</option>
+                </select>
+                {form.country_other && (
+                  <Input className="mt-2" aria-label="Country, not listed" placeholder="Type country" value={form.country} onChange={set('country')} />
+                )}
+              </div>
               {input('company', 'Company')}
               {input('role', 'Role / job title')}
             </div>
