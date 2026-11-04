@@ -1,3 +1,5 @@
+import { CRUISES, cruisePath } from './cruises';
+
 // Single source for contact details shown in the header, footer and checkout.
 export const SITE = {
   phoneDisplay: '+263 712 629 336',
@@ -16,18 +18,15 @@ export function whatsappLink(message = "Hi, I'm interested in a Zambezi cruise. 
 }
 
 export type NavLink = { label: string; href: string; detail?: string };
-export type NavItem = NavLink | { label: string; children: NavLink[]; overview: NavLink };
+export type NavItem = NavLink | { label: string; children: NavLink[] };
 
 // The three river cruises, grouped under one "Cruises" menu in the header.
-export const CRUISE_LINKS: NavLink[] = [
-  { label: 'Sunrise cruise', href: '/#sunrise', detail: '06:00 – 08:00' },
-  { label: 'Lunch cruise', href: '/#lunch', detail: '12:00 – 14:00' },
-  { label: 'Sunset cruise', href: '/#sunset', detail: '16:00 – after sunset' },
-];
+// Each opens that cruise's own page (times and prices there come live from the backend).
+export const CRUISE_LINKS: NavLink[] = CRUISES.map((c) => ({ label: c.title, href: cruisePath(c.slug), detail: c.tagline }));
 
 export const NAV: NavItem[] = [
   { label: 'About', href: '/about' },
-  { label: 'Cruises', children: CRUISE_LINKS, overview: { label: 'Compare all cruises', href: '/#cruises' } },
+  { label: 'Cruises', children: CRUISE_LINKS },
   { label: 'Jetty venue', href: '/#jetty' },
   { label: 'Gallery', href: '/gallery' },
   { label: 'Contact', href: '#contact' },

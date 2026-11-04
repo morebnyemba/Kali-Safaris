@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { FaWhatsapp } from 'react-icons/fa';
 import { whatsappLink } from '@/lib/site';
+import { CRUISES, bookingHref } from '@/lib/cruises';
 
 /**
  * Desktop: floating chat button. Phones: a slim bottom action bar instead —
@@ -25,6 +26,9 @@ export default function WhatsAppButton() {
   }, []);
 
   if (pathname.startsWith('/booking')) return null;
+  // On a cruise's own page, book that cruise directly instead of the generic picker.
+  const pageCruise = CRUISES.find((c) => pathname === `/cruises/${c.slug}`);
+  const bookHref = pageCruise ? bookingHref(pageCruise.tourName) : '/booking';
 
   return (
     <>
@@ -50,8 +54,8 @@ export default function WhatsAppButton() {
         inert={!pastHero}
       >
         <div className="flex gap-3">
-          <Link href="/booking" className="flex flex-1 items-center justify-center rounded-full bg-[#C8102E] py-3 text-sm font-bold text-white">
-            Book a cruise
+          <Link href={bookHref} className="flex flex-1 items-center justify-center rounded-full bg-[#C8102E] py-3 text-sm font-bold text-white">
+            {pageCruise ? `Book the ${pageCruise.title.toLowerCase()}` : 'Book a cruise'}
           </Link>
           <a
             href={whatsappLink()}

@@ -6,51 +6,17 @@ import { useEffect, useState } from "react";
 import { FaClock, FaWhatsapp } from "react-icons/fa";
 import { fetchToursOnce, tourPriceUsd, type Tour } from "@/lib/tours";
 import { whatsappLink } from "@/lib/site";
+import { CRUISES, VENUE, bookingHref, cruisePath } from "@/lib/cruises";
 
-const experiences = [
-  {
-    id: "sunrise",
-    title: "Sunrise Cruise",
-    tourName: "Sunrise Cruise",
-    time: "06:00 – 08:00",
-    description:
-      "Watch the river wake up — hippos surfacing, fish eagles calling and game coming down to drink in the cool morning light.",
-    image: "/images/sunrise.jpeg",
-    alt: "Breakfast table set on the deck overlooking the Zambezi at sunrise",
-  },
-  {
-    id: "lunch",
-    title: "Lunch Cruise",
-    tourName: "Lunch Cruise",
-    time: "12:00 – 14:00",
-    description:
-      "A relaxed midday cruise with a river breeze, great views and time to unwind between Victoria Falls activities.",
-    image: "/images/work_no_play.jpeg",
-    alt: "Guests enjoying a meal on the deck during a lunch cruise",
-  },
-  {
-    id: "sunset",
-    title: "Sunset Cruise",
-    tourName: "Sunset Cruise",
-    time: "16:00 – after sunset",
-    badge: "Most popular",
-    description:
-      "Our most-loved cruise. Spot wildlife along the banks, then watch the sun go down in gold and red over the Zambezi.",
-    image: "/images/Kalai Sunset background shot.jpeg",
-    alt: "Sunset over the Zambezi River seen from a Kalai Safaris cruise",
-  },
-  {
-    id: "jetty",
-    title: "Jetty Venue",
-    tourName: "Jetty Venue Hire",
-    time: "By arrangement",
-    description:
-      "Host a wedding, conference, cocktail party or private function on our riverside jetty, with the Zambezi as your backdrop.",
-    image: "/images/jetty_venue.jpg",
-    alt: "Kalai Safaris riverside jetty event venue",
-    isVenue: true,
-  },
-];
+// Shown until the live time slots load (and for the venue, which has none).
+const FALLBACK_TIMES: Record<string, string> = {
+  sunrise: "06:00 – 08:00",
+  lunch: "12:00 – 14:00",
+  sunset: "16:00 – after sunset",
+  jetty: "By arrangement",
+};
+
+const experiences = [...CRUISES, VENUE].map((c) => ({ ...c, id: c.slug, time: FALLBACK_TIMES[c.slug] }));
 
 export default function CruiseTypesSection() {
   const [prices, setPrices] = useState<Record<string, number>>({});
@@ -92,7 +58,8 @@ export default function CruiseTypesSection() {
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
           {experiences.map((x) => {
             const price = prices[x.tourName.toLowerCase()];
-            const bookHref = `/booking?tour_name=${encodeURIComponent(x.tourName)}`;
+            const bookHref = bookingHref(x.tourName);
+            const pageHref = x.isVenue ? undefined : cruisePath(x.slug);
             return (
               <article
                 key={x.id}
@@ -100,6 +67,7 @@ export default function CruiseTypesSection() {
                 className="group flex scroll-mt-24 flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white transition hover:border-gray-300 hover:shadow-[0_12px_32px_-16px_rgba(0,0,0,0.3)]"
               >
                 <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                  {pageHref && <Link href={pageHref} className="absolute inset-0 z-10" aria-label={`About the ${x.title}`} />}
                   <Image
                     src={x.image}
                     alt={x.alt}
@@ -115,7 +83,9 @@ export default function CruiseTypesSection() {
                 </div>
 
                 <div className="flex flex-1 flex-col p-5">
-                  <h3 className="text-xl font-bold text-gray-950">{x.title}</h3>
+                  <h3 className="text-xl font-bold text-gray-950">
+                    {pageHref ? <Link href={pageHref} className="hover:text-[#C8102E]">{x.title}</Link> : x.title}
+                  </h3>
                   <p className="mt-1.5 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600">
                     <FaClock className="text-[#E8600A]" aria-hidden /> {slotTimes[x.tourName.toLowerCase()] ?? x.time}
                   </p>

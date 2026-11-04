@@ -48,12 +48,6 @@ export default function HeroSection() {
             >
               Book a cruise
             </Link>
-            <Link
-              href="/#cruises"
-              className="inline-flex items-center justify-center rounded-full bg-white px-7 py-3.5 text-base font-bold text-gray-900 transition hover:bg-white/90"
-            >
-              See cruises &amp; prices
-            </Link>
           </div>
 
           <a

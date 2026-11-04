@@ -1,9 +1,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
-import { FaCcMastercard, FaCcVisa, FaDirections, FaEnvelope, FaFacebook, FaMapMarkerAlt, FaPhone, FaSun, FaTripadvisor, FaWhatsapp } from 'react-icons/fa';
+import { FaCcMastercard, FaDirections, FaEnvelope, FaFacebook, FaMapMarkerAlt, FaPhone, FaSun, FaTripadvisor, FaWhatsapp } from 'react-icons/fa';
 import { BsSunriseFill, BsSunsetFill } from 'react-icons/bs';
 import { NAV_LINKS, SITE, whatsappLink } from '@/lib/site';
-import { PaymentLogo } from '@/components/PaymentLogo';
+import { PAYMENT_LOGO_ORDER, PaymentLogo } from '@/components/PaymentLogo';
 
 const HOURS = [
   { icon: BsSunriseFill, name: 'Sunrise cruise', time: '06:00 – 08:00' },
@@ -112,11 +112,11 @@ export default function FooterSection() {
         <div className="mt-12 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs uppercase tracking-[0.16em] text-white/45">Secure payments</p>
           <ul className="flex flex-wrap items-center gap-2" aria-label="Accepted payment methods">
-            <li><FaCcVisa className="text-3xl text-white/80" title="Visa" aria-label="Visa" /></li>
+            {PAYMENT_LOGO_ORDER.map((brand) => (
+              <li key={brand}><PaymentLogo brand={brand} size="sm" /></li>
+            ))}
+            {/* Placeholder until the official Mastercard artwork is supplied. */}
             <li><FaCcMastercard className="text-3xl text-white/80" title="Mastercard" aria-label="Mastercard" /></li>
-            <li><PaymentLogo brand="zimswitch" size="sm" /></li>
-            <li><PaymentLogo brand="ecocash" size="sm" /></li>
-            <li><PaymentLogo brand="omari" size="sm" /></li>
           </ul>
         </div>
 

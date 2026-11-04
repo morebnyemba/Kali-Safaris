@@ -10,7 +10,7 @@ import Image from 'next/image';
  * yellow badge, so it is drawn as-is at the full badge height.
  * Never recolour, stretch or crop the artwork itself.
  */
-export type PaymentBrand = 'ecocash' | 'omari' | 'zimswitch';
+export type PaymentBrand = 'ecocash' | 'omari' | 'zimswitch' | 'visa';
 
 type Mark = {
   src: string;
@@ -25,7 +25,16 @@ const MARKS: Record<PaymentBrand, Mark> = {
   ecocash: { src: '/images/payments/ecocash.webp', alt: 'EcoCash', width: 523, height: 96, backing: 'bg-white ring-1 ring-black/10' },
   omari: { src: '/images/payments/omari-white.webp', alt: 'Omari', width: 311, height: 96, backing: 'bg-[#1A9C68]' },
   zimswitch: { src: '/images/payments/zimswitch.svg', alt: 'ZimSwitch', width: 117, height: 58, backing: null },
+  // Visa Blue wordmark: always on white.
+  visa: { src: '/images/payments/visa.webp', alt: 'Visa', width: 296, height: 96, backing: 'bg-white ring-1 ring-black/10' },
 };
+
+/**
+ * Order the client set for every list of payment methods: mobile money first,
+ * then ZimSwitch, then (once live) InnBucks, then the international cards.
+ * Mastercard isn't here yet: its official artwork is still to be supplied.
+ */
+export const PAYMENT_LOGO_ORDER: PaymentBrand[] = ['ecocash', 'omari', 'zimswitch', 'visa'];
 
 // Badge height, inner clear space and logo height per size. In a container
 // narrower than the badge the logo scales down without distortion.
@@ -47,15 +56,15 @@ export function PaymentLogo({
   /** Set when an adjacent label already names the brand. */
   decorative?: boolean;
   /**
-   * Drop the backing chip. Only honoured for EcoCash on an already white or
-   * near-white surface, where the chip would just steal width from the wordmark.
+   * Drop the backing chip. Only honoured for EcoCash and Visa on an already white
+   * or near-white surface, where the chip would just steal width from the wordmark.
    */
   bare?: boolean;
 }) {
   const mark = MARKS[brand];
   const s = SIZES[size];
   const selfPlated = mark.backing === null;
-  const chip = selfPlated || (bare && brand === 'ecocash') ? '' : `${mark.backing} ${s.pad}`;
+  const chip = selfPlated || (bare && (brand === 'ecocash' || brand === 'visa')) ? '' : `${mark.backing} ${s.pad}`;
   return (
     <span className={`inline-flex min-w-0 max-w-full items-center justify-center rounded-md ${s.height} ${chip} ${className}`}>
       <Image
