@@ -249,6 +249,7 @@ class GalleryImage(models.Model):
         BOAT = 'boat', _('Boats & Cruises')
         SUNSET = 'sunset', _('Sunset')
         SUNRISE = 'sunrise', _('Sunrise')
+        LUNCH = 'lunch', _('Lunch')
         JETTY = 'jetty', _('Jetty Venue')
 
     image = models.ImageField(_("Image"), upload_to='gallery/')

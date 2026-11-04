@@ -31,3 +31,15 @@ def recheck_booking_traveler_details(sender, instance, origin=None, **kwargs):
         or booking.payment_status == Booking.PaymentStatus.AWAITING_DETAILS
     ):
         booking.save(update_fields=['updated_at'])
+
+
+@receiver(post_save, sender=Booking)
+def queue_booking_confirmation_email(sender, instance, **kwargs):
+    """Once a booking is confirmed (any payment path), email the customer — once."""
+    from django.db import transaction
+    from .booking_emails import wants_confirmation_email
+    from .tasks import send_booking_confirmation_email_task
+
+    if wants_confirmation_email(instance):
+        booking_id = instance.pk
+        transaction.on_commit(lambda: send_booking_confirmation_email_task.delay(booking_id))

@@ -27,4 +27,5 @@ EXPOSE 8000
 # Command to run the application
 # Use Daphne as the ASGI server to support both HTTP and WebSockets (for Django Channels).
 # Gunicorn is a WSGI server and cannot handle the ASGI application.
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "whatsappcrm_backend.asgi:application"]
+# Applies pending migrations, then starts Daphne (ASGI: HTTP + WebSockets).
+CMD ["sh", "/app/docker-entrypoint.sh"]
