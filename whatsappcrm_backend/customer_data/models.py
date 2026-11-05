@@ -280,6 +280,10 @@ class Booking(models.Model):
     source = models.CharField(_("Source"), max_length=20, choices=BookingSource.choices, default=BookingSource.MANUAL_ENTRY)
     
     notes = models.TextField(_("Internal Notes"), blank=True, null=True)
+    balance_reminder_sent_on = models.DateField(
+        _("Balance reminder sent on"), null=True, blank=True, editable=False,
+        help_text=_("Last day an automatic balance reminder went out (one per day at most)."),
+    )
     access_key = models.CharField(
         _("Customer link key"), max_length=32, blank=True, default='', editable=False,
         help_text=_("Part of the customer's secure 'manage booking' link; changing it revokes every link sent so far."),

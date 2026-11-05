@@ -332,6 +332,11 @@ CELERY_BEAT_SCHEDULE = {
         # Nightly at 02:17 (CELERY_TIMEZONE): unpaid website checkout drafts older than 48h.
         'schedule': crontab(minute=17, hour=2),
     },
+    'send-balance-reminders': {
+        'task': 'customer_data.send_balance_reminders',
+        # Daily at 09:07 Harare time (CELERY_TIMEZONE): deposit bookings with a balance due.
+        'schedule': crontab(minute=7, hour=9),
+    },
     'cleanup-idle-conversations': {
         'task': 'flows.cleanup_idle_conversations_task',
         # Runs every 5 minutes to check for idle sessions.

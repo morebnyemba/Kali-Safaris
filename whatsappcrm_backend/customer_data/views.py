@@ -147,6 +147,25 @@ class BookingViewSet(viewsets.ModelViewSet):
     search_fields = ['booking_reference', 'tour_name', 'customer__first_name', 'customer__last_name']
     ordering_fields = ['start_date', 'created_at', 'total_amount', 'amount_paid']
 
+    def get_queryset(self):
+        """?balance=outstanding (paid something, owes the rest) | overdue (past its balance due date)."""
+        from datetime import timedelta
+        from django.db.models import F
+        from django.utils import timezone
+        from .payment_plan import BALANCE_DUE_DAYS_BEFORE
+
+        queryset = super().get_queryset()
+        balance = self.request.query_params.get('balance')
+        if balance in ('outstanding', 'overdue'):
+            today = timezone.localdate()
+            queryset = queryset.filter(
+                amount_paid__gt=0, amount_paid__lt=F('total_amount'), start_date__gte=today,
+            ).exclude(payment_status__in=[Booking.PaymentStatus.CANCELLED, Booking.PaymentStatus.REFUNDED])
+            if balance == 'overdue':
+                # due date = start_date - BALANCE_DUE_DAYS_BEFORE < today
+                queryset = queryset.filter(start_date__lt=today + timedelta(days=BALANCE_DUE_DAYS_BEFORE))
+        return queryset
+
     @action(detail=True, methods=['post'], url_path='manage-link')
     def manage_link(self, request, pk=None):
         """

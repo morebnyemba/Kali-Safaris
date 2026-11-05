@@ -33,6 +33,9 @@ const TABS = [
   { key: 'pending', label: 'Pending payment' },
   { key: 'pending_manual', label: 'Manual verification' },
   { key: 'cancelled', label: 'Cancelled' },
+  // Not payment statuses: bookings with part paid (deposit/instalments) and a balance left.
+  { key: 'balance:outstanding', label: 'Balance owing' },
+  { key: 'balance:overdue', label: 'Balance overdue' },
 ];
 
 // Paid / Deposit Paid are only accepted once every passenger is complete
@@ -103,7 +106,8 @@ export default function BookingsPage() {
     setError('');
     try {
       const res = await ordersApi.list({
-        payment_status: status || undefined,
+        payment_status: status && !status.startsWith('balance:') ? status : undefined,
+        balance: status.startsWith('balance:') ? status.split(':')[1] : undefined,
         search: debouncedSearch || undefined,
         start_date__gte: tourFrom || undefined,
         start_date__lte: tourTo || undefined,
@@ -376,6 +380,11 @@ export default function BookingsPage() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
                         {formatMoney(b.amount_paid)} <span className="text-muted-foreground">/ {formatMoney(b.total_amount)}</span>
+                        {b.balance_due_by && (
+                          <span className={`block text-xs ${b.balance_due_by < toIsoDate(new Date()) ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
+                            {formatMoney(Number(b.total_amount) - Number(b.amount_paid))} due {formatDate(b.balance_due_by, 'd MMM')}
+                          </span>
+                        )}
                         {(b.payments || []).length > 0 && (
                           <span className="block text-xs text-muted-foreground">
                             {b.payments.length} payment{b.payments.length === 1 ? '' : 's'}

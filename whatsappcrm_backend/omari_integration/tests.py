@@ -150,7 +150,7 @@ class OmariViewTests(TestCase):
             reverse('omari_integration:auth'),
             data=json.dumps({
                 'msisdn': '263774975187',
-                'amount': 3.50,
+                'amount': 5.00,  # first payment: at least the 50% deposit
                 'currency': 'USD',
                 'booking_reference': booking.booking_reference,
             }),

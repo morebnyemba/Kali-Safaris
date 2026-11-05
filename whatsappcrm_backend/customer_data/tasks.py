@@ -16,3 +16,10 @@ def send_booking_confirmation_email_task(self, booking_id: int) -> bool:
     """Email the customer their confirmed booking (retries with backoff while mail is unreachable)."""
     from .booking_emails import send_booking_confirmation
     return send_booking_confirmation(booking_id)
+
+
+@shared_task(name='customer_data.send_balance_reminders')
+def send_balance_reminders_task() -> list:
+    """Daily: remind customers with a balance outstanding (see balance_reminders)."""
+    from .balance_reminders import send_balance_reminders
+    return send_balance_reminders()

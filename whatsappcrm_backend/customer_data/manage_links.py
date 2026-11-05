@@ -108,8 +108,13 @@ def validate_instalment(booking, amount):
         raise ManageLinkError("This booking has already been paid in full.")
     if amount > due + Decimal('0.01'):
         raise ManageLinkError(f"The most you can pay now is the balance of ${due}.")
-    if amount < minimum_payment(booking) - Decimal('0.001'):
-        raise ManageLinkError(f"The smallest instalment is ${minimum_payment(booking)}.")
+    from .payment_plan import minimum_charge
+
+    minimum = minimum_charge(booking)
+    if amount < minimum - Decimal('0.01'):
+        if (booking.amount_paid or 0) > 0:
+            raise ManageLinkError(f"The smallest instalment is ${minimum}.")
+        raise ManageLinkError(f"The first payment for this booking must be at least ${minimum}.")
 
 
 def needs_id(traveler):
@@ -118,8 +123,11 @@ def needs_id(traveler):
 
 def summary(booking):
     """What the customer's page shows. No ID numbers or document URLs ever leave here."""
+    from .payment_plan import balance_due_date, minimum_charge
+
     travelers = list(booking.travelers.all().order_by('traveler_type', 'name'))
     over = trip_is_over(booking)
+    due_by = balance_due_date(booking)
     return {
         'booking_reference': booking.booking_reference,
         'tour_name': booking.tour_name,
@@ -131,7 +139,9 @@ def summary(booking):
         'total_amount': f"{booking.total_amount:.2f}",
         'amount_paid': f"{booking.amount_paid:.2f}",
         'balance_due': f"{balance_due(booking):.2f}",
-        'minimum_payment': f"{minimum_payment(booking):.2f}",
+        'minimum_payment': f"{minimum_charge(booking):.2f}",
+        'balance_due_by': due_by.isoformat() if due_by else None,
+        'balance_overdue': bool(due_by and balance_due(booking) > 0 and due_by < timezone.localdate()),
         'can_pay': can_pay(booking),
         'can_upload': not over and booking.payment_status not in CLOSED_STATUSES,
         'trip_is_over': over,
@@ -217,7 +227,9 @@ def link_message(booking, url):
     if missing_ids:
         lines.append(f"🪪 ID/passport still needed for: {', '.join(missing_ids)}")
     if due > 0 and can_pay(booking):
-        lines.append(f"💳 Balance due: *${due:.2f}* — pay all of it or in instalments (from ${minimum_payment(booking):.2f}).")
+        from .payment_plan import balance_due_date, minimum_charge
+        due_by = balance_due_date(booking)
+        lines.append(f"💳 Balance due: *${due:.2f}*{' by ' + due_by.strftime('%d %b') if due_by else ''} — pay all of it or in instalments (from ${minimum_charge(booking):.2f}).")
     if not missing_ids and due <= 0:
         lines.append("✅ Your booking is fully paid and all IDs are in. You can view it any time here.")
     lines += ["", url, "", "This link is private to your booking — please don't share it."]

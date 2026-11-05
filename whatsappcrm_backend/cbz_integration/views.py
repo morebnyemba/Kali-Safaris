@@ -564,6 +564,12 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
             raise PricingError(
                 f"Amount ${client_amount} exceeds the outstanding balance of ${balance_due} for this booking."
             )
+        # A retried or tampered checkout can't confirm a booking for less than its deposit
+        # (or less than the full price, when the customer chose to pay in full).
+        from customer_data.payment_plan import minimum_charge
+        minimum = minimum_charge(booking)
+        if client_amount < minimum - Decimal('0.01'):
+            raise PricingError(f"The payment for booking {booking.booking_reference} must be at least ${minimum}.")
         return booking, client_amount
 
     details = payload.get('booking_details') if isinstance(payload.get('booking_details'), dict) else {}
@@ -594,12 +600,26 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
     # not the future trip date) — so this matches whatever price the
     # customer actually saw on the booking screen.
     price_per_adult, _price_per_child = resolve_tour_price(tour, date.today())
-    authoritative_amount = (price_per_adult * adults).quantize(Decimal('0.01'))
+    full_price = (price_per_adult * adults).quantize(Decimal('0.01'))
+
+    # Pay in full, or (trips far enough ahead) a deposit now and the rest in instalments.
+    from customer_data.payment_plan import (
+        INSTALMENT_MIN_DAYS_AHEAD, PLAN_DEPOSIT, PLAN_FULL, deposit_amount, instalments_allowed,
+    )
+    plan = PLAN_DEPOSIT if str(details.get('payment_plan') or '').lower() == PLAN_DEPOSIT else PLAN_FULL
+    if plan == PLAN_DEPOSIT and not instalments_allowed(start_date):
+        raise PricingError(
+            f"Paying in instalments is available for cruises more than {INSTALMENT_MIN_DAYS_AHEAD} days away. "
+            "Please pay in full for this date."
+        )
+    authoritative_amount = deposit_amount(full_price) if plan == PLAN_DEPOSIT else full_price
     if abs(client_amount - authoritative_amount) > Decimal('0.01'):
         raise PricingError(
-            f"Pricing for {tour.name} has changed — it's now ${authoritative_amount} for "
-            f"{adults} traveler(s) (you were quoted ${client_amount}). Please refresh and try again."
+            f"Pricing for {tour.name} has changed — it's now ${full_price} for "
+            f"{adults} traveler(s){f' (deposit ${authoritative_amount})' if plan == PLAN_DEPOSIT else ''}. "
+            f"You were quoted ${client_amount}. Please refresh and try again."
         )
+    details = {**details, 'payment_plan': plan}  # stored server-validated, never as the client sent it
 
     # A booking must never exist without complete details for every paid
     # seat: reject before any payment is initiated. The message is shown to
@@ -622,7 +642,8 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
         customer_requests = str(customer_details.get('special_requests') or '').strip()
 
         note_parts = [
-            f"Website checkout draft booking. People: {adults}.",
+            f"Website checkout draft booking. People: {adults}."
+            + (f" Paying a {deposit_amount(full_price)} deposit now, balance in instalments." if plan == PLAN_DEPOSIT else ''),
             f"Traveler: {customer_name}" if customer_name else '',
             f"Email: {customer_email}" if customer_email else '',
             f"Phone: {customer_phone}" if customer_phone else '',
@@ -650,7 +671,7 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
                 end_date=start_date,
                 number_of_adults=adults,
                 number_of_children=0,
-                total_amount=authoritative_amount,
+                total_amount=full_price,
                 payment_status=Booking.PaymentStatus.PENDING,
                 source=Booking.BookingSource.MANUAL_ENTRY,
                 customer=customer_profile,

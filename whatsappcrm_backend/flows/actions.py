@@ -587,7 +587,8 @@ def load_open_bookings(contact, context: dict, params: dict) -> dict:
 @register_flow_action('select_open_booking')
 def select_open_booking(contact, context: dict, params: dict) -> dict:
     """Validates the chosen row against the contact's own bookings and loads its payment/ID state."""
-    from customer_data.manage_links import balance_due, can_pay, manage_url, minimum_payment, needs_id
+    from customer_data.manage_links import balance_due, can_pay, manage_url, needs_id
+    from customer_data.payment_plan import minimum_charge
 
     reply = str(params.get('reply_id') or '')
     booking = next((b for b in _open_bookings(contact) if f"bk_{b.pk}" == reply), None)
@@ -599,8 +600,8 @@ def select_open_booking(contact, context: dict, params: dict) -> dict:
     menu = []
     if payable:
         menu.append({'id': 'pb_full', 'title': 'Pay full balance', 'description': f"${due:.2f} now"})
-        if due > minimum_payment(booking):
-            menu.append({'id': 'pb_part', 'title': 'Pay an instalment', 'description': f"Any amount from ${minimum_payment(booking):.2f} to ${due:.2f}"})
+        if due > minimum_charge(booking):
+            menu.append({'id': 'pb_part', 'title': 'Pay an instalment', 'description': f"Any amount from ${minimum_charge(booking):.2f} to ${due:.2f}"})
     menu.append({
         'id': 'pb_link', 'title': 'Upload IDs / pay online' if missing else 'Get secure link',
         'description': ('IDs needed: ' + ', '.join(missing))[:72] if missing else 'Card, Omari or EcoCash on our website',
@@ -614,7 +615,7 @@ def select_open_booking(contact, context: dict, params: dict) -> dict:
         'pb_total': f"{booking.total_amount:.2f}",
         'pb_paid': f"{booking.amount_paid:.2f}",
         'pb_balance': f"{due:.2f}",
-        'pb_minimum': f"{minimum_payment(booking):.2f}",
+        'pb_minimum': f"{minimum_charge(booking):.2f}",
         'pb_missing_ids': ', '.join(missing),
         'pb_link': manage_url(booking),
         'pb_menu_rows': menu,

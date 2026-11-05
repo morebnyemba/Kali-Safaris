@@ -41,6 +41,8 @@ interface Summary {
   amount_paid: string;
   balance_due: string;
   minimum_payment: string;
+  balance_due_by: string | null;
+  balance_overdue: boolean;
   can_pay: boolean;
   can_upload: boolean;
   trip_is_over: boolean;
@@ -278,6 +280,11 @@ function ManageBookingContent({ token }: { token: string }) {
 
         {summary.can_pay ? (
           <form className="mt-5 space-y-3" onSubmit={(e) => { e.preventDefault(); if (!amountError && amountValue > 0) setPayAmount(Number(amountValue.toFixed(2))); }}>
+            {summary.balance_due_by && (
+              <p className={`rounded-xl px-3 py-2 text-sm font-semibold ${summary.balance_overdue ? 'bg-[#C8102E]/10 text-[#C8102E]' : 'bg-amber-50 text-amber-900'}`}>
+                {summary.balance_overdue ? 'Overdue — balance was due' : 'Balance due by'} {longDate(summary.balance_due_by)}
+              </p>
+            )}
             <p className="text-sm text-gray-600">Pay it all now or in instalments of {money(minimum)} or more — by card, EcoCash or Omari.</p>
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => setAmount(balance.toFixed(2))}
