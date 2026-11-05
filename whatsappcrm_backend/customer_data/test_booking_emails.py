@@ -54,7 +54,7 @@ class BookingConfirmationEmailTests(TestCase):
         email = mail.outbox[0]
         self.assertEqual(email.to, ['ann@example.com'])
         self.assertIn('BK-T001-TEST-0600', email.subject)
-        self.assertIn('Departure: 06:00–08:00', email.body)
+        self.assertIn('Departs: 06:00–08:00', email.body)
         self.assertIn('Hi Ann', email.body)
         self.assertIn('Ann Moyo', email.alternatives[0][0])
         self.assertIsNotNone(booking.confirmation_email_sent_at)
@@ -91,7 +91,7 @@ class BookingConfirmationEmailTests(TestCase):
     def test_failed_send_is_released_for_retry(self):
         booking = self.booking()
         Booking.objects.filter(pk=booking.pk).update(payment_status=Booking.PaymentStatus.PAID)
-        with mock.patch('customer_data.booking_emails.EmailMultiAlternatives.send', side_effect=OSError('smtp down')):
+        with mock.patch('django.core.mail.EmailMultiAlternatives.send', side_effect=OSError('smtp down')):
             with self.assertRaises(OSError):
                 send_booking_confirmation(booking.pk)
         booking.refresh_from_db()

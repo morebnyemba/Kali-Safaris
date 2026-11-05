@@ -1,0 +1,6 @@
+
+See you on the river,
+The Kalai Safaris team
+
+Questions? WhatsApp {{ brand.whatsapp }} · call {{ brand.phone }} · or reply to this email.
+{{ brand.address }} · {{ brand.site_url }}

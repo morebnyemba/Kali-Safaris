@@ -1,0 +1,29 @@
+{% extends "emails/base.html" %}
+{% block eyebrow %}<p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:{{ brand.orange }};font-weight:bold;">✓ Booking confirmed</p>{% endblock %}
+{% block headline %}You're going on the {{ booking.tour_name }}{% if first_name %}, {{ first_name }}{% endif %}!{% endblock %}
+{% block content %}
+<p style="margin:0;">Thank you for booking with us. Here's everything you need for the day.</p>
+{% include "emails/_booking_details.html" with show_money=True due_by=balance_due_by %}
+{% if travelers %}<p style="margin:14px 0 0;font-size:14px;color:{{ brand.muted }};">Passengers: <span style="color:{{ brand.ink }};">{% for t in travelers %}{{ t.name }}{% if not forloop.last %}, {% endif %}{% endfor %}</span></p>{% endif %}
+
+{% if balance or missing_ids %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0 0;border-radius:12px;background:#FFF4EC;border:1px solid #F6D3BC;"><tr><td style="padding:16px 18px;">
+  <p style="margin:0;font-weight:bold;color:{{ brand.ink }};">Still to do</p>
+  <ul style="margin:6px 0 0;padding-left:18px;">
+    {% if balance %}<li>Pay the <strong>${{ balance|floatformat:2 }}</strong> balance by <strong>{{ balance_due_by|date:"j F Y" }}</strong> — all at once or in instalments. If it isn't paid by then, the booking is moved off this cruise and your payment kept as credit for a new date.</li>{% endif %}
+    {% if missing_ids %}<li>Upload ID/passport photos for {{ missing_ids|join:", " }} (required for park entry from age 12).</li>{% endif %}
+  </ul>
+  {% include "emails/_button.html" with url=manage_url label="Manage my booking" note="This link is private to your booking — please don't share it." %}
+</td></tr></table>
+{% endif %}
+
+<h3 style="margin:26px 0 6px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:{{ brand.orange }};">Meeting point</h3>
+<p style="margin:0;">{{ brand.address }}<br>Please arrive 15 minutes before your departure. <a href="{{ brand.maps }}" style="color:{{ brand.red }};font-weight:bold;">Get directions →</a></p>
+
+<h3 style="margin:22px 0 6px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:{{ brand.orange }};">Good to know</h3>
+<ul style="margin:0;padding-left:18px;">
+  <li>The National Parks river usage fee is not included in the cruise price.</li>
+  <li>Bring a hat, sunscreen, a light jacket for evening cruises, a camera and binoculars.</li>
+  <li>Please quote <strong>{{ booking.booking_reference }}</strong> whenever you contact us.</li>
+</ul>
+{% endblock %}

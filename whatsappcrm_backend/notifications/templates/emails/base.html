@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light only">
+  <meta name="supported-color-schemes" content="light">
+  <title>{{ subject }}</title>
+  <style>
+    @media (max-width:620px){ .px{padding-left:20px!important;padding-right:20px!important} .h1{font-size:24px!important} }
+    a{color:{{ brand.red }}}
+  </style>
+</head>
+<body style="margin:0;padding:0;background:{{ brand.cream }};-webkit-text-size-adjust:100%;">
+  {# Inbox preview line; padded so clients don't pull body text into it. #}
+  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">{{ preheader }}{% for _ in "123456789012" %}&#847;&zwnj;&nbsp;{% endfor %}</div>
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:{{ brand.cream }};">
+    <tr><td align="center" style="padding:24px 12px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
+        {# Logo #}
+        <tr><td align="center" style="padding:4px 0 18px;">
+          <a href="{{ brand.site_url }}" style="text-decoration:none;"><img src="{{ brand.logo_url }}" width="200" alt="{{ brand.name }}" style="display:block;width:200px;max-width:60%;height:auto;border:0;"></a>
+        </td></tr>
+        <tr><td style="background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #F1E4DA;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+            {# Brand bar #}
+            <tr><td style="height:5px;line-height:5px;font-size:0;background:{{ brand.red }};background-image:linear-gradient(90deg,{{ brand.red }},{{ brand.orange }},{{ brand.gold }});">&nbsp;</td></tr>
+            {# Hero #}
+            <tr><td class="px" style="padding:28px 36px 8px;font-family:Arial,Helvetica,sans-serif;">
+              {% block eyebrow %}{% endblock %}
+              <h1 class="h1" style="margin:6px 0 0;font-size:28px;line-height:1.2;color:{{ brand.ink }};font-weight:800;">{% block headline %}{% endblock %}</h1>
+            </td></tr>
+            <tr><td class="px" style="padding:16px 36px 32px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.6;color:#333333;">
+              {% block content %}{% endblock %}
+              <p style="margin:28px 0 0;">See you on the river,<br><strong style="color:{{ brand.ink }};">The {{ brand.name }} team</strong></p>
+            </td></tr>
+            {# Help strip #}
+            <tr><td class="px" style="padding:18px 36px;background:#FAF6F2;border-top:1px solid #F1E4DA;font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#444444;">
+              <strong style="color:{{ brand.ink }};">Questions?</strong>
+              <a href="{{ brand.whatsapp }}" style="color:#128C7E;font-weight:bold;text-decoration:none;">WhatsApp us</a>,
+              call <a href="{{ brand.phone_href }}" style="color:{{ brand.ink }};text-decoration:none;">{{ brand.phone }}</a>
+              or just reply to this email.
+            </td></tr>
+          </table>
+        </td></tr>
+        {# Footer #}
+        <tr><td align="center" style="padding:22px 16px 8px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.7;color:{{ brand.muted }};">
+          <strong style="color:#444444;">{{ brand.name }}</strong> · {{ brand.tagline }}<br>
+          <a href="{{ brand.maps }}" style="color:{{ brand.muted }};">{{ brand.address }}</a><br>
+          <a href="{{ brand.site_url }}" style="color:{{ brand.muted }};">kalaisafaris.com</a> ·
+          <a href="mailto:{{ brand.email }}" style="color:{{ brand.muted }};">{{ brand.email }}</a> ·
+          <a href="{{ brand.facebook }}" style="color:{{ brand.muted }};">Facebook</a><br>
+          {% block footer_note %}You're receiving this email about your booking with {{ brand.name }}.{% endblock %}<br>
+          &copy; {{ brand.year }} {{ brand.name }}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>

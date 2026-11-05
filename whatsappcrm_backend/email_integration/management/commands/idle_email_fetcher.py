@@ -20,9 +20,9 @@ class Command(BaseCommand):
     help = "Runs a persistent IMAP IDLE worker to listen for new emails and trigger processing."
 
     def handle(self, *args, **kwargs):
-        host = os.getenv("MAILU_IMAP_HOST")
-        user = os.getenv("MAILU_IMAP_USER")
-        password = os.getenv("MAILU_IMAP_PASS")
+        host = (os.getenv("MAIL_IMAP_HOST") or os.getenv("MAILU_IMAP_HOST"))
+        user = (os.getenv("MAIL_IMAP_USER") or os.getenv("MAILU_IMAP_USER"))
+        password = (os.getenv("MAIL_IMAP_PASS") or os.getenv("MAILU_IMAP_PASS"))
 
         logger.info("Starting IMAP IDLE worker...")
         self.stdout.write(self.style.SUCCESS(f"Preparing to connect to IMAP server..."))
@@ -37,7 +37,7 @@ class Command(BaseCommand):
 
         if not (host and user and password):
             # Without config there is nothing to connect to; idle instead of crash-looping the container.
-            self.stderr.write(self.style.ERROR("MAILU_IMAP_HOST / MAILU_IMAP_USER / MAILU_IMAP_PASS not set. Email fetching is disabled."))
+            self.stderr.write(self.style.ERROR("MAIL_IMAP_HOST / MAIL_IMAP_USER / MAIL_IMAP_PASS not set. Email fetching is disabled."))
             logger.error("IMAP worker not configured (MAILU_IMAP_HOST/USER/PASS missing); sleeping.")
             while True:
                 time.sleep(3600)
@@ -90,8 +90,11 @@ class Command(BaseCommand):
 
     def process_message(self, message_data):
         msg = email.message_from_bytes(message_data[b'RFC822'])
-        sender = msg.get('From', '')  
+        sender = msg.get('From', '')
         subject = msg.get('Subject', '')
+        message_id = (msg.get('Message-ID') or '').strip()[:255]
+        from notifications.emailing import is_automated_message
+        automated = is_automated_message(msg)  # bounces, lists, autoresponders: process, never reply
         date_str = msg.get('Date', '')
         email_date_obj = parsedate_to_datetime(date_str) if date_str else None
 
@@ -111,8 +114,10 @@ class Command(BaseCommand):
                     file=ContentFile(file_content, name="attachments/"+unique_name),
                     filename=filename, 
                     sender=sender, 
-                    subject=subject, 
-                    email_date=email_date_obj
+                    subject=subject,
+                    email_date=email_date_obj,
+                    message_id=message_id,
+                    is_automated=automated,
                 )
                 self.stdout.write(self.style.SUCCESS(f"Saved attachment: {filename} (DB id: {attachment.id})"))
                 

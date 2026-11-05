@@ -1,0 +1,19 @@
+{% extends "emails/base.html" %}
+{% block eyebrow %}<p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#0F7B4F;font-weight:bold;">✓ Payment received</p>{% endblock %}
+{% block headline %}Thanks{% if first_name %}, {{ first_name }}{% endif %} — we've received ${{ payment.amount|floatformat:2 }}{% endblock %}
+{% block content %}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 0;font-size:14px;">
+  <tr><td style="padding:3px 0;color:{{ brand.muted }};width:44%;">Amount</td><td style="padding:3px 0;font-weight:bold;color:{{ brand.ink }};">{{ payment.currency }} {{ payment.amount|floatformat:2 }}</td></tr>
+  <tr><td style="padding:3px 0;color:{{ brand.muted }};">Paid with</td><td style="padding:3px 0;color:{{ brand.ink }};">{{ payment.get_payment_method_display }}</td></tr>
+  <tr><td style="padding:3px 0;color:{{ brand.muted }};">Date</td><td style="padding:3px 0;color:{{ brand.ink }};">{{ payment.created_at|date:"j F Y, H:i" }}</td></tr>
+  {% if payment.transaction_reference %}<tr><td style="padding:3px 0;color:{{ brand.muted }};">Payment reference</td><td style="padding:3px 0;font-family:'Courier New',monospace;color:{{ brand.ink }};">{{ payment.transaction_reference }}</td></tr>{% endif %}
+</table>
+{% include "emails/_booking_details.html" with show_money=True due_by=due_by %}
+{% if balance %}
+<p style="margin:16px 0 0;">You can pay the remaining <strong>${{ balance|floatformat:2 }}</strong> whenever suits you before <strong>{{ due_by|date:"j F" }}</strong>, in one go or in instalments.</p>
+{% include "emails/_button.html" with url=manage_url label="Pay the balance" note="This link is private to your booking — please don't share it." %}
+{% else %}
+<p style="margin:16px 0 0;"><strong>Your booking is now fully paid.</strong> All that's left is to enjoy the river!</p>
+{% endif %}
+{% endblock %}
+{% block footer_note %}Keep this email as your receipt.{% endblock %}

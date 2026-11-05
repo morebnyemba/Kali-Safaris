@@ -11,10 +11,7 @@ yet the send fails, the booking stays unmarked and the task retries.
 """
 import logging
 
-from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
-from django.template.loader import render_to_string
 from django.utils import timezone
 
 from .models import Booking
@@ -88,18 +85,16 @@ def send_booking_confirmation(booking_id: int) -> bool:
             return False
         Booking.objects.filter(pk=booking.pk).update(confirmation_email_sent_at=claimed_at)
 
+    from notifications.emailing import send_branded_email
+
     to = customer_email(booking)
-    context = _context(booking)
-    message = EmailMultiAlternatives(
-        subject=f"Booking confirmed: {booking.tour_name} on {booking.start_date:%d %b %Y} — {booking.booking_reference}",
-        body=render_to_string('customer_data/emails/booking_confirmation.txt', context),
-        from_email=settings.DEFAULT_FROM_EMAIL,
-        to=[to],
-        reply_to=[CONTACT['email']],
-    )
-    message.attach_alternative(render_to_string('customer_data/emails/booking_confirmation.html', context), 'text/html')
     try:
-        message.send()
+        send_branded_email(
+            template='booking_confirmation', to=to, booking=booking,
+            subject=f"Booking confirmed: {booking.tour_name} on {booking.start_date:%d %b %Y} — {booking.booking_reference}",
+            preheader=f"You're booked! Ref {booking.booking_reference} — meeting point and what to bring inside.",
+            context=_context(booking),
+        )
     except Exception:
         Booking.objects.filter(pk=booking.pk, confirmation_email_sent_at=claimed_at).update(confirmation_email_sent_at=None)
         raise

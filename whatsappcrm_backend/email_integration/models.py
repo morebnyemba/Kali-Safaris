@@ -11,6 +11,10 @@ class EmailAttachment(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     processed = models.BooleanField(default=False, db_index=True)
     extracted_data = models.JSONField(blank=True, null=True, help_text="Structured data extracted by AI model.")
+    message_id = models.CharField(max_length=255, blank=True, default='', db_index=True,
+                                  help_text="Message-ID of the email it came in; one auto-reply per email.")
+    is_automated = models.BooleanField(default=False,
+                                       help_text="Sent by a machine (bounce, list, autoresponder, no-reply): never auto-reply.")
 
     def __str__(self):
         return f"{self.filename} (Processed: {self.processed})"

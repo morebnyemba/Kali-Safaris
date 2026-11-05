@@ -21,11 +21,8 @@ it). A booking is moved only after a final notice actually reached them.
 import logging
 from datetime import timedelta
 
-from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
 from django.db import transaction
 from django.db.models import F
-from django.template.loader import render_to_string
 from django.utils import timezone
 
 from .booking_emails import CONTACT, customer_email
@@ -86,18 +83,20 @@ def _notify_customer(booking, kind, url, today):
         'moved': f"Your {trip:%d %b} cruise is on hold — choose a new date",
     }[kind]
     reached = False
-    to = customer_email(booking)
-    if to:
-        try:
-            message = EmailMultiAlternatives(
-                subject=subject, body=render_to_string('customer_data/emails/balance_reminder.txt', context),
-                from_email=settings.DEFAULT_FROM_EMAIL, to=[to], reply_to=[CONTACT['email']],
-            )
-            message.attach_alternative(render_to_string('customer_data/emails/balance_reminder.html', context), 'text/html')
-            message.send()
-            reached = True
-        except Exception:
-            logger.exception("Balance %s email failed for %s", kind, booking.booking_reference)
+    try:
+        from notifications.emailing import send_branded_email
+        reached = bool(send_branded_email(
+            template='balance_reminder', to=customer_email(booking), booking=booking, subject=subject,
+            key=f'balance-{kind}:{booking.pk}:{today.isoformat()}',
+            preheader={
+                'upcoming': f"${due:.2f} left to pay — all at once or in instalments.",
+                'final': 'Pay the balance to keep your seats. Your payment is never lost.',
+                'moved': 'Your payment is kept as credit. Choose a new date in a couple of taps.',
+            }[kind],
+            context={**context, 'kind_is_moved': kind == 'moved'},
+        ))
+    except Exception:
+        logger.exception("Balance %s email failed for %s", kind, booking.booking_reference)
     try:
         text = {
             'upcoming': f"⏰ Your balance of *${due:.2f}* for {booking.tour_name} on {trip:%d %b} is due by {context['due_by']:%d %b}.",

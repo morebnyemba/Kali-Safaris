@@ -43,3 +43,19 @@ def queue_booking_confirmation_email(sender, instance, **kwargs):
     if wants_confirmation_email(instance):
         booking_id = instance.pk
         transaction.on_commit(lambda: send_booking_confirmation_email_task.delay(booking_id))
+
+
+@receiver(post_save, sender=Payment)
+def queue_payment_receipt(sender, instance, **kwargs):
+    """Email a receipt for each successful payment after the booking's confirmation email (instalments)."""
+    if instance.status != Payment.PaymentStatus.SUCCESSFUL or not instance.booking_id:
+        return
+    from django.db import transaction
+    from .customer_emails import receipt_wanted
+    from .tasks import send_payment_receipt_email_task
+
+    booking = Booking.objects.filter(pk=instance.booking_id).only('confirmation_email_sent_at').first()
+    instance.booking = booking
+    if booking is not None and receipt_wanted(instance):  # decided now: the confirmation email may follow this save
+        payment_id = instance.pk
+        transaction.on_commit(lambda: send_payment_receipt_email_task.delay(str(payment_id)))

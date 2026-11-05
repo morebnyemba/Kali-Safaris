@@ -1,0 +1,10 @@
+{% autoescape off %}Hi{% if first_name %} {{ first_name }}{% endif %},
+
+Your booking has been moved to its new date{% if held_from_date %} (from {{ held_from_date|date:"j F" }}){% endif %}. The ${{ booking.amount_paid|floatformat:2 }} you'd paid has been carried over.
+
+Booking reference: {{ booking.booking_reference }}
+Cruise: {{ booking.tour_name }}, {{ booking.start_date|date:"l j F Y" }}{% if departure %} · departs {{ departure }}{% endif %}
+Total: ${{ booking.total_amount|floatformat:2 }} · Paid: ${{ booking.amount_paid|floatformat:2 }}{% if balance %}
+Balance: ${{ balance|floatformat:2 }}, due {{ due_by|date:"j F Y" }}
+Pay the rest (private link): {{ manage_url }}{% endif %}
+{% include "emails/_footer.txt" %}{% endautoescape %}

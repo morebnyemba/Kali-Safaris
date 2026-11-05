@@ -1,0 +1,15 @@
+# Lets Nginx Proxy Manager reach mailcow's web UI (nginx-mailcow:8080) over
+# mailcow's Docker network. Only use once mailcow is installed (the network
+# must exist), see deploy/mailcow/README.md:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.mailcow.yml up -d npm
+services:
+  npm:
+    networks:
+      - default
+      - mailcow
+
+networks:
+  mailcow:
+    external: true
+    name: mailcowdockerized_mailcow-network

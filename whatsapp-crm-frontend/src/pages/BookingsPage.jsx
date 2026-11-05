@@ -81,6 +81,15 @@ export default function BookingsPage() {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
   const [linkBusy, setLinkBusy] = useState('');
+  const [emails, setEmails] = useState(null);
+
+  // Emails the open booking's customer was sent (confirmation, receipts, reminders…).
+  useEffect(() => {
+    if (!dialog.open || !dialog.id) { setEmails(null); return undefined; }
+    let cancelled = false;
+    ordersApi.emails(dialog.id).then((res) => { if (!cancelled) setEmails(res.data); }).catch(() => { if (!cancelled) setEmails([]); });
+    return () => { cancelled = true; };
+  }, [dialog.open, dialog.id]);
 
   // Customer's secure link: upload missing IDs + pay the balance in instalments.
   const customerLink = async (bookingId, mode) => {
@@ -565,6 +574,31 @@ export default function BookingsPage() {
                 <p className="text-xs text-muted-foreground">
                   Verify pending payments on the <Link className="text-primary underline" to={`/payments?status=pending&q=${encodeURIComponent(editingBooking.booking_reference)}`}>Payments page</Link>.
                 </p>
+              )}
+            </section>
+          )}
+          {dialog.id && editingBooking && (
+            <section className="space-y-2 border-t pt-4" aria-labelledby="b-emails-title">
+              <h3 id="b-emails-title" className="font-semibold">Emails to the customer</h3>
+              {emails === null ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : emails.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No emails sent yet{editingBooking.customer ? '' : ' (no customer on this booking)'}.</p>
+              ) : (
+                <ul className="divide-y rounded-md border text-sm">
+                  {emails.map((m) => (
+                    <li key={m.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2" title={m.subject}>
+                      <span className="w-36 tabular-nums">{formatDateTime(m.sent_at || m.created_at)}</span>
+                      <span className="min-w-0 flex-1">
+                        {m.label}
+                        <span className="block truncate text-xs text-muted-foreground">{m.to}</span>
+                        {m.error && <span className="block truncate text-xs text-destructive" title={m.error}>{m.error}</span>}
+                      </span>
+                      <StatusBadge status={m.status === 'sent' ? 'paid' : m.status === 'failed' ? 'failed' : 'pending'}
+                        label={m.status === 'sent' ? 'Sent' : m.status === 'failed' ? 'Failed' : 'Sending'} />
+                    </li>
+                  ))}
+                </ul>
               )}
             </section>
           )}

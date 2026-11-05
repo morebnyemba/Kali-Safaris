@@ -23,3 +23,27 @@ def send_balance_reminders_task() -> dict:
     """Daily: move unpaid bookings past their grace period to hold, then send balance notices (see balance_reminders)."""
     from .balance_reminders import run_daily
     return run_daily()
+
+
+_EMAIL_RETRY = dict(bind=True, max_retries=6, autoretry_for=(Exception,), retry_backoff=60,
+                    retry_backoff_max=3600, retry_jitter=True)
+
+
+@shared_task(name='customer_data.send_payment_receipt_email', **_EMAIL_RETRY)
+def send_payment_receipt_email_task(self, payment_id) -> bool:
+    from .customer_emails import send_payment_receipt
+    return bool(send_payment_receipt(payment_id))
+
+
+@shared_task(name='customer_data.send_booking_rescheduled_email', **_EMAIL_RETRY)
+def send_booking_rescheduled_email_task(self, booking_id, held_from_date=None) -> bool:
+    from datetime import date
+    from .customer_emails import send_booking_rescheduled
+    held = date.fromisoformat(held_from_date) if held_from_date else None
+    return bool(send_booking_rescheduled(booking_id, held))
+
+
+@shared_task(name='customer_data.send_payment_rejected_email', **_EMAIL_RETRY)
+def send_payment_rejected_email_task(self, payment_id, reason='') -> bool:
+    from .customer_emails import send_payment_rejected
+    return bool(send_payment_rejected(payment_id, reason))

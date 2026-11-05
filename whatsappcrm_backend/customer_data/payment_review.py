@@ -118,4 +118,7 @@ def reject_payment(payment_id, user, reason=''):
             "You can record a new payment by typing *manual payment*."
         )
         transaction.on_commit(lambda: _send_whatsapp(booking, body))
+        from .tasks import send_payment_rejected_email_task
+        payment_id = str(payment.pk)
+        transaction.on_commit(lambda: send_payment_rejected_email_task.delay(payment_id, reason))
     return payment

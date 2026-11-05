@@ -166,6 +166,24 @@ class BookingViewSet(viewsets.ModelViewSet):
                 queryset = queryset.filter(start_date__lt=today + timedelta(days=BALANCE_DUE_DAYS_BEFORE))
         return queryset
 
+    @action(detail=True, methods=['get'])
+    def emails(self, request, pk=None):
+        """Every email sent (or attempted) to this booking's customer, newest first."""
+        booking = self.get_object()
+        labels = {
+            'booking_confirmation': 'Booking confirmation', 'payment_receipt': 'Payment receipt',
+            'balance_reminder': 'Balance reminder', 'booking_rescheduled': 'New date confirmed',
+            'payment_rejected': 'Payment not verified',
+        }
+        return Response([
+            {
+                'id': log.pk, 'template': log.template, 'label': labels.get(log.template, log.template),
+                'subject': log.subject, 'to': log.to_email, 'status': log.status, 'error': log.error,
+                'created_at': log.created_at, 'sent_at': log.sent_at,
+            }
+            for log in booking.email_logs.all()[:50]
+        ])
+
     @action(detail=True, methods=['post'], url_path='manage-link')
     def manage_link(self, request, pk=None):
         """
@@ -486,9 +504,14 @@ class ManageRescheduleView(_ManageLinkView):
                 # Serialise with checkouts competing for the same departure's last seats.
                 from products_and_services.models import TourTimeSlot
                 list(TourTimeSlot.objects.select_for_update().filter(tour_id=booking.tour_id))
+            held_from = booking.held_from_date
             try:
                 reschedule(booking, new_date, request.data.get('time'))
             except ManageLinkError as exc:
                 return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+            from .tasks import send_booking_rescheduled_email_task
+            booking_id = booking.pk
+            transaction.on_commit(lambda: send_booking_rescheduled_email_task.delay(
+                booking_id, held_from.isoformat() if held_from else None))
         booking.refresh_from_db()
         return Response(summary(booking))
