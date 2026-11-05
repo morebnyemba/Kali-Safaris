@@ -14,7 +14,10 @@ Passengers:{% for t in travelers %}
 Total: ${{ booking.total_amount|floatformat:2 }}
 Paid: ${{ booking.amount_paid|floatformat:2 }}{% if balance %}
 Balance due: ${{ balance|floatformat:2 }}{% endif %}
-
+{% if balance or missing_ids %}
+{% if balance %}Pay the balance by {{ balance_due_by|date:"j F Y" }}, all at once or in instalments. {% endif %}{% if missing_ids %}We still need ID/passport photos for {{ missing_ids|join:", " }}. {% endif %}
+Manage your booking (private link, please don't share): {{ manage_url }}
+{% endif %}
 MEETING POINT
 {{ contact.address }}
 Please arrive a little before your departure time. Directions: {{ contact.maps }}

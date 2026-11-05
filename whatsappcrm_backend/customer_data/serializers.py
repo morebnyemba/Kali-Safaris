@@ -142,6 +142,11 @@ class CustomerProfileSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ('created_at', 'updated_at', 'last_interaction_date')
 
+    def validate_country(self, value):
+        # 'zimbabwe' -> 'Zimbabwe' when it's on the country list; anything else as typed.
+        from .nationalities import normalize_country
+        return normalize_country(value) or value
+
 class InteractionSerializer(serializers.ModelSerializer):
     """
     Serializer for creating and viewing customer interactions.
@@ -195,14 +200,24 @@ class InteractionSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     payment_status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    # Flattened booking context for the payments ledger (select_related in the viewset).
+    booking_reference = serializers.CharField(source='booking.booking_reference', read_only=True, default=None)
+    tour_name = serializers.CharField(source='booking.tour_name', read_only=True, default=None)
+    tour_date = serializers.DateField(source='booking.start_date', read_only=True, default=None)
+    customer_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
         fields = [
-            'id', 'booking', 'amount', 'currency', 'status', 'payment_status_display',
-            'payment_method', 'payment_method_display', 'transaction_reference', 'notes', 'created_at'
+            'id', 'booking', 'booking_reference', 'customer_name', 'tour_name', 'tour_date',
+            'amount', 'currency', 'status', 'payment_status_display',
+            'payment_method', 'payment_method_display', 'transaction_reference', 'notes', 'created_at', 'updated_at'
         ]
-        read_only_fields = ('id', 'created_at')
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def get_customer_name(self, obj):
+        customer = obj.booking.customer if obj.booking_id and obj.booking.customer_id else None
+        return customer.get_full_name() if customer else None
 
 class BookingSerializer(serializers.ModelSerializer):
     customer = SimpleCustomerProfileSerializer(read_only=True)
@@ -226,6 +241,7 @@ class BookingSerializer(serializers.ModelSerializer):
     traveler_count = serializers.SerializerMethodField()
     traveler_details_problems = serializers.SerializerMethodField()
     source_display = serializers.CharField(source='get_source_display', read_only=True)
+    balance_due_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Booking
@@ -235,13 +251,20 @@ class BookingSerializer(serializers.ModelSerializer):
             'total_amount', 'amount_paid', 'payment_status', 'payment_status_display',
             'held_payment_status', 'traveler_count', 'traveler_details_problems',
             'source', 'source_display', 'notes', 'assigned_agent', 'assigned_agent_id',
-            'created_at', 'updated_at', 'payments'
+            'created_at', 'updated_at', 'payments', 'balance_due_by', 'balance_reminder_sent_on',
         ]
-        read_only_fields = ('id', 'amount_paid', 'held_payment_status', 'created_at', 'updated_at', 'payments')
+        read_only_fields = ('id', 'amount_paid', 'held_payment_status', 'created_at', 'updated_at', 'payments', 'balance_reminder_sent_on')
 
     def _travelers(self, obj):
         # Uses the viewset's prefetch; one list per booking.
         return list(obj.travelers.all())
+
+    def get_balance_due_by(self, obj):
+        from .payment_plan import balance_due_date
+        if not obj.total_amount or not obj.amount_paid or obj.amount_paid >= obj.total_amount:
+            return None
+        due = balance_due_date(obj)
+        return due.isoformat() if due else None
 
     def get_traveler_count(self, obj):
         return len(self._travelers(obj))

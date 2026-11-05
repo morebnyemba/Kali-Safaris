@@ -22,6 +22,14 @@
             {% if balance %}<tr><td style="padding:6px 0;color:#C8102E;">Balance due</td><td style="padding:6px 0;color:#C8102E;font-weight:bold;">${{ balance|floatformat:2 }}</td></tr>{% endif %}
           </table>
 
+          {% if balance or missing_ids %}
+          <div style="margin:20px 0 0;padding:16px;border:1px solid #f1d3c2;border-radius:10px;background:#fff8f3;">
+            <p style="margin:0 0 10px;">{% if balance %}Pay the ${{ balance|floatformat:2 }} balance by {{ balance_due_by|date:"j F Y" }} — all at once or in instalments. We'll remind you before it's due.{% endif %}{% if missing_ids %} We still need ID/passport photos for {{ missing_ids|join:", " }} (required for park entry from age 12).{% endif %}</p>
+            <a href="{{ manage_url }}" style="display:inline-block;background:#C8102E;color:#ffffff;text-decoration:none;font-weight:bold;padding:10px 18px;border-radius:999px;">Manage my booking</a>
+            <p style="margin:10px 0 0;font-size:12px;color:#6b7280;">This link is private to your booking — please don't share it.</p>
+          </div>
+          {% endif %}
+
           <h3 style="font-size:13px;letter-spacing:1.5px;text-transform:uppercase;color:#E8600A;margin:24px 0 6px;">Meeting point</h3>
           <p style="margin:0;">{{ contact.address }}<br>Please arrive a little before your departure time. <a href="{{ contact.maps }}" style="color:#C8102E;">Get directions</a></p>
 

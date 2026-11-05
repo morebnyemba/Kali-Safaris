@@ -20,6 +20,7 @@ const WebsiteGalleryPage = lazy(() => import('./pages/WebsiteGalleryPage'));
 const ContactsPage = lazy(() => import('./pages/ContactsPage'));
 const Conversation = lazy(() => import('./pages/Conversation'));
 const BookingsPage = lazy(() => import('./pages/BookingsPage'));
+const PaymentsPage = lazy(() => import('./pages/PaymentsPage'));
 const InquiriesPage = lazy(() => import('./pages/InquiriesPage'));
 const AdminOverviewPage = lazy(() => import('./pages/admin/AdminOverviewPage'));
 const UsersCrudPage = lazy(() => import('./pages/admin/UsersCrudPage'));
@@ -72,6 +73,7 @@ const router = createBrowserRouter([
   { path: 'contacts', element: <ContactsPage /> },
   { path: 'analytics', element: <AnalyticsPage />},
   { path: 'bookings', element: <BookingsPage /> },
+  { path: 'payments', element: <PaymentsPage /> },
   { path: 'inquiries', element: <InquiriesPage /> },
 
   // Admin and RBAC

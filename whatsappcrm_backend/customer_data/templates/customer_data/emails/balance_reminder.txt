@@ -1,0 +1,17 @@
+Hi{% if first_name %} {{ first_name }}{% endif %},
+
+{% if kind == 'upcoming' %}A reminder that the balance on your booking is due soon.{% elif kind == 'due' %}The balance on your booking is due today.{% else %}Final reminder: your cruise is only a few days away and there's still a balance on your booking.{% endif %}
+
+Booking reference: {{ booking.booking_reference }}
+Cruise: {{ booking.tour_name }}, {{ booking.start_date|date:"l j F Y" }}{% if departure %} · {{ departure }}{% endif %}
+Total: ${{ booking.total_amount|floatformat:2 }}  Paid: ${{ booking.amount_paid|floatformat:2 }}
+Balance: ${{ balance|floatformat:2 }}{% if due_by %} (due {{ due_by|date:"j F" }}){% endif %}
+{% if missing_ids %}
+We also still need ID/passport photos for {{ missing_ids|join:", " }}.
+{% endif %}
+Pay all or part now by card, EcoCash or Omari (private link, please don't share):
+{{ manage_url }}
+
+Already paid or need more time? WhatsApp {{ contact.whatsapp }} or call {{ contact.phone }}.
+
+Kalai Safaris

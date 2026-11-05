@@ -33,6 +33,7 @@ from django.db import transaction as db_transaction
 from django.core.files.base import ContentFile
 
 from customer_data.models import Booking, Payment, Traveler, CustomerProfile
+from customer_data.nationalities import normalize_country
 from customer_data.traveler_validation import validate_traveler_list
 from conversations.models import Contact
 from products_and_services.departures import full_message, has_room, open_slots, parse_time, seats_left
@@ -424,6 +425,7 @@ def _resolve_web_customer_profile(name: str, email: str, phone: str, country: st
     Never matches on name: a first-name match would attach the booking — and
     its manifest group name — to an unrelated customer.
     """
+    country = normalize_country(country)
     try:
         profile = CustomerProfile.objects.filter(email__iexact=email).first() if email else None
 
@@ -525,11 +527,34 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
     Raises PricingError — safe to surface to the client — when the request
     can't be priced this way or the amount isn't authorised.
     """
+    manage_token = payload.get('manage_token')
+    if manage_token:
+        # Instalment from the customer's secure 'manage booking' link: the token
+        # names exactly one booking, unlike a (shared) booking reference.
+        from customer_data.manage_links import ManageLinkError, resolve_token, validate_instalment
+
+        booking = resolve_token(manage_token)
+        if booking is None:
+            raise PricingError("This payment link is invalid or has expired. Message us on WhatsApp for a new one.")
+        try:
+            validate_instalment(booking, client_amount)
+        except ManageLinkError as exc:
+            raise PricingError(str(exc))
+        return booking, client_amount
+
     booking_ref = payload.get('booking_reference')
     if booking_ref:
-        booking = Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at').first()
-        if not booking:
+        matches = list(Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at')[:2])
+        if not matches:
             raise PricingError(f"Booking {booking_ref} not found.")
+        if len(matches) > 1:
+            # Paid bookings share their departure's reference; paying "by reference"
+            # could credit someone else's booking.
+            raise PricingError(
+                f"{booking_ref} covers more than one booking. Please pay with the secure link we sent you, "
+                "or message us on WhatsApp for one."
+            )
+        booking = matches[0]
 
         balance_due = (booking.total_amount - booking.amount_paid).quantize(Decimal('0.01'))
         if balance_due <= 0:
@@ -539,6 +564,12 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
             raise PricingError(
                 f"Amount ${client_amount} exceeds the outstanding balance of ${balance_due} for this booking."
             )
+        # A retried or tampered checkout can't confirm a booking for less than its deposit
+        # (or less than the full price, when the customer chose to pay in full).
+        from customer_data.payment_plan import minimum_charge
+        minimum = minimum_charge(booking)
+        if client_amount < minimum - Decimal('0.01'):
+            raise PricingError(f"The payment for booking {booking.booking_reference} must be at least ${minimum}.")
         return booking, client_amount
 
     details = payload.get('booking_details') if isinstance(payload.get('booking_details'), dict) else {}
@@ -569,12 +600,26 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
     # not the future trip date) — so this matches whatever price the
     # customer actually saw on the booking screen.
     price_per_adult, _price_per_child = resolve_tour_price(tour, date.today())
-    authoritative_amount = (price_per_adult * adults).quantize(Decimal('0.01'))
+    full_price = (price_per_adult * adults).quantize(Decimal('0.01'))
+
+    # Pay in full, or (trips far enough ahead) a deposit now and the rest in instalments.
+    from customer_data.payment_plan import (
+        INSTALMENT_MIN_DAYS_AHEAD, PLAN_DEPOSIT, PLAN_FULL, deposit_amount, instalments_allowed,
+    )
+    plan = PLAN_DEPOSIT if str(details.get('payment_plan') or '').lower() == PLAN_DEPOSIT else PLAN_FULL
+    if plan == PLAN_DEPOSIT and not instalments_allowed(start_date):
+        raise PricingError(
+            f"Paying in instalments is available for cruises more than {INSTALMENT_MIN_DAYS_AHEAD} days away. "
+            "Please pay in full for this date."
+        )
+    authoritative_amount = deposit_amount(full_price) if plan == PLAN_DEPOSIT else full_price
     if abs(client_amount - authoritative_amount) > Decimal('0.01'):
         raise PricingError(
-            f"Pricing for {tour.name} has changed — it's now ${authoritative_amount} for "
-            f"{adults} traveler(s) (you were quoted ${client_amount}). Please refresh and try again."
+            f"Pricing for {tour.name} has changed — it's now ${full_price} for "
+            f"{adults} traveler(s){f' (deposit ${authoritative_amount})' if plan == PLAN_DEPOSIT else ''}. "
+            f"You were quoted ${client_amount}. Please refresh and try again."
         )
+    details = {**details, 'payment_plan': plan}  # stored server-validated, never as the client sent it
 
     # A booking must never exist without complete details for every paid
     # seat: reject before any payment is initiated. The message is shown to
@@ -593,11 +638,12 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
         customer_name = str(customer_details.get('full_name') or '').strip()
         customer_email = str(customer_details.get('email') or '').strip()
         customer_phone = str(customer_details.get('phone') or '').strip()
-        customer_country = str(customer_details.get('country') or '').strip()
+        customer_country = normalize_country(str(customer_details.get('country') or ''))
         customer_requests = str(customer_details.get('special_requests') or '').strip()
 
         note_parts = [
-            f"Website checkout draft booking. People: {adults}.",
+            f"Website checkout draft booking. People: {adults}."
+            + (f" Paying a {deposit_amount(full_price)} deposit now, balance in instalments." if plan == PLAN_DEPOSIT else ''),
             f"Traveler: {customer_name}" if customer_name else '',
             f"Email: {customer_email}" if customer_email else '',
             f"Phone: {customer_phone}" if customer_phone else '',
@@ -625,7 +671,7 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
                 end_date=start_date,
                 number_of_adults=adults,
                 number_of_children=0,
-                total_amount=authoritative_amount,
+                total_amount=full_price,
                 payment_status=Booking.PaymentStatus.PENDING,
                 source=Booking.BookingSource.MANUAL_ENTRY,
                 customer=customer_profile,

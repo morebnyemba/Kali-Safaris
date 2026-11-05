@@ -1,9 +1,12 @@
 // src/pages/BookingsPage.jsx
 import React, { useCallback, useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
-import { FiCalendar, FiDownload, FiEdit2, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2, FiUsers } from 'react-icons/fi';
+import {
+  FiCalendar, FiChevronLeft, FiChevronRight, FiCopy, FiDownload, FiEdit2, FiLink, FiMoreHorizontal, FiPlus, FiRefreshCw, FiSearch, FiSend,
+  FiTrash2, FiUsers,
+} from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -19,7 +22,7 @@ import StatusBadge from '@/components/app/StatusBadge';
 import CustomerPicker from '@/components/app/CustomerPicker';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/app/States';
 import { toursApi } from '@/lib/api';
-import { apiErrorMessage, formatDate, formatMoney, toIsoDate } from '@/lib/format';
+import { apiErrorMessage, formatDate, formatDateTime, formatMoney, formatNumber, toIsoDate } from '@/lib/format';
 import { ordersApi } from '@/services/orders';
 
 const TABS = [
@@ -30,6 +33,9 @@ const TABS = [
   { key: 'pending', label: 'Pending payment' },
   { key: 'pending_manual', label: 'Manual verification' },
   { key: 'cancelled', label: 'Cancelled' },
+  // Not payment statuses: bookings with part paid (deposit/instalments) and a balance left.
+  { key: 'balance:outstanding', label: 'Balance owing' },
+  { key: 'balance:overdue', label: 'Balance overdue' },
 ];
 
 // Paid / Deposit Paid are only accepted once every passenger is complete
@@ -46,10 +52,20 @@ const EMPTY_FORM = {
 };
 
 const selectClass = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30';
+const PAGE_SIZE = 50;
+const SORTS = [
+  ['-start_date', 'Tour date (latest first)'], ['start_date', 'Tour date (earliest first)'],
+  ['-created_at', 'Booked (newest first)'], ['created_at', 'Booked (oldest first)'],
+];
+const PAYMENT_TONE = { successful: ['success', 'Received'], pending: ['warning', 'Awaiting verification'], failed: ['danger', 'Failed'], refunded: ['neutral', 'Refunded'] };
 
 export default function BookingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const status = searchParams.get('status') || '';
+  const tourFrom = searchParams.get('from') || '';
+  const tourTo = searchParams.get('to') || '';
+  const ordering = searchParams.get('sort') || '-start_date';
+  const page = Math.max(1, Number(searchParams.get('page')) || 1);
   const [bookings, setBookings] = useState([]);
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -63,16 +79,41 @@ export default function BookingsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [linkBusy, setLinkBusy] = useState('');
+
+  // Customer's secure link: upload missing IDs + pay the balance in instalments.
+  const customerLink = async (bookingId, mode) => {
+    if (mode === 'rotate' && !window.confirm('Reset the link? Every link sent before stops working.')) return;
+    setLinkBusy(mode);
+    try {
+      const res = await ordersApi.manageLink(bookingId, { send: mode === 'send', rotate: mode === 'rotate' });
+      if (mode === 'send') {
+        toast.success('Link sent to the customer on WhatsApp');
+      } else {
+        await navigator.clipboard.writeText(res.data.url).catch(() => window.prompt('Copy the link:', res.data.url));
+        toast.success(mode === 'rotate' ? 'New link copied — old links no longer work' : 'Link copied');
+      }
+    } catch (err) {
+      const url = err?.response?.data?.url;
+      toast.error(apiErrorMessage(err), url ? { action: { label: 'Copy link', onClick: () => navigator.clipboard.writeText(url) } } : undefined);
+    } finally {
+      setLinkBusy('');
+    }
+  };
 
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true);
     setError('');
     try {
       const res = await ordersApi.list({
-        payment_status: status || undefined,
+        payment_status: status && !status.startsWith('balance:') ? status : undefined,
+        balance: status.startsWith('balance:') ? status.split(':')[1] : undefined,
         search: debouncedSearch || undefined,
-        ordering: '-start_date',
-        page_size: 100,
+        start_date__gte: tourFrom || undefined,
+        start_date__lte: tourTo || undefined,
+        ordering,
+        page,
+        page_size: PAGE_SIZE,
       });
       const list = res.data.results || res.data || [];
       setBookings(list);
@@ -84,18 +125,27 @@ export default function BookingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [status, debouncedSearch]);
+  }, [status, debouncedSearch, tourFrom, tourTo, ordering, page]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     toursApi.list().then((res) => setTours(res.data.tours || [])).catch(() => setTours([]));
   }, []);
 
-  const setStatus = (key) => {
+  const updateParams = (changes) => {
     const next = new URLSearchParams(searchParams);
-    if (key) next.set('status', key); else next.delete('status');
+    Object.entries(changes).forEach(([k, v]) => (v ? next.set(k, v) : next.delete(k)));
+    if (!('page' in changes)) next.delete('page');
     setSearchParams(next, { replace: true });
   };
+  const setStatus = (key) => updateParams({ status: key });
+  // A new search starts from page 1.
+  useEffect(() => {
+    if (page !== 1 && debouncedSearch) updateParams({});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearch]);
+  const pages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+  const filtered = Boolean(status || search || tourFrom || tourTo);
 
   const editingBooking = bookings.find((b) => b.id === dialog.id);
 
@@ -252,22 +302,43 @@ export default function BookingsPage() {
         </div>
       </div>
 
+      <div className="mb-4 flex flex-wrap items-end gap-2">
+        <div>
+          <Label htmlFor="bf-from" className="mb-1 text-xs text-muted-foreground">Tour date from</Label>
+          <Input id="bf-from" type="date" className="w-40" value={tourFrom} max={tourTo || undefined} onChange={(e) => updateParams({ from: e.target.value })} />
+        </div>
+        <div>
+          <Label htmlFor="bf-to" className="mb-1 text-xs text-muted-foreground">to</Label>
+          <Input id="bf-to" type="date" className="w-40" value={tourTo} min={tourFrom || undefined} onChange={(e) => updateParams({ to: e.target.value })} />
+        </div>
+        <Button size="sm" variant={tourFrom === toIsoDate(new Date()) && !tourTo ? 'secondary' : 'outline'}
+          onClick={() => updateParams({ from: toIsoDate(new Date()), to: '', sort: 'start_date' })}>Upcoming</Button>
+        {(tourFrom || tourTo) && <Button size="sm" variant="ghost" onClick={() => updateParams({ from: '', to: '' })}>Clear dates</Button>}
+        <div className="ml-auto">
+          <Label htmlFor="bf-sort" className="mb-1 text-xs text-muted-foreground">Sort by</Label>
+          <select id="bf-sort" className={`${selectClass} w-56`} value={ordering} onChange={(e) => updateParams({ sort: e.target.value === '-start_date' ? '' : e.target.value })}>
+            {SORTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </div>
+      </div>
+
       <div className="overflow-hidden rounded-xl border bg-card">
         {error ? <ErrorState message={error} onRetry={() => load()} /> : loading ? <TableSkeleton rows={6} cols={6} /> : bookings.length === 0 ? (
           <EmptyState
             icon={FiCalendar}
-            title={status || search ? 'No bookings match' : 'No bookings yet'}
-            description={status || search ? 'Try another status or search.' : 'Bookings from WhatsApp, the website and staff appear here.'}
-            action={!status && !search ? <Button onClick={openNew}><FiPlus /> New booking</Button> : null}
+            title={filtered ? 'No bookings match' : 'No bookings yet'}
+            description={filtered ? 'Try another status, date range or search.' : 'Bookings from WhatsApp, the website and staff appear here.'}
+            action={!filtered ? <Button onClick={openNew}><FiPlus /> New booking</Button> : null}
           />
         ) : (
           <div className="relative overflow-x-auto">
-            <table className="w-full min-w-[860px] text-sm">
+            <table className="w-full min-w-[980px] text-sm">
               <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th className="px-4 py-3 font-medium">Booking</th>
                   <th className="px-4 py-3 font-medium">Tour</th>
-                  <th className="px-4 py-3 font-medium">Date</th>
+                  <th className="px-4 py-3 font-medium">Tour date</th>
+                  <th className="px-4 py-3 font-medium">Booked</th>
                   <th className="px-4 py-3 font-medium">Passengers</th>
                   <th className="px-4 py-3 text-right font-medium">Paid / total</th>
                   <th className="px-4 py-3 font-medium">Status</th>
@@ -294,6 +365,10 @@ export default function BookingsPage() {
                         {b.start_time && <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{b.start_time.slice(0, 5)}{b.end_time ? `–${b.end_time.slice(0, 5)}` : ''}</span>}
                         {b.end_date && b.end_date !== b.start_date && <span className="block text-xs text-muted-foreground">to {formatDate(b.end_date)}</span>}
                       </td>
+                      <td className="whitespace-nowrap px-4 py-3" title={formatDateTime(b.created_at)}>
+                        {formatDate(b.created_at)}
+                        <span className="block text-xs text-muted-foreground">{b.source_display}</span>
+                      </td>
                       <td className="px-4 py-3">
                         <span className="flex items-center gap-1.5">
                           <FiUsers className="size-3.5 text-muted-foreground" aria-hidden />
@@ -305,6 +380,17 @@ export default function BookingsPage() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right tabular-nums">
                         {formatMoney(b.amount_paid)} <span className="text-muted-foreground">/ {formatMoney(b.total_amount)}</span>
+                        {b.balance_due_by && (
+                          <span className={`block text-xs ${b.balance_due_by < toIsoDate(new Date()) ? 'font-medium text-destructive' : 'text-muted-foreground'}`}>
+                            {formatMoney(Number(b.total_amount) - Number(b.amount_paid))} due {formatDate(b.balance_due_by, 'd MMM')}
+                          </span>
+                        )}
+                        {(b.payments || []).length > 0 && (
+                          <span className="block text-xs text-muted-foreground">
+                            {b.payments.length} payment{b.payments.length === 1 ? '' : 's'}
+                            {b.payments.some((p) => p.status === 'pending') && <span className="text-warning"> · to verify</span>}
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3"><StatusBadge status={b.payment_status} /></td>
                       <td className="px-4 py-3 text-right">
@@ -330,9 +416,16 @@ export default function BookingsPage() {
           </div>
         )}
         {!loading && !error && bookings.length > 0 && (
-          <p className="border-t px-4 py-2.5 text-xs text-muted-foreground">
-            Showing {bookings.length} of {count} booking{count === 1 ? '' : 's'}{count > bookings.length ? ' — refine the search to see the rest' : ''}
-          </p>
+          <div className="flex items-center justify-between gap-3 border-t px-4 py-2.5 text-xs text-muted-foreground">
+            <span>
+              {formatNumber((page - 1) * PAGE_SIZE + 1)}–{formatNumber((page - 1) * PAGE_SIZE + bookings.length)} of {formatNumber(count)} booking{count === 1 ? '' : 's'}
+            </span>
+            <span className="flex items-center gap-1">
+              <Button size="icon" variant="ghost" aria-label="Previous page" disabled={page <= 1} onClick={() => updateParams({ page: String(page - 1) })}><FiChevronLeft /></Button>
+              Page {page} of {pages}
+              <Button size="icon" variant="ghost" aria-label="Next page" disabled={page >= pages} onClick={() => updateParams({ page: String(page + 1) })}><FiChevronRight /></Button>
+            </span>
+          </div>
         )}
       </div>
 
@@ -415,6 +508,60 @@ export default function BookingsPage() {
               <Button type="submit" disabled={saving}>{saving ? 'Saving…' : dialog.id ? 'Save booking' : 'Create booking'}</Button>
             </div>
           </form>
+          {dialog.id && editingBooking && (
+            <section className="space-y-2 rounded-lg border bg-muted/30 p-3" aria-labelledby="b-link-title">
+              <h3 id="b-link-title" className="flex items-center gap-2 text-sm font-semibold"><FiLink aria-hidden /> Customer link</h3>
+              <p className="text-xs text-muted-foreground">
+                A private page where the customer uploads missing IDs and pays the balance in instalments (card, EcoCash or Omari).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" disabled={Boolean(linkBusy)} onClick={() => customerLink(editingBooking.id, 'send')}>
+                  <FiSend /> {linkBusy === 'send' ? 'Sending…' : 'Send on WhatsApp'}
+                </Button>
+                <Button type="button" size="sm" variant="outline" disabled={Boolean(linkBusy)} onClick={() => customerLink(editingBooking.id, 'copy')}>
+                  <FiCopy /> Copy link
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={Boolean(linkBusy)} onClick={() => customerLink(editingBooking.id, 'rotate')}>
+                  <FiRefreshCw /> Reset link
+                </Button>
+              </div>
+            </section>
+          )}
+          {dialog.id && editingBooking && (
+            <section className="space-y-2 border-t pt-4" aria-labelledby="b-payments-title">
+              <div className="flex items-baseline justify-between gap-3">
+                <h3 id="b-payments-title" className="font-semibold">Payments</h3>
+                <span className="text-xs text-muted-foreground">
+                  Booked {formatDateTime(editingBooking.created_at)} · {editingBooking.source_display} · updated {formatDateTime(editingBooking.updated_at)}
+                </span>
+              </div>
+              {(editingBooking.payments || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No payments recorded yet.</p>
+              ) : (
+                <ul className="divide-y rounded-md border text-sm">
+                  {editingBooking.payments.map((p) => {
+                    const [tone, label] = PAYMENT_TONE[p.status] || ['neutral', p.payment_status_display];
+                    return (
+                      <li key={p.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-3 py-2">
+                        <span className="w-36 tabular-nums">{formatDateTime(p.created_at)}</span>
+                        <span className="min-w-0 flex-1">
+                          {p.payment_method_display}
+                          {p.transaction_reference && <span className="block truncate font-mono text-xs text-muted-foreground">{p.transaction_reference}</span>}
+                        </span>
+                        <span className="font-medium tabular-nums">{formatMoney(p.amount, p.currency)}</span>
+                        <StatusBadge status={p.status} tone={tone} label={label} />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {(editingBooking.payments || []).some((p) => p.status === 'pending') && (
+                <p className="text-xs text-muted-foreground">
+                  Verify pending payments on the <Link className="text-primary underline" to={`/payments?status=pending&q=${encodeURIComponent(editingBooking.booking_reference)}`}>Payments page</Link>.
+                </p>
+              )}
+            </section>
+          )}
           {dialog.id && editingBooking && (
             <PassengerEditor booking={editingBooking} onChanged={handlePassengersChanged} />
           )}

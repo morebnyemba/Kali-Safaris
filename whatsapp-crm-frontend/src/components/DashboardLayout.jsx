@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  FiActivity, FiBarChart2, FiCalendar, FiChevronLeft, FiChevronRight, FiClipboard, FiGitBranch,
+  FiActivity, FiBarChart2, FiCalendar, FiChevronLeft, FiChevronRight, FiClipboard, FiCreditCard, FiGitBranch,
   FiHome, FiImage, FiLogOut, FiMenu, FiMessageSquare, FiMonitor, FiMoon, FiShield, FiSun,
   FiUsers, FiX, FiSettings, FiUserCheck, FiList, FiGlobe,
 } from 'react-icons/fi';
@@ -30,6 +30,7 @@ const NAV_GROUPS = [
     items: [
       { to: '/conversation', label: 'Inbox', icon: FiMessageSquare },
       { to: '/bookings', label: 'Bookings', icon: FiCalendar },
+      { to: '/payments', label: 'Payments', icon: FiCreditCard },
       { to: '/inquiries', label: 'Tour inquiries', icon: FiClipboard },
       { to: '/contacts', label: 'Contacts', icon: FiUsers },
     ],

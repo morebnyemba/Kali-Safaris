@@ -285,6 +285,15 @@ jinja_env.filters['strftime'] = strftime_filter # Add the custom filter
 jinja_env.filters['parse_date'] = parse_date_filter # Add the parse_date filter for date string parsing
 jinja_env.filters['truncatewords'] = truncatewords_filter # Add the filter
 jinja_env.filters['to_interactive_rows'] = to_interactive_rows_filter # Add the new filter
+
+
+def nationality_filter(value):
+    """'south_african' / 'south african' -> 'South African' (see customer_data.nationalities)."""
+    from customer_data.nationalities import normalize_nationality
+    return normalize_nationality(value)
+
+
+jinja_env.filters['nationality'] = nationality_filter
 jinja_env.globals['now'] = timezone.now # Make 'now' globally available for date comparisons
 jinja_env.globals['timedelta'] = timedelta # Make 'timedelta' globally available for date arithmetic
 jinja_env.globals['get_whatsapp_flow_id'] = get_whatsapp_flow_id # Make flow_id lookup available in templates
@@ -1265,31 +1274,36 @@ def _trigger_new_flow(contact: Contact, message_data: dict, incoming_message_obj
     active_flows = Flow.objects.filter(is_active=True).order_by('name')
 
     if message_text_body:  # Only attempt keyword trigger if there's text
-        for flow_candidate in active_flows:
-            if isinstance(flow_candidate.trigger_keywords, list):
-                for keyword in flow_candidate.trigger_keywords:
-                    if keyword.strip().lower() in message_text_lower and (not hasattr(contact, 'flow_state')):
-                        triggered_flow = flow_candidate
-                        
-                        # --- DYNAMIC DATA EXTRACTION FROM TRIGGER ---
-                        trigger_conf = triggered_flow.trigger_config or {}
-                        extraction_regex = trigger_conf.get("extraction_regex")
-                        context_var_name = trigger_conf.get("context_variable")
+        # The most specific (longest) matching keyword wins, so "pay balance"
+        # reaches the balance flow rather than a flow that only listens for "pay".
+        # Ties keep the old alphabetical-by-flow-name order.
+        matches = [
+            (flow_candidate, keyword)
+            for flow_candidate in active_flows if isinstance(flow_candidate.trigger_keywords, list)
+            for keyword in flow_candidate.trigger_keywords
+            if keyword.strip() and keyword.strip().lower() in message_text_lower
+        ]
+        matches.sort(key=lambda m: -len(m[1].strip()))
+        if matches and not hasattr(contact, 'flow_state'):
+            flow_candidate, keyword = matches[0]
+            triggered_flow = flow_candidate
+            
+            # --- DYNAMIC DATA EXTRACTION FROM TRIGGER ---
+            trigger_conf = triggered_flow.trigger_config or {}
+            extraction_regex = trigger_conf.get("extraction_regex")
+            context_var_name = trigger_conf.get("context_variable")
 
-                        if extraction_regex and context_var_name:
-                            try:
-                                match = re.search(extraction_regex, message_text_body)
-                                if match and match.groups():
-                                    extracted_data = match.group(1) # Use the first capturing group
-                                    initial_context[context_var_name] = extracted_data.strip()
-                                    logger.info(f"Extracted '{extracted_data.strip()}' into '{context_var_name}' from trigger for flow '{flow_candidate.name}'.")
-                            except re.error as e:
-                                logger.error(f"Invalid extraction_regex for flow '{flow_candidate.name}': {e}")
+            if extraction_regex and context_var_name:
+                try:
+                    match = re.search(extraction_regex, message_text_body)
+                    if match and match.groups():
+                        extracted_data = match.group(1) # Use the first capturing group
+                        initial_context[context_var_name] = extracted_data.strip()
+                        logger.info(f"Extracted '{extracted_data.strip()}' into '{context_var_name}' from trigger for flow '{flow_candidate.name}'.")
+                except re.error as e:
+                    logger.error(f"Invalid extraction_regex for flow '{flow_candidate.name}': {e}")
 
-                        logger.info(f"Keyword '{keyword}' triggered flow '{flow_candidate.name}' for contact {contact.whatsapp_id}.")
-                        break
-            if triggered_flow:
-                break
+            logger.info(f"Keyword '{keyword}' triggered flow '{flow_candidate.name}' for contact {contact.whatsapp_id}.")
 
     if triggered_flow:
         entry_point_step = FlowStep.objects.filter(flow=triggered_flow, is_entry_point=True).first()

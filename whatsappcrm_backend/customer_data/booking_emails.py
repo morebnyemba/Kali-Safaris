@@ -53,6 +53,9 @@ def wants_confirmation_email(booking: Booking) -> bool:
 
 
 def _context(booking: Booking) -> dict:
+    from .manage_links import manage_url, needs_id
+    from .payment_plan import balance_due_date
+
     customer = booking.customer
     name = (customer.get_full_name() if customer else '') or ''
     balance = max(booking.total_amount - booking.amount_paid, 0)
@@ -63,6 +66,10 @@ def _context(booking: Booking) -> dict:
         'departure': booking.departure_display,
         'balance': balance,
         'contact': CONTACT,
+        # Secure self-service page: pay the balance in instalments, upload missing IDs.
+        'manage_url': manage_url(booking),
+        'missing_ids': [t.name for t in booking.travelers.all() if needs_id(t)],
+        'balance_due_by': balance_due_date(booking),
     }
 
 

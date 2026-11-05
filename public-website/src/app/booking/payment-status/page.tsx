@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { clearCheckoutSession, loadCheckoutSession, retryPaymentHref, type CheckoutPaymentMode } from '@/lib/checkoutSession';
+import { clearCheckoutSession, loadCheckoutSession, loadManageReturn, retryPaymentHref, type CheckoutPaymentMode } from '@/lib/checkoutSession';
 import type { ReactNode } from 'react';
 import { FaCheck, FaClock, FaLock, FaRegCopy, FaSearch, FaTimes, FaWhatsapp } from 'react-icons/fa';
 
@@ -66,6 +66,10 @@ const noopSubscribe = () => () => {};
 /** Href back to the saved booking's payment step (client-only; '/booking' during SSR). */
 function useRetryPaymentHref(mode?: CheckoutPaymentMode) {
   return useSyncExternalStore(noopSubscribe, () => retryPaymentHref(loadCheckoutSession(), mode), () => '/booking');
+}
+
+function useManageReturnHref() {
+  return useSyncExternalStore(noopSubscribe, loadManageReturn, () => '');
 }
 
 function PaymentStatusPageContent() {
@@ -309,6 +313,7 @@ function PaymentStatusPageContent() {
   }, [bookingReference, effectiveReference]);
 
   const retryHref = useRetryPaymentHref(channel === 'ecocash' ? 'ecocash' : 'card');
+  const manageReturnHref = useManageReturnHref();
   // Paid — nothing left to retry.
   useEffect(() => {
     if (status === 'approved') clearCheckoutSession();
@@ -371,10 +376,14 @@ function PaymentStatusPageContent() {
 
             <div className="flex flex-col gap-3 sm:flex-row">
               {status === 'approved' ? (
+                manageReturnHref ? (
+                  <Link href={manageReturnHref} className="flex-1 rounded-full bg-[#C8102E] px-5 py-3 text-center font-bold text-white transition hover:bg-[#A00D24]">Back to my booking</Link>
+                ) : (
                 <>
                   <Link href="/" className="flex-1 rounded-full bg-[#C8102E] px-5 py-3 text-center font-bold text-white transition hover:bg-[#A00D24]">Back to home</Link>
                   <Link href="/booking" className="flex-1 rounded-full border border-gray-300 px-5 py-3 text-center font-semibold text-gray-700 transition hover:bg-gray-50">Book another cruise</Link>
                 </>
+                )
               ) : status === 'no-reference' ? (
                 <Link href="/booking" className="flex-1 rounded-full bg-[#C8102E] px-5 py-3 text-center font-bold text-white transition hover:bg-[#A00D24]">Book a cruise</Link>
               ) : (

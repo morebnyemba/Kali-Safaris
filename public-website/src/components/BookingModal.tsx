@@ -10,8 +10,12 @@ import {
   FaIdCard, FaNotesMedical, FaFileUpload, FaClock,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
-import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
+import { clearCheckoutSession, clearManageReturn, saveCheckoutSession, saveManageReturn } from '@/lib/checkoutSession';
+import {
+  BALANCE_DUE_DAYS_BEFORE, DEPOSIT_PERCENT, INSTALMENT_MIN_DAYS_AHEAD, balanceDueDate, depositAmount, instalmentsAllowed, type PaymentPlan,
+} from '@/lib/paymentPlan';
 import type { TimeSlot } from '@/lib/tours';
+import { COMMON_COUNTRIES, COMMON_NATIONALITIES, OTHER_COUNTRIES, OTHER_NATIONALITIES } from '@/lib/nationalities';
 import { PaymentLogo } from '@/components/PaymentLogo';
 
 interface BookingModalProps {
@@ -27,6 +31,8 @@ interface BookingModalProps {
   initialDeparture?: string;
   initialPaymentMode?: PaymentMode;
   initialBookingReference?: string;
+  /** Secure 'manage booking' token: pays an instalment on exactly that booking (references can be shared). */
+  manageToken?: string;
   fixedAmountUsd?: number;
   launchedFromWhatsApp?: boolean;
   presentation?: 'modal' | 'page';
@@ -60,6 +66,8 @@ interface TravelerDetails {
   email: string;
   phone: string;
   country: string;
+  /** Chose "Other" in the country list and is typing it instead. */
+  countryOther: boolean;
   specialRequests: string;
   agreeToTerms: boolean;
 }
@@ -68,6 +76,8 @@ interface TravelerEntry {
   name: string;
   age: string;
   nationality: string;
+  /** Chose "Other" in the nationality list and is typing it instead. */
+  nationalityOther: boolean;
   gender: string;
   idNumber: string;
   medicalDietaryRequirements: string;
@@ -84,6 +94,7 @@ const createEmptyTraveler = (): TravelerEntry => ({
   name: '',
   age: '',
   nationality: '',
+  nationalityOther: false,
   gender: '',
   idNumber: '',
   medicalDietaryRequirements: '',
@@ -218,6 +229,7 @@ export default function BookingModal({
   initialDeparture,
   initialPaymentMode,
   initialBookingReference,
+  manageToken,
   fixedAmountUsd,
   launchedFromWhatsApp = false,
   presentation = 'modal',
@@ -249,6 +261,7 @@ export default function BookingModal({
   }, [tourId, selectedDate, hasTimeSlots]);
   const [numberOfPeople, setNumberOfPeople] = useState('1');
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('ecocash');
+  const [paymentPlan, setPaymentPlan] = useState<PaymentPlan>('full');
   const [ecocash, setEcocash] = useState<EcoCashPaymentState>({ msisdn: '' });
   const [card, setCard] = useState<CardPaymentState>({ cardNumber: '', expiry: '', cvv: '' });
   const [cardProvider, setCardProvider] = useState<CardProvider>('copyandpay');
@@ -270,6 +283,7 @@ export default function BookingModal({
     email: '',
     phone: '',
     country: '',
+    countryOther: false,
     specialRequests: '',
     agreeToTerms: false,
   });
@@ -636,6 +650,12 @@ export default function BookingModal({
   // enforces the same rule in Victoria Falls time).
   const slots = timeSlots ?? [];
   const vfNow = victoriaFallsNow();
+
+  // Trips far enough ahead can be paid as a deposit now + instalments later
+  // (through the secure link emailed with the confirmation).
+  const canPayInInstalments = !initialBookingReference && instalmentsAllowed(selectedDate, vfNow.date);
+  const effectivePlan: PaymentPlan = canPayInInstalments ? paymentPlan : 'full';
+  const chargeAmount = effectivePlan === 'deposit' ? depositAmount(totalAmount) : totalAmount;
   const party = Math.max(Number(numberOfPeople || '1') || 1, 1);
   // Seats left for the chosen date (fetched below); the server enforces the same limit at payment.
   const availabilityKey = `${tourId ?? ''}|${selectedDate}`;
@@ -752,6 +772,7 @@ export default function BookingModal({
     return {
       tour_name: cruiseType,
       selected_date: selectedDate,
+      payment_plan: effectivePlan,
       ...(chosenSlot ? { selected_time: chosenSlot.start } : {}),
       number_of_people: Number(numberOfPeople || '1'),
       customer: {
@@ -1026,9 +1047,10 @@ export default function BookingModal({
         },
         body: JSON.stringify({
           msisdn,
-          amount: totalAmount,
+          amount: chargeAmount,
           currency: 'USD',
           booking_reference: paymentBookingReference || undefined,
+          manage_token: manageToken || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1095,10 +1117,11 @@ export default function BookingModal({
         },
         body: JSON.stringify({
           msisdn,
-          amount: totalAmount,
+          amount: chargeAmount,
           currency: 'USD',
           channel: 'WEB',
           booking_reference: paymentBookingReference || undefined,
+          manage_token: manageToken || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1230,9 +1253,10 @@ export default function BookingModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          amount: totalAmount,
+          amount: chargeAmount,
           currency: 'USD',
           booking_reference: paymentBookingReference || undefined,
+          manage_token: manageToken || undefined,
           booking_details: buildBookingDetailsPayload(),
           shopper_result_url: resultUrl.toString(),
         }),
@@ -1270,7 +1294,7 @@ export default function BookingModal({
         checkoutUrl.searchParams.set('widget', String(result.widget_script_url || ''));
         checkoutUrl.searchParams.set('returnUrl', finalReturnUrl);
         // Display only: the charged amount is fixed in the OPPWA checkout created above.
-        checkoutUrl.searchParams.set('amount', totalAmount.toFixed(2));
+        checkoutUrl.searchParams.set('amount', chargeAmount.toFixed(2));
         if (cruiseType) checkoutUrl.searchParams.set('item', cruiseType);
         if (result.integrity) {
           checkoutUrl.searchParams.set('integrity', String(result.integrity));
@@ -1333,9 +1357,10 @@ export default function BookingModal({
           pan,
           expiry_date: expiryDate,
           cvv,
-          amount: totalAmount,
+          amount: chargeAmount,
           currency: 'USD',
           booking_reference: paymentBookingReference || undefined,
+          manage_token: manageToken || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1407,17 +1432,24 @@ export default function BookingModal({
   };
 
   useEffect(() => {
+    if (!isOpen) return;
+    // Card payments redirect away: remember where an instalment should come back to.
+    if (manageToken) saveManageReturn(`/manage/${manageToken}`);
+    else clearManageReturn();
+  }, [isOpen, manageToken]);
+
+  useEffect(() => {
     if (!isOpen || !paymentBookingReference) {
       return;
     }
     saveCheckoutSession({
       bookingReference: paymentBookingReference,
-      amount: totalAmount,
+      amount: chargeAmount,
       tourName: cruiseType,
       paymentMode,
       fromWhatsApp: launchedFromWhatsApp,
     });
-  }, [isOpen, paymentBookingReference, totalAmount, cruiseType, paymentMode, launchedFromWhatsApp]);
+  }, [isOpen, paymentBookingReference, chargeAmount, cruiseType, paymentMode, launchedFromWhatsApp]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1662,14 +1694,36 @@ export default function BookingModal({
                       </div>
                       <div className="relative">
                         <FaGlobeAmericas className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
+                        <select
+                          aria-label="Country (optional)"
+                          value={traveler.countryOther ? '__other__' : traveler.country}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setTraveler((prev) => ({ ...prev, countryOther: value === '__other__', country: value === '__other__' ? '' : value }));
+                          }}
+                          className={`${inputWithIcon} ${traveler.country || traveler.countryOther ? '' : 'text-gray-400'}`}
+                        >
+                          <option value="">Country (optional)</option>
+                          <optgroup label="Most common">
+                            {COMMON_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </optgroup>
+                          <optgroup label="All countries">
+                            {OTHER_COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                          </optgroup>
+                          <option value="__other__">Other (not listed)</option>
+                        </select>
+                      </div>
+                      {traveler.countryOther && (
                         <input
                           type="text"
-                          placeholder="Country (optional)"
+                          placeholder="Type country"
+                          aria-label="Country, not listed"
                           value={traveler.country}
                           onChange={(e) => setTraveler((prev) => ({ ...prev, country: e.target.value }))}
-                          className={inputWithIcon}
+                          className={inputBase}
+                          autoFocus
                         />
-                      </div>
+                      )}
                       <textarea
                         placeholder="Special requests (dietary, accessibility, occasion, pickup details)"
                         value={traveler.specialRequests}
@@ -1717,13 +1771,39 @@ export default function BookingModal({
                               onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, age: e.target.value } : row)))}
                               className={inputBase}
                             />
-                            <input
-                              type="text"
-                              placeholder="Nationality"
-                              value={item.nationality}
-                              onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
-                              className={inputBase}
-                            />
+                            <div className="space-y-2">
+                              <select
+                                aria-label={`Traveler ${index + 1} nationality`}
+                                value={item.nationalityOther ? '__other__' : item.nationality}
+                                onChange={(e) => {
+                                  const value = e.target.value;
+                                  setTravelers((prev) => prev.map((row, i) => (i === index
+                                    ? { ...row, nationalityOther: value === '__other__', nationality: value === '__other__' ? '' : value }
+                                    : row)));
+                                }}
+                                className={`${inputBase} ${item.nationality || item.nationalityOther ? '' : 'text-gray-400'}`}
+                              >
+                                <option value="" disabled>Nationality</option>
+                                <optgroup label="Most common">
+                                  {COMMON_NATIONALITIES.map((n) => <option key={n} value={n}>{n}</option>)}
+                                </optgroup>
+                                <optgroup label="All nationalities">
+                                  {OTHER_NATIONALITIES.map((n) => <option key={n} value={n}>{n}</option>)}
+                                </optgroup>
+                                <option value="__other__">Other (not listed)</option>
+                              </select>
+                              {item.nationalityOther && (
+                                <input
+                                  type="text"
+                                  placeholder="Type nationality (e.g. Kenyan)"
+                                  aria-label={`Traveler ${index + 1} nationality, not listed`}
+                                  value={item.nationality}
+                                  onChange={(e) => setTravelers((prev) => prev.map((row, i) => (i === index ? { ...row, nationality: e.target.value } : row)))}
+                                  className={`${inputBase}`}
+                                  autoFocus
+                                />
+                              )}
+                            </div>
                             <select
                               aria-label={`Traveler ${index + 1} gender`}
                               value={item.gender}
@@ -1790,9 +1870,54 @@ export default function BookingModal({
                 )}
 
                 <div className={`flex items-center justify-between rounded-2xl border border-[#E09A18]/30 bg-[#FFF9F5] px-4 py-3 ${isPagePresentation ? 'lg:hidden' : ''}`}>
-                  <span className="text-sm font-medium text-gray-700">{checkoutStep === 'payment' ? 'Amount to pay' : 'Estimated total'}</span>
-                  <span className="text-xl font-black tabular-nums text-gray-900">USD {totalAmount.toFixed(2)}</span>
+                  <span className="text-sm font-medium text-gray-700">{checkoutStep === 'payment' ? (effectivePlan === 'deposit' ? 'Deposit to pay now' : 'Amount to pay') : 'Estimated total'}</span>
+                  <span className="text-xl font-black tabular-nums text-gray-900">USD {(checkoutStep === 'payment' ? chargeAmount : totalAmount).toFixed(2)}</span>
                 </div>
+
+                {checkoutStep === 'details' && canPayInInstalments && (
+                  <p className="-mt-2 text-sm text-emerald-700">
+                    Your cruise is more than {INSTALMENT_MIN_DAYS_AHEAD} days away, so you can pay in instalments: {DEPOSIT_PERCENT}% now, the rest by {balanceDueDate(selectedDate)}.
+                  </p>
+                )}
+
+                {checkoutStep === 'payment' && canPayInInstalments && (
+                  <fieldset>
+                    <legend className={labelBase}>How would you like to pay?</legend>
+                    <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Payment plan">
+                      {([
+                        { plan: 'full' as const, title: 'Pay in full', amount: totalAmount, hint: 'Nothing more to pay later' },
+                        {
+                          plan: 'deposit' as const,
+                          title: 'Pay in instalments',
+                          amount: depositAmount(totalAmount),
+                          hint: `${DEPOSIT_PERCENT}% now, then $${(totalAmount - depositAmount(totalAmount)).toFixed(2)} in as many payments as you like by ${balanceDueDate(selectedDate)}`,
+                        },
+                      ]).map((option) => (
+                        <button
+                          key={option.plan}
+                          type="button"
+                          role="radio"
+                          aria-checked={effectivePlan === option.plan}
+                          onClick={() => setPaymentPlan(option.plan)}
+                          className={`rounded-2xl border-2 p-3 text-left transition ${effectivePlan === option.plan ? 'border-[#E8600A] bg-[#FFF9F5]' : 'border-gray-200 hover:border-gray-300'}`}
+                        >
+                          <span className="flex items-baseline justify-between gap-2">
+                            <span className="font-bold text-gray-900">{option.title}</span>
+                            <span className="font-black tabular-nums text-gray-900">
+                              ${option.amount.toFixed(2)}{option.plan === 'deposit' && <span className="text-xs font-semibold text-gray-500"> now</span>}
+                            </span>
+                          </span>
+                          <span className="mt-1 block text-xs text-gray-600">{option.hint}</span>
+                        </button>
+                      ))}
+                    </div>
+                    {effectivePlan === 'deposit' && (
+                      <p className="mt-2 text-xs text-gray-500">
+                        We&apos;ll email you a private link to pay the rest, and remind you before it&apos;s due ({BALANCE_DUE_DAYS_BEFORE} days before your cruise).
+                      </p>
+                    )}
+                  </fieldset>
+                )}
 
                 {checkoutStep === 'payment' && (
                   <fieldset>
@@ -2162,10 +2287,10 @@ export default function BookingModal({
                       : checkoutStep === 'details'
                         ? 'Continue to payment'
                         : paymentMode === 'card'
-                          ? (cardProvider === 'copyandpay' ? `Continue to ZimSwitch · $${totalAmount.toFixed(2)}` : `Pay $${totalAmount.toFixed(2)}`)
+                          ? (cardProvider === 'copyandpay' ? `Continue to ZimSwitch · $${chargeAmount.toFixed(2)}` : `Pay $${chargeAmount.toFixed(2)}`)
                           : paymentMode === 'omari'
-                            ? (omariStep === 'phone' ? 'Send Omari code' : `Confirm payment · $${totalAmount.toFixed(2)}`)
-                            : `Send EcoCash prompt · $${totalAmount.toFixed(2)}`}
+                            ? (omariStep === 'phone' ? 'Send Omari code' : `Confirm payment · $${chargeAmount.toFixed(2)}`)
+                            : `Send EcoCash prompt · $${chargeAmount.toFixed(2)}`}
                   </button>
                 </div>
               </form>
@@ -2209,6 +2334,12 @@ export default function BookingModal({
                       <span className="text-sm font-semibold text-gray-700">Estimated total</span>
                       <span className="text-2xl font-black text-gray-900">${totalAmount.toFixed(2)}</span>
                     </div>
+                    {checkoutStep === 'payment' && effectivePlan === 'deposit' && (
+                      <div className="mt-2 flex items-center justify-between text-sm">
+                        <span className="text-gray-600">Due now ({DEPOSIT_PERCENT}% deposit)</span>
+                        <span className="font-bold tabular-nums text-gray-900">${chargeAmount.toFixed(2)}</span>
+                      </div>
+                    )}
                     <p className="mt-1 text-xs text-gray-400">USD, excludes applicable park fees</p>
                   </div>
 

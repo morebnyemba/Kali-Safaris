@@ -6,6 +6,8 @@ Customer-facing booking channels (WhatsApp booking flow, website checkout)
 must not create a Booking until every booked passenger passes these checks,
 so every booking reaches the park manifest with full passenger details.
 """
+from .nationalities import normalize_nationality
+
 
 MAX_AGE = 120
 # Children under this age may travel without an ID/passport number.
@@ -33,7 +35,9 @@ def normalize_traveler(data, label='Traveler'):
         return None, f"{label}: details are missing."
 
     name = _text(data.get('name'))
-    nationality = _text(data.get('nationality'))
+    nationality = normalize_nationality(_text(data.get('nationality')))
+    if nationality.lower() == 'other':  # picked "Other" but didn't type one
+        nationality = ''
     gender_raw = _text(data.get('gender'))
     id_number = _text(data.get('id_number'))
     traveler_type = _text(data.get('type')).lower() or 'adult'
