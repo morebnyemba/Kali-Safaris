@@ -51,8 +51,9 @@ def initiate_cbz_ecocash_payment_action(
     Returns actions to send payment result to customer.
     """
     booking_ref = params.get('booking_reference') or flow_context.get('booking_reference')
+    booking_id = str(params.get('booking_id') or '').strip()
 
-    if not booking_ref:
+    if not booking_ref and not booking_id:
         logger.error(
             "initiate_cbz_ecocash action: missing booking_reference | contact=%s",
             contact.id,
@@ -66,7 +67,12 @@ def initiate_cbz_ecocash_payment_action(
 
     # Get booking (scoped to customer to handle multiple bookings with same reference)
     try:
-        booking = Booking.objects.get(booking_reference=booking_ref, customer=contact.customer_profile)
+        if booking_id.isdigit():
+            # Balance payments pick a booking by id: paid bookings share their departure's reference.
+            booking = Booking.objects.get(pk=int(booking_id), customer=contact.customer_profile)
+            booking_ref = booking.booking_reference
+        else:
+            booking = Booking.objects.get(booking_reference=booking_ref, customer=contact.customer_profile)
     except Booking.DoesNotExist:
         logger.error(f"Booking {booking_ref} not found for CBZ payment | contact={contact.id}")
         return [{'type': 'send_text', 'text': f'❌ Booking {booking_ref} not found. Please verify your reference.'}]

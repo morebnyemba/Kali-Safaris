@@ -120,7 +120,7 @@ OMARI_PAYMENT_FLOW = {
                     "app_label": "customer_data",
                     "model_name": "Booking",
                     "variable_name": "found_booking",
-                    "filters_template": {"id": "{{ booking_id }}"},
+                    "filters_template": {"id": "{{ booking_id }}", "customer_id": "{{ contact.id }}"},
                     "fields_to_return": ["id", "booking_reference", "tour_name", "total_amount", "amount_paid", "customer_name", "customer_email"]
                 }]
             },
@@ -138,7 +138,7 @@ OMARI_PAYMENT_FLOW = {
                     "app_label": "customer_data",
                     "model_name": "Booking",
                     "variable_name": "found_booking",
-                    "filters_template": {"booking_reference__iexact": "{{ booking_reference }}"},
+                    "filters_template": {"booking_reference__iexact": "{{ booking_reference }}", "customer_id": "{{ contact.id }}"},
                     "fields_to_return": ["id", "booking_reference", "tour_name", "total_amount", "amount_paid", "customer_name", "customer_email"]
                 }]
             },

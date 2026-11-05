@@ -26,6 +26,8 @@ export const ordersApi = {
   create: (data) => apiClient.post('/crm-api/customer-data/bookings/', data),
   update: (id, data) => apiClient.put(`/crm-api/customer-data/bookings/${id}/`, data),
   delete: (id) => apiClient.delete(`/crm-api/customer-data/bookings/${id}/`),
+  /** Customer's secure self-service link. body: { send?: bool, rotate?: bool } */
+  manageLink: (id, body = {}) => apiClient.post(`/crm-api/customer-data/bookings/${id}/manage-link/`, body, { suppressErrorToast: true }),
 
   /**
    * Downloads a passenger manifest for a tour date.

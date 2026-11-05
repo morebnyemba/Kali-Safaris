@@ -26,7 +26,7 @@ MANUAL_PAYMENT_FLOW = {
                     "app_label": "customer_data",
                     "model_name": "Booking",
                     "variable_name": "found_booking",
-                    "filters_template": {"booking_reference__iexact": "{{ booking_reference_input }}"},
+                    "filters_template": {"booking_reference__iexact": "{{ booking_reference_input }}", "customer_id": "{{ contact.id }}"},
                     "fields_to_return": ["id", "booking_reference", "tour_name", "total_amount", "amount_paid", "start_date"]
                 }]
             },

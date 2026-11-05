@@ -53,6 +53,8 @@ export function clearCheckoutSession() {
 
 /** Link back to the payment step of the saved booking, or the start of booking if none. */
 export function retryPaymentHref(session: CheckoutSession | null, paymentMode?: CheckoutPaymentMode): string {
+  const manageReturn = loadManageReturn();
+  if (manageReturn) return manageReturn;
   if (!session) return '/booking';
   const params = new URLSearchParams({
     booking_reference: session.bookingReference,
@@ -62,4 +64,33 @@ export function retryPaymentHref(session: CheckoutSession | null, paymentMode?: 
   });
   if (session.fromWhatsApp) params.set('source', 'whatsapp');
   return `/booking?${params.toString()}`;
+}
+
+// Paying an instalment from a secure "manage booking" page: after the card
+// redirect, send the customer back to that page (not to a new booking).
+const MANAGE_RETURN_KEY = 'kalai_manage_return';
+
+export function saveManageReturn(path: string) {
+  try {
+    window.sessionStorage.setItem(MANAGE_RETURN_KEY, path);
+  } catch {
+    // ignore
+  }
+}
+
+export function loadManageReturn(): string {
+  try {
+    const path = window.sessionStorage.getItem(MANAGE_RETURN_KEY) ?? '';
+    return path.startsWith('/manage/') ? path : '';
+  } catch {
+    return '';
+  }
+}
+
+export function clearManageReturn() {
+  try {
+    window.sessionStorage.removeItem(MANAGE_RETURN_KEY);
+  } catch {
+    // ignore
+  }
 }

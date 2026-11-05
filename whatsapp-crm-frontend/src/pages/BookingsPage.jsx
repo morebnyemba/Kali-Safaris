@@ -4,7 +4,8 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import {
-  FiCalendar, FiChevronLeft, FiChevronRight, FiDownload, FiEdit2, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2, FiUsers,
+  FiCalendar, FiChevronLeft, FiChevronRight, FiCopy, FiDownload, FiEdit2, FiLink, FiMoreHorizontal, FiPlus, FiRefreshCw, FiSearch, FiSend,
+  FiTrash2, FiUsers,
 } from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -75,6 +76,27 @@ export default function BookingsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [linkBusy, setLinkBusy] = useState('');
+
+  // Customer's secure link: upload missing IDs + pay the balance in instalments.
+  const customerLink = async (bookingId, mode) => {
+    if (mode === 'rotate' && !window.confirm('Reset the link? Every link sent before stops working.')) return;
+    setLinkBusy(mode);
+    try {
+      const res = await ordersApi.manageLink(bookingId, { send: mode === 'send', rotate: mode === 'rotate' });
+      if (mode === 'send') {
+        toast.success('Link sent to the customer on WhatsApp');
+      } else {
+        await navigator.clipboard.writeText(res.data.url).catch(() => window.prompt('Copy the link:', res.data.url));
+        toast.success(mode === 'rotate' ? 'New link copied — old links no longer work' : 'Link copied');
+      }
+    } catch (err) {
+      const url = err?.response?.data?.url;
+      toast.error(apiErrorMessage(err), url ? { action: { label: 'Copy link', onClick: () => navigator.clipboard.writeText(url) } } : undefined);
+    } finally {
+      setLinkBusy('');
+    }
+  };
 
   const load = useCallback(async ({ quiet = false } = {}) => {
     if (!quiet) setLoading(true);
@@ -477,6 +499,25 @@ export default function BookingsPage() {
               <Button type="submit" disabled={saving}>{saving ? 'Saving…' : dialog.id ? 'Save booking' : 'Create booking'}</Button>
             </div>
           </form>
+          {dialog.id && editingBooking && (
+            <section className="space-y-2 rounded-lg border bg-muted/30 p-3" aria-labelledby="b-link-title">
+              <h3 id="b-link-title" className="flex items-center gap-2 text-sm font-semibold"><FiLink aria-hidden /> Customer link</h3>
+              <p className="text-xs text-muted-foreground">
+                A private page where the customer uploads missing IDs and pays the balance in instalments (card, EcoCash or Omari).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" disabled={Boolean(linkBusy)} onClick={() => customerLink(editingBooking.id, 'send')}>
+                  <FiSend /> {linkBusy === 'send' ? 'Sending…' : 'Send on WhatsApp'}
+                </Button>
+                <Button type="button" size="sm" variant="outline" disabled={Boolean(linkBusy)} onClick={() => customerLink(editingBooking.id, 'copy')}>
+                  <FiCopy /> Copy link
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={Boolean(linkBusy)} onClick={() => customerLink(editingBooking.id, 'rotate')}>
+                  <FiRefreshCw /> Reset link
+                </Button>
+              </div>
+            </section>
+          )}
           {dialog.id && editingBooking && (
             <section className="space-y-2 border-t pt-4" aria-labelledby="b-payments-title">
               <div className="flex items-baseline justify-between gap-3">

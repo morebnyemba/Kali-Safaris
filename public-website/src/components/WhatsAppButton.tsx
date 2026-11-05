@@ -25,7 +25,7 @@ export default function WhatsAppButton() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  if (pathname.startsWith('/booking')) return null;
+  if (pathname.startsWith('/booking') || pathname.startsWith('/manage')) return null;
   // On a cruise's own page, book that cruise directly instead of the generic picker.
   const pageCruise = CRUISES.find((c) => pathname === `/cruises/${c.slug}`);
   const bookHref = pageCruise ? bookingHref(pageCruise.tourName) : '/booking';

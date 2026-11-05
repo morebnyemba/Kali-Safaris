@@ -527,11 +527,34 @@ def _resolve_or_create_booking(payload: Dict[str, Any], client_amount: Decimal) 
     Raises PricingError — safe to surface to the client — when the request
     can't be priced this way or the amount isn't authorised.
     """
+    manage_token = payload.get('manage_token')
+    if manage_token:
+        # Instalment from the customer's secure 'manage booking' link: the token
+        # names exactly one booking, unlike a (shared) booking reference.
+        from customer_data.manage_links import ManageLinkError, resolve_token, validate_instalment
+
+        booking = resolve_token(manage_token)
+        if booking is None:
+            raise PricingError("This payment link is invalid or has expired. Message us on WhatsApp for a new one.")
+        try:
+            validate_instalment(booking, client_amount)
+        except ManageLinkError as exc:
+            raise PricingError(str(exc))
+        return booking, client_amount
+
     booking_ref = payload.get('booking_reference')
     if booking_ref:
-        booking = Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at').first()
-        if not booking:
+        matches = list(Booking.objects.filter(booking_reference=booking_ref).order_by('-created_at')[:2])
+        if not matches:
             raise PricingError(f"Booking {booking_ref} not found.")
+        if len(matches) > 1:
+            # Paid bookings share their departure's reference; paying "by reference"
+            # could credit someone else's booking.
+            raise PricingError(
+                f"{booking_ref} covers more than one booking. Please pay with the secure link we sent you, "
+                "or message us on WhatsApp for one."
+            )
+        booking = matches[0]
 
         balance_due = (booking.total_amount - booking.amount_paid).quantize(Decimal('0.01'))
         if balance_due <= 0:

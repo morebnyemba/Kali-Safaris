@@ -147,6 +147,25 @@ class BookingViewSet(viewsets.ModelViewSet):
     search_fields = ['booking_reference', 'tour_name', 'customer__first_name', 'customer__last_name']
     ordering_fields = ['start_date', 'created_at', 'total_amount', 'amount_paid']
 
+    @action(detail=True, methods=['post'], url_path='manage-link')
+    def manage_link(self, request, pk=None):
+        """
+        The customer's secure 'manage booking' link (ID uploads + instalments).
+        {"rotate": true} revokes all earlier links first; {"send": true} sends it on WhatsApp.
+        """
+        from .manage_links import manage_url, revoke_links, send_manage_link
+
+        booking = self.get_object()
+        if request.data.get('rotate'):
+            revoke_links(booking)
+        url = manage_url(booking)
+        sent = False
+        if request.data.get('send'):
+            sent, error = send_manage_link(booking, url)
+            if not sent:
+                return Response({'url': url, 'sent': False, 'detail': error}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'url': url, 'sent': sent})
+
 
 def _parse_date(value):
     from django.utils.dateparse import parse_date
@@ -362,3 +381,65 @@ class PassengerSummaryExportView(_DatedFileExportView):
 
 export_booking_manifest = BookingManifestExportView.as_view()
 export_passenger_summary = PassengerSummaryExportView.as_view()
+
+# --- Customer self-service via secure link (no login) ---
+
+from rest_framework.permissions import AllowAny
+from rest_framework.throttling import AnonRateThrottle
+
+
+class ManageLinkThrottle(AnonRateThrottle):
+    """Per-IP cap on the public link endpoints (token guessing is infeasible anyway)."""
+    scope = 'manage_link'
+    rate = '60/min'
+
+
+class _ManageLinkView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_classes = [ManageLinkThrottle]
+
+    @staticmethod
+    def _invalid():
+        return Response(
+            {'detail': "This link is invalid or has expired. Message us on WhatsApp and we'll send you a new one."},
+            status=status.HTTP_404_NOT_FOUND,
+        )
+
+    def finalize_response(self, request, response, *args, **kwargs):
+        response = super().finalize_response(request, response, *args, **kwargs)
+        response['Cache-Control'] = 'no-store'
+        response['Referrer-Policy'] = 'no-referrer'
+        return response
+
+
+class ManageBookingView(_ManageLinkView):
+    """GET /crm-api/customer-data/manage/<token>/ — booking summary for the customer."""
+
+    def get(self, request, token):
+        from .manage_links import resolve_token, summary
+
+        booking = resolve_token(token)
+        if booking is None:
+            return self._invalid()
+        return Response(summary(booking))
+
+
+class ManageTravelerIdView(_ManageLinkView):
+    """POST /crm-api/customer-data/manage/<token>/travelers/<id>/id/ — multipart `document` and/or `id_number`."""
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+
+    def post(self, request, token, traveler_id):
+        from django.db import transaction
+        from .manage_links import ManageLinkError, attach_id, resolve_token, summary
+
+        with transaction.atomic():
+            booking = resolve_token(token, lock=True)
+            if booking is None:
+                return self._invalid()
+            try:
+                attach_id(booking, traveler_id, request.FILES.get('document'), request.data.get('id_number', ''))
+            except ManageLinkError as exc:
+                return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        booking.refresh_from_db()
+        return Response(summary(booking))

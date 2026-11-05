@@ -280,6 +280,10 @@ class Booking(models.Model):
     source = models.CharField(_("Source"), max_length=20, choices=BookingSource.choices, default=BookingSource.MANUAL_ENTRY)
     
     notes = models.TextField(_("Internal Notes"), blank=True, null=True)
+    access_key = models.CharField(
+        _("Customer link key"), max_length=32, blank=True, default='', editable=False,
+        help_text=_("Part of the customer's secure 'manage booking' link; changing it revokes every link sent so far."),
+    )
     booking_details_payload = models.JSONField(
         _("Booking Details Payload"), blank=True, null=True, 
         help_text=_("Raw structured data from an email or other source.")

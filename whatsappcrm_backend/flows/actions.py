@@ -537,3 +537,106 @@ def check_departure_capacity(contact, context: dict, params: dict) -> dict:
         return {'departure_still_open': True}
     slot = next((s for s in open_slots(tour, on_date) if s.start_time == start), None)
     return {'departure_still_open': bool(slot and has_room(slot, on_date, _party_size(params)))}
+
+
+# --- Pay balance / upload IDs (customer's own bookings only) ---
+
+def _open_bookings(contact):
+    """Upcoming, not cancelled bookings of this contact that still owe money or IDs."""
+    from customer_data.manage_links import CLOSED_STATUSES, balance_due, needs_id
+
+    profile = getattr(contact, 'customer_profile', None) if contact else None
+    if profile is None:
+        return []
+    today = timezone.localdate()
+    bookings = (
+        Booking.objects.filter(customer=profile, end_date__gte=today)
+        .exclude(payment_status__in=CLOSED_STATUSES)
+        .exclude(booking_reference__startswith='PENDING-')
+        .prefetch_related('travelers')
+        .order_by('start_date', 'start_time')
+    )
+    return [
+        b for b in bookings
+        if balance_due(b) > 0 or any(needs_id(t) for t in b.travelers.all())
+    ]
+
+
+@register_flow_action('load_open_bookings')
+def load_open_bookings(contact, context: dict, params: dict) -> dict:
+    """
+    pb_state: 'none' | 'one' | 'many'. Rows are keyed by booking id, never by
+    reference: paid bookings on one departure share a reference.
+    """
+    from customer_data.manage_links import balance_due
+
+    bookings = _open_bookings(contact)[:10]  # WhatsApp list: ≤10 rows
+    rows = []
+    for b in bookings:
+        due = balance_due(b)
+        detail = f"Balance ${due:.2f}" if due > 0 else "Paid · IDs needed"
+        rows.append({
+            'id': f"bk_{b.pk}",
+            'title': b.tour_name[:24],
+            'description': f"{b.start_date.strftime('%d %b %Y')} {b.departure_display} · {detail}".strip()[:72],
+        })
+    state = 'none' if not rows else ('one' if len(rows) == 1 else 'many')
+    return {'pb_state': state, 'pb_rows': rows, 'pb_reply': rows[0]['id'] if len(rows) == 1 else ''}
+
+
+@register_flow_action('select_open_booking')
+def select_open_booking(contact, context: dict, params: dict) -> dict:
+    """Validates the chosen row against the contact's own bookings and loads its payment/ID state."""
+    from customer_data.manage_links import balance_due, can_pay, manage_url, minimum_payment, needs_id
+
+    reply = str(params.get('reply_id') or '')
+    booking = next((b for b in _open_bookings(contact) if f"bk_{b.pk}" == reply), None)
+    if booking is None:
+        return {'pb_valid': False}
+    due = balance_due(booking)
+    missing = [t.name for t in booking.travelers.all() if needs_id(t)]
+    payable = can_pay(booking)
+    menu = []
+    if payable:
+        menu.append({'id': 'pb_full', 'title': 'Pay full balance', 'description': f"${due:.2f} now"})
+        if due > minimum_payment(booking):
+            menu.append({'id': 'pb_part', 'title': 'Pay an instalment', 'description': f"Any amount from ${minimum_payment(booking):.2f} to ${due:.2f}"})
+    menu.append({
+        'id': 'pb_link', 'title': 'Upload IDs / pay online' if missing else 'Get secure link',
+        'description': ('IDs needed: ' + ', '.join(missing))[:72] if missing else 'Card, Omari or EcoCash on our website',
+    })
+    return {
+        'pb_valid': True,
+        'pb_booking_id': str(booking.pk),
+        'pb_reference': booking.booking_reference,
+        'pb_tour': booking.tour_name,
+        'pb_date': f"{booking.start_date.strftime('%d %b %Y')} {booking.departure_display}".strip(),
+        'pb_total': f"{booking.total_amount:.2f}",
+        'pb_paid': f"{booking.amount_paid:.2f}",
+        'pb_balance': f"{due:.2f}",
+        'pb_minimum': f"{minimum_payment(booking):.2f}",
+        'pb_missing_ids': ', '.join(missing),
+        'pb_link': manage_url(booking),
+        'pb_menu_rows': menu,
+    }
+
+
+@register_flow_action('check_instalment_amount')
+def check_instalment_amount(contact, context: dict, params: dict) -> dict:
+    """pb_amount_valid / pb_amount_error for an amount the customer typed (or the full balance)."""
+    from decimal import InvalidOperation
+    from customer_data.manage_links import ManageLinkError, validate_instalment
+
+    booking = next((b for b in _open_bookings(contact) if str(b.pk) == str(params.get('booking_id'))), None)
+    if booking is None:
+        return {'pb_amount_valid': False, 'pb_amount_error': "That booking can't take payments any more."}
+    raw = str(params.get('amount') or '').replace('$', '').replace(',', '').strip()
+    try:
+        amount = Decimal(raw).quantize(Decimal('0.01'))
+    except (InvalidOperation, ValueError):
+        return {'pb_amount_valid': False, 'pb_amount_error': "Please send just the amount, e.g. 50 or 50.00."}
+    try:
+        validate_instalment(booking, amount)
+    except ManageLinkError as exc:
+        return {'pb_amount_valid': False, 'pb_amount_error': str(exc)}
+    return {'pb_amount_valid': True, 'pb_amount_error': '', 'pb_amount': f"{amount:.2f}"}

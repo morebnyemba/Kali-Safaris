@@ -192,6 +192,9 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'Kalai Safaris <bookings@ka
 # Without a timeout a stalled mail server would hang the worker sending booking emails.
 EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', 20))
 
+# Customer-facing website, used to build secure 'manage booking' links.
+PUBLIC_SITE_URL = os.getenv('PUBLIC_SITE_URL', 'https://kalaisafaris.com').rstrip('/')
+
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

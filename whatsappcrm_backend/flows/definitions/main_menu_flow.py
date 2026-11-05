@@ -34,6 +34,7 @@ MAIN_MENU_FLOW = {
                                     "title": "📋 My Account",
                                     "rows": [
                                         {"id": "my_bookings", "title": "📖 My Bookings", "description": "View or manage your existing bookings"},
+                                        {"id": "pay_balance", "title": "💵 Pay Balance / IDs", "description": "Pay what's left (in instalments too) or upload traveller IDs"},
                                         {"id": "payment_options", "title": "💳 Make a Payment", "description": "Pay via Omari, EcoCash, or bank transfer"}
                                     ]
                                 },
@@ -56,6 +57,7 @@ MAIN_MENU_FLOW = {
                 {"to_step": "switch_to_view_tours_flow", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "view_tours"}},
                 {"to_step": "switch_to_special_offers_flow", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "special_offers"}},
                 {"to_step": "switch_to_my_bookings_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "my_bookings"}},
+                {"to_step": "switch_to_pay_balance_flow", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "pay_balance"}},
                 {"to_step": "ask_payment_target", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "payment_options"}},
                 {"to_step": "switch_to_faq_flow", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "faq"}},
                 {"to_step": "switch_to_contact_support_flow", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "contact_support"}},
@@ -100,7 +102,8 @@ MAIN_MENU_FLOW = {
                 "reply_config": {"expected_type": "interactive_id", "save_to_variable": "payment_target"}
             },
             "transitions": [
-                {"to_step": "set_payment_target_booking", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "booking_payment"}},
+                # Bookings are picked from the customer's own list (a typed reference can match several bookings).
+                {"to_step": "switch_to_pay_balance_flow", "priority": 0, "condition_config": {"type": "interactive_reply_id_equals", "value": "booking_payment"}},
                 {"to_step": "set_payment_target_inquiry", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "tour_inquiry_payment"}},
                 {"to_step": "show_main_menu", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "back_to_main"}}
             ]
@@ -147,6 +150,12 @@ MAIN_MENU_FLOW = {
             "name": "switch_to_my_bookings_flow",
             "type": "switch_flow",
             "config": {"target_flow_name": "my_bookings_flow", "initial_context_template": {"source_flow": "main_menu"}},
+            "transitions": []
+        },
+        {
+            "name": "switch_to_pay_balance_flow",
+            "type": "switch_flow",
+            "config": {"target_flow_name": "pay_balance_flow", "initial_context_template": {"source_flow": "main_menu"}},
             "transitions": []
         },
         {

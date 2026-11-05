@@ -10,7 +10,7 @@ import {
   FaIdCard, FaNotesMedical, FaFileUpload, FaClock,
 } from 'react-icons/fa';
 import type { IconType } from 'react-icons';
-import { clearCheckoutSession, saveCheckoutSession } from '@/lib/checkoutSession';
+import { clearCheckoutSession, clearManageReturn, saveCheckoutSession, saveManageReturn } from '@/lib/checkoutSession';
 import type { TimeSlot } from '@/lib/tours';
 import { COMMON_COUNTRIES, COMMON_NATIONALITIES, OTHER_COUNTRIES, OTHER_NATIONALITIES } from '@/lib/nationalities';
 import { PaymentLogo } from '@/components/PaymentLogo';
@@ -28,6 +28,8 @@ interface BookingModalProps {
   initialDeparture?: string;
   initialPaymentMode?: PaymentMode;
   initialBookingReference?: string;
+  /** Secure 'manage booking' token: pays an instalment on exactly that booking (references can be shared). */
+  manageToken?: string;
   fixedAmountUsd?: number;
   launchedFromWhatsApp?: boolean;
   presentation?: 'modal' | 'page';
@@ -224,6 +226,7 @@ export default function BookingModal({
   initialDeparture,
   initialPaymentMode,
   initialBookingReference,
+  manageToken,
   fixedAmountUsd,
   launchedFromWhatsApp = false,
   presentation = 'modal',
@@ -1036,6 +1039,7 @@ export default function BookingModal({
           amount: totalAmount,
           currency: 'USD',
           booking_reference: paymentBookingReference || undefined,
+          manage_token: manageToken || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1106,6 +1110,7 @@ export default function BookingModal({
           currency: 'USD',
           channel: 'WEB',
           booking_reference: paymentBookingReference || undefined,
+          manage_token: manageToken || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1240,6 +1245,7 @@ export default function BookingModal({
           amount: totalAmount,
           currency: 'USD',
           booking_reference: paymentBookingReference || undefined,
+          manage_token: manageToken || undefined,
           booking_details: buildBookingDetailsPayload(),
           shopper_result_url: resultUrl.toString(),
         }),
@@ -1343,6 +1349,7 @@ export default function BookingModal({
           amount: totalAmount,
           currency: 'USD',
           booking_reference: paymentBookingReference || undefined,
+          manage_token: manageToken || undefined,
           booking_details: buildBookingDetailsPayload(),
         }),
       });
@@ -1412,6 +1419,13 @@ export default function BookingModal({
     }
     await submitCardPaymentHosted();
   };
+
+  useEffect(() => {
+    if (!isOpen) return;
+    // Card payments redirect away: remember where an instalment should come back to.
+    if (manageToken) saveManageReturn(`/manage/${manageToken}`);
+    else clearManageReturn();
+  }, [isOpen, manageToken]);
 
   useEffect(() => {
     if (!isOpen || !paymentBookingReference) {
