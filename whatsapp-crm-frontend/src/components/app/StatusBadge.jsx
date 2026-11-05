@@ -18,6 +18,7 @@ const STATUS = {
   pending_manual: ['warning', 'Manual verification'],
   refunded: ['neutral', 'Refunded'],
   cancelled: ['danger', 'Cancelled'],
+  on_hold: ['warning', 'On hold · new date'],
   new: ['accent', 'New'],
   contacted: ['info', 'Contacted'],
   proposal_sent: ['warning', 'Proposal sent'],

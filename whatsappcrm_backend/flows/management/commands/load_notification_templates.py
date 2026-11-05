@@ -9,6 +9,24 @@ from notifications.models import NotificationTemplate
 # This makes them easy to manage and deploy.
 NOTIFICATION_TEMPLATES = [
     {
+        "name": "booking_moved_to_hold",
+        "description": "Sent to staff when an unpaid balance moves a booking off its cruise (seats released).",
+        "template_type": "whatsapp",
+        "body": """Booking moved to hold 📅
+
+*{{ booking_reference }}* ({{ tour_name }}, {{ start_date }}) still owed ${{ balance }} after its final notice, so it was taken off that cruise and its seats released.
+
+${{ amount_paid }} paid is kept as credit; the customer has been asked to choose a new date on their booking link. Bookings → *On hold* in the dashboard."""
+    },
+    {
+        "name": "booking_hold_expired",
+        "description": "Sent to staff when a booking has been on hold for a long time without a new date.",
+        "template_type": "whatsapp",
+        "body": """On hold for {{ days }} days ⏳
+
+*{{ booking_reference }}* ({{ tour_name }}, originally {{ start_date }}) still has no new date. ${{ amount_paid }} is held as credit — please follow up with the customer."""
+    },
+    {
         "name": "booking_awaiting_traveler_details",
         "description": "Sent to staff when a payment arrives for a booking whose passenger details are incomplete.",
         "template_type": "whatsapp",

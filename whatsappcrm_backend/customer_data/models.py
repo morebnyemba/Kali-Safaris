@@ -224,6 +224,9 @@ class Booking(models.Model):
         AWAITING_DETAILS = 'awaiting_details', _('Paid - Awaiting Passenger Details')
         REFUNDED = 'refunded', _('Refunded')
         CANCELLED = 'cancelled', _('Cancelled')
+        # Balance not paid in time: moved off its cruise (seats released), the
+        # money paid is kept as credit until the customer picks a new date.
+        ON_HOLD = 'on_hold', _('On Hold - Choosing New Date')
 
     # A booking in one of these statuses is travelling and appears on
     # manifests. Invariant (enforced in save()): it has complete details for
@@ -280,6 +283,13 @@ class Booking(models.Model):
     source = models.CharField(_("Source"), max_length=20, choices=BookingSource.choices, default=BookingSource.MANUAL_ENTRY)
     
     notes = models.TextField(_("Internal Notes"), blank=True, null=True)
+    final_notice_sent_on = models.DateField(
+        _("Final balance notice sent on"), null=True, blank=True, editable=False,
+        help_text=_("When the customer was warned the booking will be moved if the balance stays unpaid."),
+    )
+    held_at = models.DateTimeField(_("Put on hold at"), null=True, blank=True, editable=False)
+    held_from_date = models.DateField(_("Original date (before hold)"), null=True, blank=True, editable=False)
+    held_from_time = models.TimeField(_("Original departure (before hold)"), null=True, blank=True, editable=False)
     balance_reminder_sent_on = models.DateField(
         _("Balance reminder sent on"), null=True, blank=True, editable=False,
         help_text=_("Last day an automatic balance reminder went out (one per day at most)."),

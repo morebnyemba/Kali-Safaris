@@ -252,8 +252,10 @@ class BookingSerializer(serializers.ModelSerializer):
             'held_payment_status', 'traveler_count', 'traveler_details_problems',
             'source', 'source_display', 'notes', 'assigned_agent', 'assigned_agent_id',
             'created_at', 'updated_at', 'payments', 'balance_due_by', 'balance_reminder_sent_on',
+            'final_notice_sent_on', 'held_at', 'held_from_date', 'held_from_time',
         ]
-        read_only_fields = ('id', 'amount_paid', 'held_payment_status', 'created_at', 'updated_at', 'payments', 'balance_reminder_sent_on')
+        read_only_fields = ('id', 'amount_paid', 'held_payment_status', 'created_at', 'updated_at', 'payments', 'balance_reminder_sent_on',
+                            'final_notice_sent_on', 'held_at', 'held_from_date', 'held_from_time')
 
     def _travelers(self, obj):
         # Uses the viewset's prefetch; one list per booking.
@@ -261,7 +263,8 @@ class BookingSerializer(serializers.ModelSerializer):
 
     def get_balance_due_by(self, obj):
         from .payment_plan import balance_due_date
-        if not obj.total_amount or not obj.amount_paid or obj.amount_paid >= obj.total_amount:
+        if (not obj.total_amount or not obj.amount_paid or obj.amount_paid >= obj.total_amount
+                or obj.payment_status == Booking.PaymentStatus.ON_HOLD):  # no date to be due against
             return None
         due = balance_due_date(obj)
         return due.isoformat() if due else None

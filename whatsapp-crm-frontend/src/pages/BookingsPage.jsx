@@ -32,6 +32,7 @@ const TABS = [
   { key: 'awaiting_details', label: 'Awaiting details' },
   { key: 'pending', label: 'Pending payment' },
   { key: 'pending_manual', label: 'Manual verification' },
+  { key: 'on_hold', label: 'On hold' },
   { key: 'cancelled', label: 'Cancelled' },
   // Not payment statuses: bookings with part paid (deposit/instalments) and a balance left.
   { key: 'balance:outstanding', label: 'Balance owing' },
@@ -42,7 +43,7 @@ const TABS = [
 // (server-enforced); "awaiting_details" is set automatically, never by hand.
 const STATUS_OPTIONS = [
   ['pending', 'Pending payment'], ['pending_manual', 'Pending manual verification'], ['deposit_paid', 'Deposit paid'],
-  ['paid', 'Paid in full'], ['refunded', 'Refunded'], ['cancelled', 'Cancelled'],
+  ['paid', 'Paid in full'], ['on_hold', 'On hold — customer choosing a new date'], ['refunded', 'Refunded'], ['cancelled', 'Cancelled'],
 ];
 const SOURCE_OPTIONS = [['manual_entry', 'Manual entry'], ['phone_call', 'Phone call'], ['whatsapp', 'WhatsApp'], ['email_import', 'Email import']];
 
@@ -364,6 +365,11 @@ export default function BookingsPage() {
                         {formatDate(b.start_date)}
                         {b.start_time && <span className="ml-1.5 text-xs tabular-nums text-muted-foreground">{b.start_time.slice(0, 5)}{b.end_time ? `–${b.end_time.slice(0, 5)}` : ''}</span>}
                         {b.end_date && b.end_date !== b.start_date && <span className="block text-xs text-muted-foreground">to {formatDate(b.end_date)}</span>}
+                        {b.payment_status === 'on_hold' && (
+                          <span className="block text-xs text-warning" title={`On hold since ${formatDateTime(b.held_at)}`}>
+                            Moved off {formatDate(b.held_from_date, 'd MMM')} · no seats held
+                          </span>
+                        )}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3" title={formatDateTime(b.created_at)}>
                         {formatDate(b.created_at)}

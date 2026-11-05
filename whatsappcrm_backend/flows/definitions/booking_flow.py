@@ -926,14 +926,14 @@ BOOKING_FLOW = {
                                     "title": "EcoCash",
                                     "rows": [
                                         {"id": "cbz_full", "title": "EcoCash Full Payment"},
-                                        {"id": "cbz_deposit", "title": "EcoCash 50% Deposit"}
+                                        {"id": "cbz_deposit", "title": "EcoCash 50% Deposit", "description": "For cruises more than 30 days away"}
                                     ]
                                 },
                                 {
                                     "title": "Card (Web Checkout)",
                                     "rows": [
                                         {"id": "card_web_full", "title": "Card Full Payment"},
-                                        {"id": "card_web_deposit", "title": "Card 50% Deposit"}
+                                        {"id": "card_web_deposit", "title": "Card 50% Deposit", "description": "For cruises more than 30 days away"}
                                     ]
                                 },
                                 {
@@ -957,13 +957,39 @@ BOOKING_FLOW = {
             },
             "transitions": [
                 {"to_step": "set_payment_amount_full_cbz", "priority": 1, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_full"}},
-                {"to_step": "set_payment_amount_deposit_cbz", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_deposit"}},
+                {"to_step": "check_deposit_cbz", "priority": 2, "condition_config": {"type": "interactive_reply_id_equals", "value": "cbz_deposit"}},
                 {"to_step": "set_payment_amount_full_card_web", "priority": 3, "condition_config": {"type": "interactive_reply_id_equals", "value": "card_web_full"}},
-                {"to_step": "set_payment_amount_deposit_card_web", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "card_web_deposit"}},
+                {"to_step": "check_deposit_card_web", "priority": 4, "condition_config": {"type": "interactive_reply_id_equals", "value": "card_web_deposit"}},
                 {"to_step": "prepare_omari_payment", "priority": 5, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_omari"}},
                 {"to_step": "create_booking_for_manual_payment", "priority": 6, "condition_config": {"type": "interactive_reply_id_equals", "value": "manual_bank"}},
                 {"to_step": "create_inquiry_record_only", "priority": 7, "condition_config": {"type": "interactive_reply_id_equals", "value": "get_quote"}}
             ]
+        },
+        # Deposits only for cruises far enough ahead to collect the balance before it's due
+        # (customer_data.payment_plan); otherwise unpaid bookings would be moved off their cruise.
+        {
+            "name": "check_deposit_cbz",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "check_deposit_allowed", "params_template": {"start_date": "{{ start_date }}"}}]},
+            "transitions": [
+                {"to_step": "set_payment_amount_deposit_cbz", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "deposit_allowed", "value": "True"}},
+                {"to_step": "deposit_not_available", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "check_deposit_card_web",
+            "type": "action",
+            "config": {"actions_to_run": [{"action_type": "check_deposit_allowed", "params_template": {"start_date": "{{ start_date }}"}}]},
+            "transitions": [
+                {"to_step": "set_payment_amount_deposit_card_web", "priority": 1, "condition_config": {"type": "variable_equals", "variable_name": "deposit_allowed", "value": "True"}},
+                {"to_step": "deposit_not_available", "priority": 2, "condition_config": {"type": "always_true"}}
+            ]
+        },
+        {
+            "name": "deposit_not_available",
+            "type": "send_message",
+            "config": {"message_type": "text", "text": {"body": "A 50% deposit is available for cruises more than {{ deposit_min_days }} days away. Your cruise on {{ start_date }} is sooner, so please choose a full payment option."}},
+            "transitions": [{"to_step": "ask_payment_option", "condition_config": {"type": "always_true"}}]
         },
         # New step to prepare booking for Omari payment
         {

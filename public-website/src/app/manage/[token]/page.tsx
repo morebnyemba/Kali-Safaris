@@ -43,6 +43,11 @@ interface Summary {
   minimum_payment: string;
   balance_due_by: string | null;
   balance_overdue: boolean;
+  on_hold: boolean;
+  held_from_date: string | null;
+  can_reschedule: boolean;
+  reschedule_from: string;
+  tour_id: number | null;
   can_pay: boolean;
   can_upload: boolean;
   trip_is_over: boolean;
@@ -174,6 +179,111 @@ function TravelerIdCard({ traveler, token, canUpload, onUpdated }: {
   );
 }
 
+interface SlotAvailability {
+  start: string;
+  end: string | null;
+  display: string;
+  departed: boolean;
+  seats_left: number | null;
+}
+
+/** On-hold bookings: the customer picks a new date (and departure) for the credit they've paid. */
+function RescheduleCard({ summary, token, onUpdated }: { summary: Summary; token: string; onUpdated: (s: Summary) => void }) {
+  const [date, setDate] = useState('');
+  const [slots, setSlots] = useState<SlotAvailability[] | null>(null);
+  const [time, setTime] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const party = summary.passengers_booked;
+
+  useEffect(() => {
+    if (!date || !summary.tour_id) return;
+    let cancelled = false;
+    fetch(`${API_BASE}/crm-api/tours/${summary.tour_id}/availability/?date=${encodeURIComponent(date)}`, { cache: 'no-store' })
+      .then((res) => res.json())
+      .then((data: { success?: boolean; slots?: SlotAvailability[] }) => {
+        if (cancelled) return;
+        const open = (data.slots ?? []).filter((s) => !s.departed && (s.seats_left === null || s.seats_left >= party));
+        setSlots(open);
+        setTime(open.length === 1 ? open[0].start : '');
+      })
+      .catch(() => { if (!cancelled) setSlots([]); });
+    return () => { cancelled = true; };
+  }, [date, summary.tour_id, party]);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      const res = await fetch(`${API_BASE}/crm-api/customer-data/manage/${encodeURIComponent(token)}/reschedule/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, time: time || undefined }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.detail || "We couldn't move your booking. Please try another date.");
+      onUpdated(data as Summary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "We couldn't move your booking.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const needsTime = slots !== null && slots.length > 0;
+  const noRoom = slots !== null && slots.length === 0;
+
+  return (
+    <section aria-labelledby="hold-title" className="rounded-2xl border-2 border-[#E8600A]/40 bg-white p-5 shadow-sm">
+      <h2 id="hold-title" className="text-lg font-bold text-gray-900">Choose a new date</h2>
+      <p className="mt-1 text-sm text-gray-600">
+        The balance wasn&apos;t paid in time, so your booking{summary.held_from_date && ` for ${longDate(summary.held_from_date)}`} is on hold
+        and those seats were released. <strong>The {money(summary.amount_paid)} you paid is kept as credit.</strong> Pick a new date and pay the
+        remaining {money(summary.balance_due)}.
+      </p>
+      {summary.can_reschedule ? (
+        <form onSubmit={submit} className="mt-4 space-y-3">
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium text-gray-700">New date</span>
+            <input type="date" min={summary.reschedule_from} value={date} required
+              onChange={(e) => { setDate(e.target.value); setSlots(null); setTime(''); }}
+              className="w-full rounded-xl border border-gray-300 px-4 py-2.5 focus:border-[#C8102E] focus:outline-none focus:ring-2 focus:ring-[#C8102E]/20" />
+            <span className="mt-1 block text-xs text-gray-500">From {longDate(summary.reschedule_from)} onwards.</span>
+          </label>
+          {noRoom && date && (
+            <p className="text-sm text-[#C8102E]">No departure that day has {party} seat{party === 1 ? '' : 's'} left. Please try another date.</p>
+          )}
+          {needsTime && slots.length > 1 && (
+            <fieldset>
+              <legend className="mb-1.5 text-sm font-medium text-gray-700">Departure</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {slots.map((s) => (
+                  <button key={s.start} type="button" onClick={() => setTime(s.start)} aria-pressed={time === s.start}
+                    className={`rounded-xl border-2 px-3 py-2 text-left text-sm ${time === s.start ? 'border-[#E8600A] bg-[#FFF9F5]' : 'border-gray-200'}`}>
+                    <span className="block font-semibold tabular-nums">{s.display || s.start}</span>
+                    {s.seats_left !== null && <span className="text-xs text-gray-500">{s.seats_left} seats left</span>}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          {error && <p role="alert" className="text-sm text-[#C8102E]">{error}</p>}
+          <button type="submit" disabled={busy || !date || noRoom || (needsTime && !time) || slots === null}
+            className="w-full rounded-full bg-[#C8102E] px-5 py-3 font-bold text-white transition hover:bg-[#A00D24] disabled:opacity-50">
+            {busy ? 'Moving your booking…' : 'Move my booking to this date'}
+          </button>
+        </form>
+      ) : (
+        <a href={whatsappLink(`Hi, I'd like to choose a new date for booking ${summary.booking_reference}.`)} target="_blank" rel="noopener noreferrer"
+          className="mt-4 inline-flex items-center gap-2 rounded-full bg-[#25D366] px-6 py-3 font-bold text-white hover:bg-[#1EBE5A]">
+          <FaWhatsapp aria-hidden /> Choose a date with us on WhatsApp
+        </a>
+      )}
+    </section>
+  );
+}
+
 function ManageBookingContent({ token }: { token: string }) {
   const searchParams = useSearchParams();
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -260,12 +370,14 @@ function ManageBookingContent({ token }: { token: string }) {
         <p className="text-sm font-semibold uppercase tracking-widest text-[#E8600A]">Your booking</p>
         <h1 className="mt-1 text-3xl font-bold text-gray-900">{summary.tour_name}</h1>
         <p className="mt-1 text-gray-600">
-          {longDate(summary.start_date)}{summary.departure && ` · ${summary.departure}`}
+          {summary.on_hold ? 'On hold — choose a new date' : <>{longDate(summary.start_date)}{summary.departure && ` · ${summary.departure}`}</>}
         </p>
         <p className="mt-2 text-sm text-gray-500">
           Ref <span className="font-mono">{summary.booking_reference}</span> · {summary.payment_status_display}
         </p>
       </header>
+
+      {summary.on_hold && <RescheduleCard summary={summary} token={token} onUpdated={setSummary} />}
 
       <section aria-labelledby="pay-title" className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
         <h2 id="pay-title" className="text-lg font-bold text-gray-900">Payment</h2>
@@ -283,6 +395,11 @@ function ManageBookingContent({ token }: { token: string }) {
             {summary.balance_due_by && (
               <p className={`rounded-xl px-3 py-2 text-sm font-semibold ${summary.balance_overdue ? 'bg-[#C8102E]/10 text-[#C8102E]' : 'bg-amber-50 text-amber-900'}`}>
                 {summary.balance_overdue ? 'Overdue — balance was due' : 'Balance due by'} {longDate(summary.balance_due_by)}
+                <span className="mt-0.5 block text-xs font-normal">
+                  {summary.balance_overdue
+                    ? 'Please pay now: unpaid bookings are moved off their cruise 48 hours after the final notice (your payment is kept as credit).'
+                    : 'If it isn\u2019t paid in time, the booking is moved off this cruise and your payment kept as credit for a new date.'}
+                </span>
               </p>
             )}
             <p className="text-sm text-gray-600">Pay it all now or in instalments of {money(minimum)} or more — by card, EcoCash or Omari.</p>
@@ -312,7 +429,7 @@ function ManageBookingContent({ token }: { token: string }) {
           </form>
         ) : (
           <p className="mt-4 text-sm text-gray-600">
-            {balance <= 0 ? '✅ Fully paid — thank you!' : summary.trip_is_over ? 'This trip has taken place, so online payments are closed.' : 'Online payments are closed for this booking. Please message us on WhatsApp.'}
+            {balance <= 0 ? '✅ Fully paid — thank you!' : summary.on_hold ? 'Choose a new date above, then pay the balance here.' : summary.trip_is_over ? 'This trip has taken place, so online payments are closed.' : 'Online payments are closed for this booking. Please message us on WhatsApp.'}
           </p>
         )}
 

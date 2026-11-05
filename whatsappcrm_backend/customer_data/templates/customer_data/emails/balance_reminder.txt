@@ -1,17 +1,17 @@
 Hi{% if first_name %} {{ first_name }}{% endif %},
 
-{% if kind == 'upcoming' %}A reminder that the balance on your booking is due soon.{% elif kind == 'due' %}The balance on your booking is due today.{% else %}Final reminder: your cruise is only a few days away and there's still a balance on your booking.{% endif %}
+{% if kind == 'upcoming' %}A reminder that the balance on your booking is due by {{ due_by|date:"j F" }} ({{ due_days_before }} days before your cruise).{% elif kind == 'final' %}The balance on your booking is now due. If it isn't paid by {{ move_on|date:"j F" }}, your booking will be moved off this cruise and its seats released. The money you've paid is never lost: it stays as credit for a new date.{% else %}Your balance wasn't paid in time, so your booking for {{ held_from_date|date:"j F" }} is on hold and its seats have been released. The ${{ booking.amount_paid|floatformat:2 }} you paid is kept as credit: choose a new date (more than {{ min_days_ahead }} days away) and pay the rest.{% endif %}
 
 Booking reference: {{ booking.booking_reference }}
-Cruise: {{ booking.tour_name }}, {{ booking.start_date|date:"l j F Y" }}{% if departure %} · {{ departure }}{% endif %}
+Cruise: {{ booking.tour_name }}{% if kind != 'moved' %}, {{ booking.start_date|date:"l j F Y" }}{% if departure %} · {{ departure }}{% endif %}{% endif %}
 Total: ${{ booking.total_amount|floatformat:2 }}  Paid: ${{ booking.amount_paid|floatformat:2 }}
-Balance: ${{ balance|floatformat:2 }}{% if due_by %} (due {{ due_by|date:"j F" }}){% endif %}
+Balance: ${{ balance|floatformat:2 }}
 {% if missing_ids %}
 We also still need ID/passport photos for {{ missing_ids|join:", " }}.
 {% endif %}
-Pay all or part now by card, EcoCash or Omari (private link, please don't share):
+{% if kind == 'moved' %}Choose a new date{% else %}Pay all or part now by card, EcoCash or Omari{% endif %} (private link, please don't share):
 {{ manage_url }}
 
-Already paid or need more time? WhatsApp {{ contact.whatsapp }} or call {{ contact.phone }}.
+Already paid or need help? WhatsApp {{ contact.whatsapp }} or call {{ contact.phone }}.
 
 Kalai Safaris

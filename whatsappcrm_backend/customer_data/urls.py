@@ -21,4 +21,5 @@ urlpatterns = [
     path('export/passenger-summary/', views.export_passenger_summary, name='export_passenger_summary'),
     path('manage/<str:token>/', views.ManageBookingView.as_view(), name='manage_booking'),
     path('manage/<str:token>/travelers/<uuid:traveler_id>/id/', views.ManageTravelerIdView.as_view(), name='manage_traveler_id'),
+    path('manage/<str:token>/reschedule/', views.ManageRescheduleView.as_view(), name='manage_reschedule'),
 ]
