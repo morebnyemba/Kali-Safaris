@@ -1913,7 +1913,7 @@ export default function BookingModal({
                     </div>
                     {effectivePlan === 'deposit' && (
                       <p className="mt-2 text-xs text-gray-500">
-                        We&apos;ll email you a private link to pay the rest, and remind you before it&apos;s due ({BALANCE_DUE_DAYS_BEFORE} days before your cruise).
+                        We&apos;ll email you a private link to pay the rest and remind you before it&apos;s due ({BALANCE_DUE_DAYS_BEFORE} days before your cruise). If it isn&apos;t paid in time, the booking is moved off this cruise and your payment kept as credit for a new date.
                       </p>
                     )}
                   </fieldset>

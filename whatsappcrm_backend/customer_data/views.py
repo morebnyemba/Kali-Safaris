@@ -462,3 +462,33 @@ class ManageTravelerIdView(_ManageLinkView):
                 return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         booking.refresh_from_db()
         return Response(summary(booking))
+
+
+class ManageRescheduleView(_ManageLinkView):
+    """POST /crm-api/customer-data/manage/<token>/reschedule/ {date: YYYY-MM-DD, time?: HH:MM} — on-hold bookings only."""
+
+    def post(self, request, token):
+        from django.db import transaction
+        from django.utils.dateparse import parse_date
+        from .manage_links import ManageLinkError, reschedule, resolve_token, summary
+
+        try:
+            new_date = parse_date(str(request.data.get('date') or ''))
+        except ValueError:
+            new_date = None
+        if new_date is None:
+            return Response({'detail': 'Please choose a date.'}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            booking = resolve_token(token, lock=True)
+            if booking is None:
+                return self._invalid()
+            if booking.tour_id:
+                # Serialise with checkouts competing for the same departure's last seats.
+                from products_and_services.models import TourTimeSlot
+                list(TourTimeSlot.objects.select_for_update().filter(tour_id=booking.tour_id))
+            try:
+                reschedule(booking, new_date, request.data.get('time'))
+            except ManageLinkError as exc:
+                return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        booking.refresh_from_db()
+        return Response(summary(booking))

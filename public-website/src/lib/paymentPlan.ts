@@ -2,7 +2,7 @@
 // The server is the authority: it re-checks the date and the deposit amount at payment.
 export const INSTALMENT_MIN_DAYS_AHEAD = 30;
 export const DEPOSIT_PERCENT = 50;
-export const BALANCE_DUE_DAYS_BEFORE = 14;
+export const BALANCE_DUE_DAYS_BEFORE = 10;
 
 export type PaymentPlan = 'full' | 'deposit';
 

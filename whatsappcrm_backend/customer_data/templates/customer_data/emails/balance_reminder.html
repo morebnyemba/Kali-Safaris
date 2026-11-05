@@ -6,21 +6,24 @@
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #eee;">
         <tr><td style="background:#C8102E;padding:20px 24px;color:#ffffff;">
           <div style="font-size:13px;letter-spacing:2px;text-transform:uppercase;opacity:.85;">Kalai Safaris</div>
-          <div style="font-size:22px;font-weight:bold;margin-top:4px;">{% if kind == 'upcoming' %}Your balance is due soon{% elif kind == 'due' %}Your balance is due today{% else %}Final reminder before your cruise{% endif %}</div>
+          <div style="font-size:22px;font-weight:bold;margin-top:4px;">{% if kind == 'upcoming' %}Your balance is due soon{% elif kind == 'final' %}Action needed to keep your cruise{% else %}Your cruise is on hold{% endif %}</div>
         </td></tr>
         <tr><td style="padding:24px;">
-          <p style="margin:0 0 16px;">Hi{% if first_name %} {{ first_name }}{% endif %}, {% if kind == 'final' %}your cruise is only a few days away and there's still a balance on your booking.{% else %}a quick reminder about the balance on your booking.{% endif %}</p>
+          <p style="margin:0 0 16px;">Hi{% if first_name %} {{ first_name }}{% endif %},
+          {% if kind == 'upcoming' %}a quick reminder that the balance on your booking is due by {{ due_by|date:"j F" }} ({{ due_days_before }} days before your cruise).
+          {% elif kind == 'final' %}the balance on your booking is now due. <strong>If it isn't paid by {{ move_on|date:"j F" }}, your booking will be moved off this cruise</strong> and its seats released. The money you've paid is never lost — it stays as credit for a new date.
+          {% else %}your balance wasn't paid in time, so your booking for {{ held_from_date|date:"j F" }} is on hold and its seats have been released. <strong>The ${{ booking.amount_paid|floatformat:2 }} you paid is kept as credit</strong> — choose a new date (more than {{ min_days_ahead }} days away) and pay the rest.{% endif %}</p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:15px;border-collapse:collapse;">
             <tr><td style="padding:6px 0;color:#666;width:42%;">Booking reference</td><td style="padding:6px 0;font-weight:bold;font-family:monospace;">{{ booking.booking_reference }}</td></tr>
             <tr><td style="padding:6px 0;color:#666;">Cruise</td><td style="padding:6px 0;font-weight:bold;">{{ booking.tour_name }}</td></tr>
-            <tr><td style="padding:6px 0;color:#666;">Date</td><td style="padding:6px 0;">{{ booking.start_date|date:"l j F Y" }}{% if departure %} · {{ departure }}{% endif %}</td></tr>
+            {% if kind != 'moved' %}<tr><td style="padding:6px 0;color:#666;">Date</td><td style="padding:6px 0;">{{ booking.start_date|date:"l j F Y" }}{% if departure %} · {{ departure }}{% endif %}</td></tr>{% endif %}
             <tr><td style="padding:6px 0;color:#666;">Total / paid</td><td style="padding:6px 0;">${{ booking.total_amount|floatformat:2 }} / ${{ booking.amount_paid|floatformat:2 }}</td></tr>
-            <tr><td style="padding:6px 0;color:#C8102E;">Balance</td><td style="padding:6px 0;color:#C8102E;font-weight:bold;">${{ balance|floatformat:2 }}{% if due_by %} · due {{ due_by|date:"j F" }}{% endif %}</td></tr>
+            <tr><td style="padding:6px 0;color:#C8102E;">Balance</td><td style="padding:6px 0;color:#C8102E;font-weight:bold;">${{ balance|floatformat:2 }}{% if kind == 'final' %} · pay by {{ move_on|date:"j F" }}{% elif kind == 'upcoming' and due_by %} · due {{ due_by|date:"j F" }}{% endif %}</td></tr>
           </table>
           {% if missing_ids %}<p style="margin:16px 0 0;">We also still need ID/passport photos for {{ missing_ids|join:", " }} (required for park entry from age 12).</p>{% endif %}
-          <p style="margin:20px 0 0;"><a href="{{ manage_url }}" style="display:inline-block;background:#C8102E;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:999px;">Pay now — all or part</a></p>
+          <p style="margin:20px 0 0;"><a href="{{ manage_url }}" style="display:inline-block;background:#C8102E;color:#ffffff;text-decoration:none;font-weight:bold;padding:12px 22px;border-radius:999px;">{% if kind == 'moved' %}Choose a new date{% else %}Pay now — all or part{% endif %}</a></p>
           <p style="margin:10px 0 0;font-size:12px;color:#6b7280;">Card, EcoCash or Omari. This link is private to your booking — please don't share it.</p>
-          <p style="margin:24px 0 0;">Already paid, or need more time? <a href="{{ contact.whatsapp }}" style="color:#C8102E;">WhatsApp us</a> or call {{ contact.phone }}.</p>
+          <p style="margin:24px 0 0;">Already paid, or need help? <a href="{{ contact.whatsapp }}" style="color:#C8102E;">WhatsApp us</a> or call {{ contact.phone }}.</p>
           <p style="margin:16px 0 0;">See you on the river,<br><strong>Kalai Safaris</strong></p>
         </td></tr>
       </table>

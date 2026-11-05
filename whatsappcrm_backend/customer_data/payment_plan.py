@@ -4,7 +4,8 @@ Payment-plan policy: one place for the deposit / instalment rules.
 - Trips more than INSTALMENT_MIN_DAYS_AHEAD days away may be booked with a
   DEPOSIT_PERCENT deposit; the rest is paid in instalments (each at least
   manage_links.MIN_INSTALMENT) through the customer's secure link.
-- The balance is due BALANCE_DUE_DAYS_BEFORE days before the trip.
+- The balance is due BALANCE_DUE_DAYS_BEFORE days before the trip. Unpaid HOLD_GRACE_DAYS
+  after the final notice, the booking is moved to ON_HOLD (see balance_reminders).
 - A booking's first payment is never less than the deposit, and a website
   booking that chose "pay in full" must be paid in full — so a tampered or
   retried checkout can't confirm a booking for $1.
@@ -18,7 +19,12 @@ from django.utils import timezone
 
 INSTALMENT_MIN_DAYS_AHEAD = 30
 DEPOSIT_PERCENT = 50
-BALANCE_DUE_DAYS_BEFORE = 14
+BALANCE_DUE_DAYS_BEFORE = 10
+# Still unpaid 48h after the final notice (sent on the due date): the booking is
+# moved off its cruise to ON_HOLD — seats released, money kept as credit — and
+# the customer picks a new date more than INSTALMENT_MIN_DAYS_AHEAD days away.
+HOLD_GRACE_DAYS = 2
+HOLD_CREDIT_DAYS = 60
 
 PLAN_FULL = 'full'
 PLAN_DEPOSIT = 'deposit'

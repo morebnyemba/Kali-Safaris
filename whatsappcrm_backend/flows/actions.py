@@ -541,16 +541,28 @@ def check_departure_capacity(contact, context: dict, params: dict) -> dict:
 
 # --- Pay balance / upload IDs (customer's own bookings only) ---
 
+@register_flow_action('check_deposit_allowed')
+def check_deposit_allowed(contact, context: dict, params: dict) -> dict:
+    """deposit_allowed: the cruise is more than INSTALMENT_MIN_DAYS_AHEAD days away (same rule as the website)."""
+    from customer_data.payment_plan import INSTALMENT_MIN_DAYS_AHEAD, instalments_allowed
+    from .services import parse_date_filter  # same parsing the booking flow uses for start_date
+
+    start = parse_date_filter(str(params.get('start_date') or '').strip())
+    return {'deposit_allowed': bool(start and instalments_allowed(start)), 'deposit_min_days': INSTALMENT_MIN_DAYS_AHEAD}
+
+
 def _open_bookings(contact):
-    """Upcoming, not cancelled bookings of this contact that still owe money or IDs."""
-    from customer_data.manage_links import CLOSED_STATUSES, balance_due, needs_id
+    """This contact's bookings that still owe money or IDs, or are on hold waiting for a new date."""
+    from django.db.models import Q
+    from customer_data.manage_links import CLOSED_STATUSES, balance_due, is_on_hold, needs_id
 
     profile = getattr(contact, 'customer_profile', None) if contact else None
     if profile is None:
         return []
     today = timezone.localdate()
     bookings = (
-        Booking.objects.filter(customer=profile, end_date__gte=today)
+        Booking.objects.filter(customer=profile)
+        .filter(Q(end_date__gte=today) | Q(payment_status=Booking.PaymentStatus.ON_HOLD))
         .exclude(payment_status__in=CLOSED_STATUSES)
         .exclude(booking_reference__startswith='PENDING-')
         .prefetch_related('travelers')
@@ -558,7 +570,7 @@ def _open_bookings(contact):
     )
     return [
         b for b in bookings
-        if balance_due(b) > 0 or any(needs_id(t) for t in b.travelers.all())
+        if is_on_hold(b) or balance_due(b) > 0 or any(needs_id(t) for t in b.travelers.all())
     ]
 
 
@@ -574,12 +586,12 @@ def load_open_bookings(contact, context: dict, params: dict) -> dict:
     rows = []
     for b in bookings:
         due = balance_due(b)
-        detail = f"Balance ${due:.2f}" if due > 0 else "Paid · IDs needed"
-        rows.append({
-            'id': f"bk_{b.pk}",
-            'title': b.tour_name[:24],
-            'description': f"{b.start_date.strftime('%d %b %Y')} {b.departure_display} · {detail}".strip()[:72],
-        })
+        if b.payment_status == Booking.PaymentStatus.ON_HOLD:
+            description = "On hold · choose a new date"
+        else:
+            detail = f"Balance ${due:.2f}" if due > 0 else "Paid · IDs needed"
+            description = f"{b.start_date.strftime('%d %b %Y')} {b.departure_display} · {detail}"
+        rows.append({'id': f"bk_{b.pk}", 'title': b.tour_name[:24], 'description': description.strip()[:72]})
     state = 'none' if not rows else ('one' if len(rows) == 1 else 'many')
     return {'pb_state': state, 'pb_rows': rows, 'pb_reply': rows[0]['id'] if len(rows) == 1 else ''}
 
@@ -602,16 +614,18 @@ def select_open_booking(contact, context: dict, params: dict) -> dict:
         menu.append({'id': 'pb_full', 'title': 'Pay full balance', 'description': f"${due:.2f} now"})
         if due > minimum_charge(booking):
             menu.append({'id': 'pb_part', 'title': 'Pay an instalment', 'description': f"Any amount from ${minimum_charge(booking):.2f} to ${due:.2f}"})
+    on_hold = booking.payment_status == Booking.PaymentStatus.ON_HOLD
     menu.append({
-        'id': 'pb_link', 'title': 'Upload IDs / pay online' if missing else 'Get secure link',
-        'description': ('IDs needed: ' + ', '.join(missing))[:72] if missing else 'Card, Omari or EcoCash on our website',
+        'id': 'pb_link', 'title': 'Choose a new date' if on_hold else ('Upload IDs / pay online' if missing else 'Get secure link'),
+        'description': (f"${booking.amount_paid:.2f} kept as credit" if on_hold
+                        else ('IDs needed: ' + ', '.join(missing))[:72] if missing else 'Card, Omari or EcoCash on our website'),
     })
     return {
         'pb_valid': True,
         'pb_booking_id': str(booking.pk),
         'pb_reference': booking.booking_reference,
         'pb_tour': booking.tour_name,
-        'pb_date': f"{booking.start_date.strftime('%d %b %Y')} {booking.departure_display}".strip(),
+        'pb_date': 'on hold — choose a new date' if on_hold else f"{booking.start_date.strftime('%d %b %Y')} {booking.departure_display}".strip(),
         'pb_total': f"{booking.total_amount:.2f}",
         'pb_paid': f"{booking.amount_paid:.2f}",
         'pb_balance': f"{due:.2f}",

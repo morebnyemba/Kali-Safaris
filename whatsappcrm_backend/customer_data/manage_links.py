@@ -23,6 +23,7 @@ from django.utils import timezone
 from django.utils.crypto import constant_time_compare
 
 from .models import Booking
+from .payment_plan import INSTALMENT_MIN_DAYS_AHEAD
 from .traveler_validation import ID_REQUIRED_FROM_AGE
 
 SALT = 'customer_data.manage-booking'
@@ -80,8 +81,13 @@ def resolve_token(token, lock=False):
     return booking
 
 
+def is_on_hold(booking):
+    return booking.payment_status == Booking.PaymentStatus.ON_HOLD
+
+
 def trip_is_over(booking):
-    return (booking.end_date or booking.start_date) < timezone.localdate()
+    # An on-hold booking has no trip yet: it's waiting for the customer's new date.
+    return not is_on_hold(booking) and (booking.end_date or booking.start_date) < timezone.localdate()
 
 
 def balance_due(booking):
@@ -89,7 +95,8 @@ def balance_due(booking):
 
 
 def can_pay(booking):
-    return booking.payment_status not in CLOSED_STATUSES and not trip_is_over(booking) and balance_due(booking) > 0
+    return (booking.payment_status not in CLOSED_STATUSES and not is_on_hold(booking)
+            and not trip_is_over(booking) and balance_due(booking) > 0)
 
 
 def minimum_payment(booking):
@@ -101,6 +108,8 @@ def validate_instalment(booking, amount):
     """Raises ManageLinkError unless `amount` is a payable instalment for this booking."""
     if booking.payment_status in CLOSED_STATUSES:
         raise ManageLinkError("This booking is closed, so it can't take payments. Please contact us on WhatsApp.")
+    if is_on_hold(booking):
+        raise ManageLinkError("Please choose a new date for this booking first, then pay the balance.")
     if trip_is_over(booking):
         raise ManageLinkError("This trip has already taken place, so payments are closed.")
     due = balance_due(booking)
@@ -143,6 +152,11 @@ def summary(booking):
         'balance_due_by': due_by.isoformat() if due_by else None,
         'balance_overdue': bool(due_by and balance_due(booking) > 0 and due_by < timezone.localdate()),
         'can_pay': can_pay(booking),
+        'on_hold': is_on_hold(booking),
+        'held_from_date': booking.held_from_date.isoformat() if booking.held_from_date else None,
+        'can_reschedule': is_on_hold(booking) and bool(booking.tour_id),
+        'reschedule_from': (timezone.localdate() + timedelta(days=INSTALMENT_MIN_DAYS_AHEAD + 1)).isoformat(),
+        'tour_id': booking.tour_id,
         'can_upload': not over and booking.payment_status not in CLOSED_STATUSES,
         'trip_is_over': over,
         'passengers_booked': (booking.number_of_adults or 0) + (booking.number_of_children or 0),
@@ -218,12 +232,15 @@ def attach_id(booking, traveler_id, upload=None, id_number=''):
     return traveler
 
 
-def link_message(booking, url):
+def link_message(booking, url, intro=''):
     """WhatsApp/email text inviting the customer to finish what's missing."""
     travelers = list(booking.travelers.all())
     missing_ids = [t.name for t in travelers if needs_id(t)]
     due = balance_due(booking)
-    lines = [f"🔐 *Manage your booking {booking.booking_reference}*", f"{booking.tour_name} · {booking.start_date.strftime('%d %b %Y')}", ""]
+    when = 'on hold — choose a new date' if is_on_hold(booking) else booking.start_date.strftime('%d %b %Y')
+    lines = [f"🔐 *Manage your booking {booking.booking_reference}*", f"{booking.tour_name} · {when}", ""]
+    if intro:
+        lines[0:0] = [intro, ""]
     if missing_ids:
         lines.append(f"🪪 ID/passport still needed for: {', '.join(missing_ids)}")
     if due > 0 and can_pay(booking):
@@ -236,18 +253,59 @@ def link_message(booking, url):
     return "\n".join(lines)
 
 
-def send_manage_link(booking, url=None):
-    """Sends the link on WhatsApp. Returns (sent, error_message)."""
+def send_manage_link(booking, url=None, intro=''):
+    """Sends the link on WhatsApp (with an optional opening line). Returns (sent, error_message)."""
     from meta_integration.utils import send_whatsapp_message
 
     contact = getattr(booking.customer, 'contact', None) if booking.customer_id else None
     if not contact or not contact.whatsapp_id:
         return False, "This booking's customer has no WhatsApp number."
     result = send_whatsapp_message(
-        contact.whatsapp_id, 'text', {'body': link_message(booking, url or manage_url(booking)), 'preview_url': False},
+        contact.whatsapp_id, 'text', {'body': link_message(booking, url or manage_url(booking), intro), 'preview_url': False},
         contact.associated_app_config,
     )
     if not result:
         return False, ("WhatsApp didn't accept the message. If the customer hasn't messaged in the last 24 hours, "
                        "copy the link and send it another way.")
     return True, ''
+
+
+def reschedule(booking, new_date, start_time=None):
+    """
+    Moves an ON_HOLD booking to a new date (more than INSTALMENT_MIN_DAYS_AHEAD
+    days away, with room for the whole party). The money already paid carries
+    over; the booking goes back to owing its balance by the new due date.
+    Call inside a transaction with the booking locked.
+    """
+    from products_and_services.departures import has_room, open_slots, parse_time
+    from .payment_plan import days_ahead
+
+    if not is_on_hold(booking):
+        raise ManageLinkError("This booking already has a date.")
+    if not booking.tour_id or not booking.tour or not booking.tour.is_active:
+        raise ManageLinkError("Please message us on WhatsApp to choose a new date for this booking.")
+    if days_ahead(new_date) <= INSTALMENT_MIN_DAYS_AHEAD:
+        raise ManageLinkError(f"Please choose a date more than {INSTALMENT_MIN_DAYS_AHEAD} days from today.")
+
+    tour = booking.tour
+    party = (booking.number_of_adults or 0) + (booking.number_of_children or 0)
+    slot = None
+    if tour.active_time_slots():
+        wanted = parse_time(start_time)
+        slot = next((s for s in open_slots(tour, new_date) if s.start_time == wanted), None)
+        if slot is None:
+            raise ManageLinkError("Please choose one of the departure times for that date.")
+        if not has_room(slot, new_date, party, exclude_booking_id=booking.pk):
+            raise ManageLinkError("That departure doesn't have enough seats left. Please choose another time or date.")
+
+    length = ((booking.end_date or booking.start_date) - booking.start_date) if booking.start_date else timedelta(0)
+    booking.start_date, booking.end_date = new_date, new_date + length
+    booking.start_time = slot.start_time if slot else None
+    booking.end_time = slot.end_time if slot else None
+    booking.payment_status = (Booking.PaymentStatus.PAID if balance_due(booking) <= 0 else Booking.PaymentStatus.DEPOSIT_PAID)
+    booking.held_at = None
+    booking.final_notice_sent_on = None
+    booking.balance_reminder_sent_on = None
+    booking.update_to_shared_reference(commit=False)  # the reference is the manifest key of the new departure
+    booking.save()  # holds as AWAITING_DETAILS if passenger details are incomplete
+    return booking

@@ -19,7 +19,7 @@ def send_booking_confirmation_email_task(self, booking_id: int) -> bool:
 
 
 @shared_task(name='customer_data.send_balance_reminders')
-def send_balance_reminders_task() -> list:
-    """Daily: remind customers with a balance outstanding (see balance_reminders)."""
-    from .balance_reminders import send_balance_reminders
-    return send_balance_reminders()
+def send_balance_reminders_task() -> dict:
+    """Daily: move unpaid bookings past their grace period to hold, then send balance notices (see balance_reminders)."""
+    from .balance_reminders import run_daily
+    return run_daily()

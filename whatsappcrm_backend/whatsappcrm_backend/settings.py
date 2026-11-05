@@ -334,7 +334,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     'send-balance-reminders': {
         'task': 'customer_data.send_balance_reminders',
-        # Daily at 09:07 Harare time (CELERY_TIMEZONE): deposit bookings with a balance due.
+        # Daily at 09:07 Harare time: balance notices, and unpaid bookings past their grace period moved to hold.
         'schedule': crontab(minute=7, hour=9),
     },
     'cleanup-idle-conversations': {
