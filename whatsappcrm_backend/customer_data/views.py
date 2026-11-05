@@ -24,6 +24,7 @@ from .serializers import (
 from conversations.models import Contact
 
 import logging
+from decimal import Decimal
 logger = logging.getLogger(__name__)
 
 class MyTokenObtainPairView(TokenObtainPairView):
@@ -134,21 +135,99 @@ class InteractionViewSet(viewsets.ModelViewSet):
 class BookingViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing Tour Bookings.
+    Tour-date range: ?start_date__gte=YYYY-MM-DD&start_date__lte=YYYY-MM-DD.
     """
     queryset = Booking.objects.select_related('customer', 'tour', 'assigned_agent').prefetch_related('payments', 'travelers').all()
     serializer_class = BookingSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
-    filterset_fields = ['payment_status', 'source', 'customer', 'tour', 'assigned_agent']
+    filterset_fields = {
+        'payment_status': ['exact'], 'source': ['exact'], 'customer': ['exact'], 'tour': ['exact'],
+        'assigned_agent': ['exact'], 'start_date': ['gte', 'lte'],
+    }
     search_fields = ['booking_reference', 'tour_name', 'customer__first_name', 'customer__last_name']
+    ordering_fields = ['start_date', 'created_at', 'total_amount', 'amount_paid']
+
+
+def _parse_date(value):
+    from django.utils.dateparse import parse_date
+    try:
+        return parse_date(value) if value else None
+    except ValueError:
+        return None
+
 
 class PaymentViewSet(viewsets.ModelViewSet):
     """
-    API endpoint for managing Payments against Bookings.
+    Payments ledger: every gateway (CBZ, Omari, Paynow) and manual payment.
+
+    Filters: status, payment_method, booking, currency, ?date_from= / ?date_to=
+    (YYYY-MM-DD, on the payment's own date, Harare time), ?search= (reference,
+    booking reference, customer, tour). /summary/ returns totals for the same
+    filters; /<id>/approve/ and /<id>/reject/ review pending manual payments.
     """
-    queryset = Payment.objects.select_related('booking').all()
+    queryset = Payment.objects.select_related('booking__customer').all()
     serializer_class = PaymentSerializer
     permission_classes = [permissions.IsAuthenticated, IsStaffOrReadOnly]
-    filterset_fields = ['status', 'payment_method', 'booking']
+    filterset_fields = ['status', 'payment_method', 'booking', 'currency']
+    search_fields = [
+        'transaction_reference', 'booking__booking_reference', 'booking__tour_name',
+        'booking__customer__first_name', 'booking__customer__last_name',
+    ]
+    ordering_fields = ['created_at', 'amount', 'status']
+    ordering = ['-created_at']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        date_from = _parse_date(self.request.query_params.get('date_from'))
+        date_to = _parse_date(self.request.query_params.get('date_to'))
+        if date_from:
+            queryset = queryset.filter(created_at__date__gte=date_from)
+        if date_to:
+            queryset = queryset.filter(created_at__date__lte=date_to)
+        return queryset
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        """Totals per status and method for the current filters (per currency: never sum USD with ZWG)."""
+        from django.db.models import Count, Sum
+
+        queryset = self.filter_queryset(self.get_queryset()).order_by()
+        by_status = {}
+        for row in queryset.values('status', 'currency').annotate(count=Count('id'), total=Sum('amount')):
+            entry = by_status.setdefault(row['status'], {'count': 0, 'totals': {}})
+            entry['count'] += row['count']
+            entry['totals'][row['currency']] = f"{Decimal(row['total'] or 0):.2f}"
+        by_method = [
+            {
+                'payment_method': row['payment_method'],
+                'label': Payment.PaymentMethod(row['payment_method']).label if row['payment_method'] in Payment.PaymentMethod.values else row['payment_method'],
+                'currency': row['currency'], 'count': row['count'], 'total': f"{Decimal(row['total'] or 0):.2f}",
+            }
+            for row in queryset.filter(status=Payment.PaymentStatus.SUCCESSFUL)
+            .values('payment_method', 'currency').annotate(count=Count('id'), total=Sum('amount')).order_by('-total')
+        ]
+        return Response({'by_status': by_status, 'by_method': by_method})
+
+    def _review(self, request, review, **kwargs):
+        from .payment_review import PaymentReviewError
+
+        payment = self.get_object()
+        try:
+            review(payment.pk, request.user, **kwargs)
+        except PaymentReviewError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_409_CONFLICT)
+        payment = self.get_queryset().get(pk=payment.pk)
+        return Response(self.get_serializer(payment).data)
+
+    @action(detail=True, methods=['post'])
+    def approve(self, request, pk=None):
+        from .payment_review import approve_payment
+        return self._review(request, approve_payment)
+
+    @action(detail=True, methods=['post'])
+    def reject(self, request, pk=None):
+        from .payment_review import reject_payment
+        return self._review(request, reject_payment, reason=str(request.data.get('reason') or '')[:500])
 
 class TravelerViewSet(viewsets.ModelViewSet):
     """

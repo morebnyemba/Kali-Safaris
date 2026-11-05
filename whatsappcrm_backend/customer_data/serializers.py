@@ -200,14 +200,24 @@ class InteractionSerializer(serializers.ModelSerializer):
 class PaymentSerializer(serializers.ModelSerializer):
     payment_status_display = serializers.CharField(source='get_status_display', read_only=True)
     payment_method_display = serializers.CharField(source='get_payment_method_display', read_only=True)
+    # Flattened booking context for the payments ledger (select_related in the viewset).
+    booking_reference = serializers.CharField(source='booking.booking_reference', read_only=True, default=None)
+    tour_name = serializers.CharField(source='booking.tour_name', read_only=True, default=None)
+    tour_date = serializers.DateField(source='booking.start_date', read_only=True, default=None)
+    customer_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
         fields = [
-            'id', 'booking', 'amount', 'currency', 'status', 'payment_status_display',
-            'payment_method', 'payment_method_display', 'transaction_reference', 'notes', 'created_at'
+            'id', 'booking', 'booking_reference', 'customer_name', 'tour_name', 'tour_date',
+            'amount', 'currency', 'status', 'payment_status_display',
+            'payment_method', 'payment_method_display', 'transaction_reference', 'notes', 'created_at', 'updated_at'
         ]
-        read_only_fields = ('id', 'created_at')
+        read_only_fields = ('id', 'created_at', 'updated_at')
+
+    def get_customer_name(self, obj):
+        customer = obj.booking.customer if obj.booking_id and obj.booking.customer_id else None
+        return customer.get_full_name() if customer else None
 
 class BookingSerializer(serializers.ModelSerializer):
     customer = SimpleCustomerProfileSerializer(read_only=True)
