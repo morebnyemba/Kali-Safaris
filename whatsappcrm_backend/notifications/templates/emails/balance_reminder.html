@@ -1,0 +1,20 @@
+{% extends "emails/base.html" %}
+{% block eyebrow %}<p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:{% if kind == 'upcoming' %}{{ brand.orange }}{% else %}{{ brand.red }}{% endif %};font-weight:bold;">{% if kind == 'upcoming' %}Payment reminder{% elif kind == 'final' %}⚠ Final notice{% else %}Booking on hold{% endif %}</p>{% endblock %}
+{% block headline %}{% if kind == 'upcoming' %}Your balance is due on {{ due_by|date:"j F" }}{% elif kind == 'final' %}Pay by {{ move_on|date:"j F" }} to keep your cruise{% else %}Choose a new date for your cruise{% endif %}{% endblock %}
+{% block content %}
+<p style="margin:0;">Hi{% if first_name %} {{ first_name }}{% endif %},</p>
+{% if kind == 'upcoming' %}
+<p style="margin:10px 0 0;">A quick reminder that the balance on your booking is due by <strong>{{ due_by|date:"l j F" }}</strong> ({{ due_days_before }} days before your cruise). You can pay it all at once or in smaller instalments.</p>
+{% elif kind == 'final' %}
+<p style="margin:10px 0 0;">The balance on your booking is now due. <strong>If it isn't paid by {{ move_on|date:"l j F" }}, your booking will be moved off this cruise</strong> and its seats released.</p>
+<p style="margin:10px 0 0;">Don't worry — the money you've paid is never lost. It stays on your booking as credit for a new date.</p>
+{% else %}
+<p style="margin:10px 0 0;">Your balance wasn't paid in time, so your booking for <strong>{{ held_from_date|date:"l j F" }}</strong> is on hold and its seats have been released.</p>
+<p style="margin:10px 0 0;"><strong>The ${{ booking.amount_paid|floatformat:2 }} you paid is kept as credit.</strong> Choose a new date (more than {{ min_days_ahead }} days away) and pay the rest whenever suits you.</p>
+{% endif %}
+{% if kind == 'moved' %}{% include "emails/_booking_details.html" with show_money=True hide_date=True due_by=None %}{% else %}{% include "emails/_booking_details.html" with show_money=True due_by=due_by %}{% endif %}
+{% if missing_ids %}<p style="margin:14px 0 0;">We also still need ID/passport photos for {{ missing_ids|join:", " }} (required for park entry from age 12).</p>{% endif %}
+{% if kind == 'moved' %}{% include "emails/_button.html" with url=manage_url label="Choose a new date" note="This link is private to your booking — please don't share it." %}
+{% else %}{% include "emails/_button.html" with url=manage_url label="Pay now — all or part" note="Card, EcoCash or Omari. This link is private to your booking — please don't share it." %}{% endif %}
+<p style="margin:16px 0 0;font-size:14px;color:{{ brand.muted }};">Already paid, or need a little more time? Just reply or WhatsApp us — we're happy to help.</p>
+{% endblock %}

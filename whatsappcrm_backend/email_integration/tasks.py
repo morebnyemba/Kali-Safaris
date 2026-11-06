@@ -20,7 +20,6 @@ from products_and_services.models import Tour
 from notifications.services import queue_notifications_to_users
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.management import call_command
-from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Q
 
@@ -31,76 +30,50 @@ from django.conf import settings
 logger = logging.getLogger(__name__)
 
 
+def _autoreply_target(attachment, log_prefix):
+    """The sender to auto-reply to, or None when we must not (no sender, or a machine — RFC 3834)."""
+    if not attachment.sender:
+        logger.warning(f"{log_prefix} Attachment {attachment.pk} has no sender; no auto-reply.")
+        return None
+    if attachment.is_automated:
+        logger.info(f"{log_prefix} Sender {attachment.sender} is automated (bounce/list/autoresponder); no auto-reply.")
+        return None
+    return attachment.sender
+
+
 @shared_task(
     bind=True,
     name="email_integration.send_receipt_confirmation_email",
-    # Automatically retry for connection errors, which are common for email servers.
     autoretry_for=(ConnectionRefusedError, smtplib.SMTPException),
     retry_backoff=True,
     retry_kwargs={'max_retries': 3}
 )
 def send_receipt_confirmation_email(self, attachment_id):
     """
-    Sends an email to the original sender confirming receipt of their attachment.
-    Retries on common SMTP connection errors.
+    Branded auto-reply confirming we received the sender's documents: one per
+    incoming email (listing all its attachments), never to automated senders.
     """
+    from notifications.emailing import send_branded_email
+
     log_prefix = f"[Email Confirmation Task ID: {self.request.id}]"
-    logger.info(f"{log_prefix} Preparing to send receipt confirmation for attachment ID: {attachment_id}")
-    try:
-        attachment = EmailAttachment.objects.get(pk=attachment_id)
+    attachment = EmailAttachment.objects.filter(pk=attachment_id).first()
+    if attachment is None:
+        logger.error(f"{log_prefix} EmailAttachment {attachment_id} not found.")
+        return "Skipped: not found."
+    to = _autoreply_target(attachment, log_prefix)
+    if not to:
+        return "Skipped: no auto-reply for this sender."
+    siblings = (EmailAttachment.objects.filter(message_id=attachment.message_id)
+                if attachment.message_id else EmailAttachment.objects.filter(pk=attachment.pk))
+    log = send_branded_email(
+        template='document_received', to=to, auto_reply=True,
+        key=f"doc-receipt:{attachment.message_id or attachment.pk}",
+        subject=f"Re: {attachment.subject}" if attachment.subject else "We've received your documents",
+        preheader="Automatic confirmation — our team is processing your documents.",
+        context={'filenames': list(siblings.values_list('filename', flat=True)), 'original_subject': attachment.subject},
+    )
+    return f"Confirmation sent to {to}." if log else "Skipped: already confirmed."
 
-        if not attachment.sender:
-            logger.warning(f"{log_prefix} Attachment {attachment_id} has no sender email. Cannot send confirmation.")
-            return "Skipped: No sender email."
-
-        subject = f"Confirmation: We've received your document '{attachment.filename}'"
-
-        # Plain text version for email clients that don't support HTML
-        text_message = (
-            f"Dear Sender,\n\n"
-            f"This is an automated message to confirm that we have successfully received your attachment named '{attachment.filename}'.\n\n"
-            f"Our system is now processing it. You will be notified if any further action is required.\n\n"
-            f"Thank you,\n"
-            f"Kalai Safaris"
-        ) # Corrected brand name
-
-        # HTML version for a richer user experience
-        html_message = f"""
-        <html>
-            <head>
-                <style>
-                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                    .container {{ padding: 20px; border: 1px solid #ddd; border-radius: 5px; max-width: 600px; margin: auto; }}
-                    .header {{ font-size: 1.2em; font-weight: bold; color: #28a745; }}
-                    strong {{ color: #000; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <p class="header">Document Receipt Confirmation</p>
-                    <p>Dear Sender,</p>
-                    <p>This is an automated message to confirm that we have successfully received your attachment named <strong>'{attachment.filename}'</strong>.</p>
-                    <p>Our system is now processing it. You will be notified if any further action is required.</p>
-                    <p>Thank you,<br><strong>Kalai Safaris</strong></p> # Corrected brand name
-                </div>
-            </body>
-        </html>
-        """
-
-        from_email = settings.DEFAULT_FROM_EMAIL
-        recipient_list = [attachment.sender]
-
-        send_mail(subject, text_message, from_email, recipient_list, html_message=html_message)
-
-        logger.info(f"{log_prefix} Successfully sent confirmation email to {attachment.sender} for attachment {attachment_id}.")
-        return f"Confirmation sent to {attachment.sender}."
-    except EmailAttachment.DoesNotExist:
-        logger.error(f"{log_prefix} Could not find EmailAttachment with ID {attachment_id} to send confirmation.")
-        # No retry needed, this is a permanent failure for this task instance.
-    except Exception as e:
-        # The `autoretry_for` decorator handles SMTP exceptions. We just need to log other errors.
-        logger.error(f"{log_prefix} An unexpected error occurred while sending confirmation for attachment {attachment_id}: {e}", exc_info=True)
-        raise  # Re-raise to let Celery mark the task as failed for non-retriable errors.
 
 @shared_task(
     bind=True,
@@ -110,37 +83,24 @@ def send_receipt_confirmation_email(self, attachment_id):
     retry_kwargs={'max_retries': 3}
 )
 def send_duplicate_invoice_email(self, attachment_id, booking_reference):
-    """
-    Sends an email to the original sender informing them that the document
-    they sent is a duplicate of an existing booking.
-    """
-    log_prefix = f"[Duplicate Email Task ID: {self.request.id}]"
-    logger.info(f"{log_prefix} Preparing to send duplicate booking notification for attachment ID: {attachment_id}")
-    try:
-        attachment = EmailAttachment.objects.get(pk=attachment_id)
-        if not attachment.sender:
-            logger.warning(f"{log_prefix} Attachment {attachment_id} has no sender email. Cannot send notification.")
-            return "Skipped: No sender email."
+    """Branded auto-reply: the document matches a booking we already have."""
+    from notifications.emailing import send_branded_email
 
-        subject = f"Duplicate Booking Document Detected: '{attachment.filename}'"
-        message = (
-            f"Dear Sender,\n\n"
-            f"This is an automated message to inform you that the document '{attachment.filename}' you sent appears to be a duplicate.\n\n"
-            f"A booking with the same reference number ({booking_reference}) already exists in our system.\n\n"
-            f"No further action is needed. If you believe this is an error, please contact our support team.\n\n"
-            f"Thank you,\n"
-            f"Kalai Safaris"
-        ) # Corrected brand name
-        from_email = settings.DEFAULT_FROM_EMAIL
-        recipient_list = [attachment.sender]
-        send_mail(subject, message, from_email, recipient_list)
-        logger.info(f"{log_prefix} Successfully sent duplicate booking email to {attachment.sender}.")
-        return f"Duplicate notification sent to {attachment.sender}."
-    except EmailAttachment.DoesNotExist:
-        logger.error(f"{log_prefix} Could not find EmailAttachment with ID {attachment_id} to send duplicate notification.")
-    except Exception as e:
-        logger.error(f"{log_prefix} An unexpected error occurred while sending duplicate notification for attachment {attachment_id}: {e}", exc_info=True)
-        raise
+    log_prefix = f"[Duplicate Email Task ID: {self.request.id}]"
+    attachment = EmailAttachment.objects.filter(pk=attachment_id).first()
+    if attachment is None:
+        logger.error(f"{log_prefix} EmailAttachment {attachment_id} not found.")
+        return "Skipped: not found."
+    to = _autoreply_target(attachment, log_prefix)
+    if not to:
+        return "Skipped: no auto-reply for this sender."
+    log = send_branded_email(
+        template='document_duplicate', to=to, auto_reply=True, key=f"doc-duplicate:{attachment.pk}",
+        subject=f"Re: {attachment.subject}" if attachment.subject else f"Booking {booking_reference} is already with us",
+        preheader=f"This matches booking {booking_reference}, which we already have.",
+        context={'filename': attachment.filename, 'booking_reference': booking_reference},
+    )
+    return f"Duplicate notification sent to {to}." if log else "Skipped: already sent."
 
 @shared_task(
     bind=True,

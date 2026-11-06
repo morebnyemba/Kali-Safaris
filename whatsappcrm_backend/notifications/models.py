@@ -70,3 +70,31 @@ class NotificationTemplate(models.Model):
         ordering = ['name']
         verbose_name = _("Notification Template")
         verbose_name_plural = _("Notification Templates")
+
+class EmailLog(models.Model):
+    """
+    Every customer email the system sends (or tried to). `key` makes a send
+    idempotent: a second send with the same key is skipped once one succeeded.
+    """
+    class Status(models.TextChoices):
+        SENDING = 'sending', _('Sending')
+        SENT = 'sent', _('Sent')
+        FAILED = 'failed', _('Failed')
+
+    key = models.CharField(max_length=200, unique=True, null=True, blank=True,
+                           help_text=_("Dedupe key, e.g. 'payment-receipt:<id>'. Blank = always send."))
+    template = models.CharField(max_length=80)
+    to_email = models.CharField(max_length=254)
+    subject = models.CharField(max_length=255)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.SENDING, db_index=True)
+    error = models.TextField(blank=True, default='')
+    booking = models.ForeignKey('customer_data.Booking', on_delete=models.SET_NULL, null=True, blank=True,
+                                related_name='email_logs')
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.template} → {self.to_email} ({self.status})"

@@ -1,0 +1,16 @@
+{% autoescape off %}Hi{% if first_name %} {{ first_name }}{% endif %},
+
+Thank you, we've received your payment.
+
+RECEIPT
+Amount: {{ payment.currency }} {{ payment.amount|floatformat:2 }}
+Paid with: {{ payment.get_payment_method_display }}
+Date: {{ payment.created_at|date:"j F Y, H:i" }}{% if payment.transaction_reference %}
+Payment reference: {{ payment.transaction_reference }}{% endif %}
+
+Booking reference: {{ booking.booking_reference }}
+Cruise: {{ booking.tour_name }}, {{ booking.start_date|date:"l j F Y" }}{% if departure %} · departs {{ departure }}{% endif %}
+Total: ${{ booking.total_amount|floatformat:2 }} · Paid so far: ${{ booking.amount_paid|floatformat:2 }}
+{% if balance %}Balance: ${{ balance|floatformat:2 }}, due {{ due_by|date:"j F Y" }}
+Pay the rest (all at once or in instalments, private link): {{ manage_url }}{% else %}Your booking is now fully paid.{% endif %}
+{% include "emails/_footer.txt" %}{% endautoescape %}

@@ -1,0 +1,13 @@
+{# Booking summary card. Expects `booking`; optional `departure`, `show_money`, `balance`, `due_by`. #}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0 0;border:1px solid #F1E4DA;border-radius:12px;background:#FFFCFA;font-size:14px;">
+  <tr><td style="padding:14px 18px 4px;color:{{ brand.muted }};width:44%;">Booking reference</td><td style="padding:14px 18px 4px;font-family:'Courier New',monospace;font-weight:bold;color:{{ brand.ink }};">{{ booking.booking_reference }}</td></tr>
+  <tr><td style="padding:4px 18px;color:{{ brand.muted }};">Cruise</td><td style="padding:4px 18px;font-weight:bold;color:{{ brand.ink }};">{{ booking.tour_name }}</td></tr>
+  {% if not hide_date %}<tr><td style="padding:4px 18px;color:{{ brand.muted }};">Date</td><td style="padding:4px 18px;color:{{ brand.ink }};">{{ booking.start_date|date:"l j F Y" }}{% if departure %}<br><span style="color:{{ brand.orange }};font-weight:bold;">Departs {{ departure }}</span>{% endif %}</td></tr>{% endif %}
+  <tr><td style="padding:4px 18px;color:{{ brand.muted }};">Guests</td><td style="padding:4px 18px;color:{{ brand.ink }};">{{ booking.number_of_adults }} adult{{ booking.number_of_adults|pluralize }}{% if booking.number_of_children %}, {{ booking.number_of_children }} child{{ booking.number_of_children|pluralize:"ren" }}{% endif %}</td></tr>
+  {% if show_money %}
+  <tr><td style="padding:4px 18px;color:{{ brand.muted }};">Total</td><td style="padding:4px 18px;color:{{ brand.ink }};">${{ booking.total_amount|floatformat:2 }}</td></tr>
+  <tr><td style="padding:4px 18px;color:{{ brand.muted }};">Paid so far</td><td style="padding:4px 18px;color:{{ brand.ink }};">${{ booking.amount_paid|floatformat:2 }}</td></tr>
+  {% if balance %}<tr><td style="padding:4px 18px 14px;color:{{ brand.red }};font-weight:bold;">Balance</td><td style="padding:4px 18px 14px;color:{{ brand.red }};font-weight:bold;">${{ balance|floatformat:2 }}{% if due_by %} · due {{ due_by|date:"j F Y" }}{% endif %}</td></tr>
+  {% else %}<tr><td style="padding:4px 18px 14px;color:#0F7B4F;font-weight:bold;">Balance</td><td style="padding:4px 18px 14px;color:#0F7B4F;font-weight:bold;">Fully paid ✓</td></tr>{% endif %}
+  {% else %}<tr><td colspan="2" style="padding:0 0 10px;"></td></tr>{% endif %}
+</table>

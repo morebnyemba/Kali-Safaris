@@ -1,0 +1,4 @@
+{% autoescape off %}Thank you for sending {{ filename }}.
+
+It matches booking {{ booking_reference }}, which is already in our system, so no further action is needed. If this was meant to be a new or changed booking, just reply and tell us what's different.
+{% include "emails/_footer.txt" %}{% endautoescape %}

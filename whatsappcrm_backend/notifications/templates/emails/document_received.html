@@ -1,0 +1,9 @@
+{% extends "emails/base.html" %}
+{% block eyebrow %}<p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:{{ brand.orange }};font-weight:bold;">Automatic reply</p>{% endblock %}
+{% block headline %}We've received your {% if filenames|length > 1 %}documents{% else %}document{% endif %}{% endblock %}
+{% block content %}
+<p style="margin:0;">Thank you for your email{% if original_subject %} “{{ original_subject }}”{% endif %}. This is an automatic confirmation that we've received:</p>
+<ul style="margin:10px 0 0;padding-left:18px;">{% for name in filenames %}<li>{{ name }}</li>{% endfor %}</ul>
+<p style="margin:12px 0 0;">Our team is processing {% if filenames|length > 1 %}them{% else %}it{% endif %} now and will get back to you if anything else is needed. There's no need to send {% if filenames|length > 1 %}them{% else %}it{% endif %} again.</p>
+{% endblock %}
+{% block footer_note %}This is an automatic reply — you'll only receive one per email you send us.{% endblock %}

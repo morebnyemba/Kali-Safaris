@@ -1,0 +1,8 @@
+{% extends "emails/base.html" %}
+{% block eyebrow %}<p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:{{ brand.orange }};font-weight:bold;">Automatic reply</p>{% endblock %}
+{% block headline %}We already have this booking{% endblock %}
+{% block content %}
+<p style="margin:0;">Thank you for sending <strong>{{ filename }}</strong>. It matches booking <strong style="font-family:'Courier New',monospace;">{{ booking_reference }}</strong>, which is already in our system — so no further action is needed.</p>
+<p style="margin:12px 0 0;">If this was meant to be a new or changed booking, just reply to this email and tell us what's different.</p>
+{% endblock %}
+{% block footer_note %}This is an automatic reply.{% endblock %}

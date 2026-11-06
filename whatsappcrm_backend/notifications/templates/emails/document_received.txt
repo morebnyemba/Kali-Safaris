@@ -1,0 +1,7 @@
+{% autoescape off %}Thank you for your email{% if original_subject %} "{{ original_subject }}"{% endif %}.
+
+This is an automatic confirmation that we've received:
+{% for name in filenames %}- {{ name }}
+{% endfor %}
+Our team is processing it now and will get back to you if anything else is needed. There's no need to send it again.
+{% include "emails/_footer.txt" %}{% endautoescape %}

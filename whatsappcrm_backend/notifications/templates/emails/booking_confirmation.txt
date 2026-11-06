@@ -1,0 +1,28 @@
+{% autoescape off %}Hi{% if first_name %} {{ first_name }}{% endif %},
+
+Your booking is confirmed. Thank you for booking with Kalai Safaris!
+
+Booking reference: {{ booking.booking_reference }}
+Cruise: {{ booking.tour_name }}
+Date: {{ booking.start_date|date:"l j F Y" }}{% if departure %}
+Departs: {{ departure }}{% endif %}
+Guests: {{ booking.number_of_adults }} adult{{ booking.number_of_adults|pluralize }}{% if booking.number_of_children %}, {{ booking.number_of_children }} child{{ booking.number_of_children|pluralize:"ren" }}{% endif %}{% if travelers %}
+Passengers: {% for t in travelers %}{{ t.name }}{% if not forloop.last %}, {% endif %}{% endfor %}{% endif %}
+Total: ${{ booking.total_amount|floatformat:2 }}
+Paid: ${{ booking.amount_paid|floatformat:2 }}{% if balance %}
+Balance: ${{ balance|floatformat:2 }}, due {{ balance_due_by|date:"j F Y" }}{% endif %}
+{% if balance or missing_ids %}
+STILL TO DO
+{% if balance %}- Pay the balance by {{ balance_due_by|date:"j F Y" }}, all at once or in instalments. If it isn't paid by then, the booking is moved off this cruise and your payment kept as credit for a new date.
+{% endif %}{% if missing_ids %}- Upload ID/passport photos for {{ missing_ids|join:", " }}.
+{% endif %}Manage your booking (private link, please don't share): {{ manage_url }}
+{% endif %}
+MEETING POINT
+{{ brand.address }}
+Please arrive 15 minutes before your departure. Directions: {{ brand.maps }}
+
+GOOD TO KNOW
+- The National Parks river usage fee is not included in the cruise price.
+- Bring a hat, sunscreen, a light jacket for evening cruises, a camera and binoculars.
+- Please quote {{ booking.booking_reference }} whenever you contact us.
+{% include "emails/_footer.txt" %}{% endautoescape %}

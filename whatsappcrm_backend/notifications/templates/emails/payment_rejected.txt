@@ -1,0 +1,8 @@
+{% autoescape off %}Hi{% if first_name %} {{ first_name }}{% endif %},
+
+Our finance team couldn't match the ${{ payment.amount|floatformat:2 }} {{ payment.get_payment_method_display|lower }} you reported for booking {{ booking.booking_reference }} to money received in our account.{% if reason %}
+
+Reason: {{ reason }}{% endif %}
+
+Nothing has changed on your booking. If you did pay, please reply with a clear photo of the payment confirmation (reference, amount and date visible), or pay securely online (private link): {{ manage_url }}
+{% include "emails/_footer.txt" %}{% endautoescape %}
