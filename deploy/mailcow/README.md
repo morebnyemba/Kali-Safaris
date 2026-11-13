@@ -21,7 +21,13 @@ free -h                                         # mailcow wants ~6 GB RAM (+ swa
 docker compose version                          # needs Compose v2
 ```
 
-- **Reverse DNS (PTR).** In your VPS provider's panel, set the server IP's PTR to `mail.kalaisafaris.com`. Without it, Gmail/Outlook will spam-folder you.
+- **Reverse DNS (PTR).** In your VPS provider's panel (Contabo: *Customer Panel → Reverse DNS Management*), set the server IP's PTR to `mail.kalaisafaris.com` once the `mail` A record exists. Without it, Gmail/Outlook will spam-folder you.
+- **Swap.** The app already uses ~4.5 GB of this 8 GB server; add 4 GB swap so mailcow can't trigger the out-of-memory killer:
+  ```bash
+  sudo fallocate -l 4G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+  echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+  ```
+- **IPv6.** If `ip -6 route show default` prints nothing, the server has no IPv6: set `ENABLE_IPV6=false` in `mailcow.conf` (step 2), or mailcow's network won't come up.
 - **Existing mailboxes.** If `@kalaisafaris.com` mail lives somewhere today (e.g. cPanel), don't change MX until you've copied it: mailcow → *Mailboxes → Sync jobs* pulls old mail over IMAP.
 
 ## 1. Install mailcow
