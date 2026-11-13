@@ -1,5 +1,7 @@
 // src/pages/admin/UsersCrudPage.jsx
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Pager from '@/components/app/Pager';
+import usePagedList from '@/lib/usePagedList';
 import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import { FiEdit2, FiMoreHorizontal, FiSearch, FiUserCheck, FiUserPlus, FiUsers, FiUserX } from 'react-icons/fi';
@@ -164,34 +166,18 @@ function UserDialog({ open, onOpenChange, user, roles, me, onSaved }) {
 
 export default function UsersCrudPage() {
   const { user: me } = useAuth();
-  const [users, setUsers] = useState([]);
-  const [count, setCount] = useState(0);
   const [roles, setRoles] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [debounced] = useDebounce(query, 300);
   const [dialog, setDialog] = useState({ open: false, user: null });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const [u, r] = await Promise.all([
-        adminApi.listUsers({ search: debounced || undefined, page_size: 100 }),
-        adminApi.listRoles({ page_size: 100 }),
-      ]);
-      setUsers(u.results);
-      setCount(u.count);
-      setRoles(r.results);
-    } catch (err) {
-      setError(apiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [debounced]);
+  const list = usePagedList((params) => adminApi.listUsers({ ...params, search: debounced || undefined }), [debounced]);
+  const { items: users, count, loading, error } = list;
+  const load = () => list.reload({ quiet: true });
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    adminApi.listRoles({ page_size: 100 }).then((r) => setRoles(r.results)).catch(() => setRoles([]));
+  }, []);
 
   const toggleActive = async (u) => {
     try {
@@ -264,6 +250,7 @@ export default function UsersCrudPage() {
             })}
           </ul>
         )}
+        {!error && users.length > 0 && <Pager page={list.page} pageSize={list.pageSize} count={count} onPage={list.setPage} noun="user" />}
       </div>
 
       <UserDialog open={dialog.open} user={dialog.user} roles={roles} me={me} onSaved={load} onOpenChange={(open) => setDialog((d) => ({ ...d, open }))} />

@@ -15,7 +15,9 @@ import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import InitialsAvatar from '@/components/app/InitialsAvatar';
 import StatusBadge from '@/components/app/StatusBadge';
-import { EmptyState, LoadingState } from '@/components/app/States';
+import { EmptyState, ErrorState, LoadingState } from '@/components/app/States';
+import Pager from '@/components/app/Pager';
+import usePagedList from '@/lib/usePagedList';
 import { contactsApi, inquiriesApi, profilesApi } from '@/lib/api';
 import { ordersApi } from '@/services/orders';
 import { ALL_COUNTRIES, COMMON_COUNTRIES, OTHER_COUNTRIES } from '@/lib/nationalities';
@@ -328,38 +330,19 @@ function ContactDetail({ contactId, onBack, onChanged }) {
 
 export default function ContactsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [contacts, setContacts] = useState([]);
-  const [count, setCount] = useState(0);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
   const [filter, setFilter] = useState(searchParams.get('filter') === 'needs_intervention' ? 'attention' : 'all');
   const selectedId = Number(searchParams.get('contactId')) || null;
 
-  const load = useCallback(async (pageToLoad = 1) => {
-    setLoading(true);
-    try {
-      const res = await contactsApi.list({
-        page: pageToLoad,
-        search: debouncedSearch || undefined,
-        needs_human_intervention: filter === 'attention' ? 'true' : undefined,
-      });
-      const results = res.data.results || [];
-      const visible = filter === 'blocked' ? results.filter((c) => c.is_blocked) : results;
-      setContacts((prev) => (pageToLoad === 1 ? visible : [...prev, ...visible]));
-      setCount(res.data.count ?? results.length);
-      setHasMore(Boolean(res.data.next));
-      setPage(pageToLoad);
-    } catch (err) {
-      toast.error(apiErrorMessage(err, "Couldn't load contacts"));
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedSearch, filter]);
-
-  useEffect(() => { load(1); }, [load]);
+  // All filters run on the server so counts and pages are exact.
+  const list = usePagedList((params) => contactsApi.list({
+    ...params,
+    search: debouncedSearch || undefined,
+    needs_human_intervention: filter === 'attention' ? 'true' : undefined,
+    is_blocked: filter === 'blocked' ? 'true' : undefined,
+  }), [debouncedSearch, filter]);
+  const { items: contacts, count, loading, error } = list;
 
   const select = (id) => {
     const next = new URLSearchParams(searchParams);
@@ -386,7 +369,7 @@ export default function ContactsPage() {
           </div>
         </div>
         <div className="flex-1 divide-y overflow-y-auto">
-          {loading && contacts.length === 0 ? <LoadingState label="Loading contacts…" /> : contacts.length === 0 ? (
+          {error ? <ErrorState message={error} onRetry={() => list.reload()} /> : loading && contacts.length === 0 ? <LoadingState label="Loading contacts…" /> : contacts.length === 0 ? (
             <EmptyState icon={FiUsers} title="No contacts found" description={search ? 'Try a different name or number.' : 'Customers appear here after they message you on WhatsApp.'} />
           ) : (
             <>
@@ -406,21 +389,15 @@ export default function ContactsPage() {
                   {c.is_blocked && <FiSlash className="size-4 shrink-0 text-destructive" aria-label="Blocked" />}
                 </button>
               ))}
-              {hasMore && (
-                <div className="p-3">
-                  <Button variant="outline" size="sm" className="w-full" onClick={() => load(page + 1)} disabled={loading}>
-                    {loading ? 'Loading…' : 'Load more'}
-                  </Button>
-                </div>
-              )}
             </>
           )}
         </div>
+        <Pager className="py-1.5" page={list.page} pageSize={list.pageSize} count={count} onPage={list.setPage} noun="contact" />
       </section>
 
       <section className={`${selectedId ? 'flex' : 'hidden md:flex'} min-w-0 flex-1 flex-col`} aria-label="Contact details">
         {selectedId ? (
-          <ContactDetail key={selectedId} contactId={selectedId} onBack={() => select(null)} onChanged={() => load(1)} />
+          <ContactDetail key={selectedId} contactId={selectedId} onBack={() => select(null)} onChanged={() => list.reload({ quiet: true })} />
         ) : (
           <EmptyState icon={FiUsers} title="Select a contact" description="See their profile, bookings and inquiries, or jump to their WhatsApp chat." className="m-auto" />
         )}

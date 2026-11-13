@@ -1,5 +1,5 @@
 // src/components/DashboardLayout.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   FiActivity, FiBarChart2, FiCalendar, FiChevronLeft, FiChevronRight, FiClipboard, FiCreditCard, FiGitBranch,
@@ -149,9 +149,30 @@ export default function DashboardLayout() {
 
   useEffect(() => setMobileOpen(false), [location.pathname]);
 
+  const menuButtonRef = useRef(null);
+  const closeButtonRef = useRef(null);
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
+  // Drawer behaves like a modal: Escape closes it, focus moves in and comes back,
+  // and widening to desktop closes it (otherwise the body scroll lock stays on
+  // behind the now-hidden drawer and the page can't scroll).
+  useEffect(() => {
+    if (!mobileOpen) return undefined;
+    const opener = menuButtonRef.current;
+    closeButtonRef.current?.focus();
+    const onKey = (e) => { if (e.key === 'Escape') setMobileOpen(false); };
+    const desktop = window.matchMedia('(min-width: 768px)');
+    const onWide = (e) => { if (e.matches) setMobileOpen(false); };
+    document.addEventListener('keydown', onKey);
+    desktop.addEventListener('change', onWide);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      desktop.removeEventListener('change', onWide);
+      if (opener && opener.offsetParent !== null) opener.focus();
+    };
   }, [mobileOpen]);
 
   const [, pageTitle = 'Dashboard', section = 'Overview'] = PAGE_TITLES.find(([prefix]) => location.pathname.startsWith(prefix)) || [];
@@ -197,7 +218,7 @@ export default function DashboardLayout() {
           <aside className="relative flex h-full w-72 max-w-[85%] flex-col bg-sidebar shadow-xl">
             <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-3">
               <BrandMark />
-              <button type="button" onClick={() => setMobileOpen(false)} className="rounded-md p-2 text-sidebar-foreground/80 hover:bg-sidebar-accent" aria-label="Close menu">
+              <button ref={closeButtonRef} type="button" onClick={() => setMobileOpen(false)} className="rounded-md p-2 text-sidebar-foreground/80 hover:bg-sidebar-accent" aria-label="Close menu">
                 <FiX className="size-5" />
               </button>
             </div>
@@ -208,7 +229,7 @@ export default function DashboardLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-6">
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+          <Button ref={menuButtonRef} variant="ghost" size="icon" className="md:hidden" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)} aria-label="Open menu">
             <FiMenu className="size-5" />
           </Button>
           {/* Breadcrumb: each page renders its own heading, so the bar stays quiet. */}

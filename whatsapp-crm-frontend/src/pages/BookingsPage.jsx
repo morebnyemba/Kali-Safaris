@@ -71,7 +71,7 @@ export default function BookingsPage() {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('q') || '');
   const [debouncedSearch] = useDebounce(search, 300);
   const [tours, setTours] = useState([]);
   const [manifestDate, setManifestDate] = useState(() => toIsoDate(new Date()));

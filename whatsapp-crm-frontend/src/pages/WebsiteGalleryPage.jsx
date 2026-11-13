@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import PageHeader from '@/components/app/PageHeader';
+import Pager from '@/components/app/Pager';
+import { useClientPage } from '@/lib/clientPaging';
 import { EmptyState, ErrorState, LoadingState } from '@/components/app/States';
 import { galleryApi } from '@/lib/api';
 import { apiErrorMessage } from '@/lib/format';
@@ -315,6 +317,8 @@ export default function WebsiteGalleryPage() {
   };
 
   const visibleCount = photos.filter((p) => p.is_active).length;
+  // The endpoint returns every photo (the counts above need them all); render 24 at a time.
+  const paged = useClientPage(photos, category, 24);
 
   return (
     <>
@@ -358,7 +362,7 @@ export default function WebsiteGalleryPage() {
         </div>
       ) : (
         <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {photos.map((p) => (
+          {paged.slice.map((p) => (
             <li key={p.id} className={`flex flex-col overflow-hidden rounded-xl border bg-card ${p.is_active ? '' : 'opacity-70'}`}>
               <button type="button" onClick={() => setEditing(p)} className="relative aspect-[4/3] overflow-hidden bg-muted" aria-label={`Edit ${p.caption || 'photo'}`}>
                 <img src={p.image_url} alt={p.caption || p.category_display} loading="lazy" className="size-full object-cover" />
@@ -394,6 +398,9 @@ export default function WebsiteGalleryPage() {
             </li>
           ))}
         </ul>
+      )}
+      {!loading && !error && (
+        <Pager className="mt-4 rounded-xl border bg-card" page={paged.page} pageSize={paged.pageSize} count={paged.count} onPage={paged.setPage} noun="photo" />
       )}
 
       <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onUploaded={load} defaultCategory={category} />

@@ -1,11 +1,12 @@
 // src/pages/admin/SystemAuditPage.jsx
-import React, { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { FiActivity, FiEdit2, FiPlusCircle, FiTrash2 } from 'react-icons/fi';
-import { Button } from '@/components/ui/button';
 import PageHeader from '@/components/app/PageHeader';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/app/States';
 import { adminApi } from '@/services/admin';
-import { apiErrorMessage, formatDateTime, formatRelative } from '@/lib/format';
+import Pager from '@/components/app/Pager';
+import usePagedList from '@/lib/usePagedList';
+import { formatDateTime, formatRelative } from '@/lib/format';
 
 const ACTIONS = {
   created: { icon: FiPlusCircle, tone: 'bg-success/10 text-success' },
@@ -55,43 +56,19 @@ export function AuditList({ entries }) {
 }
 
 export default function SystemAuditPage() {
-  const [entries, setEntries] = useState([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const load = useCallback(async (p = 1) => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await adminApi.listAudit({ page: p, page_size: 50 });
-      setEntries((prev) => (p === 1 ? res.results : [...prev, ...res.results]));
-      setHasMore(!!res.next);
-      setPage(p);
-    } catch (err) {
-      setError(apiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { load(1); }, [load]);
+  const list = usePagedList((params) => adminApi.listAudit(params), []);
+  const { items: entries, loading, error } = list;
 
   return (
     <>
       <PageHeader title="Audit log" description="Changes made through the Django admin site (records edited there bypass the dashboard’s checks)." />
       <div className="overflow-hidden rounded-xl border bg-card">
-        {error ? <ErrorState message={error} onRetry={() => load(1)} /> : loading && !entries.length ? <TableSkeleton rows={6} cols={3} /> : entries.length === 0 ? (
+        {error ? <ErrorState message={error} onRetry={() => list.reload()} /> : loading ? <TableSkeleton rows={6} cols={3} /> : entries.length === 0 ? (
           <EmptyState icon={FiActivity} title="Nothing recorded yet" />
         ) : (
           <>
             <AuditList entries={entries} />
-            {hasMore && (
-              <div className="border-t p-3 text-center">
-                <Button variant="ghost" size="sm" onClick={() => load(page + 1)} disabled={loading}>{loading ? 'Loading…' : 'Load older entries'}</Button>
-              </div>
-            )}
+            <Pager page={list.page} pageSize={list.pageSize} count={list.count} onPage={list.setPage} noun="entry" plural="entries" />
           </>
         )}
       </div>

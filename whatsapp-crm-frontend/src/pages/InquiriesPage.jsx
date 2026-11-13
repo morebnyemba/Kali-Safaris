@@ -1,5 +1,5 @@
 // src/pages/InquiriesPage.jsx
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import { FiClipboard, FiEdit2, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2 } from 'react-icons/fi';
@@ -15,6 +15,8 @@ import PageHeader from '@/components/app/PageHeader';
 import StatusBadge from '@/components/app/StatusBadge';
 import CustomerPicker from '@/components/app/CustomerPicker';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/app/States';
+import Pager from '@/components/app/Pager';
+import usePagedList from '@/lib/usePagedList';
 import { inquiriesApi } from '@/lib/api';
 import { apiErrorMessage, formatDate } from '@/lib/format';
 
@@ -34,9 +36,6 @@ const EMPTY_FORM = {
 const selectClass = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30';
 
 export default function InquiriesPage() {
-  const [inquiries, setInquiries] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
@@ -45,28 +44,13 @@ export default function InquiriesPage() {
   const [formError, setFormError] = useState('');
   const [saving, setSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await inquiriesApi.list({ page_size: 100, search: debouncedSearch || undefined });
-      setInquiries(res.data.results || res.data || []);
-    } catch (err) {
-      setError(apiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [debouncedSearch]);
-
-  useEffect(() => { load(); }, [load]);
-
-  const counts = useMemo(() => {
-    const c = { all: inquiries.length };
-    STATUSES.forEach((s) => { c[s.value] = inquiries.filter((i) => i.status === s.value).length; });
-    return c;
-  }, [inquiries]);
-
-  const visible = statusFilter === 'all' ? inquiries : inquiries.filter((i) => i.status === statusFilter);
+  // Filtered and paged on the server, so every inquiry is reachable however many there are.
+  const list = usePagedList(
+    (params) => inquiriesApi.list({ ...params, search: debouncedSearch || undefined, status: statusFilter === 'all' ? undefined : statusFilter }),
+    [debouncedSearch, statusFilter],
+  );
+  const { items: visible, setItems: setInquiries, loading, error } = list;
+  const load = () => list.reload({ quiet: true });
 
   const openNew = () => {
     setForm(EMPTY_FORM);
@@ -167,7 +151,9 @@ export default function InquiriesPage() {
               onClick={() => setStatusFilter(s.value)}
             >
               {s.label}
-              <span className="ml-1 rounded-full bg-background/60 px-1.5 text-xs tabular-nums text-muted-foreground">{counts[s.value] ?? 0}</span>
+              {statusFilter === s.value && !loading && (
+                <span className="ml-1 rounded-full bg-background/60 px-1.5 text-xs tabular-nums text-muted-foreground">{list.count}</span>
+              )}
             </Button>
           ))}
         </div>
@@ -244,6 +230,7 @@ export default function InquiriesPage() {
                 ))}
               </tbody>
             </table>
+            <Pager page={list.page} pageSize={list.pageSize} count={list.count} onPage={list.setPage} noun="inquiry" plural="inquiries" />
           </div>
         )}
       </div>
