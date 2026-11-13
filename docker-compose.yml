@@ -9,7 +9,9 @@ services:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5432:5432"
+      # Localhost only: the app reaches it over the Docker network; never expose it publicly
+      # (Docker publishes past the host firewall). Use an SSH tunnel for remote access.
+      - "127.0.0.1:5432:5432"
     restart: unless-stopped
 
   redis:
@@ -20,7 +22,8 @@ services:
       - redis_data:/data
       - ./redis.conf:/usr/local/etc/redis/redis.conf
     ports:
-      - "6379:6379"
+      # Localhost only (see db above): an exposed Redis is a common way servers get compromised.
+      - "127.0.0.1:6379:6379"
     restart: unless-stopped
 
   backend:
