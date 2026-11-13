@@ -174,6 +174,7 @@ class BookingViewSet(viewsets.ModelViewSet):
             'booking_confirmation': 'Booking confirmation', 'payment_receipt': 'Payment receipt',
             'balance_reminder': 'Balance reminder', 'booking_rescheduled': 'New date confirmed',
             'payment_rejected': 'Payment not verified',
+            'booking_statement': 'Booking & payment receipt',
         }
         return Response([
             {

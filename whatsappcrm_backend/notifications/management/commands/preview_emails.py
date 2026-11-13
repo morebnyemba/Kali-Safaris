@@ -48,6 +48,13 @@ def _samples():
         ('balance_reminder', 'moved', 'Your cruise is on hold — choose a new date', {**reminder, 'kind': 'moved', 'kind_is_moved': True}),
         ('booking_rescheduled', '', 'New date confirmed: Sunset Cruise', {**base, 'held_from_date': today + timedelta(days=8)}),
         ('payment_rejected', '', "We couldn't verify your payment", {**base, 'payment': Payment(amount=Decimal('90.00'), payment_method='bank_transfer'), 'reason': 'The amount has not reached our account yet.'}),
+        ('booking_statement', '', 'Your booking & payment receipt — Sunset Cruise', {**base, 'payments': [payment, payment]}),
+        ('staff_alert', 'payment', '[Kalai] Payment received USD 40.00 · BK-T003-20261220-1600', {
+            'headline': 'USD 40.00 received', 'intro': 'EcoCash (CBZ) payment for Sunset Cruise on 20 Dec 2026.', 'tone': 'success',
+            'sections': [('Payment', [('Amount', 'USD 40.00'), ('Method', 'CBZ - EcoCash'), ('Payment reference', 'KS-8F2C91A04B7D')]),
+                         ('Gateway transaction (CBZ / iVeri)', [('Bank reference', 'BR-445566'), ('Authorisation code', 'AUTH42'), ('EcoCash number', '263771234567')]),
+                         ('Booking', [('Booking reference', 'BK-T003-20261220-1600'), ('Customer', 'Ann Moyo'), ('Balance', 'USD 50.00')])],
+            'raw': '{\n  "BankReference": "BR-445566",\n  "ResultCode": "0"\n}', 'link': 'https://dashboard.kalaisafaris.com/payments?q=KS-8F2C91A04B7D'}),
         ('document_received', '', 'Re: Booking for 3 guests', {'filenames': ['Kalai booking.pdf', 'passports.jpg'], 'original_subject': 'Booking for 3 guests'}),
         ('document_duplicate', '', 'Re: Booking for 3 guests', {'filename': 'Kalai booking.pdf', 'booking_reference': 'BK-T003-20261220-1600'}),
     ]

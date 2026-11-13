@@ -143,3 +143,45 @@ class TemplateCatalogueTests(TestCase):
         queue_notifications_to_users(template_name='t_obj', group_names=['Ops'], template_context={'booking': booking, 'when': day})
         note = Notification.objects.get()
         self.assertIn('BK-OBJ', note.content)
+
+
+@override_settings(STAFF_ALERT_EMAILS=[], PUBLIC_SITE_URL='https://kalaisafaris.com')
+class BookingStatementTests(TestCase):
+    def setUp(self):
+        contact = Contact.objects.create(whatsapp_id='263771230666', name='Ann Moyo')
+        self.customer, _ = CustomerProfile.objects.get_or_create(contact=contact)
+        CustomerProfile.objects.filter(pk=self.customer.pk).update(first_name='Ann', email='ann@example.com')
+
+    def paid_booking(self, ref, days, email_after_payment=False):
+        day = timezone.localdate() + timedelta(days=days)
+        booking = Booking.objects.create(customer_id=self.customer.pk, tour_name='Sunset Cruise', start_date=day, end_date=day,
+                                         number_of_adults=1, total_amount=Decimal('100'), booking_reference=ref)
+        Traveler.objects.create(booking=booking, name='Ann Moyo', age=30, nationality='Zimbabwean', gender='female', id_number='A1')
+        Payment.objects.create(booking=booking, amount=Decimal('50'), status='successful', payment_method='omari', transaction_reference=f'OM-{ref}')
+        Booking.objects.filter(pk=booking.pk).update(payment_status='deposit_paid', confirmation_email_sent_at=timezone.now() if email_after_payment else None)
+        return booking
+
+    def run_cmd(self, *args):
+        from io import StringIO
+        from django.core.management import call_command
+        out = StringIO()
+        call_command('send_booking_statements', '--every', '0', *args, stdout=out)
+        return out.getvalue()
+
+    def test_once_per_paid_upcoming_booking(self):
+        self.paid_booking('BK-NEEDS', 20)
+        self.paid_booking('BK-TOLD', 20, email_after_payment=True)
+        self.paid_booking('BK-PAST', -5)
+        mail.outbox.clear()
+        out = self.run_cmd('--dry-run')
+        self.assertIn('Would queue 1', out)
+        self.assertIn('already emailed after the last payment', out)
+        self.assertEqual(mail.outbox, [])
+        self.run_cmd()
+        self.assertEqual(len(mail.outbox), 1)
+        statement = mail.outbox[0]
+        self.assertIn('BK-NEEDS', statement.subject)
+        self.assertIn('OM-BK-NEEDS', statement.body)       # each payment listed
+        self.assertIn('/manage/', statement.body)
+        self.assertIn('Queued 0', self.run_cmd())          # deploying again sends nothing
+        self.assertEqual(len(mail.outbox), 1)
