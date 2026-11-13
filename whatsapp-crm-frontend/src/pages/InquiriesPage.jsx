@@ -1,5 +1,6 @@
 // src/pages/InquiriesPage.jsx
 import React, { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import { FiClipboard, FiEdit2, FiMoreHorizontal, FiPlus, FiSearch, FiTrash2 } from 'react-icons/fi';
@@ -36,7 +37,12 @@ const EMPTY_FORM = {
 const selectClass = 'h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-xs dark:bg-input/30';
 
 export default function InquiriesPage() {
-  const [statusFilter, setStatusFilter] = useState('all');
+  // ?status=new opens a tab directly (sidebar badge, staff alert links).
+  const [searchParams] = useSearchParams();
+  const [statusFilter, setStatusFilter] = useState(() => {
+    const fromUrl = searchParams.get('status');
+    return STATUSES.some((st) => st.value === fromUrl) ? fromUrl : 'all';
+  });
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
   const [dialog, setDialog] = useState({ open: false, id: null });
@@ -114,6 +120,7 @@ export default function InquiriesPage() {
     setInquiries((list) => list.map((i) => (i.id === inq.id ? { ...i, status } : i)));
     try {
       await inquiriesApi.update(inq.id, { status });
+      window.dispatchEvent(new Event('nav-counts:refresh'));
     } catch (err) {
       setInquiries((list) => list.map((i) => (i.id === inq.id ? { ...i, status: previous } : i)));
       toast.error(apiErrorMessage(err));
