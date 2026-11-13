@@ -165,3 +165,35 @@ def check_and_send_24h_window_reminders():
             logger.info(f"Queued 24h window reminder for User ID: {user_id}.")
         
     return f"Successfully dispatched {dispatched_count} window expiry reminder(s)."
+
+# --- Staff alerts (see notifications/staff_alerts.py) ---
+
+_ALERT_RETRY = dict(bind=True, max_retries=6, autoretry_for=(Exception,), retry_backoff=60,
+                    retry_backoff_max=3600, retry_jitter=True)
+
+
+@shared_task(name='notifications.staff_payment_received', **_ALERT_RETRY)
+def staff_payment_received_task(self, payment_id):
+    from customer_data.models import Payment
+    from .staff_alerts import payment_received
+    payment = Payment.objects.select_related('booking__customer__contact').filter(pk=payment_id).first()
+    if payment is not None and payment.status == Payment.PaymentStatus.SUCCESSFUL:
+        payment_received(payment)
+
+
+@shared_task(name='notifications.staff_payment_pending', **_ALERT_RETRY)
+def staff_payment_pending_task(self, payment_id):
+    from customer_data.models import Payment
+    from .staff_alerts import payment_pending
+    payment = Payment.objects.select_related('booking__customer__contact').filter(pk=payment_id).first()
+    if payment is not None and payment.status == Payment.PaymentStatus.PENDING:
+        payment_pending(payment)
+
+
+@shared_task(name='notifications.staff_booking_event', **_ALERT_RETRY)
+def staff_booking_event_task(self, booking_id, event, extra_rows=None, key_suffix=''):
+    from customer_data.models import Booking
+    from .staff_alerts import booking_event
+    booking = Booking.objects.select_related('customer__contact').filter(pk=booking_id).first()
+    if booking is not None:
+        booking_event(booking, event, extra_rows=[tuple(r) for r in (extra_rows or [])], key_suffix=key_suffix)

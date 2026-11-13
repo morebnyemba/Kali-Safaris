@@ -6,6 +6,7 @@ from .views import (
     EngagementStatsAPIView,
     MessageVolumeAPIView,
     BookingStatsAPIView,
+    NavCountsAPIView,
 )
 
 app_name = 'stats_api'
@@ -18,4 +19,6 @@ urlpatterns = [
     path('engagement/', EngagementStatsAPIView.as_view(), name='engagement_stats'),
     path('messages/', MessageVolumeAPIView.as_view(), name='message_volume_stats'),
     path('bookings/', BookingStatsAPIView.as_view(), name='booking_stats'),
+    # Sidebar badges (polled by the dashboard)
+    path('nav-counts/', NavCountsAPIView.as_view(), name='nav_counts'),
 ]

@@ -19,6 +19,7 @@ urlpatterns = [
     path('', include(router.urls)),
     path('export/manifest/', views.export_booking_manifest, name='export_booking_manifest'),
     path('export/passenger-summary/', views.export_passenger_summary, name='export_passenger_summary'),
+    path('export/id-pack/', views.export_id_pack, name='export_id_pack'),
     path('manage/<str:token>/', views.ManageBookingView.as_view(), name='manage_booking'),
     path('manage/<str:token>/travelers/<uuid:traveler_id>/id/', views.ManageTravelerIdView.as_view(), name='manage_traveler_id'),
     path('manage/<str:token>/reschedule/', views.ManageRescheduleView.as_view(), name='manage_reschedule'),

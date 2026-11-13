@@ -1064,7 +1064,7 @@ def _create_human_handover_actions(contact: Contact, message_text: str) -> List[
     
     # Queue a WhatsApp notification to the admin team
     queue_notifications_to_users(
-        template_name='hanna_human_handover_flow',
+        template_name='human_handover_flow',
         group_names=["Technical Admin"],
         related_contact=contact,
         template_context={'last_bot_message': message_text}

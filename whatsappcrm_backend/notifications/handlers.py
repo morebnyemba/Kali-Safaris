@@ -22,7 +22,11 @@ def handle_failed_message_notification(sender, message_instance, **kwargs):
             template_name='message_send_failure',
             group_names=["Technical Admin"],
             related_contact=contact,
-            template_context={'message': message_instance}
+            template_context={
+                'contact_name': contact.name or contact.whatsapp_id, 'whatsapp_id': contact.whatsapp_id,
+                'message_type': getattr(message_instance, 'message_type', ''),
+                'error': str(getattr(message_instance, 'error_details', '') or getattr(message_instance, 'status', ''))[:300],
+            }
         )
     except Exception as e:
         logger.critical(

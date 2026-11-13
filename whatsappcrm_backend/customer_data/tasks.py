@@ -47,3 +47,9 @@ def send_booking_rescheduled_email_task(self, booking_id, held_from_date=None) -
 def send_payment_rejected_email_task(self, payment_id, reason='') -> bool:
     from .customer_emails import send_payment_rejected
     return bool(send_payment_rejected(payment_id, reason))
+
+
+@shared_task(name='customer_data.send_booking_statement_email', **_EMAIL_RETRY)
+def send_booking_statement_email_task(self, booking_id) -> bool:
+    from .customer_emails import send_booking_statement
+    return bool(send_booking_statement(booking_id))

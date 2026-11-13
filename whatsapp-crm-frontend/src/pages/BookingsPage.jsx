@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useDebounce } from 'use-debounce';
 import {
-  FiCalendar, FiChevronLeft, FiChevronRight, FiCopy, FiDownload, FiEdit2, FiLink, FiMoreHorizontal, FiPlus, FiRefreshCw, FiSearch, FiSend,
+  FiArchive, FiCalendar, FiChevronLeft, FiChevronRight, FiCopy, FiDownload, FiFileText, FiEdit2, FiLink, FiMoreHorizontal, FiPlus, FiRefreshCw, FiSearch, FiSend,
   FiTrash2, FiUsers,
 } from 'react-icons/fi';
 import { Button } from '@/components/ui/button';
@@ -71,7 +71,7 @@ export default function BookingsPage() {
   const [count, setCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(() => searchParams.get('q') || '');
   const [debouncedSearch] = useDebounce(search, 300);
   const [tours, setTours] = useState([]);
   const [manifestDate, setManifestDate] = useState(() => toIsoDate(new Date()));
@@ -279,6 +279,17 @@ export default function BookingsPage() {
     }
   };
 
+  const downloadIdPack = async (b, format) => {
+    setRowBusy(b.id);
+    try {
+      await ordersApi.downloadBookingIdPack(b, format);
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setRowBusy(null);
+    }
+  };
+
   // Passenger changes can confirm or hold the booking server-side: refresh the
   // table and keep the open form's status in sync so a stale value isn't re-sent.
   const handlePassengersChanged = async () => {
@@ -415,6 +426,12 @@ export default function BookingsPage() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => openEdit(b)}><FiEdit2 className="size-4" /> Edit & passengers</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => downloadIdPack(b, 'pdf')} disabled={rowBusy === b.id}>
+                              <FiFileText className="size-4" /> ID pack (PDF)
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => downloadIdPack(b, 'zip')} disabled={rowBusy === b.id}>
+                              <FiArchive className="size-4" /> ID images (ZIP)
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => downloadManifest(b)} disabled={rowBusy === b.id}>
                               <FiDownload className="size-4" /> Park manifest for {formatDate(b.start_date, 'd MMM')}
                             </DropdownMenuItem>

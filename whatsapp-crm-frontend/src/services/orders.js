@@ -4,6 +4,20 @@ import apiClient from '@/lib/api';
 const MANIFEST_ENDPOINTS = {
   park: { path: '/crm-api/customer-data/export/manifest/', filePrefix: 'booking_manifest' },
   summary: { path: '/crm-api/customer-data/export/passenger-summary/', filePrefix: 'passenger_summary' },
+  idpack: { path: '/crm-api/customer-data/export/id-pack/', filePrefix: 'id_pack' },
+};
+
+const EXTENSIONS = { excel: 'xlsx', pdf: 'pdf', zip: 'zip' };
+
+const saveBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 
 // Blob error bodies can't be read by the global error interceptor, so manifest
@@ -51,7 +65,7 @@ export const ordersApi = {
       throw new Error(await readBlobError(error));
     }
 
-    const extension = format === 'excel' ? 'xlsx' : 'pdf';
+    const extension = EXTENSIONS[format] || 'pdf';
     const url = URL.createObjectURL(response.data);
     const link = document.createElement('a');
     link.href = url;
@@ -61,5 +75,22 @@ export const ordersApi = {
     link.remove();
     // Give the browser a tick to start the download before revoking.
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  /**
+   * ID copies numbered like the park manifest, for one booking.
+   * @param {{id: number, booking_reference: string}} booking
+   * @param {'pdf'|'zip'} format
+   */
+  downloadBookingIdPack: async (booking, format = 'pdf') => {
+    let response;
+    try {
+      response = await apiClient.get(MANIFEST_ENDPOINTS.idpack.path, {
+        params: { booking: booking.id, format }, responseType: 'blob', suppressErrorToast: true,
+      });
+    } catch (error) {
+      throw new Error(await readBlobError(error));
+    }
+    saveBlob(response.data, `id_pack_${booking.booking_reference}.${EXTENSIONS[format]}`);
   },
 };

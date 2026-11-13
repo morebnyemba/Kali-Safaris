@@ -89,3 +89,56 @@ def send_payment_rejected(payment_id, reason=''):
         preheader='Nothing has changed on your booking — here is how to sort it out.',
         context=booking_context(booking, payment=payment, reason=reason),
     )
+
+
+# --- Booking statements: one receipt per booking listing every payment ---
+
+STATEMENT_STATUSES = (
+    Booking.PaymentStatus.DEPOSIT_PAID, Booking.PaymentStatus.PAID,
+    Booking.PaymentStatus.AWAITING_DETAILS, Booking.PaymentStatus.ON_HOLD,
+)
+_INFORMING_TEMPLATES = ('booking_confirmation', 'payment_receipt', 'booking_rescheduled', 'booking_statement')
+
+
+def statement_candidates(include_past=False):
+    """Bookings with money received that may still need a receipt (eligibility is re-checked per booking)."""
+    from django.db.models import Q
+    from django.utils import timezone
+
+    qs = Booking.objects.filter(payment_status__in=STATEMENT_STATUSES, amount_paid__gt=0).select_related('customer')
+    if not include_past:
+        qs = qs.filter(Q(start_date__gte=timezone.localdate()) | Q(payment_status=Booking.PaymentStatus.ON_HOLD))
+    return qs.order_by('start_date', 'pk')
+
+
+def statement_skip_reason(booking):
+    """Why this booking doesn't get a statement, or '' if it should."""
+    from notifications.models import EmailLog
+
+    if not customer_email(booking):
+        return 'no email address'
+    payments = booking.payments.filter(status=Payment.PaymentStatus.SUCCESSFUL)
+    last = payments.order_by('-created_at').values_list('created_at', flat=True).first()
+    if last is None:
+        return 'no successful payments'
+    if EmailLog.objects.filter(key=f'booking-statement:{booking.pk}', status=EmailLog.Status.SENT).exists():
+        return 'statement already sent'
+    informed = EmailLog.objects.filter(booking=booking, status=EmailLog.Status.SENT,
+                                       template__in=_INFORMING_TEMPLATES, sent_at__gte=last).exists()
+    if informed or (booking.confirmation_email_sent_at and booking.confirmation_email_sent_at >= last):
+        return 'already emailed after the last payment'
+    return ''
+
+
+def send_booking_statement(booking_id):
+    booking = Booking.objects.select_related('customer').filter(pk=booking_id).first()
+    if booking is None or statement_skip_reason(booking):
+        return None
+    payments = list(booking.payments.filter(status=Payment.PaymentStatus.SUCCESSFUL).order_by('created_at'))
+    return send_branded_email(
+        template='booking_statement', to=customer_email(booking), booking=booking,
+        key=f'booking-statement:{booking.pk}',
+        subject=f"Your booking & payment receipt — {booking.tour_name}, {booking.start_date:%d %b %Y} ({booking.booking_reference})",
+        preheader='Every payment we have received for your booking, and what is left to do.',
+        context=booking_context(booking, payments=payments),
+    )

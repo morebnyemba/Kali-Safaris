@@ -131,6 +131,7 @@ export default function PaymentsPage() {
     try {
       await paymentsApi.approve(p.id);
       toast.success('Payment approved — booking updated');
+      window.dispatchEvent(new Event('nav-counts:refresh'));
       setDetail(null);
       load({ quiet: true });
     } catch {
@@ -147,6 +148,7 @@ export default function PaymentsPage() {
     try {
       await paymentsApi.reject(p.id, reason.trim());
       toast.success('Payment rejected — customer notified');
+      window.dispatchEvent(new Event('nav-counts:refresh'));
       setRejecting(null);
       setDetail(null);
       load({ quiet: true });

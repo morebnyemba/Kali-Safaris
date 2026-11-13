@@ -10,6 +10,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
 import PageHeader from '@/components/app/PageHeader';
+import Pager from '@/components/app/Pager';
+import { fetchAllPages, useClientPage } from '@/lib/clientPaging';
 import { EmptyState, ErrorState, TableSkeleton } from '@/components/app/States';
 import { flowsApi } from '@/lib/api';
 import { apiErrorMessage, formatRelative } from '@/lib/format';
@@ -33,8 +35,7 @@ export default function FlowsPage() {
     setLoading(true);
     setError('');
     try {
-      const res = await flowsApi.list({ page_size: 100 });
-      setFlows(res.data.results || res.data || []);
+      setFlows(await fetchAllPages(flowsApi.list));
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {
@@ -56,6 +57,7 @@ export default function FlowsPage() {
     active: flows.filter((f) => f.is_active).length,
     inactive: flows.filter((f) => !f.is_active).length,
   }), [flows]);
+  const paged = useClientPage(visible, `${query}|${filter}`);
 
   const toggle = async (flow) => {
     setTogglingId(flow.id);
@@ -113,7 +115,7 @@ export default function FlowsPage() {
           />
         ) : (
           <ul className="divide-y">
-            {visible.map((flow) => (
+            {paged.slice.map((flow) => (
               <li key={flow.id} className="flex items-start gap-4 px-4 py-3 hover:bg-muted/40">
                 <div className="min-w-0 flex-1">
                   <Link to={`/flows/edit/${flow.id}`} className="font-medium hover:underline">{flow.name}</Link>
@@ -150,6 +152,7 @@ export default function FlowsPage() {
             ))}
           </ul>
         )}
+        {!loading && !error && <Pager page={paged.page} pageSize={paged.pageSize} count={paged.count} onPage={paged.setPage} noun="flow" />}
       </div>
     </>
   );

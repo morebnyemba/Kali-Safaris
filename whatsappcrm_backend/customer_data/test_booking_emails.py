@@ -8,7 +8,7 @@ from django.apps import apps
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.core import mail
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, TestCase, override_settings
 from django.utils import timezone
 
 from conversations.models import Contact
@@ -20,6 +20,7 @@ from .models import Booking, CustomerProfile, Traveler
 backfill = importlib.import_module('customer_data.migrations.0012_booking_confirmation_email_sent_at')
 
 
+@override_settings(STAFF_ALERT_EMAILS=[])  # customer emails only; staff alerts are tested in notifications
 class BookingConfirmationEmailTests(TestCase):
     def setUp(self):
         contact = Contact.objects.create(whatsapp_id='263771112233', name='Ann Moyo')

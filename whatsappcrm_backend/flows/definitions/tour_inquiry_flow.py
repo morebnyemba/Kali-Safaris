@@ -136,7 +136,7 @@ TOUR_INQUIRY_FLOW = {
                         "action_type": "send_group_notification",
                         "params_template": {
                             "group_names": ["Sales", "Admins"],
-                            "template_name": "hanna_new_tour_inquiry",
+                            "template_name": "new_tour_inquiry_alert",
                             "template_context": {
                                 "inquiry_id": "{{ created_inquiry.id }}",
                                 "customer_name": "{{ contact.name }}",

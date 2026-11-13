@@ -1,10 +1,8 @@
 // src/components/DashboardLayout.jsx
-import React, { useEffect, useState } from 'react';
-import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  FiActivity, FiBarChart2, FiCalendar, FiChevronLeft, FiChevronRight, FiClipboard, FiCreditCard, FiGitBranch,
-  FiHome, FiImage, FiLogOut, FiMenu, FiMessageSquare, FiMonitor, FiMoon, FiShield, FiSun,
-  FiUsers, FiX, FiSettings, FiUserCheck, FiList, FiGlobe,
+  FiChevronsLeft, FiChevronsRight, FiLogOut, FiMenu, FiMonitor, FiMoon, FiSun, FiX,
 } from 'react-icons/fi';
 import { Button } from './ui/button';
 import { Skeleton } from './ui/skeleton';
@@ -16,49 +14,7 @@ import { BRAND_ATTRIBUTION } from '@/config/appConfig';
 import { APP_ROLES, getRoleFromUser } from '@/lib/rbac';
 import { useTheme } from '@/lib/theme';
 import InitialsAvatar from './app/InitialsAvatar';
-
-const NAV_GROUPS = [
-  {
-    label: 'Overview',
-    items: [
-      { to: '/dashboard', label: 'Dashboard', icon: FiHome },
-      { to: '/analytics', label: 'Analytics', icon: FiBarChart2 },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { to: '/conversation', label: 'Inbox', icon: FiMessageSquare },
-      { to: '/bookings', label: 'Bookings', icon: FiCalendar },
-      { to: '/payments', label: 'Payments', icon: FiCreditCard },
-      { to: '/inquiries', label: 'Tour inquiries', icon: FiClipboard },
-      { to: '/contacts', label: 'Contacts', icon: FiUsers },
-    ],
-  },
-  {
-    label: 'Automation',
-    items: [
-      { to: '/flows', label: 'Flows', icon: FiGitBranch },
-      { to: '/media-library', label: 'Media library', icon: FiImage },
-    ],
-  },
-  {
-    label: 'Website',
-    items: [
-      { to: '/website-gallery', label: 'Gallery', icon: FiGlobe },
-    ],
-  },
-  {
-    label: 'Settings',
-    items: [
-      { to: '/api-settings', label: 'WhatsApp API', icon: FiSettings, roles: [APP_ROLES.ADMIN, APP_ROLES.MANAGER] },
-      { to: '/admin', label: 'Admin center', icon: FiShield, end: true, roles: [APP_ROLES.ADMIN, APP_ROLES.MANAGER] },
-      { to: '/admin/users', label: 'Users', icon: FiUserCheck, roles: [APP_ROLES.ADMIN] },
-      { to: '/admin/roles', label: 'Roles', icon: FiList, roles: [APP_ROLES.ADMIN] },
-      { to: '/admin/audit', label: 'Audit log', icon: FiActivity, roles: [APP_ROLES.ADMIN, APP_ROLES.MANAGER] },
-    ],
-  },
-];
+import { BrandMark, NAV_GROUPS, SidebarNav, useNavCounts } from './app/Sidebar';
 
 // Longest prefix wins, so /admin/users beats /admin and /flows/edit/3 maps to Flows.
 const PAGE_TITLES = [
@@ -74,84 +30,70 @@ const THEME_OPTIONS = [
   { value: 'system', label: 'System', icon: FiMonitor },
 ];
 
-function BrandMark({ collapsed }) {
-  return (
-    <Link to="/dashboard" className="flex min-w-0 items-center gap-2.5" aria-label="Kalai Safaris dashboard">
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-accent text-base font-bold text-white shadow-sm">
-        K
-      </span>
-      {!collapsed && (
-        <span className="min-w-0 leading-tight">
-          <span className="block truncate text-sm font-semibold text-sidebar-foreground">Kalai Safaris</span>
-          <span className="block truncate text-[11px] text-sidebar-foreground/60">Operations console</span>
-        </span>
-      )}
-    </Link>
-  );
-}
-
-function SidebarNav({ collapsed, role, onNavigate }) {
-  return (
-    <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4" aria-label="Main">
-      {NAV_GROUPS.map((group) => {
-        const items = group.items.filter((item) => !item.roles || item.roles.includes(role));
-        if (items.length === 0) return null;
-        return (
-          <div key={group.label}>
-            {!collapsed && (
-              <p className="mb-1.5 px-2 text-[11px] font-semibold uppercase tracking-wider text-sidebar-foreground/45">
-                {group.label}
-              </p>
-            )}
-            <ul className="space-y-0.5">
-              {items.map(({ to, label, icon: Icon, end }) => (
-                <li key={to}>
-                  <NavLink
-                    to={to}
-                    end={end}
-                    onClick={onNavigate}
-                    title={collapsed ? label : undefined}
-                    className={({ isActive }) => [
-                      'group flex h-9 items-center gap-3 rounded-md px-2.5 text-sm font-medium transition-colors',
-                      collapsed ? 'justify-center' : '',
-                      isActive
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-[inset_3px_0_0_var(--sidebar-primary)]'
-                        : 'text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
-                    ].join(' ')}
-                  >
-                    <Icon className="size-[18px] shrink-0" aria-hidden />
-                    {!collapsed && <span className="truncate">{label}</span>}
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
-    </nav>
-  );
-}
-
 export default function DashboardLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { mode, setMode } = useTheme();
   const role = getRoleFromUser(user);
+  // A saved choice wins; otherwise tablets (768–1023px) start on the icon rail so the page keeps its width.
   const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem('sidebarCollapsed') === 'true'; } catch { return false; }
+    try {
+      const saved = localStorage.getItem('sidebarCollapsed');
+      if (saved !== null) return saved === 'true';
+    } catch { /* ignore */ }
+    return typeof window !== 'undefined' && window.innerWidth < 1024;
   });
+  const userToggled = useRef(false);
+  const toggleCollapsed = () => { userToggled.current = true; setCollapsed((c) => !c); };
+  const counts = useNavCounts();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
+    if (!userToggled.current) return; // don't freeze the screen-size default into a preference
     try { localStorage.setItem('sidebarCollapsed', String(collapsed)); } catch { /* ignore */ }
   }, [collapsed]);
 
+  // Ctrl/⌘ + B toggles the sidebar (not while typing).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || e.shiftKey || e.key.toLowerCase() !== 'b') return;
+      const t = e.target;
+      if (t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      if (window.matchMedia('(min-width: 768px)').matches) toggleCollapsed();
+      else setMobileOpen((o) => !o);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   useEffect(() => setMobileOpen(false), [location.pathname]);
 
+  const menuButtonRef = useRef(null);
+  const closeButtonRef = useRef(null);
   useEffect(() => {
     document.body.style.overflow = mobileOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
+  }, [mobileOpen]);
+
+  // Drawer behaves like a modal: Escape closes it, focus moves in and comes back,
+  // and widening to desktop closes it (otherwise the body scroll lock stays on
+  // behind the now-hidden drawer and the page can't scroll).
+  useEffect(() => {
+    if (!mobileOpen) return undefined;
+    const opener = menuButtonRef.current;
+    closeButtonRef.current?.focus();
+    const onKey = (e) => { if (e.key === 'Escape') setMobileOpen(false); };
+    const desktop = window.matchMedia('(min-width: 768px)');
+    const onWide = (e) => { if (e.matches) setMobileOpen(false); };
+    document.addEventListener('keydown', onKey);
+    desktop.addEventListener('change', onWide);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      desktop.removeEventListener('change', onWide);
+      if (opener && opener.offsetParent !== null) opener.focus();
+    };
   }, [mobileOpen]);
 
   const [, pageTitle = 'Dashboard', section = 'Overview'] = PAGE_TITLES.find(([prefix]) => location.pathname.startsWith(prefix)) || [];
@@ -177,15 +119,22 @@ export default function DashboardLayout() {
         <div className={`flex h-16 items-center border-b border-sidebar-border px-3 ${collapsed ? 'justify-center' : 'justify-between'}`}>
           <BrandMark collapsed={collapsed} />
         </div>
-        <SidebarNav collapsed={collapsed} role={role} />
-        <div className="border-t border-sidebar-border p-3">
+        <SidebarNav collapsed={collapsed} role={role} counts={counts} />
+        <div className={`border-t border-sidebar-border ${collapsed ? 'p-2.5' : 'p-3'}`}>
           <button
             type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            className={`flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground ${collapsed ? 'justify-center' : ''}`}
+            onClick={toggleCollapsed}
+            title={collapsed ? 'Expand sidebar (Ctrl+B)' : undefined}
+            className={`flex h-9 w-full items-center gap-3 rounded-md px-2.5 text-sm text-sidebar-foreground/70 outline-none hover:bg-white/[0.06] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring ${collapsed ? 'justify-center px-0' : ''}`}
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-keyshortcuts="Control+B Meta+B"
           >
-            {collapsed ? <FiChevronRight className="size-[18px]" /> : <><FiChevronLeft className="size-[18px]" /> Collapse</>}
+            {collapsed ? <FiChevronsRight className="size-[18px]" /> : (
+              <>
+                <FiChevronsLeft className="size-[18px]" /> Collapse
+                <kbd className="ml-auto rounded border border-sidebar-border px-1.5 py-0.5 font-sans text-[10px] text-sidebar-foreground/50">Ctrl B</kbd>
+              </>
+            )}
           </button>
         </div>
       </aside>
@@ -193,22 +142,22 @@ export default function DashboardLayout() {
       {/* Mobile drawer */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <aside className="relative flex h-full w-72 max-w-[85%] flex-col bg-sidebar shadow-xl">
+          <div className="absolute inset-0 bg-black/50 animate-in fade-in-0" onClick={() => setMobileOpen(false)} />
+          <aside className="relative flex h-full w-72 max-w-[85%] flex-col bg-sidebar shadow-xl animate-in slide-in-from-left duration-200">
             <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-3">
               <BrandMark />
-              <button type="button" onClick={() => setMobileOpen(false)} className="rounded-md p-2 text-sidebar-foreground/80 hover:bg-sidebar-accent" aria-label="Close menu">
+              <button ref={closeButtonRef} type="button" onClick={() => setMobileOpen(false)} className="rounded-md p-2 text-sidebar-foreground/80 hover:bg-sidebar-accent" aria-label="Close menu">
                 <FiX className="size-5" />
               </button>
             </div>
-            <SidebarNav role={role} onNavigate={() => setMobileOpen(false)} />
+            <SidebarNav role={role} counts={counts} onNavigate={() => setMobileOpen(false)} />
           </aside>
         </div>
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 sm:px-6">
-          <Button variant="ghost" size="icon" className="md:hidden" onClick={() => setMobileOpen(true)} aria-label="Open menu">
+          <Button ref={menuButtonRef} variant="ghost" size="icon" className="md:hidden" aria-expanded={mobileOpen} onClick={() => setMobileOpen(true)} aria-label="Open menu">
             <FiMenu className="size-5" />
           </Button>
           {/* Breadcrumb: each page renders its own heading, so the bar stays quiet. */}

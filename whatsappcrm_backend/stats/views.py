@@ -119,9 +119,11 @@ class DashboardSummaryStatsAPIView(APIView):
 
     def _get_activity_log(self):
         """Compile a list of recent, notable activities."""
-        recent_new_contacts = Contact.objects.order_by('-first_seen')[:3]
-        recent_updated_flows = Flow.objects.order_by('-updated_at')[:2]
-        recent_handovers = Contact.objects.filter(needs_human_intervention=True).order_by('-intervention_requested_at')[:2]
+        recent_new_contacts = Contact.objects.exclude(first_seen=None).order_by('-first_seen')[:3]
+        recent_updated_flows = Flow.objects.exclude(updated_at=None).order_by('-updated_at')[:2]
+        # Flagged in bulk (admin action / .update()) leaves no request time: skip those rather than 500 the dashboard.
+        recent_handovers = Contact.objects.filter(needs_human_intervention=True).exclude(
+            intervention_requested_at=None).order_by('-intervention_requested_at')[:2]
         
         activity_log_for_frontend = []
         for contact_activity in recent_new_contacts:
@@ -385,3 +387,31 @@ class BookingStatsAPIView(BaseAnalyticsView):
             ],
             'series': sorted(series.values(), key=lambda r: r['date']),
         })
+
+
+class NavCountsAPIView(APIView):
+    """
+    The few numbers the dashboard sidebar shows as badges: what needs a person now.
+    One cheap request (four COUNTs, cached briefly) instead of a list call per page.
+    Each count matches the filter its page opens with, so badge and page agree.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+    CACHE_KEY = 'stats:nav-counts'
+    CACHE_SECONDS = 15
+
+    def get(self, request, *args, **kwargs):
+        from django.core.cache import cache
+        from customer_data.models import Booking, TourInquiry
+
+        data = cache.get(self.CACHE_KEY)
+        if data is None:
+            data = {
+                'inbox_attention': Contact.objects.filter(needs_human_intervention=True).count(),
+                'payments_pending': Payment.objects.filter(status=Payment.PaymentStatus.PENDING).count(),
+                'inquiries_new': TourInquiry.objects.filter(status=TourInquiry.InquiryStatus.NEW).count(),
+                'bookings_on_hold': Booking.objects.filter(payment_status=Booking.PaymentStatus.ON_HOLD).count(),
+                'bookings_awaiting_details': Booking.objects.filter(
+                    payment_status=Booking.PaymentStatus.AWAITING_DETAILS).count(),
+            }
+            cache.set(self.CACHE_KEY, data, self.CACHE_SECONDS)
+        return Response(data)

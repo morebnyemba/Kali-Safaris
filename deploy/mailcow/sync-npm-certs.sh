@@ -4,11 +4,28 @@
 # present the same valid certificate. Restarts mailcow's TLS services only
 # when the certificate actually changed. Safe to run from cron daily.
 #
-#   NPM_CERT_ID=3 ./sync-npm-certs.sh        # 3 = the NPM certificate id (SSL Certificates page)
+#   ./sync-npm-certs.sh                      # finds NPM's certificate for MAIL_HOSTNAME itself
+#   NPM_CERT_ID=3 ./sync-npm-certs.sh        # or name it (3 = npm-3 on NPM's SSL Certificates page)
 set -euo pipefail
 
 NPM_CONTAINER="${NPM_CONTAINER:-whatsappcrm_npm}"
-NPM_CERT_ID="${NPM_CERT_ID:?Set NPM_CERT_ID to the NPM certificate id (e.g. 3 for npm-3)}"
+MAIL_HOSTNAME="${MAIL_HOSTNAME:-mail.kalaisafaris.com}"
+if [ -z "${NPM_CERT_ID:-}" ] || ! [[ "$NPM_CERT_ID" =~ ^[0-9]+$ ]]; then
+  # Newest NPM certificate whose names include MAIL_HOSTNAME.
+  NPM_CERT_ID=""
+  for dir in $(docker exec "$NPM_CONTAINER" ls /etc/letsencrypt/live/ | grep -E '^npm-[0-9]+$' | sort -t- -k2 -n); do
+    if docker exec "$NPM_CONTAINER" cat "/etc/letsencrypt/live/$dir/fullchain.pem" \
+        | openssl x509 -noout -ext subjectAltName 2>/dev/null | grep -qw "DNS:$MAIL_HOSTNAME"; then
+      NPM_CERT_ID="${dir#npm-}"
+    fi
+  done
+  if [ -z "$NPM_CERT_ID" ]; then
+    echo "Nginx Proxy Manager has no certificate for $MAIL_HOSTNAME yet." >&2
+    echo "Create the proxy host (mail.kalaisafaris.com -> https nginx-mailcow:8443) with 'Request a new SSL Certificate', then run this again." >&2
+    exit 1
+  fi
+  echo "Using NPM certificate npm-$NPM_CERT_ID for $MAIL_HOSTNAME"
+fi
 MAILCOW_DIR="${MAILCOW_DIR:-/opt/mailcow-dockerized}"
 SSL_DIR="$MAILCOW_DIR/data/assets/ssl"
 TMP="$(mktemp -d)"

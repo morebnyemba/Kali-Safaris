@@ -1,0 +1,14 @@
+{% autoescape off %}STAFF ALERT: {{ headline }}
+{% if intro %}
+{{ intro }}
+{% endif %}{% for title, rows in sections %}
+{{ title|upper }}
+{% for label, value in rows %}  {{ label }}: {{ value }}
+{% endfor %}{% endfor %}{% if raw %}
+GATEWAY RESPONSE (card data redacted)
+{{ raw }}
+{% endif %}{% if link %}
+Open in dashboard: {{ link }}
+{% endif %}
+-- Internal staff alert, not sent to customers.
+{% endautoescape %}

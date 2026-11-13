@@ -142,3 +142,7 @@
   :root { color-scheme: light; }
   .dark { color-scheme: dark; }
 }
+/* Sidebar: thin, quiet scrollbar on the dark rail. */
+.sidebar-scroll { scrollbar-width: thin; scrollbar-color: color-mix(in oklch, var(--sidebar-foreground) 22%, transparent) transparent; }
+.sidebar-scroll::-webkit-scrollbar { width: 6px; }
+.sidebar-scroll::-webkit-scrollbar-thumb { background: color-mix(in oklch, var(--sidebar-foreground) 22%, transparent); border-radius: 9999px; }

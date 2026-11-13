@@ -174,6 +174,7 @@ class BookingViewSet(viewsets.ModelViewSet):
             'booking_confirmation': 'Booking confirmation', 'payment_receipt': 'Payment receipt',
             'balance_reminder': 'Balance reminder', 'booking_rescheduled': 'New date confirmed',
             'payment_rejected': 'Payment not verified',
+            'booking_statement': 'Booking & payment receipt',
         }
         return Response([
             {
@@ -515,3 +516,52 @@ class ManageRescheduleView(_ManageLinkView):
                 booking_id, held_from.isoformat() if held_from else None))
         booking.refresh_from_db()
         return Response(summary(booking))
+
+
+class IdPackExportView(APIView):
+    """
+    GET ?date=YYYY-MM-DD | ?booking=<id>   &format=pdf|zip
+    ID copies numbered like the park manifest: a printable PDF or a ZIP of the files.
+    """
+    permission_classes = [IsAuthenticated]
+    renderer_classes = [JSONRenderer]
+    content_negotiation_class = _FileExportNegotiation
+
+    def get(self, request):
+        from . import id_pack
+
+        fmt = (request.query_params.get('format') or 'pdf').lower()
+        if fmt not in ('pdf', 'zip'):
+            return Response({"error": "Invalid format. Use 'pdf' or 'zip'"}, status=status.HTTP_400_BAD_REQUEST)
+        booking_id = request.query_params.get('booking')
+        try:
+            if booking_id:
+                booking = Booking.objects.filter(pk=booking_id).first()
+                if booking is None:
+                    return Response({"error": "Booking not found."}, status=status.HTTP_404_NOT_FOUND)
+                entries = id_pack.entries_for_booking(booking)
+                title = f"ID pack · {booking.booking_reference}"
+                subtitle = f"{booking.tour_name} · {booking.start_date:%A %d %B %Y}" + (
+                    f" · {booking.departure_display}" if booking.start_time else '')
+                stem = f"id_pack_{booking.booking_reference}"
+            else:
+                try:
+                    day = datetime.strptime(request.query_params.get('date') or '', '%Y-%m-%d').date()
+                except ValueError:
+                    return Response({"error": "Give date=YYYY-MM-DD or booking=<id>."}, status=status.HTTP_400_BAD_REQUEST)
+                entries = id_pack.entries_for_date(day)
+                title = f"ID pack · {day:%d %B %Y}"
+                subtitle = f"Confirmed passengers on {day:%A %d %B %Y} ({len(entries)})"
+                stem = f"id_pack_{day.isoformat()}"
+        except ManifestIncompleteError as exc:
+            return Response({"error": str(exc), "bookings": [
+                {"booking_reference": ref, "problems": problems} for ref, problems in exc.bookings
+            ]}, status=status.HTTP_409_CONFLICT)
+        if not entries:
+            return Response({"error": "No passengers to include."}, status=status.HTTP_404_NOT_FOUND)
+        if fmt == 'zip':
+            return id_pack.response(id_pack.build_zip(entries, title), f"{stem}.zip", 'application/zip')
+        return id_pack.response(id_pack.build_pdf(entries, title, subtitle), f"{stem}.pdf", 'application/pdf')
+
+
+export_id_pack = IdPackExportView.as_view()

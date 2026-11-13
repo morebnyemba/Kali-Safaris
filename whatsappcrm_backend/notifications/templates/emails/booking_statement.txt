@@ -1,0 +1,16 @@
+{% autoescape off %}Hi{% if first_name %} {{ first_name }}{% endif %},
+
+Here is an up-to-date receipt for your booking, with every payment we've received.
+
+Booking reference: {{ booking.booking_reference }}
+Cruise: {{ booking.tour_name }}, {{ booking.start_date|date:"l j F Y" }}{% if departure %} · departs {{ departure }}{% endif %}
+Total: ${{ booking.total_amount|floatformat:2 }} · Paid: ${{ booking.amount_paid|floatformat:2 }}{% if balance %} · Balance: ${{ balance|floatformat:2 }}{% if booking.payment_status != 'on_hold' %}, due {{ due_by|date:"j F Y" }}{% endif %}{% endif %}
+
+PAYMENTS RECEIVED
+{% for p in payments %}- {{ p.created_at|date:"j M Y" }} · {{ p.get_payment_method_display }}{% if p.transaction_reference %} · {{ p.transaction_reference }}{% endif %} · {{ p.currency }} {{ p.amount|floatformat:2 }}
+{% endfor %}
+{% if booking.payment_status == 'on_hold' %}Your booking is on hold: what you've paid is kept as credit. Choose a new date (private link): {{ manage_url }}
+{% elif balance or missing_ids %}{% if missing_ids %}ID/passport photos still needed for {{ missing_ids|join:", " }}.
+{% endif %}Manage your booking (private link, please don't share): {{ manage_url }}
+{% else %}Your booking is fully paid. See you on the river!
+{% endif %}{% include "emails/_footer.txt" %}{% endautoescape %}

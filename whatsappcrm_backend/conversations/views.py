@@ -113,6 +113,10 @@ class ContactViewSet(viewsets.ModelViewSet):
                 elif needs_intervention_filter.lower() == 'false':
                     queryset = queryset.filter(needs_human_intervention=False)
 
+            blocked_filter = (self.request.query_params.get('is_blocked') or '').lower()
+            if blocked_filter in ('true', 'false'):
+                queryset = queryset.filter(is_blocked=blocked_filter == 'true')
+
         elif self.action == 'retrieve':
             # For the detail view, prefetch messages in chronological order
             queryset = queryset.prefetch_related(

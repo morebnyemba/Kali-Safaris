@@ -20,4 +20,12 @@ until python manage.py migrate --noinput; do
   sleep 5
 done
 
+# Customers who paid before receipts existed get one booking & payment receipt.
+# Idempotent (at most one per booking, ever), queued to Celery and spaced out, so
+# it never delays start-up or floods the mail server. Set
+# SEND_BOOKING_STATEMENTS_ON_DEPLOY=false to skip.
+if [ "${SEND_BOOKING_STATEMENTS_ON_DEPLOY:-true}" = "true" ]; then
+  python manage.py send_booking_statements || echo "send_booking_statements failed; continuing start-up." >&2
+fi
+
 exec daphne -b 0.0.0.0 -p 8000 whatsappcrm_backend.asgi:application

@@ -1,5 +1,7 @@
 // src/pages/MediaLibraryPage.jsx
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import Pager from '@/components/app/Pager';
+import usePagedList from '@/lib/usePagedList';
 import { toast } from 'sonner';
 import {
   FiCopy, FiFile, FiFilm, FiImage, FiMoreHorizontal, FiMusic, FiRefreshCw, FiSmile, FiTrash2, FiUpload,
@@ -147,27 +149,13 @@ function UploadDialog({ open, onOpenChange, onUploaded }) {
 }
 
 export default function MediaLibraryPage() {
-  const [assets, setAssets] = useState([]);
   const [type, setType] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
   const [uploadOpen, setUploadOpen] = useState(false);
   const [busyId, setBusyId] = useState(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const res = await mediaAssetsApi.list({ media_type: type || undefined, page_size: 100 });
-      setAssets(res.data.results || res.data || []);
-    } catch (err) {
-      setError(apiErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [type]);
-
-  useEffect(() => { load(); }, [load]);
+  const list = usePagedList((params) => mediaAssetsApi.list({ ...params, media_type: type || undefined }), [type], { pageSize: 24 });
+  const { items: assets, setItems: setAssets, loading, error } = list;
+  const load = () => list.reload({ quiet: true });
 
   const sync = async (asset) => {
     setBusyId(asset.id);
@@ -274,6 +262,9 @@ export default function MediaLibraryPage() {
             );
           })}
         </ul>
+      )}
+      {!loading && !error && (
+        <Pager className="mt-4 rounded-xl border bg-card" page={list.page} pageSize={list.pageSize} count={list.count} onPage={list.setPage} noun="file" />
       )}
 
       <UploadDialog open={uploadOpen} onOpenChange={setUploadOpen} onUploaded={load} />

@@ -1,0 +1,31 @@
+{% extends "emails/base.html" %}
+{% block eyebrow %}<p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:{{ brand.orange }};font-weight:bold;">Booking &amp; payment receipt</p>{% endblock %}
+{% block headline %}Your {{ booking.tour_name }} booking{% endblock %}
+{% block content %}
+<p style="margin:0;">Hi{% if first_name %} {{ first_name }}{% endif %}, here is an up-to-date receipt for your booking, with every payment we've received.</p>
+{% include "emails/_booking_details.html" with show_money=True due_by=due_by %}
+
+<h3 style="margin:22px 0 6px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:{{ brand.orange }};">Payments received</h3>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #F1E4DA;border-radius:10px;font-size:13px;">
+  <tr style="background:#FAF6F2;"><td style="padding:7px 12px;color:{{ brand.muted }};">Date</td><td style="padding:7px 12px;color:{{ brand.muted }};">Method · reference</td><td style="padding:7px 12px;color:{{ brand.muted }};text-align:right;">Amount</td></tr>
+  {% for p in payments %}
+  <tr><td style="padding:7px 12px;border-top:1px solid #F7EFE8;white-space:nowrap;">{{ p.created_at|date:"j M Y" }}</td>
+      <td style="padding:7px 12px;border-top:1px solid #F7EFE8;">{{ p.get_payment_method_display }}{% if p.transaction_reference %}<br><span style="font-family:'Courier New',monospace;font-size:11px;color:{{ brand.muted }};">{{ p.transaction_reference }}</span>{% endif %}</td>
+      <td style="padding:7px 12px;border-top:1px solid #F7EFE8;text-align:right;white-space:nowrap;font-weight:bold;">{{ p.currency }} {{ p.amount|floatformat:2 }}</td></tr>
+  {% endfor %}
+</table>
+
+{% if booking.payment_status == 'on_hold' %}
+<p style="margin:16px 0 0;">Your booking is <strong>on hold</strong>: the ${{ booking.amount_paid|floatformat:2 }} you've paid is kept as credit. Choose a new date on your booking page.</p>
+{% include "emails/_button.html" with url=manage_url label="Choose a new date" note="This link is private to your booking — please don't share it." %}
+{% elif balance or missing_ids %}
+<ul style="margin:16px 0 0;padding-left:18px;">
+  {% if balance %}<li>Balance <strong>${{ balance|floatformat:2 }}</strong>, due by <strong>{{ due_by|date:"j F Y" }}</strong> — pay all at once or in instalments.</li>{% endif %}
+  {% if missing_ids %}<li>ID/passport photos still needed for {{ missing_ids|join:", " }}.</li>{% endif %}
+</ul>
+{% include "emails/_button.html" with url=manage_url label="Manage my booking" note="This link is private to your booking — please don't share it." %}
+{% else %}
+<p style="margin:16px 0 0;"><strong>Your booking is fully paid.</strong> See you on the river!</p>
+{% endif %}
+{% endblock %}
+{% block footer_note %}Keep this email as your receipt.{% endblock %}

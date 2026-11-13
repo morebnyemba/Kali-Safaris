@@ -126,6 +126,9 @@ function ThreadItem({ contact, selected, onSelect }) {
   );
 }
 
+const CONTACTS_PAGE = 50;
+const MESSAGES_PAGE = 50;
+
 export default function ConversationsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -135,6 +138,10 @@ export default function ConversationsPage() {
   const [draft, setDraft] = useState('');
   const [attentionOnly, setAttentionOnly] = useState(searchParams.get('filter') === 'attention');
   const [loading, setLoading] = useState({ contacts: true, messages: false });
+  // Both lists load a page at a time: older threads / earlier messages on demand.
+  const [contactPaging, setContactPaging] = useState({ page: 1, more: false, count: 0 });
+  const [messagePaging, setMessagePaging] = useState({ page: 1, more: false, loadingOlder: false });
+  const keepScroll = useRef(false);
   const [search, setSearch] = useState('');
   const [debouncedSearch] = useDebounce(search, 300);
   const messagesEndRef = useRef(null);
@@ -159,15 +166,22 @@ export default function ConversationsPage() {
   const connection = CONNECTION[readyState];
   const live = readyState === ReadyState.OPEN;
 
-  const fetchContacts = useCallback(async () => {
+  const fetchContacts = useCallback(async (page = 1) => {
     setLoading((l) => ({ ...l, contacts: true }));
     try {
       const res = await contactsApi.list({
         search: debouncedSearch || undefined,
         needs_human_intervention: attentionOnly ? 'true' : undefined,
-        page_size: 100,
+        page,
+        page_size: CONTACTS_PAGE,
       });
-      setContacts(res.data.results || res.data || []);
+      const results = res.data.results || res.data || [];
+      setContacts((prev) => {
+        if (page === 1) return results;
+        const seen = new Set(prev.map((c) => c.id));
+        return [...prev, ...results.filter((c) => !seen.has(c.id))];
+      });
+      setContactPaging({ page, more: Boolean(res.data.next), count: res.data.count ?? results.length });
     } catch {
       toast.error("Couldn't load conversations");
     } finally {
@@ -175,7 +189,7 @@ export default function ConversationsPage() {
     }
   }, [debouncedSearch, attentionOnly]);
 
-  useEffect(() => { fetchContacts(); }, [fetchContacts]);
+  useEffect(() => { fetchContacts(1); }, [fetchContacts]);
 
   // Deep link from Contacts: /conversation?contactId=12
   useEffect(() => {
@@ -198,10 +212,11 @@ export default function ConversationsPage() {
     let cancelled = false;
     setLoading((l) => ({ ...l, messages: true }));
     const contactId = selectedContact.id;
-    contactsApi.listMessages(contactId, { page_size: 100 })
+    contactsApi.listMessages(contactId, { page: 1, page_size: MESSAGES_PAGE })
       .then((res) => {
         if (cancelled) return;
         setMessages([...(res.data.results || res.data || [])].reverse());
+        setMessagePaging({ page: 1, more: Boolean(res.data.next), loadingOlder: false });
         // Opening a thread reads it: clear the unread badge locally and on the server.
         setContacts((list) => list.map((c) => (c.id === contactId ? { ...c, unread_count: 0 } : c)));
         contactsApi.markRead(contactId).catch(() => {});
@@ -230,8 +245,30 @@ export default function ConversationsPage() {
   }, [lastJsonMessage, selectedContact?.id, setSelectedContact]);
 
   useEffect(() => {
+    if (keepScroll.current) { keepScroll.current = false; return; }
     messagesEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages]);
+
+  const loadOlderMessages = async () => {
+    const contactId = selectedContact?.id;
+    if (!contactId || messagePaging.loadingOlder) return;
+    const page = messagePaging.page + 1;
+    setMessagePaging((p) => ({ ...p, loadingOlder: true }));
+    try {
+      const res = await contactsApi.listMessages(contactId, { page, page_size: MESSAGES_PAGE });
+      if (selectedContact?.id !== contactId) return;
+      const older = [...(res.data.results || [])].reverse();
+      keepScroll.current = true; // stay where the agent is reading, don't jump to the newest message
+      setMessages((prev) => {
+        const seen = new Set(prev.map((m) => m.id)); // new messages shift page boundaries; drop repeats
+        return [...older.filter((m) => !seen.has(m.id)), ...prev];
+      });
+      setMessagePaging({ page, more: Boolean(res.data.next), loadingOlder: false });
+    } catch {
+      toast.error("Couldn't load earlier messages");
+      setMessagePaging((p) => ({ ...p, loadingOlder: false }));
+    }
+  };
 
   const stats = useMemo(() => ({
     unread: contacts.filter((c) => c.unread_count > 0).length,
@@ -286,9 +323,21 @@ export default function ConversationsPage() {
               title={attentionOnly ? 'Nobody is waiting for a human' : search ? 'No conversations match' : 'No conversations yet'}
               description={attentionOnly ? 'Customers the bot hands over will appear here.' : 'Messages to your WhatsApp number appear here.'}
             />
-          ) : contacts.map((c) => (
-            <ThreadItem key={c.id} contact={c} selected={selectedContact?.id === c.id} onSelect={selectContact} />
-          ))}
+          ) : (
+            <>
+              {contacts.map((c) => (
+                <ThreadItem key={c.id} contact={c} selected={selectedContact?.id === c.id} onSelect={selectContact} />
+              ))}
+              {contactPaging.more && (
+                <div className="p-3">
+                  <Button variant="outline" size="sm" className="w-full" disabled={loading.contacts}
+                    onClick={() => fetchContacts(contactPaging.page + 1)}>
+                    {loading.contacts ? 'Loading…' : `Show older conversations (${contacts.length} of ${contactPaging.count})`}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </section>
 
@@ -342,6 +391,13 @@ export default function ConversationsPage() {
               <EmptyState icon={FiMessageSquare} title="No messages yet" description="When this customer messages you, the conversation appears here." />
             ) : (
               <div className="space-y-2">
+                {messagePaging.more && (
+                  <div className="flex justify-center pb-2">
+                    <Button variant="outline" size="sm" onClick={loadOlderMessages} disabled={messagePaging.loadingOlder}>
+                      {messagePaging.loadingOlder ? 'Loading…' : 'Load earlier messages'}
+                    </Button>
+                  </div>
+                )}
                 {messages.map((m, i) => {
                   const prev = messages[i - 1];
                   const newDay = m.timestamp && (!prev?.timestamp || !isSameDay(parseISO(prev.timestamp), parseISO(m.timestamp)));
