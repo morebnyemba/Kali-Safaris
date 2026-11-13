@@ -194,14 +194,8 @@ Is everything correct?"""},
                             "notes": "Payment recorded via WhatsApp by {{ contact.name }}. Proof of payment image was uploaded by the user."
                         },
                         "save_to_variable": "created_payment"
-                    },
-                    {
-                        "action_type": "send_group_notification",
-                        "params_template": {
-                            "group_names": ["Finance Team", "System Admins"],
-                            "template_name": "manual_payment_recorded_alert"
-                        }
                     }
+
                 ]
             },
             "transitions": [{"to_step": "end_flow_success", "condition_config": {"type": "always_true"}}]

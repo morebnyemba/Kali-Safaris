@@ -194,6 +194,12 @@ EMAIL_TIMEOUT = int(os.getenv('EMAIL_TIMEOUT', 20))
 
 # Customer-facing website, used to build secure 'manage booking' links.
 PUBLIC_SITE_URL = os.getenv('PUBLIC_SITE_URL', 'https://kalaisafaris.com').rstrip('/')
+# Staff dashboard, linked from staff alert emails.
+DASHBOARD_URL = os.getenv('DASHBOARD_URL', 'https://dashboard.kalaisafaris.com').rstrip('/')
+# Staff alerts (payments, booking changes): emailed to these addresses (the reliable channel)
+# and sent on WhatsApp to these user groups (needs Meta-approved templates + linked contacts).
+STAFF_ALERT_EMAILS = [e.strip() for e in os.getenv('STAFF_ALERT_EMAILS', 'reservations@kalaisafaris.com').split(',') if e.strip()]
+STAFF_ALERT_GROUPS = [g.strip() for g in os.getenv('STAFF_ALERT_GROUPS', 'System Admins,Sales Team,Finance Team').split(',') if g.strip()]
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

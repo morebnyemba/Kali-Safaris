@@ -7,114 +7,99 @@ from notifications.models import NotificationTemplate
 
 # A list of all notification templates used throughout the application.
 # This makes them easy to manage and deploy.
+# Staff alerts sent on WhatsApp. Names must match what the code queues; staff
+# emails carry the same events with full detail (notifications/staff_alerts.py).
 NOTIFICATION_TEMPLATES = [
+    # --- Payments (notifications/staff_alerts.py) ---
     {
-        "name": "booking_moved_to_hold",
-        "description": "Sent to staff when an unpaid balance moves a booking off its cruise (seats released).",
+        "name": "staff_payment_received",
+        "description": "Every successful payment, for finance to cross-reference. Full gateway details are in the staff email.",
         "template_type": "whatsapp",
-        "body": """Booking moved to hold 📅
+        "body": """Payment received 💰
 
-*{{ booking_reference }}* ({{ tour_name }}, {{ start_date }}) still owed ${{ balance }} after its final notice, so it was taken off that cruise and its seats released.
+*{{ amount }}* via {{ method }}
+Ref: {{ payment_reference }}
 
-${{ amount_paid }} paid is kept as credit; the customer has been asked to choose a new date on their booking link. Bookings → *On hold* in the dashboard."""
+Booking *{{ booking_reference }}* · {{ customer }}
+{{ tour_name }} · {{ start_date }}
+Balance now: {{ balance }}
+
+Full gateway details are in the staff email."""
     },
     {
-        "name": "booking_hold_expired",
-        "description": "Sent to staff when a booking has been on hold for a long time without a new date.",
+        "name": "manual_payment_recorded_alert",
+        "description": "A customer reported a bank transfer / manual payment that needs verifying.",
         "template_type": "whatsapp",
-        "body": """On hold for {{ days }} days ⏳
+        "body": """Payment to verify 🧾
 
-*{{ booking_reference }}* ({{ tour_name }}, originally {{ start_date }}) still has no new date. ${{ amount_paid }} is held as credit — please follow up with the customer."""
+A customer reported *{{ amount }}* by {{ method }} for booking *{{ booking_reference }}*.
+
+Check it reached the account, then approve or reject it under Payments → Awaiting verification."""
+    },
+    # --- Bookings ---
+    {
+        "name": "staff_booking_update",
+        "description": "Booking events: new, confirmed, fully paid, awaiting details, on hold, rescheduled, cancelled, refunded.",
+        "template_type": "whatsapp",
+        "body": """{{ event }} 📋
+
+Booking *{{ booking_reference }}* · {{ customer }}
+{{ tour_name }} · {{ start_date }}
+Status: {{ status }}
+
+{{ details }}"""
     },
     {
-        "name": "booking_awaiting_traveler_details",
-        "description": "Sent to staff when a payment arrives for a booking whose passenger details are incomplete.",
+        "name": "new_tour_inquiry_alert",
+        "description": "A customer asked for a quote / custom tour on WhatsApp.",
         "template_type": "whatsapp",
-        "body": """Payment received — booking on hold ⚠️
+        "body": """New tour inquiry ✈️
 
-Booking *{{ booking_reference }}* ({{ tour_name }}, {{ start_date }}) was paid ({{ held_status }}) but is held as *Awaiting Passenger Details* and is NOT on the manifest.
+From: {{ contact }}
+Tour: {{ tour_name or 'custom tour' }}
+Dates: {{ start_date or 'not given' }}
 
-Missing:
-{{ problems }}
-
-Collect the details and add them to the booking — it confirms automatically once complete."""
+Follow up from Tour inquiries in the dashboard."""
     },
     {
-        "name": "hanna_new_tour_inquiry",
-        "description": "Sent to admins when a new tour inquiry is created.",
+        "name": "invoice_processed_successfully",
+        "description": "A partner's emailed booking document was read and turned into a booking.",
         "template_type": "whatsapp",
-        "body": """New Tour Inquiry! ✈️
+        "body": """Booking imported from email 📧
 
-A new tour inquiry has been submitted by *{{ customer.get_full_name or customer.contact.name }}*.
+{{ attachment.filename }} from {{ attachment.sender }}
+Booking *{{ booking.reference }}* · {{ booking.tour_name }} · {{ booking.start_date }}
+Customer: {{ customer.full_name or customer.contact_name }}"""
+    },
+    # --- Conversations and system ---
+    {
+        "name": "human_handover_flow",
+        "description": "A customer asked for (or was handed over to) a person in the WhatsApp inbox.",
+        "template_type": "whatsapp",
+        "body": """Customer needs a person ⚠️
 
-- Destinations: *{{ destinations }}*
-- Preferred Dates: *{{ preferred_dates }}*
-- Travelers: *{{ number_of_travelers }}*
+*{{ related_contact_name or contact }}* is waiting in the inbox.
+{{ last_bot_message or 'They asked to speak to someone.' }}
 
-Please see the admin panel for full details and follow up.""",
-        "buttons": [
-            {"type": "URL", "text": "View Inquiry", "url": "https://backend.kali-safaris.com/admin/customer_data/tourinquiry/{{ inquiry.id }}/change/"}
-        ]
+Reply to them from the dashboard Inbox."""
     },
     {
-        "name": "hanna_new_booking_created",
-        "description": "Sent to admins when a new booking is created.",
+        "name": "message_send_failure",
+        "description": "A WhatsApp message to a customer failed to send.",
         "template_type": "whatsapp",
-        "body": """New Booking Confirmed! 🎫
+        "body": """WhatsApp message failed ⚠️
 
-A new booking has been created for *{{ booking.customer.get_full_name or booking.customer.contact.name }}*.
-
-- Booking Ref: *{{ booking.booking_reference }}*
-- Tour: *{{ booking.tour_name }}*
-- Dates: *{{ booking.start_date|strftime('%d %b %Y') }}* to *{{ booking.end_date|strftime('%d %b %Y') }}*
-- Amount: *${{ booking.total_amount }}*
-
-Please see the admin panel for full details.""",
-        "buttons": [
-            {"type": "URL", "text": "View Booking", "url": "https://backend.kali-safaris.com/admin/customer_data/booking/{{ booking.id }}/change/"}
-        ]
+To: *{{ contact_name }}* ({{ whatsapp_id }})
+Type: {{ message_type }}
+Reason: {{ error }}"""
     },
     {
-        "name": "hanna_human_handover_flow",
-        "description": "Sent to admins when a user is handed over to a human agent by the flow engine.",
-        "template_type": "whatsapp",
-        "body": """Human Intervention Required ⚠️
-
-Contact *{{ related_contact_name }}* requires assistance.
-
-*Reason:*
-{{ last_bot_message }}
-
-Please respond to them in the main inbox.""",
-        "buttons": [
-            {"type": "QUICK_REPLY", "text": "Acknowledge"},
-            {"type": "URL", "text": "View Conversation", "url": "https://backend.kali-safaris.com/admin/conversations/contact/{{ related_contact.id }}/change/"}
-        ]
-    },
-    {
-        "name": "hanna_message_send_failure",
-        "description": "Sent to admins when a WhatsApp message fails to send.",
-        "template_type": "whatsapp",
-        "body": """Message Send Failure ⚠️
-
-Failed to send a message to *{{ related_contact_name }}*.
-
-*Reason:* {{ error_details }}
-
-Please check the system logs for more details."""
-    },
-    {
-        "name": "hanna_admin_24h_window_reminder",
-        "description": "Sent to an admin user when their 24-hour interaction window is about to close.",
+        "name": "admin_24h_window_reminder",
+        "description": "Sent to a staff user whose 24-hour WhatsApp window is about to close.",
         "template_type": "whatsapp",
         "body": """Hi {{ recipient.first_name or recipient.username }},
 
-This is an automated reminder. Your 24-hour interaction window for receiving system notifications on WhatsApp is closing soon.
-
-Please reply with "status" or any other command to keep the window open.""",
-        "buttons": [
-            {"type": "QUICK_REPLY", "text": "Reply Now"}
-        ]
+Your 24-hour window for receiving Kalai Safaris alerts on WhatsApp is closing. Reply to this message to keep receiving them."""
     },
 ]
 

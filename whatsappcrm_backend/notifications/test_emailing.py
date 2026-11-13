@@ -80,7 +80,7 @@ class AutomatedSenderTests(TestCase):
                 self.assertTrue(is_automated_message(self.msg(**headers)))
 
 
-@override_settings(PUBLIC_SITE_URL='https://kalaisafaris.com')
+@override_settings(PUBLIC_SITE_URL='https://kalaisafaris.com', STAFF_ALERT_EMAILS=[])
 class CustomerEmailTests(TestCase):
     def setUp(self):
         contact = Contact.objects.create(whatsapp_id='263771239001', name='Ann Moyo')

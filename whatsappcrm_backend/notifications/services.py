@@ -59,6 +59,11 @@ def queue_notifications_to_users(
                 render_context['flow'] = str(related_flow)
             
             final_message_body = render_template_string(template.message_body, render_context)
+            # Stored on Notification.template_context (a JSONField) and re-rendered at dispatch:
+            # model instances or dates passed by callers must not break the save.
+            import json
+            from django.core.serializers.json import DjangoJSONEncoder
+            render_context = json.loads(json.dumps(render_context, cls=DjangoJSONEncoder, default=str))
         except NotificationTemplate.DoesNotExist:
             logger.error(f"Notification template '{template_name}' not found. Cannot queue notifications.")
             return

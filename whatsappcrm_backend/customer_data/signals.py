@@ -59,3 +59,72 @@ def queue_payment_receipt(sender, instance, **kwargs):
     if booking is not None and receipt_wanted(instance):  # decided now: the confirmation email may follow this save
         payment_id = instance.pk
         transaction.on_commit(lambda: send_payment_receipt_email_task.delay(str(payment_id)))
+
+
+# --- Staff alerts: payments and booking changes (notifications/staff_alerts.py) ---
+
+from django.db.models.signals import pre_save
+
+@receiver(post_save, sender=Payment)
+def alert_staff_on_payment(sender, instance, created, **kwargs):
+    """Every successful payment (with its gateway details), and every reported payment that needs verifying."""
+    from django.db import transaction
+    from notifications.tasks import staff_payment_pending_task, staff_payment_received_task
+
+    payment_id = str(instance.pk)
+    if instance.status == Payment.PaymentStatus.SUCCESSFUL:
+        transaction.on_commit(lambda: staff_payment_received_task.delay(payment_id))  # deduped per payment
+    elif (created and instance.status == Payment.PaymentStatus.PENDING
+          and not str(instance.payment_method).startswith('paynow')):  # Paynow rows start pending, then the gateway confirms
+        transaction.on_commit(lambda: staff_payment_pending_task.delay(payment_id))
+
+
+@receiver(pre_save, sender=Booking)
+def remember_booking_state(sender, instance, **kwargs):
+    """Keep the row as it was, so post_save can tell what changed."""
+    previous = None
+    if instance.pk:
+        previous = Booking.objects.filter(pk=instance.pk).values(
+            'payment_status', 'start_date', 'start_time', 'amount_paid', 'booking_reference').first()
+    instance._previous_state = previous
+
+
+def _is_unpaid_draft(booking):
+    return str(booking.booking_reference or '').startswith('PENDING-') and not booking.amount_paid
+
+
+@receiver(post_save, sender=Booking)
+def alert_staff_on_booking_change(sender, instance, created, **kwargs):
+    from django.db import transaction
+    from notifications.tasks import staff_booking_event_task
+
+    S = Booking.PaymentStatus
+    events = []  # (event, extra_rows, key_suffix)
+    previous = getattr(instance, '_previous_state', None)
+    if created or previous is None:
+        if instance.source != Booking.BookingSource.EMAIL_IMPORT and not _is_unpaid_draft(instance):
+            events.append(('confirmed' if instance.payment_status in Booking.CONFIRMED_PAYMENT_STATUSES else 'new_booking', [], 'once'))
+    else:
+        old, new = previous['payment_status'], instance.payment_status
+        if old != new:
+            if new == S.PAID and old == S.DEPOSIT_PAID:
+                events.append(('fully_paid', [], 'once'))
+            elif new in Booking.CONFIRMED_PAYMENT_STATUSES and old not in Booking.CONFIRMED_PAYMENT_STATUSES and old != S.ON_HOLD:
+                events.append(('confirmed', [], 'once'))
+            elif new == S.AWAITING_DETAILS:
+                events.append(('awaiting_details', [('Missing', ' '.join(instance.traveler_details_problems()) or '—')], ''))
+            elif new == S.ON_HOLD:
+                events.append(('on_hold', [('Original date', str(instance.held_from_date or previous['start_date']))], ''))
+            elif new == S.CANCELLED and not _is_unpaid_draft(instance):
+                events.append(('cancelled', [('Previous status', S(old).label if old in S.values else old)], 'once'))
+            elif new == S.REFUNDED:
+                events.append(('refunded', [], 'once'))
+        moved = (previous['start_date'], previous['start_time']) != (instance.start_date, instance.start_time)
+        if moved and not _is_unpaid_draft(instance) and new not in (S.PENDING, S.CANCELLED):
+            was = f"{previous['start_date']}" + (f" {previous['start_time']:%H:%M}" if previous['start_time'] else '')
+            now = f"{instance.start_date}" + (f" {instance.start_time:%H:%M}" if instance.start_time else '')
+            events.append(('rescheduled', [('From', was), ('To', now)], f"{instance.start_date}-{instance.start_time}"))
+
+    booking_id = instance.pk
+    for event, rows, suffix in events:
+        transaction.on_commit(lambda e=event, r=rows, k=suffix: staff_booking_event_task.delay(booking_id, e, r, k))

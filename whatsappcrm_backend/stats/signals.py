@@ -110,20 +110,7 @@ def on_booking_change(sender, instance, created, **kwargs):
            instance.customer and \
            hasattr(instance.customer, 'contact') and \
            instance.customer.contact:
-            # Prepare data for the notification template.
-            # --- FIX: Flatten the context to match the template's expectations ---
-            template_context = {
-                'booking': instance,
-                'customer': instance.customer,
-            }
-            from notifications.services import queue_notifications_to_users
-            queue_notifications_to_users(
-                template_name='new_booking_created',
-                group_names=["System Admins", "Sales Team"],
-                related_contact=instance.customer.contact,
-                template_context=template_context
-            )
-            logger.info(f"Queued 'new_booking_created' notification for Booking ID {instance.pk}.")
+            # Staff are alerted by customer_data.signals.alert_staff_on_booking_change (email + WhatsApp).
 
             # The activity log is a simple Celery task and less likely to fail.
             activity_payload = {

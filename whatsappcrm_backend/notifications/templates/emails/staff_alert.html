@@ -1,0 +1,21 @@
+{% extends "emails/base.html" %}
+{% block eyebrow %}<p style="margin:0;font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:bold;color:{% if tone == 'success' %}#0F7B4F{% elif tone == 'warning' %}{{ brand.orange }}{% elif tone == 'danger' %}{{ brand.red }}{% else %}{{ brand.muted }}{% endif %};">Staff alert</p>{% endblock %}
+{% block headline %}{{ headline }}{% endblock %}
+{% block content %}
+{% if intro %}<p style="margin:0;">{{ intro }}</p>{% endif %}
+{% for title, rows in sections %}
+<h3 style="margin:22px 0 6px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:{{ brand.orange }};">{{ title }}</h3>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border:1px solid #F1E4DA;border-radius:10px;font-size:13px;">
+  {% for label, value in rows %}
+  <tr><td style="padding:6px 12px;color:{{ brand.muted }};width:40%;vertical-align:top;{% if not forloop.first %}border-top:1px solid #F7EFE8;{% endif %}">{{ label }}</td>
+      <td style="padding:6px 12px;color:{{ brand.ink }};font-family:{% if 'reference' in label|lower or 'ID' in label or 'code' in label|lower or 'index' in label|lower %}'Courier New',monospace{% else %}Arial,Helvetica,sans-serif{% endif %};word-break:break-all;{% if not forloop.first %}border-top:1px solid #F7EFE8;{% endif %}">{{ value }}</td></tr>
+  {% endfor %}
+</table>
+{% endfor %}
+{% if raw %}
+<h3 style="margin:22px 0 6px;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:{{ brand.orange }};">Gateway response (card data redacted)</h3>
+<pre style="margin:0;padding:10px 12px;background:#F7F4F1;border-radius:8px;font-size:11px;line-height:1.45;white-space:pre-wrap;word-break:break-all;color:#333333;">{{ raw }}</pre>
+{% endif %}
+{% if link %}{% include "emails/_button.html" with url=link label="Open in dashboard" %}{% endif %}
+{% endblock %}
+{% block footer_note %}Internal staff alert — not sent to customers.{% endblock %}

@@ -114,24 +114,6 @@ def _notify_customer(booking, kind, url, today):
     return reached
 
 
-def _notify_staff(template_name, booking, **extra):
-    def _send():
-        try:
-            from notifications.services import queue_notifications_to_users
-            contact = getattr(booking.customer, 'contact', None) if booking.customer_id else None
-            queue_notifications_to_users(
-                template_name=template_name, group_names=["System Admins", "Sales Team"], related_contact=contact,
-                template_context={
-                    'booking_reference': booking.booking_reference, 'tour_name': booking.tour_name,
-                    'start_date': (booking.held_from_date or booking.start_date).isoformat(),
-                    'amount_paid': f"{booking.amount_paid:.2f}", 'balance': f"{balance_due(booking):.2f}", **extra,
-                },
-            )
-        except Exception:
-            logger.exception("Staff alert %s failed for %s", template_name, booking.booking_reference)
-    transaction.on_commit(_send)
-
-
 def send_balance_reminders(today=None):
     """'upcoming' and 'final' notices. Returns the references reminded."""
     today = today or timezone.localdate()
@@ -175,7 +157,7 @@ def move_unpaid_to_hold(today=None):
             booking.held_payment_status = ''
             booking.save(update_fields=['held_from_date', 'held_from_time', 'held_at', 'payment_status',
                                         'held_payment_status', 'updated_at'])
-            _notify_staff('booking_moved_to_hold', booking)
+            # Staff are alerted by the booking post_save signal (status -> on hold).
         url = manage_url(booking)
         if not _notify_customer(booking, 'moved', url, today):
             logger.warning("Booking %s moved to hold but the customer couldn't be told", booking.booking_reference)
@@ -192,7 +174,10 @@ def alert_stale_holds(today=None):
     )
     refs = []
     for booking in stale:
-        _notify_staff('booking_hold_expired', booking, days=HOLD_CREDIT_DAYS)
+        from notifications.tasks import staff_booking_event_task
+        booking_id = booking.pk
+        transaction.on_commit(lambda: staff_booking_event_task.delay(
+            booking_id, 'hold_expired', [('On hold since', str(today - timedelta(days=HOLD_CREDIT_DAYS)))], 'once'))
         refs.append(booking.booking_reference)
     return refs
 

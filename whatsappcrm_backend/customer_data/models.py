@@ -401,7 +401,7 @@ class Booking(models.Model):
         if status in self.CONFIRMED_PAYMENT_STATUSES and problems:
             self.held_payment_status = status
             self.payment_status = self.PaymentStatus.AWAITING_DETAILS
-            self._queue_awaiting_details_alert(problems)
+            # Staff are alerted by customer_data.signals.alert_staff_on_booking_change.
             return ['payment_status', 'held_payment_status']
 
         if status == self.PaymentStatus.AWAITING_DETAILS and not problems:
@@ -417,35 +417,12 @@ class Booking(models.Model):
         return self.PaymentStatus.DEPOSIT_PAID
 
     def _queue_awaiting_details_alert(self, problems):
+        """Kept for callers outside this module; staff alerts now come from the post_save signal."""
         import logging
-        from django.db import transaction
-
-        logger = logging.getLogger(__name__)
-        logger.warning(
+        logging.getLogger(__name__).warning(
             "Booking %s held as awaiting passenger details (intended %s): %s",
             self.booking_reference, self.held_payment_status, " ".join(problems),
         )
-
-        def _notify():
-            try:
-                from notifications.services import queue_notifications_to_users
-                contact = getattr(self.customer, 'contact', None) if self.customer_id else None
-                queue_notifications_to_users(
-                    template_name='booking_awaiting_traveler_details',
-                    group_names=["System Admins", "Sales Team"],
-                    related_contact=contact,
-                    template_context={
-                        'booking_reference': self.booking_reference,
-                        'tour_name': self.tour_name,
-                        'start_date': self.start_date.isoformat() if self.start_date else '',
-                        'held_status': self.get_held_payment_status_display(),
-                        'problems': "\n".join(f"- {p}" for p in problems),
-                    },
-                )
-            except Exception:
-                logger.exception("Failed to queue awaiting-details alert for booking %s", self.booking_reference)
-
-        transaction.on_commit(_notify)
 
     def __str__(self):
         return f"Booking {self.booking_reference} for {self.customer}"
