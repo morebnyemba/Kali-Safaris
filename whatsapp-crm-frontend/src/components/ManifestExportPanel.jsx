@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { FileSpreadsheet, FileText, Loader2, Users, ShieldCheck } from 'lucide-react';
+import { FileArchive, FileSpreadsheet, FileText, IdCard, Loader2, Users, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -27,6 +27,18 @@ const MANIFESTS = [
     description: 'Crew headcount per booking group for seating and park fees.',
     icon: Users,
   },
+  {
+    kind: 'idpack',
+    title: 'ID pack',
+    description: 'Every passenger\'s ID copy, numbered like the park manifest: print the PDF, or download the files.',
+    icon: IdCard,
+    formats: [{ format: 'pdf', label: 'PDF', formatIcon: FileText }, { format: 'zip', label: 'ZIP', formatIcon: FileArchive }],
+  },
+];
+
+const DEFAULT_FORMATS = [
+  { format: 'pdf', label: 'PDF', formatIcon: FileText },
+  { format: 'excel', label: 'Excel', formatIcon: FileSpreadsheet },
 ];
 
 /**
@@ -90,8 +102,8 @@ export default function ManifestExportPanel({ date, onDateChange }) {
           ))}
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          {MANIFESTS.map(({ kind, title, description, icon }) => {
+        <div className="grid gap-3 md:grid-cols-3">
+          {MANIFESTS.map(({ kind, title, description, icon, formats = DEFAULT_FORMATS }) => {
             const Icon = icon;
             return (
             <div key={kind} className="rounded-lg border p-4 flex flex-col gap-3">
@@ -103,10 +115,7 @@ export default function ManifestExportPanel({ date, onDateChange }) {
                 </div>
               </div>
               <div className="flex gap-2">
-                {[
-                  { format: 'pdf', label: 'PDF', formatIcon: FileText },
-                  { format: 'excel', label: 'Excel', formatIcon: FileSpreadsheet },
-                ].map(({ format, label, formatIcon }) => {
+                {formats.map(({ format, label, formatIcon }) => {
                   const FormatIcon = formatIcon;
                   const isBusy = busy === `${kind}:${format}`;
                   return (
