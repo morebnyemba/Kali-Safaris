@@ -102,13 +102,13 @@ NPM admin (`http://SERVER_IP:81`) → **Hosts → Proxy Hosts → Add**:
   proxy_read_timeout 300s;
   ```
 
-Then give mailcow the same certificate for SMTP/IMAP. Find the certificate's id under **SSL Certificates** (hover → `npm-3` means id 3):
+Then give mailcow the same certificate for SMTP/IMAP (the script finds NPM's certificate for `mail.kalaisafaris.com` itself):
 
 ```bash
-sudo NPM_CERT_ID=3 /path/to/Kali-Safaris/deploy/mailcow/sync-npm-certs.sh
+sudo /path/to/Kali-Safaris/deploy/mailcow/sync-npm-certs.sh
 
 # Keep it in sync after NPM's automatic renewals (daily at 04:23):
-( sudo crontab -l 2>/dev/null; echo "23 4 * * * NPM_CERT_ID=3 /path/to/Kali-Safaris/deploy/mailcow/sync-npm-certs.sh >> /var/log/mailcow-cert-sync.log 2>&1" ) | sudo crontab -
+( sudo crontab -l 2>/dev/null; echo "23 4 * * * /path/to/Kali-Safaris/deploy/mailcow/sync-npm-certs.sh >> /var/log/mailcow-cert-sync.log 2>&1" ) | sudo crontab -
 ```
 
 ## 6. Domain and mailboxes
